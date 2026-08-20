@@ -1,0 +1,175 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # mise's rust backend tracks installs with symlinks, which windows-latest cannot
+  # create without Developer Mode, so Rust is installed with rustup instead.
+  MISE_DISABLE_TOOLS: rust
+  # Keep in sync with the `rust` pin in mise.toml -- the first step enforces this.
+  RUST_VERSION: "1.95.0"
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      # One platform breaking says nothing about the other two, and knowing
+      # which of them broke is the whole point of building all three.
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            # The oldest runner still supported, deliberately: a bundle links
+            # against the glibc it was built on, so building on the newest
+            # image is what stops it running on anything older.
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust-targets: x86_64-unknown-linux-gnu
+            artifact: totex-linux-x86_64
+          - name: Windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+            artifact: totex-windows-x86_64
+          - name: macOS
+            runner: macos-latest
+            # One download for both kinds of Mac: tauri builds each half and
+            # lipos them together, rather than asking at the download which
+            # processor the machine has.
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            artifact: totex-macos-universal
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify the Rust pin matches mise.toml
+        shell: bash
+        run: |
+          pinned=$(sed -n 's/^rust *= *{ *version *= *"\([^"]*\)".*/\1/p' mise.toml)
+          if [ "$pinned" != "$RUST_VERSION" ]; then
+            echo "::error file=mise.toml::mise.toml pins rust $pinned but this workflow uses $RUST_VERSION"
+            exit 1
+          fi
+
+      - name: Verify the tag names the version being built
+        # The version in the config is what goes into the installers' own file
+        # names, so a tag that disagrees with it ships downloads nobody can
+        # match against the release they came from.
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          declared=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
+          tagged=${GITHUB_REF_NAME#v}
+          if [ "$declared" != "$tagged" ]; then
+            echo "::error file=src-tauri/tauri.conf.json::tag $GITHUB_REF_NAME does not name version $declared"
+            exit 1
+          fi
+
+      - name: Install node, pnpm and task
+        uses: jdx/mise-action@v4
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.rust-targets }}
+
+      - name: Install what a Linux bundle is linked against
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            file
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          # Three platforms, three sets of artefacts, one cache otherwise.
+          key: ${{ matrix.target }}
+
+      - name: Install npm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the installers
+        # `tauri build` runs `pnpm build` first via beforeBuildCommand, which
+        # type-checks the frontend, so a type error fails this job too.
+        run: pnpm tauri build --target ${{ matrix.target }}
+
+      - name: Collect the installers
+        # Every platform bundles into its own subdirectories under one tree, so
+        # they are gathered into a single flat directory here and the two steps
+        # that follow are the same on all three.
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          find "src-tauri/target/${{ matrix.target }}/release/bundle" -type f \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
+               -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \) \
+            -not -name 'rw.*' \
+            -exec cp {} dist-release/ \;
+          if [ -z "$(ls -A dist-release)" ]; then
+            echo "::error::the build finished without producing an installer"
+            exit 1
+          fi
+          ls -l dist-release
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist-release/*
+          if-no-files-found: error
+
+  release:
+    name: Release
+    # A tag is a release; a push to main is a build somebody may want to look at.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      # The one job that writes anything back to the repository.
+      contents: write
+
+    steps:
+      - name: Take every platform's installers
+        uses: actions/download-artifact@v7
+        with:
+          path: dist-release
+          merge-multiple: true
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist-release/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          body: |
+            | Platform | Download |
+            | --- | --- |
+            | Windows | `.msi`, or `-setup.exe` |
+            | macOS | `.dmg` — Intel and Apple Silicon in the one file |
+            | Linux | `.AppImage`, `.deb` or `.rpm` |
+
+            None of these are code-signed. macOS holds a downloaded app in
+            quarantine until it is let out of it:
+            `xattr -dr com.apple.quarantine /Applications/totex.app`. Windows
+            SmartScreen says "unknown publisher" — More info, then Run anyway.
