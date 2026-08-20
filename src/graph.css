@@ -1,0 +1,1150 @@
+/**
+ * The canvas only.
+ *
+ * Everything with a chrome to it is MUI; what is left here is the graph itself,
+ * which is thousands of nodes and SVG paths — too many to give each one a
+ * styled wrapper. The colours are the theme's own, published as custom
+ * properties by `cssVariables`.
+ *
+ * Three words carry the whole file:
+ *
+ *   `cell`  one square of the grid, which is what a node is. The cell is a
+ *           position and nothing else: it draws nothing and takes no pointer.
+ *   `mark`  what is drawn in a cell — a dot, a ring, a row of buttons — and the
+ *           only part of it the pointer can reach. Everything else in the cell
+ *           is canvas: the lines run through it, they carry buttons of their
+ *           own, and dragging anywhere between two marks pans the graph.
+ *   `is-`   a state the graph is in, or one a node is in: `is-merging`,
+ *           `is-selected`, `is-picked`.
+ *
+ * The cells say `pointer-events: none` in `CELL_STYLE`, because React Flow
+ * writes that property inline on every node and only the node's own style
+ * outranks it. `.mark` is where it comes back.
+ *
+ * One rule holds over everything drawn here: nothing on the canvas may ask for
+ * a layer of its own. Zoom is a CSS scale on the one element the canvas hangs
+ * from, and WebKit draws a layer once, at the scale it had when it was made —
+ * so anything inside that asks the compositor for a layer takes the whole
+ * canvas with it, and the graph is then that drawing stretched to the zoom.
+ * Measured at 3x: one branch ring fading took a commit dot's edge from a single
+ * antialiased pixel to three, and the branch names went to mush.
+ *
+ * What asks for a layer is an `opacity` or `transform` animation while it runs,
+ * a transition of either while it runs, and a box with more in it than fits
+ * that can be scrolled. So the fades here are drawn in colour rather than in
+ * opacity, and the one card that holds more than it can show moves what is in
+ * it instead of scrolling. A colour that never moves is free: `opacity` as a
+ * flat value is fine, and only an animated one is not. `scratch/raster-check.html`
+ * is the page those readings came off.
+ */
+
+.graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+
+  /* How long anything on the canvas takes to appear or fade. */
+  --reveal: 90ms ease-out;
+  /* A ring of the canvas's own colour, so a line passing behind a mark stops
+     short of it instead of touching. */
+  --clearance: 0 0 0 3px var(--mui-palette-background-default);
+  /* Every line on the canvas, in the one colour: lines are the wiring between
+     the marks, and a hue apiece made them compete with the marks themselves.
+     `LINE_COLOR` is the layout's name for this one. */
+  --line: var(--mui-palette-text-secondary);
+  /* Every mark on the canvas, in the one colour: a commit, a branch head, a
+     folded repository, the fold a history ends at.
+
+     They carried a hue apiece, cycled by lane, on the reading that colour is
+     what makes parallel history legible. It is not: which line a mark is on is
+     said by the row it stands in and by the line running into it, and a lane's
+     hue says nothing that survives the same branch being laid out one row
+     further down tomorrow. What it did instead was spend the canvas's only
+     strong signal on nothing — a graph where a dozen marks shout cannot make
+     the two that mean something heard.
+
+     So colour is left to what names a thing rather than a position: the agent
+     working in a worktree, the work standing in a checkout, and a refusal.
+     Everything that is only history is this ink. */
+  --mark: var(--mui-palette-text-primary);
+  /* Under the cursor, and picked out by the cursor keys. */
+  --halo: 0 0 0 6px color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
+  --halo-selected: 0 0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+}
+
+/* ---------- the grid ---------- */
+
+.cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Marks carry `nopan` beside this class in the markup: pressing one is the
+   start of using it — clicking, or dragging a branch onto another — and React
+   Flow would otherwise read the same press as the start of a pan and slide the
+   canvas out from under it. */
+.mark {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+}
+
+/* A mark that stands on the cell's own centre, which is where the lines meet. */
+.mark--centred {
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- the repository band ---------- */
+
+/* Deliberately frameless: a heading and whitespace separate repositories. */
+.band {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* The name sits in the cell before the first commit, on the same line, and is
+   set against it so the eye runs straight from the name into the history. */
+.band__name {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 14px;
+  overflow: hidden;
+}
+
+/* The mark that takes the repository off the canvas, standing in the room the
+   name's own cell has spare rather than between the name and its history.
+
+   The band takes no pointer and everything in it inherits that, so the mark is
+   where it comes back — `nopan` beside it in the markup, because pressing a
+   button is not the start of a drag across the canvas. */
+.band__close {
+  display: flex;
+  flex: none;
+  align-items: center;
+  pointer-events: all;
+}
+
+/* ---------- a folder, and the repositories folded into it ---------- */
+
+/* A folder is one line whatever is in it: its name, a mark per repository that
+   is folded away, and the one button a directory answers to. What is opened out
+   is a band underneath and has left this row. */
+.folder {
+  position: relative;
+}
+
+/* The name is the control. Set in the same cell a repository's name takes and
+   drawn the same way, because the two are one column of names down the left of
+   the canvas — but this one is pressed to open the folder out, so it takes the
+   pointer back from the band and lights under the cursor. */
+.folder__name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+  pointer-events: all;
+  transition: color var(--reveal);
+}
+
+.folder__name:hover,
+.folder__name:focus-visible {
+  color: var(--mui-palette-text-primary);
+}
+
+/* Past everything the row holds, on the row's own line: the same button in the
+   same place a branch's row ends with. */
+.folder__tools {
+  position: absolute;
+  top: 0;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  pointer-events: all;
+}
+
+/* The name, then the ring: the order a band is read in, with the ring on the
+   right because that is the side every line arrives from. The whole cell is the
+   button — a ring on its own is a small thing to aim at, and the name beside it
+   is what the eye was going for anyway. */
+.repo-mark__row {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 8px 0 0;
+  border: none;
+  background: none;
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.repo-mark__name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hollow, the way a branch head is: a folded repository is a place the canvas
+   could go into rather than something that happened. It fills under the cursor,
+   which is the offer of opening it out. */
+.repo-mark__ring {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  /* The mark's own ink, not the faint colour the name beside it is set in: this
+     ring stands for a whole history, and everything working in that repository
+     ends on it. */
+  color: var(--mark);
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+  transition: background-color var(--reveal);
+}
+
+.repo-mark__row:hover,
+.repo-mark__row:focus-visible {
+  color: var(--mui-palette-text-primary);
+}
+
+.repo-mark__row:hover .repo-mark__ring,
+.repo-mark__row:focus-visible .repo-mark__ring {
+  background: currentcolor;
+}
+
+/* ---------- commits ---------- */
+
+/* A commit: a filled dot, because a commit is settled — a branch head beside it
+   is the same mark left hollow, which is the working copy still open. The whole
+   history is one path; see `CommitDots`.
+
+   The stroke is the canvas's own colour rather than paint: it is the clearance
+   every mark on this grid carries, so a line passing behind a dot stops short of
+   it instead of touching. */
+.commit-dots {
+  fill: var(--mark);
+  stroke: var(--mui-palette-background-default);
+  stroke-width: 6;
+}
+
+/* At least one parent is outside the history the repository handed over, so the
+   line really does end here: a stub off the back of the dot, saying it carries
+   on somewhere the graph was never given. Faint — it is the absence of history
+   rather than history. */
+.commit-boundaries {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 2;
+  stroke-opacity: 0.4;
+}
+
+/* Hover and selection are the exceptional one-at-a-time marks, drawn over the
+   batch only while they have something to say. */
+.commit-hover,
+.commit-selection {
+  fill: none;
+  stroke-width: 6;
+}
+
+.commit-hover {
+  stroke: color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
+}
+
+.commit-selection {
+  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+}
+
+.commit-pick {
+  fill: none;
+  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent);
+  stroke-width: 2;
+}
+
+/* The branch that is not there yet: drawn from the dot the cursor is on, out to
+   where its head would go.
+
+   One of these on the canvas rather than one per commit, drawn where the cursor
+   says: there is nothing to hide until there is something to show, and a
+   thousand hidden previews were a sixth of everything the engine was holding.
+   It never takes the pointer, so moving towards it cannot chase it away. */
+.ghost {
+  color: var(--line);
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.ghost path,
+.ghost circle {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.4;
+  stroke-dasharray: 3 3;
+  stroke-linecap: round;
+}
+
+/* ---------- branches ---------- */
+
+/* Where a branch is, and the handle for it: click it for what can be done with
+   its working directory, or drag it onto another head to merge.
+
+   A ring, not a dot — it marks a position, and a branch that was cut and never
+   committed to is an empty one — and hollow while there is nothing uncommitted
+   in it, so the canvas shows inside it rather than a disc of paper. */
+.head__ring {
+  padding: 0;
+  /* The canvas's ink arrives as the element's colour rather than as its border
+     colour, so that everything drawn from it — the dashes cut into an unopened
+     ring, the fade a busy one breathes — can be written as a mix of
+     `currentcolor` without naming the colour again. */
+  color: var(--mark);
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: var(--clearance);
+  /* What the ink inside the ring is drawn in — the shares, the dashes. It is
+     set here rather than on the drawing itself so that it is inherited, and so
+     a wait that breathes the ring's colour reaches both the border and the
+     ink; see `mark-working`. */
+  stroke: currentcolor;
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.head:hover .head__ring {
+  box-shadow: var(--clearance), var(--halo);
+}
+
+/* A branch that also exists on a remote keeps that fact beside its local
+   ring. The mark is only a reading: the ring remains the whole click target. */
+.head__remote {
+  position: absolute;
+  top: calc(50% - 13px);
+  left: calc(50% + 5px);
+  color: var(--mui-palette-text-secondary);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+/* Work in the copy the ring stands for, drawn on the ring's own rim: what has
+   arrived, what has been rewritten and what has gone, each holding the share of
+   the circle it holds of the files. The ring is the codebase, so the codebase is
+   what its line is made of — and the line is plain ink again once the work is
+   committed.
+
+   The border gives way to the arcs the node draws in its place: what those
+   shares are belongs to that worktree and not to the stylesheet, and the
+   colours are the node's too, since three of them cannot be laid along one
+   border. */
+.head__ring.is-dirty,
+.head__ring.is-unopened {
+  border-style: none;
+}
+
+/* Everything cut into the ring's line: the shares of what is uncommitted, and
+   the dashes of a branch with no worktree. Drawn as arcs of one stroked circle
+   standing where the border is, because a mask — which is what cut both of
+   them before — is a threshold and leaves an edge with no half-covered pixels
+   in it. See `rimOf` in `BranchHeadNode`. */
+.head__ring__ink {
+  position: absolute;
+  inset: 0;
+  fill: none;
+  /* The ring is the mark; the ink on it is a reading, and the press belongs to
+     the button underneath either way. */
+  pointer-events: none;
+}
+
+/* A refusal and a wait are read before what is uncommitted is: both say the ring
+   is in the middle of something, both are over in seconds, and what is
+   uncommitted will still be there to read afterwards. So they take the rim back
+   — the node stops drawing it — and the ring is the one ink again for as long
+   as they last. */
+.head__ring.is-dirty.is-busy,
+.head__ring.is-dirty.is-failed {
+  border-style: solid;
+}
+
+/* What a press on the ring could not do, on the ring it was pressed on.
+   Red and gone again in a couple of seconds: the graph did not move, and the
+   mark that was aimed at is the one that answers for it. Nothing is written —
+   a refusal the window could have known about beforehand is not offered in the
+   first place, so what is left here is only what git itself turned down. */
+.head__ring.is-failed {
+  /* The one thing that takes the ink off the ring: a refusal is read before the
+     branch it happened to, and it is over in a moment. */
+  color: var(--mui-palette-error-main);
+  animation: mark-refused 1.1s ease-out;
+}
+
+/* An operation still running on this branch — a merge landing on it, a history
+   rewrite. The ring is the thing being changed, so the ring is what waits.
+
+   The wait is breathed in colour rather than in opacity: an opacity animation
+   is run by the compositor, and one running anywhere on the canvas is what
+   turns the whole graph into a stretched drawing of itself. */
+.head__ring.is-busy {
+  animation: mark-working 1.4s ease-in-out infinite;
+}
+
+@keyframes mark-refused {
+  0%,
+  40% {
+    box-shadow:
+      var(--clearance),
+      0 0 0 3px color-mix(in srgb, var(--mui-palette-error-main) 45%, transparent);
+  }
+  100% {
+    box-shadow: var(--clearance);
+  }
+}
+
+/* Whichever of the two the ring is drawn with — the border, or the ink of a
+   branch that has no worktree — takes the same breath. Neither is `currentcolor`
+   itself: that is what the mix is made of, and a colour that moved would take
+   the dot the remote mark is drawn in with it. */
+@keyframes mark-working {
+  50% {
+    border-color: color-mix(in srgb, currentcolor 35%, transparent);
+    stroke: color-mix(in srgb, currentcolor 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head__ring.is-failed,
+  .head__ring.is-busy {
+    animation: none;
+  }
+}
+
+/* ---------- what can be done with a folder ---------- */
+
+/* The one button a folder's row ends with: a folder is a directory and nothing
+   else, so a terminal in it is the whole of what it offers. A branch answers
+   this with a stack of marks of its own beside it instead — see `.cli__row`.
+
+   Out at rest and full under the cursor, and the difference is drawn in the
+   three colours the button paints rather than in its opacity: an opacity that
+   moves is run by the compositor, and one running here would take the canvas
+   with it. A colour mixed with `transparent` is the same paint an opacity gave
+   — the canvas shows through the button exactly as far. */
+.tools__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  padding: 0;
+  border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 70%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--mui-palette-background-paper) 70%, transparent);
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 70%, transparent);
+  cursor: pointer;
+  transition:
+    color var(--reveal),
+    border-color var(--reveal),
+    background-color var(--reveal);
+}
+
+.tools__button:hover,
+.tools__button:focus-visible {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+}
+
+/* ---------- the history that is folded away ---------- */
+
+/* Standing where the rest of the history would be, at the left end of the row:
+   the count that is behind the fold, and the way to bring it back. Styled as
+   the branch's buttons are, because it is the same kind of thing — something
+   the graph is opened to do, out where it can be seen rather than found. */
+.collapse__more {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 16px;
+  padding: 0 5px 0 2px;
+  /* Faint at rest in colour rather than in opacity; see `.tools__button`. */
+  border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 75%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--mui-palette-background-paper) 75%, transparent);
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  /* The count is a handle as well as a reading, and a handle that is being
+     dragged must not take the text under it with it. */
+  user-select: none;
+  transition:
+    color var(--reveal),
+    border-color var(--reveal),
+    background-color var(--reveal);
+}
+
+/* The arrows are the mark; the pill round them is chrome, and stays faint. */
+.collapse__arrows {
+  color: var(--mark);
+}
+
+.collapse__more:hover,
+.collapse__more:focus-visible {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+}
+
+/* Held long enough to become a handle. The halo is what everything else on this
+   canvas wears when it is live under the cursor, and the cursor itself changes
+   shape — between them they say that the press has taken, which a border that
+   hover had already brought up could not. The width and the count are the
+   pull's own to write; see `useHistoryPull`. */
+.collapse__more.is-pulling {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--halo);
+  color: var(--mui-palette-text-secondary);
+  cursor: ew-resize;
+}
+
+/* ---------- what is running ---------- */
+
+/* One terminal, or the room for one. The same mark for all of them: an offer,
+   a terminal this window opened, and a terminal the sweep found somebody else
+   running were three shapes in two places, and they are one shape in one place
+   now — the stack standing on the branch each of them is working in, half of it
+   above that branch's line and half below.
+
+   The mark is the glyph and nothing else. There was a square round it, and the
+   square was doing the reading: a column of boxes reads as a list of labels
+   rather than as one kind of thing in one place, and taking the outline away
+   left the terminal itself, which is what the box was ever a container for.
+   Nothing here is drawn on paper either — the marks sit on the canvas, and the
+   lines are held off them by the clearance every mark on this grid carries.
+
+   What hangs off the glyph is what the glyph cannot say: the count on one side,
+   the mark that ends it on the other, and what it is doing underneath. All
+   three are placed against the glyph rather than laid out beside it, so the
+   glyph stays on the stack's own centre line whether or not this particular
+   terminal has any of them — and the fourth, the dot for the one the panel is
+   holding, sits on the glyph's own corner. */
+.cli__row {
+  display: flex;
+  /* `CLI_MARK` in the layout, which is what a line into one of these stops
+     short of: the glyph with a little clearance round it, and no more, because
+     there is no longer any paper to hide a line that came too far. */
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The terminal itself. A button for the two that answer to a press — the offer,
+   and this window's own — and a plain mark for somebody else's, which is a
+   reading and not a thing that can be done. */
+.cli__open {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+/* Faint at rest and full under the cursor, so that a stack of what is running
+   does not appear to hold one more than it does. In colour rather than in
+   opacity: an opacity that moves is run by the compositor, and one running on
+   the canvas would take the whole canvas with it. */
+.cli__open--offer {
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 45%, transparent);
+  transition: color var(--reveal);
+}
+
+.cli__open--offer:hover,
+.cli__open--offer:focus-visible {
+  color: var(--mui-palette-text-secondary);
+}
+
+/* Nothing can be done to a terminal somebody else opened, so nothing about it
+   invites a press and a drag that starts on it pans the canvas. */
+span.cli__open {
+  cursor: default;
+}
+
+/* Which terminal the panel is holding, on the top corner of its glyph.
+
+   The panel stands beside the canvas and says which session it is showing; what
+   it cannot say is where out here that session is standing, and a stack is one
+   glyph drawn over and over. So the dot is on the mark. The top right corner
+   because it is the one side nothing already hangs off — the state and the
+   count are underneath, the mark that ends the session is out to the right —
+   and it carries a hairline of the canvas's own colour, which is how everything
+   on this grid is held off whatever it is drawn over. */
+.cli__live {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mui-palette-success-main);
+  box-shadow: 0 0 0 1px var(--mui-palette-background-default);
+}
+
+/* What the sweep knows about a terminal, set under the glyph: what it is doing,
+   and how many agents it is running inside itself.
+
+   Under rather than beside. The line from the branch arrives on the left and
+   the mark that ends a session stands on the right, so both sides are spoken
+   for — and it is hung off the glyph rather than laid out with it, so that a
+   terminal carrying a dozen agents and one carrying none stand on the same
+   line. A stack is read down a single edge, and a number that shifted the glyph
+   would break it. */
+.cli__foot {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+  gap: 2px;
+  transform: translateX(-50%);
+}
+
+/* How many agents the terminal is running inside itself. The lines out of the
+   mark say where those agents are working; this says how many there are, which
+   is the half a line cannot carry when two of them are working in the same
+   place. */
+.chip__count {
+  color: var(--mui-palette-text-secondary);
+  font-size: 7px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* What it is doing, as a dot: the one thing about a terminal that changes while
+   it is being looked at. */
+.cli__state {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mui-palette-text-disabled);
+}
+
+.cli__state.is-busy {
+  background: var(--mui-palette-success-main);
+  animation: cli-pulse 1.6s ease-in-out infinite;
+}
+
+/* Amber: an agent that has stopped to ask something is the one thing on the
+   canvas that is somebody's turn. */
+.cli__state.is-waiting {
+  background: var(--mui-palette-warning-main);
+}
+
+.cli__state.is-unknown {
+  background: none;
+  box-shadow: inset 0 0 0 0.75px var(--mui-palette-text-disabled);
+}
+
+/* In colour, for the reason the fades here are: nothing on this canvas fades by
+   opacity. The dot sits on the canvas, so a mix towards it is the fade that was
+   there before. */
+@keyframes cli-pulse {
+  50% {
+    background: color-mix(
+      in srgb,
+      var(--mui-palette-success-main) 30%,
+      var(--mui-palette-background-default)
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cli__state.is-busy {
+    animation: none;
+  }
+}
+
+/* Ending a session is the one thing here that cannot be undone, so it is faint
+   until the cursor is on the mark — but its room is always held, out to the
+   side of the glyph, so a stack does not shuffle as the pointer runs down it. */
+.cli__end {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  /* Nothing but the mark is drawn here, so the mark's own colour is the whole
+     of what comes and goes — and a colour that moves, unlike an opacity, is not
+     run by the compositor. */
+  color: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color var(--reveal);
+}
+
+.cli:hover .cli__end,
+.cli__end:focus-visible {
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
+}
+
+/* Against the hovered mark as well, which is the only way to reach it, so that
+   this outranks the rule above rather than being overruled by it. */
+.cli:hover .cli__end:hover {
+  color: var(--mui-palette-error-main);
+}
+
+/* ---------- lines ---------- */
+
+/* The branch's name, set along its own curve. Lifted clear of the stroke by the
+   edge's `dy`, so the line it names never runs through it. */
+.edge__name {
+  fill: var(--line);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  opacity: 0.9;
+}
+
+/* What can be done to the history a line carries: folded away from here back.
+   Out of sight until the cursor is on that line — there is one of these per
+   commit, and a graph showing all of them at once would be a graph of buttons.
+   Coming back the other way is not on a line at all, because there is only ever
+   one folded end to a repository: see `.collapse__more`.
+
+   The stretch of line that brings the mark out is the button, not the mark: at
+   the scale a repository is usually read at the mark is a dot the size of a full
+   stop, and having to land on it once it appeared was as much of what left the
+   fold out of reach as never seeing it was. How wide that stretch is belongs
+   with the reason it is that wide, in `GraphLines` — it is counted in pixels of
+   screen rather than in units of the graph, and the canvas's own scale is what
+   turns the one into the other. */
+.edge__fold {
+  color: var(--line);
+  cursor: pointer;
+}
+
+.edge__hit {
+  fill: none;
+  stroke: transparent;
+  pointer-events: stroke;
+}
+
+/* The mark is only ever drawn for the line the cursor is already on — being
+   there is what it means — so there is nothing to reveal it on top of that.
+   It takes the pointer as well: once the canvas is zoomed in the disc reaches
+   further from the line than the stretch does, and a mark that let go of the
+   cursor at its own edge would flicker as it was aimed at. */
+.edge__mark {
+  pointer-events: all;
+}
+
+/* Arrows on the line, in the line's own colour, and no frame around them: a ring
+   drawn on a line reads as another node on that line, and this is a move, not a
+   place. The disc under them is canvas, so the line does not run through them. */
+.edge__mark__disc {
+  fill: var(--mui-palette-background-default);
+}
+
+.edge__mark__arrows {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.edge__mark:hover .edge__mark__arrows {
+  opacity: 1;
+}
+
+/* ---------- lines ---------- */
+
+/* Every line the graph draws, in one place and behind everything else.
+
+   The layer sits inside the canvas's own transform, so panning and zooming move
+   it with the marks and no line has to be redrawn to keep up. Negative z is
+   what puts it under the nodes: the marks are drawn over the lines that meet
+   them, which is what covers the last of a line at either end.
+
+   It takes no pointer at all. What a line offers is the fold, and that is drawn
+   only for the line the cursor is on — one stretch on the canvas rather than
+   one per commit. */
+.graph__lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Sized to everything the build laid out: an SVG root clips to its own box
+     whatever it is told about overflow, so a layer with no size of its own drew
+     nothing at all. Overflow is still let out, for the offer of a branch that
+     hangs a cell past the last of them. */
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The stretch the cursor is on, and the mark it brings out, are the one thing
+   in the layer that answers back. */
+.graph__lines .edge__fold {
+  pointer-events: auto;
+}
+
+/* ---------- react flow ---------- */
+
+.graph .react-flow__node {
+  cursor: default;
+}
+
+/* What a pan costs is not the drawing. It is the engine working out, on every
+   frame, what the cursor is over now and which layer everything belongs to — a
+   thousand cells is a thousand subtrees to walk for the first and a thousand
+   boxes to sort for the second, and neither has anything to do with the pixels
+   having moved.
+
+   Containment is the promise that lets the walk stop at the cell: what a cell
+   draws stays inside its own box, so a hit test that misses the box can skip
+   what is in it rather than walk it. Everything that hangs outside its own cell
+   is asked for the layout half only; the rules under this one name them.
+
+   Measured on this machine, 24 repositories / 1,130 nodes at 6x throttle, three
+   drags apiece: 36.8ms/frame to 32.6, p95 78-86ms to 54-61, and the hit test it
+   spends that on 1,120ms to 350ms. See `scratch/bench/ablate.mjs`, which turns
+   it back off. */
+.graph .react-flow__node {
+  contain: layout paint;
+}
+
+/* And the fold's count while it is being pulled: it stretches out to the left
+   across whatever cells are beside it, and the paint half would cut it off at
+   its own. There is one of these per repository against a cell per commit, so
+   what this gives up is a rounding error on what the rule above buys. */
+.graph .react-flow__node-collapse {
+  contain: layout;
+}
+
+/* ---------- file previews ---------- */
+
+/* Where a pinned card stands: over the canvas, in the pane's own pixels, out of
+   everything the canvas is doing. The layer is the whole pane so that a card
+   can be held anywhere on it, and lets the pointer through — what answers here
+   is the cards themselves, and the graph underneath answers for the rest. */
+.graph__pinned {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+
+.graph__pin {
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* The paint half is left off here alone: a card's grips sit on its edges, half
+   of each one outside the box, and contained paint would clip away the half
+   that is easiest to aim at. There are a handful of cards against a cell per
+   commit, so what the rule above buys is untouched. */
+.graph .react-flow__node-file-preview {
+  contain: layout;
+}
+
+/* Nothing is drawn for a grip. What says a card can be resized is the cursor
+   over the edge it already has — the same answer the panels give. Written
+   against the engine's own class as well, which is what its blue line and its
+   blue corner squares are set on. */
+.react-flow__resize-control.file-preview__edge {
+  border-color: transparent;
+}
+
+.react-flow__resize-control.file-preview__edge.left,
+.react-flow__resize-control.file-preview__edge.right {
+  width: 7px;
+}
+
+.react-flow__resize-control.file-preview__edge.top,
+.react-flow__resize-control.file-preview__edge.bottom {
+  height: 7px;
+}
+
+.react-flow__resize-control.file-preview__corner {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.file-preview {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 7px;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--mui-shadows-4);
+  color: var(--mui-palette-text-primary);
+}
+
+.file-preview__header {
+  display: flex;
+  min-height: 24px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 3px 0 8px;
+  border-bottom: 1px solid var(--mui-palette-divider);
+  background: color-mix(
+    in srgb,
+    var(--mui-palette-background-paper) 88%,
+    var(--mui-palette-primary-main)
+  );
+  cursor: grab;
+  user-select: none;
+}
+
+.file-preview__header:active {
+  cursor: grabbing;
+}
+
+/* A pinned card is lifted a little further off what is behind it, because what
+   is behind it is now the whole canvas rather than the cell it was standing on.
+   Its header is still the handle: the pin takes the card out of what the graph
+   is doing, not out of the reader's hands. */
+.file-preview.is-pinned {
+  box-shadow: var(--mui-shadows-8);
+}
+
+.file-preview.is-collapsed .file-preview__header {
+  border-bottom: 0;
+}
+
+.file-preview__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* There is more in the card than the file holds. A dot, because the header has
+   no room for a word and the window does not use them anyway; red once a write
+   has been refused, which is the same red as everything else that would not go
+   through. */
+.file-preview__unsaved {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--mui-palette-text-secondary);
+}
+
+.file-preview__unsaved.is-refused {
+  background: var(--mui-palette-error-main);
+}
+
+.file-preview__size,
+.file-preview__footer {
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.file-preview__button {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+}
+
+.file-preview__button:hover {
+  background: var(--mui-palette-action-hover);
+  color: var(--mui-palette-text-primary);
+}
+
+/* Clipped, not scrolled. A box with more in it than fits and a bar to reach the
+   rest of it is a scroller, and a scroller is a layer of its own — which would
+   draw the whole canvas at one scale and stretch it to the zoom, as the head of
+   this file has it. `clip` rather than `hidden`, because a hidden box is still
+   a scroller to the engine: it can be scrolled from script, and it is composited
+   for it. What is in the box is moved by `FilePreviewNode` instead. */
+.file-preview__body {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: clip;
+}
+
+/* How far the reading has been moved, and how much of it is being shown. There
+   is no scrollbar to say either now, and a card that can be moved with nothing
+   to say so reads as a card that is showing the whole file. Drawn only while
+   there is somewhere to move: the rails are given a length of zero otherwise. */
+.file-preview__reach {
+  position: absolute;
+  z-index: 2;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mui-palette-text-disabled) 70%, transparent);
+  pointer-events: none;
+}
+
+.file-preview__reach--y {
+  top: 0;
+  right: 2px;
+  width: 3px;
+}
+
+.file-preview__reach--x {
+  bottom: 2px;
+  left: 0;
+  height: 3px;
+}
+
+.file-preview__code {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+/* The size is the card's to say — Ctrl and a plus or a minus moves it, and
+   `useReadingSize` holds where it has got to. The fallback here is what a
+   reading was always drawn at, and what it is drawn at again if it is ever
+   rendered outside a card. */
+.file-preview__gutter,
+.file-preview__text {
+  margin: 0;
+  padding: 10px 0;
+  font:
+    var(--reading-size, 11px) / 1.55 ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* The numbers stay where they are while the reading is moved sideways: a line
+   is being counted from its own end, and a gutter that has slid off the left
+   leaves nothing to count against. It is given the move back rather than being
+   made sticky, because nothing here is scrolling for sticky to hold against. */
+.file-preview__gutter {
+  z-index: 1;
+  flex: none;
+  padding-right: 8px;
+  padding-left: 10px;
+  border-right: 1px solid var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+  text-align: right;
+  user-select: none;
+}
+
+.file-preview__text {
+  /* Grown into whatever the card has left over, so that the whole of the box
+     under the reading answers to a click rather than only the lines
+     themselves. Never shrunk: a long line is what the card is moved across. */
+  flex: 1 0 auto;
+  padding-right: 14px;
+  padding-left: 10px;
+}
+
+/* A reading that can be typed into. React Flow says `user-select: none` on
+   every node it draws, and an editable box that cannot be selected cannot be
+   worked in either — this is where the reading takes it back. No focus ring:
+   the caret says which card is being typed into, and a ring around the reading
+   would be a second box drawn inside the card. */
+.file-preview__text.is-editable {
+  cursor: text;
+  outline: none;
+  user-select: text;
+}
+
+.file-preview__message {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--mui-palette-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-preview__message.is-error {
+  color: var(--mui-palette-error-main);
+}
+
+.file-preview__footer {
+  flex: none;
+  padding: 4px 10px;
+  border-top: 1px solid var(--mui-palette-divider);
+  text-align: right;
+}
+
+/* Where the cursor keys have walked to, while Ctrl is held. A ring around the
+   whole cell rather than around the mark in it: the cells are the grid being
+   walked, and a ring on a dot the size of a full stop is hard to follow. */
+.react-flow__node.is-picked {
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent);
+}
+
+.react-flow__controls {
+  box-shadow: var(--mui-shadows-3);
+}
+
+.react-flow__controls-button {
+  border-bottom-color: var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  fill: var(--mui-palette-text-primary);
+}
+
+/* ---------- while a merge is being aimed ---------- */
+
+/* Only the two ends change while a merge is aimed. Fading the whole SVG made
+   Chromium allocate and rasterise a graph-sized composited layer at pointer
+   down — the pause before the drag moved, and the same texture blur that the
+   old pan promotion caused. Two rings carry the same message without touching
+   the history layer. */
+.graph .head.is-merge-source .head__ring {
+  opacity: 0.55;
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.graph .head.is-merge-target .head__ring {
+  box-shadow: var(--clearance), var(--halo-selected);
+}
+
+.graph.is-merging .head__ring {
+  cursor: grabbing;
+}

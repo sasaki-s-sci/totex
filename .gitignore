@@ -1,0 +1,60 @@
+node_modules/
+/dist
+/src-tauri/target
+/src-tauri/gen/schemas
+
+# `tauri icon` emits mobile icon sets this desktop app does not use.
+/src-tauri/icons/android
+/src-tauri/icons/ios
+
+# Vite's pre-bundle cache and machine-local env overrides.
+.vite/
+*.local
+.env
+.env.*
+!.env.example
+
+# Playwright MCP writes console logs and page snapshots here while driving the UI.
+/.playwright-mcp
+/test-results
+/playwright-report
+
+# Claude Code's per-directory write journal and machine-local settings.
+.claude/.cc-writes/
+.claude/settings.local.json
+
+# Throwaway harnesses, one-off benchmark scripts, captured screenshots.
+# Park them under /scratch instead of the repo root.
+/scratch
+*.log
+
+# Editor and OS noise.
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+
+# The sandbox bind-mounts an empty read-only file over each of these, so they
+# cannot be deleted from inside a session and show up as untracked noise.
+# Drop a line here if the path ever needs to hold real content.
+/.bashrc
+/.bash_profile
+/.profile
+/.zshrc
+/.zprofile
+/.gitconfig
+/.gitmodules
+/.ripgreprc
+/.mcp.json
+/.vscode
+/.claude/agents
+/.claude/commands
+/.claude/hooks
+/.claude/skills
+/.claude/workflows
+/.claude/routines
+/.claude/output-styles
+/.claude/launch.json
+/.claude/loop.md
+/.claude/scheduled_tasks.json
+/.claude/settings.json

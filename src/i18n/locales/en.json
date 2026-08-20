@@ -1,0 +1,73 @@
+{
+  "window": {
+    "minimise": "Minimise",
+    "maximise": "Maximise",
+    "restore": "Restore",
+    "close": "Close"
+  },
+  "resize": {
+    "width": "Width"
+  },
+  "folder": {
+    "add": "Add",
+    "settings": "Settings",
+    "close": "Close",
+    "up": "Up",
+    "enter": "Go to",
+    "graph": "Graph",
+    "shell": "Shell"
+  },
+  "repository": {
+    "close": "Close"
+  },
+  "branch": {
+    "head": "{{name}}",
+    "head_remote": "{{name}} (has a remote)"
+  },
+  "graph": {
+    "fold": "Fold",
+    "expand": "Expand"
+  },
+  "commit": {
+    "branch": "Branch",
+    "create": "Create"
+  },
+  "worktree": {
+    "terminal": "Terminal",
+    "path": "Path",
+    "deleteBranch": "Delete the local branch"
+  },
+  "cli": {
+    "shell": "Shell",
+    "open": "Shell",
+    "end": "End",
+    "activity": {
+      "busy": "Running",
+      "idle": "Idle",
+      "waiting": "Waiting for input",
+      "unknown": "Unknown"
+    }
+  },
+  "chat": {
+    "send": "Send",
+    "stop": "Stop"
+  },
+  "settings": {
+    "terminal": "Terminal",
+    "chat": "Chat"
+  },
+  "filePreview": {
+    "unsaved": "{{name}} is unsaved",
+    "unwritable": "{{name}} cannot be written",
+    "pin": "Pin {{name}}",
+    "unpin": "Unpin {{name}}",
+    "fitWidth": "Fit {{name}} to its width",
+    "expand": "Open {{name}}",
+    "collapse": "Fold {{name}} away",
+    "close": "Close {{name}}",
+    "loading": "Loading…",
+    "failed": "The file cannot be read",
+    "notText": "Not previewable as text",
+    "truncated": "Showing the first {{kilobytes}} KB"
+  }
+}

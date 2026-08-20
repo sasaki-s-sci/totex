@@ -1,0 +1,5 @@
+[tools]
+rust = { version = "1.95.0", components = "rustfmt,clippy" }
+node = "24.13.0"
+pnpm = "10.28.2"
+task = "3.52.0"

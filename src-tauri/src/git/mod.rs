@@ -1,0 +1,226 @@
+/// Wraps a blocking git operation so it never runs on the UI thread.
+///
+/// Declared before the modules that use it: `macro_rules!` is textually scoped,
+/// so a macro defined inside one module cannot be reached from its siblings —
+/// which is what had each of them writing the `spawn_blocking` dance out again.
+macro_rules! off_thread {
+    ($body:expr) => {
+        tauri::async_runtime::spawn_blocking(move || $body)
+            .await
+            .map_err(|_| "task-failed".to_string())?
+    };
+}
+
+mod cmd;
+mod delta;
+mod discover;
+mod inspect;
+mod model;
+#[cfg(test)]
+mod tests;
+pub mod workspace;
+// Public so `generate_handler!` can name its commands the same way it names
+// the other modules' commands.
+pub mod session;
+pub mod watch;
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use inspect::Located;
+
+use model::Repository;
+pub use session::SessionState;
+pub use watch::WatchState;
+
+/// The walk always runs as deep as it is allowed to; the directory budget in
+/// `discover` is what actually bounds it.
+const SCAN_DEPTH: usize = 12;
+
+/// How much history to load per repository. Enough to show the shape of a
+/// project without turning the overview into tens of thousands of nodes.
+const DEFAULT_COMMIT_LIMIT: usize = 300;
+const MAX_COMMIT_LIMIT: usize = 5_000;
+
+/// How many directories one "is there anything in here?" question may look at
+/// before it gives up and says yes.
+///
+/// The walk stops at the first repository, so this only bounds the folders that
+/// have none — and those are the ones nobody is waiting on. Small, because a
+/// listing asks about every folder in it at once and some of those folders are
+/// on a network share.
+const HOLD_BUDGET: usize = 200;
+
+/// Reports the installed git, so the UI can explain the problem instead of
+/// failing every scan with the same error.
+#[tauri::command]
+pub fn git_version() -> Result<String, String> {
+    cmd::version()
+}
+
+/// How many repositories each of `paths` holds — itself, or somewhere
+/// underneath.
+///
+/// What the folder column puts on its graph mark. Every folder can be put on
+/// the graph, repository or not — a folder is a place work happens — so this
+/// says what is in one rather than whether it is worth offering. Asked one
+/// listing at a time and walked in parallel, because the folders in a listing
+/// are independent and some of them are slow.
+///
+/// The depth is the scan's own, so the question and the answer agree: a folder
+/// this counts one in is a folder the scan would find something in. Only the
+/// folders that hold any are answered for, which is most of a listing left out.
+#[tauri::command(async)]
+pub fn repository_counts(paths: Vec<String>) -> HashMap<String, usize> {
+    parallel_map(paths, |path| {
+        let found = discover::count_repositories(Path::new(&path), SCAN_DEPTH, HOLD_BUDGET);
+        (path, found)
+    })
+    .into_iter()
+    .filter(|(_, found)| *found > 0)
+    .collect()
+}
+
+/// Where the repositories under a root are, without having read any of them.
+pub(super) struct Survey {
+    /// One entry per repository, deduplicated by common git directory.
+    repositories: Vec<Located>,
+    /// Every candidate directory that resolved, so a later survey of the same
+    /// root can skip `locate` for the ones that have not moved.
+    candidates: HashMap<PathBuf, Located>,
+    warnings: Vec<String>,
+}
+
+fn normalize_root(root: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(root);
+    if !path.is_dir() {
+        return Err("not-a-directory".to_string());
+    }
+    Ok(path.canonicalize().unwrap_or(path))
+}
+
+fn clamp_commit_limit(limit: Option<usize>) -> usize {
+    limit
+        .unwrap_or(DEFAULT_COMMIT_LIMIT)
+        .clamp(1, MAX_COMMIT_LIMIT)
+}
+
+/// Walks `root` and resolves what it finds to repositories.
+///
+/// `known` is the previous survey's `candidates`: `locate` costs two git
+/// subprocesses per directory, and a directory that was a repository a moment
+/// ago still is, so a re-survey only pays for what is new.
+fn survey(root: &Path, known: &HashMap<PathBuf, Located>) -> Survey {
+    let found = discover::discover(root, SCAN_DEPTH);
+    let mut warnings = found.warnings;
+
+    let located = parallel_map(found.candidates, |candidate| match known.get(&candidate) {
+        Some(hit) => Ok((candidate, hit.clone())),
+        None => match inspect::locate(&candidate) {
+            Ok(located) => Ok((candidate, located)),
+            Err(error) => Err((candidate, error)),
+        },
+    });
+
+    // Linked worktrees resolve to the same repository as their main worktree,
+    // so a folder holding both must still produce a single node.
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    let mut repositories = Vec::new();
+    let mut candidates = HashMap::new();
+    for result in located {
+        match result {
+            Ok((candidate, located)) => {
+                if seen.insert(located.common_dir.clone()) {
+                    repositories.push(located.clone());
+                }
+                candidates.insert(candidate, located);
+            }
+            Err((candidate, error)) => {
+                warnings.push(format!("skipped {}: {error}", candidate.display()));
+            }
+        }
+    }
+
+    Survey {
+        repositories,
+        candidates,
+        warnings,
+    }
+}
+
+/// Reads every repository in `located`, in parallel, and reports the ones that
+/// failed as warnings rather than dropping them silently.
+fn inspect_all(located: Vec<Located>, commit_limit: usize) -> (Vec<Repository>, Vec<String>) {
+    let inspected = parallel_map(located, |located| {
+        let path = located.path.clone();
+        inspect::inspect(&located, commit_limit).map_err(|error| (path, error))
+    });
+
+    let mut repositories = Vec::new();
+    let mut warnings = Vec::new();
+    for result in inspected {
+        match result {
+            Ok(repository) => repositories.push(repository),
+            Err((path, error)) => warnings.push(format!("skipped {}: {error}", path.display())),
+        }
+    }
+
+    (repositories, warnings)
+}
+
+/// The order the graph is laid out in, so a refresh that adds a repository
+/// still puts it where a full scan would have.
+fn sort_repositories(repositories: &mut [Repository]) {
+    repositories.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
+}
+
+/// Runs `worker` over `items` on a small thread pool, preserving input order.
+/// Every step is a blocking `git` subprocess, so the scan is dominated by
+/// process startup rather than CPU.
+fn parallel_map<T, R, F>(items: Vec<T>, worker: F) -> Vec<R>
+where
+    T: Send,
+    R: Send,
+    F: Fn(T) -> R + Sync,
+{
+    if items.len() <= 1 {
+        return items.into_iter().map(worker).collect();
+    }
+
+    let threads = std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4)
+        .clamp(2, 16)
+        .min(items.len());
+
+    let cursor = AtomicUsize::new(0);
+    let slots: Vec<Mutex<Option<R>>> = items.iter().map(|_| Mutex::new(None)).collect();
+    let items: Vec<Mutex<Option<T>>> = items
+        .into_iter()
+        .map(|item| Mutex::new(Some(item)))
+        .collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            scope.spawn(|| {
+                loop {
+                    let index = cursor.fetch_add(1, Ordering::Relaxed);
+                    let Some(slot) = items.get(index) else {
+                        break;
+                    };
+                    let Some(item) = slot.lock().expect("worker slot poisoned").take() else {
+                        continue;
+                    };
+                    *slots[index].lock().expect("result slot poisoned") = Some(worker(item));
+                }
+            });
+        }
+    });
+
+    slots
+        .into_iter()
+        .filter_map(|slot| slot.into_inner().expect("result slot poisoned"))
+        .collect()
+}

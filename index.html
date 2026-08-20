@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- The language the words fall back to. src/i18n replaces this with the
+     one the reader actually asked their machine for, once that is settled. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>totex</title>
+    <style>
+      /* What the window is before it has drawn anything.
+
+         A window opens the moment it is asked for and paints whatever the page
+         says; a page that says nothing is a white rectangle, and this one is
+         dark by preference. So the two colours it is about to be — the ground
+         and the column standing on it — are written here, in the document, where
+         they cost a parse and no script at all. React clears this out when it
+         puts the real column in its place. */
+      :root {
+        color-scheme: light dark;
+      }
+      html,
+      body,
+      #root {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: #eef1f7;
+      }
+      .boot {
+        display: flex;
+        height: 100%;
+      }
+      /* The folder column, at the width it always starts at. */
+      .boot__column {
+        width: 288px;
+        flex: none;
+        background: #ffffff;
+        border-right: 1px solid #d5dced;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #0f1420;
+        }
+        .boot__column {
+          background: #151b2b;
+          border-right-color: #273149;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="boot"><div class="boot__column"></div></div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

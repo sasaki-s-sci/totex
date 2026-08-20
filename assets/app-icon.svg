@@ -1,0 +1,18 @@
+<!--
+  Rasterisation source for src-tauri/icons (task icon). Same geometry as
+  icon.svg, which is drawn for the UI: a hairline in currentColor. A taskbar
+  entry is ~20px, where a 2-unit stroke lands under half a pixel and vanishes,
+  so the stroke and the dot are the one thing scaled up here. Change the mark in
+  icon.svg first, then mirror it into the <g> below.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img">
+  <title>totex</title>
+  <!-- icon.svg's 140-unit box, centred on its 70,70 and blown up to fill the canvas. -->
+  <g transform="translate(512 512) scale(9)" fill="none">
+    <g transform="translate(-70 -70)">
+      <path d="M110 76 V48 A18 18 0 0 0 92 30 H48 A18 18 0 0 0 30 48 V92 A18 18 0 0 0 48 110 H72"
+            stroke="#ffffff" stroke-width="10" stroke-linecap="round" />
+      <circle cx="94" cy="100" r="9" fill="#ffffff" />
+    </g>
+  </g>
+</svg>

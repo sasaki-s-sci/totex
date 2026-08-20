@@ -1,0 +1,102 @@
+version: "3"
+
+vars:
+  # The Rust crate lives under src-tauri/, every cargo task is driven from the root.
+  CARGO: --manifest-path src-tauri/Cargo.toml
+
+tasks:
+  default:
+    desc: Run the full local check suite
+    cmds:
+      - task: check
+
+  setup:
+    desc: Install the toolchain pinned in mise.toml and the npm dependencies
+    cmds:
+      - mise install
+      - pnpm install
+
+  dev:
+    desc: Run the desktop app with hot reload, on a port reserved for this run
+    cmds:
+      # Both halves are told the same port: the dev server binds it, and the
+      # window is pointed at it. Hard-coding one only works until a dev server
+      # from an earlier run is still holding it, which is not a failure worth
+      # having to diagnose — and two checkouts can then run side by side.
+      - |
+        port="$(node scripts/dev-port.mjs)"
+        pnpm tauri dev --config "{\"build\":{\"beforeDevCommand\":\"pnpm dev --port $port\",\"devUrl\":\"http://localhost:$port\"}}" {{.CLI_ARGS}}
+
+  start:
+    desc: Build the app in release mode and open it (task start -- EXTRA_ARGS)
+    cmds:
+      # The point here is to look at the production build, not to ship it, so
+      # bundling is skipped -- `task build` is what produces the installers.
+      - pnpm tauri build --no-bundle {{.CLI_ARGS}}
+      # cargo names the binary after the crate, with the host's executable
+      # suffix, and tauri leaves it in the crate's target directory.
+      - |
+        bin="src-tauri/target/release/totex"
+        [ -f "$bin" ] || bin="$bin.exe"
+        "$bin"
+
+  build:
+    desc: Build the installer for the host platform (task build -- EXTRA_ARGS)
+    cmds:
+      - pnpm tauri build {{.CLI_ARGS}}
+
+  build:windows:
+    desc: Build the Windows MSI and NSIS installers (must run on Windows)
+    cmds:
+      - pnpm tauri build --target x86_64-pc-windows-msvc
+
+  web:build:
+    desc: Type-check and bundle the frontend into dist/
+    cmds:
+      - pnpm build
+
+  icon:
+    desc: Regenerate src-tauri/icons from assets/app-icon.svg
+    cmds:
+      - pnpm tauri icon assets/app-icon.svg
+
+  typecheck:
+    desc: Type-check the frontend
+    cmds:
+      - pnpm exec tsc --noEmit
+
+  fmt:
+    desc: Format and auto-fix both stacks
+    cmds:
+      - pnpm exec biome check --write .
+      - cargo fmt {{.CARGO}} --all
+
+  fmt:check:
+    desc: Fail if either stack is unformatted
+    cmds:
+      - pnpm exec biome format .
+      - cargo fmt {{.CARGO}} --all -- --check
+
+  lint:
+    desc: Lint both stacks, treating warnings as errors
+    cmds:
+      - pnpm exec biome lint .
+      - cargo clippy {{.CARGO}} --all-targets --all-features -- -D warnings
+
+  test:
+    desc: Run the Rust test suite
+    cmds:
+      - cargo test {{.CARGO}}
+
+  check:
+    desc: Format check, lint, type-check and test
+    cmds:
+      - task: fmt:check
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - cargo clean {{.CARGO}}

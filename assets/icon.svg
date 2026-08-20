@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 140" fill="none" role="img" aria-label="Totex">
+  <title>Totex</title>
+  <path d="M110 76 V48 A18 18 0 0 0 92 30 H48 A18 18 0 0 0 30 48 V92 A18 18 0 0 0 48 110 H72"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="94" cy="100" r="5" fill="currentColor"/>
+</svg>
