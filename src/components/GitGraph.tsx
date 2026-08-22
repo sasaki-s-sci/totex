@@ -20,6 +20,7 @@ import { heldInPane, usePinDrag } from "../hooks/usePinDrag";
 import { useReadingKeys } from "../hooks/useReadingSize";
 import type { Folder } from "../hooks/useWorkspace";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
+import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { CommitFlowNode, FilePreviewBox, FilePreviewFlowNode } from "../lib/graph";
 import {
@@ -39,10 +40,11 @@ import type { Agent } from "../types/running";
 import { GraphLines } from "./GraphLines";
 import { type BranchPick, GraphActionsProvider, type WorkRequest } from "./graphActions";
 import { type GraphMarks, GraphMarksProvider } from "./graphMarks";
+import { AskNode } from "./nodes/AskNode";
 import { BranchHeadNode } from "./nodes/BranchHeadNode";
 import { CliNode } from "./nodes/CliNode";
 import { CollapseNode } from "./nodes/CollapseNode";
-import { FilePreviewCard, FilePreviewNode } from "./nodes/FilePreviewNode";
+import { FilePreviewCard, FilePreviewNode, MIN_HEIGHT, MIN_WIDTH } from "./nodes/FilePreviewNode";
 import { FolderNode } from "./nodes/FolderNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
@@ -58,6 +60,7 @@ const nodeTypes = {
   head: BranchHeadNode,
   collapse: CollapseNode,
   cli: CliNode,
+  ask: AskNode,
   "file-preview": FilePreviewNode,
 } satisfies NodeTypes;
 
@@ -70,10 +73,14 @@ const FIT_DELAY_MS = 80;
 /**
  * The scale below which the offer of a terminal stops being drawn.
  *
- * A third of full size: an offer is then about a fifth of the size a pointer
- * can be aimed at, and what it is drawn in is four pixels of grey. What is left
- * out there is the shape of the history, which is what the canvas is taken out
- * to see.
+ * A third of full size: the button on a branch's ring is then about a fifth of
+ * the size a pointer can be aimed at, and what it is drawn in is four pixels of
+ * grey. What is left out there is the shape of the history, which is what the
+ * canvas is taken out to see.
+ *
+ * Said to the stylesheet rather than answered by leaving something out: the
+ * button is part of a branch's own mark now, and a branch is drawn at every
+ * scale.
  */
 const DETAIL_ZOOM = 0.3;
 /** How far past the threshold the canvas has to come back for them to return. */
@@ -106,6 +113,18 @@ function fileNodeId(requestId: number): string {
 function fileSize(node: FilePreviewFlowNode): FilePreviewBox {
   const box = node.data.box;
   return { width: node.width ?? box.width, height: node.height ?? box.height };
+}
+
+/**
+ * A box a card is still a card at.
+ *
+ * Stepping on and off the canvas multiplies a card's box by the zoom, and a
+ * graph taken far out would pin a card at a few pixels of itself. Held at the
+ * floor its own edges are dragged to, so that what comes back is always
+ * something that can be read and reached for.
+ */
+function readableSize(box: FilePreviewBox): FilePreviewBox {
+  return { width: Math.max(MIN_WIDTH, box.width), height: Math.max(MIN_HEIGHT, box.height) };
 }
 
 /**
@@ -161,6 +180,16 @@ type Props = {
   /** The session the panel is showing, if any. */
   showing: string | null;
   /**
+   * What each session has stopped to ask, by session id.
+   *
+   * Drawn as a card beside the terminal it belongs to, and answered from
+   * there: a question is a turn nobody has taken, and the graph is where the
+   * window can see that one is outstanding without the panel being opened.
+   */
+  asks: ReadonlyMap<string, Ask>;
+  /** One of those answers was taken. */
+  onAnswer: (session: Session, ask: Ask, key: string) => void;
+  /**
    * The branches the window is working on, and the ones it was refused.
    *
    * Drawn on their rings and nowhere else: an operation that would not go
@@ -187,6 +216,8 @@ export function GitGraph({
   sessions,
   running,
   showing,
+  asks,
+  onAnswer,
   marks,
   onSelect,
   onOpenWork,
@@ -208,10 +239,10 @@ export function GitGraph({
   const graph = useMemo(
     () =>
       buildCommitGraph(
-        { workspace, folders, visible, opened, sessions, running, showing },
+        { workspace, folders, visible, opened, sessions, running, showing, asks },
         applied.current ?? undefined,
       ),
-    [workspace, folders, visible, opened, sessions, running, showing],
+    [workspace, folders, visible, opened, sessions, running, showing, asks],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(graph.nodes);
@@ -522,38 +553,57 @@ export function GitGraph({
    * the canvas is asked what is now at the point the card has been floating
    * over, and the node is put there. A card pinned, the graph panned across a
    * repository, and the card let go stays on screen where the reader left it.
+   *
+   * Its box crosses with it. A card on the canvas is drawn at the zoom and one
+   * over the window is drawn at none, so the same numbers on either side of the
+   * step are two different cards on screen — a graph at half scale pinned a card
+   * to twice the size it had just been read at. The box is multiplied by the
+   * zoom on the way out and divided by it on the way back, which leaves the card
+   * standing at the size it was: what changes is only what it is nailed to.
    */
   const pinFilePreview = useCallback(
     (requestId: number) => {
       const flow = instance.current;
       const pane = host.current?.getBoundingClientRect();
       if (!flow || !pane) return;
+      const { zoom } = flow.getViewport();
       setNodes((current) =>
         current.map((node) => {
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
           const at = node.data.pinnedAt;
+          const box = fileSize(node);
+          // A card put away carries no height of its own — the canvas measures
+          // what its header comes to — and one handed back here would give it a
+          // body again. The height it had is kept in the box either way.
+          const measured = node.height === undefined;
           if (at) {
+            const under = readableSize({ width: box.width / zoom, height: box.height / zoom });
             return {
               ...node,
               hidden: false,
               position: flow.screenToFlowPosition({ x: pane.left + at.x, y: pane.top + at.y }),
-              data: { ...node.data, pinnedAt: null },
+              width: under.width,
+              height: measured ? undefined : under.height,
+              data: { ...node.data, box: under, pinnedAt: null },
             };
           }
           const corner = flow.flowToScreenPosition(node.position);
-          const box = fileSize(node);
+          const over = readableSize({ width: box.width * zoom, height: box.height * zoom });
           return {
             ...node,
             hidden: true,
+            width: over.width,
+            height: measured ? undefined : over.height,
             data: {
               ...node.data,
+              box: over,
               // Held inside the pane by the same rule a drag is, so that a card
               // pinned while it is half off the canvas is not pinned half out
               // of the window.
               pinnedAt: heldInPane(
                 { x: corner.x - pane.left, y: corner.y - pane.top },
                 pane,
-                box.width,
+                over.width,
               ),
             },
           };
@@ -633,12 +683,7 @@ export function GitGraph({
     setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
   }, []);
 
-  const shown = useMemo(() => {
-    const interactive = nodes.filter((node) => node.type !== "commit");
-    return coarse
-      ? interactive.filter((node) => !(node.type === "cli" && node.data.work !== null))
-      : interactive;
-  }, [nodes, coarse]);
+  const shown = useMemo(() => nodes.filter((node) => node.type !== "commit"), [nodes]);
 
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
@@ -664,29 +709,24 @@ export function GitGraph({
   /**
    * Does to a node what clicking it would.
    *
-   * A session goes into the panel, a branch opens a shell in the panel, and the
-   * rest do the one thing they are there for. Enter is the keyboard's click, so
-   * it has to mean the same as the click does.
+   * A session goes into the panel, a branch opens a shell in it — which is what
+   * the button on its ring does — and the rest do the one thing they are there
+   * for. Enter is the keyboard's click, so it has to mean the same as the click
+   * does.
    */
   const activate = useCallback(
     (node: AppNode) => {
       switch (node.type) {
-        case "cli": {
-          // The room for a terminal opens one; a terminal that is this window's
-          // own goes into the panel. Somebody else's answers to nothing.
-          const { work, session } = node.data;
-          if (work) {
-            onOpenWork({
-              repository: work.repository,
-              branch: work.branch,
-              cwd: work.cwd,
-              agent: null,
-            });
-          } else if (session) {
-            onShowSession(session);
-          }
+        case "cli":
+          // A terminal that is this window's own goes into the panel; somebody
+          // else's answers to nothing.
+          if (node.data.session) onShowSession(node.data.session);
           return;
-        }
+        case "ask":
+          // What the card's own head does under the pointer: everything a
+          // question is too small to hold is in the terminal it was asked in.
+          onShowSession(node.data.session);
+          return;
         case "head":
           if (node.data.kind === "remote") return;
           onOpenWork({
@@ -789,6 +829,7 @@ export function GitGraph({
       fold,
       showSession: onShowSession,
       endSession: onEndSession,
+      answer: onAnswer,
       closeFilePreview: onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,
@@ -807,6 +848,7 @@ export function GitGraph({
       fold,
       onShowSession,
       onEndSession,
+      onAnswer,
       onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,
@@ -822,8 +864,10 @@ export function GitGraph({
           {/* `is-merging` and the two ends of a merge are written on here by
             `useBranchDrag` rather than handed down, so the class stays put
             across a render: React only writes an attribute whose prop changed,
-            and this one never does. */}
-          <div ref={host} className="graph">
+            and this one never does. Which is why how far out the canvas is
+            zoomed is said in an attribute of its own rather than in the class:
+            a class React rewrote would take the merge's own marks with it. */}
+          <div ref={host} className="graph" data-coarse={coarse || undefined}>
             {/* The canvas stays mounted while folders enter and leave it. Its
               controlled nodes and repository-set framing already carry those
               changes; replacing the instance would initialise an empty view

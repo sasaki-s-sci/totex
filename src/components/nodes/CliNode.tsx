@@ -7,17 +7,15 @@ import type { CliFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
 
 /**
- * One terminal, or the room for one: the only mark this canvas draws for
- * anything to do with a shell.
+ * One terminal: the only mark this canvas draws for anything to do with a
+ * shell.
  *
  * A branch carries a stack of these, centred on the branch's own line and read
- * downwards — what is running in it, oldest first, then one more mark at the
- * foot that is not there yet. Pressing that last one starts a terminal, so the
- * mark that was dashed is drawn through and a fresh dashed one appears under
- * it: an offer and a terminal are the same mark, and taking one up only changes
- * what it says about itself. The stack is a half-step longer for it, and it
- * opens out either way rather than growing downwards, so the branch's own line
- * stays the middle of whatever is running in it.
+ * downwards — what is running in it, oldest first. Nothing stands here for the
+ * terminal a branch has not opened yet: that offer is the button on the
+ * branch's own ring, and pressing it puts the first of these on the canvas. So
+ * the stack is exactly what is running, it opens out either way rather than
+ * growing downwards, and the branch's own line stays the middle of it.
  *
  * The mark is the terminal glyph and nothing else. There is no box round it and
  * no paper under it: a square drawn round every one of these made a column of
@@ -26,9 +24,8 @@ import { useGraphActions } from "../graphActions";
  * says everything the box was there for — what it is is the glyph, whose it is
  * is what hangs off it, and what it is doing is its colour.
  *
- * Three states, and no fourth:
+ * Two states, and no third:
  *
- *   - an offer, which is faint and answers to a press by opening a terminal;
  *   - this window's own, which shows itself in the panel and carries the one
  *     mark that ends it. The one the panel is holding wears a green dot on the
  *     corner of its glyph as well: the panel says which session it is showing,
@@ -50,8 +47,8 @@ const ACTIVITY = {
 
 export function CliNode({ data }: NodeProps<CliFlowNode>) {
   const { t } = useTranslation();
-  const { work, session, cli, showing, ordinal, colour, carrying } = data;
-  const { openWork, showSession, endSession } = useGraphActions();
+  const { session, cli, showing, ordinal, colour, carrying } = data;
+  const { showSession, endSession } = useGraphActions();
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
   // something reading the window aloud is given in place of the marks.
@@ -71,29 +68,11 @@ export function CliNode({ data }: NodeProps<CliFlowNode>) {
   return (
     <div className="cell cli">
       <div className="mark mark--centred cli__row">
-        {/* The offer, and this window's own, are the two that answer to a
-            press; a terminal somebody else opened is a reading and nothing
-            more, so it is not a button and a drag beginning on it pans the
-            canvas the way a drag beside it does. */}
-        {work ? (
-          <button
-            type="button"
-            className="cli__open cli__open--offer nopan"
-            aria-label={t("cli.open")}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              openWork({
-                repository: work.repository,
-                branch: work.branch,
-                cwd: work.cwd,
-                agent: null,
-              });
-            }}
-          >
-            <TerminalIcon sx={{ fontSize: 11 }} />
-          </button>
-        ) : session ? (
+        {/* This window's own is the one that answers to a press; a terminal
+            somebody else opened is a reading and nothing more, so it is not a
+            button and a drag beginning on it pans the canvas the way a drag
+            beside it does. */}
+        {session ? (
           <button
             type="button"
             className="cli__open nopan"

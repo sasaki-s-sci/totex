@@ -10,17 +10,19 @@ import { branchMark } from "./components/graphMarks";
 import { HEADER_HEIGHT, WindowControls } from "./components/WindowControls";
 import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { FolderSidebar } from "./folder/FolderSidebar";
+import { useAsks } from "./hooks/useAsks";
 import { useMarks } from "./hooks/useMarks";
 import { useRunning } from "./hooks/useRunning";
 import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
+import type { Ask } from "./lib/ask";
 import { FILE_DRAG_TYPE, type FilePreviewRequest } from "./lib/filePreview";
 import type { CommitFlowNode } from "./lib/graph";
 import { onDemand, warmInTurn } from "./lib/onDemand";
-import { sessionId } from "./lib/session";
+import { type Session, sessionId } from "./lib/session";
 import { mergeBranch, openWorkspace } from "./lib/workspace";
 import { SettingsProvider, useSettings } from "./settings";
-import { theme } from "./theme";
+import { MODE_KEY, storedMode, theme } from "./theme";
 import type { Repository, Workspace } from "./types/git";
 
 /**
@@ -59,7 +61,17 @@ function storedRoots(): string[] {
 }
 export default function App() {
   return (
-    <ThemeProvider theme={theme}>
+    // The mode is read again here rather than passed in: `main` has already
+    // written it onto the document, and this is the provider being told the
+    // same thing so that the two agree from the first render. Transitions are
+    // off across the change -- every colour in the window moves at once, and a
+    // window that fades between two palettes is a window that stutters.
+    <ThemeProvider
+      theme={theme}
+      defaultMode={storedMode()}
+      modeStorageKey={MODE_KEY}
+      disableTransitionOnChange
+    >
       <CssBaseline />
       <SettingsProvider>
         <Window />
@@ -97,13 +109,18 @@ function Window() {
     endIn: endSessionsIn,
   } = useSessions();
 
+  // What any of them has stopped to ask, which the graph draws beside the
+  // terminal doing the asking. A question is a turn nobody has taken: it is
+  // worth seeing from the canvas, and worth being able to answer from there.
+  const { asks, answer } = useAsks();
+
   // Every agent on the machine, this window's own included — drawn on the
   // branch rows beside the sessions, so that the canvas answers "what is going
   // on in this worktree" whoever started it.
   const { running } = useRunning(true);
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
-  const gitMissing = useGitMissing();
+  const gitMissing = useGitMissing(roots);
 
   const openFiles = useCallback((paths: readonly string[], at: { x: number; y: number } | null) => {
     setFilePreviews((current) => [
@@ -115,6 +132,13 @@ function Window() {
       })),
     ]);
   }, []);
+
+  // Held still, because the graph's actions are context: a callback rebuilt on
+  // every render is every node on the canvas told that something changed.
+  const answerAsk = useCallback(
+    (session: Session, ask: Ask, key: string) => answer(session.id, ask, key),
+    [answer],
+  );
 
   const closeFilePreview = useCallback((requestId: number) => {
     setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
@@ -364,6 +388,8 @@ function Window() {
             sessions={sessions}
             running={running.agents}
             showing={showing}
+            asks={asks}
+            onAnswer={answerAsk}
             marks={marks}
             onSelect={pickCommit}
             onOpenWork={openWork}

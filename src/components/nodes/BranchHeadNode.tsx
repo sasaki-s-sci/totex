@@ -1,4 +1,5 @@
 import CloudIcon from "@mui/icons-material/CloudOutlined";
+import TerminalIcon from "@mui/icons-material/Terminal";
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -45,15 +46,26 @@ import { useWorktreeStatuses } from "../worktreeStatus";
  * reads what the repository has.
  *
  * It is also the handle for the branch: click it for what can be done with its
- * working directory, or drag it onto another head to merge into that one. What
- * can be done *in* the branch hangs off it — the terminal that could be opened
- * in it; see `CliNode` — and what is actually running there is joined to this
- * ring by a line from the column past them.
+ * working directory, or drag it onto another head to merge into that one.
+ *
+ * What can be done *in* the branch is the one button on its shoulder: a
+ * terminal opened here, which is the same button a folder's row ends with.
+ * Pressing it puts a mark in the column past the branch — see `CliNode` — and
+ * that mark is joined back to this ring by a line. The offer used to be a
+ * dashed mark of its own standing in that column with a dashed line out to it,
+ * which drew the canvas a terminal that did not exist: the column now holds
+ * what is running and nothing else, and what could be running is on the branch
+ * itself, where the rest of what can be done to a branch already is.
+ *
+ * Up and to the right, because it is the one corner nothing else uses: the
+ * line from the history arrives on the left, the lines out to the terminals
+ * leave level with the ring, and what is uncommitted is on the rim. A remote
+ * branch has no button — it is somewhere else, and nothing can be opened in it.
  */
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
   const { name, kind, hasRemote, cwd, repository } = data;
-  const { pickBranch, dragBranch } = useGraphActions();
+  const { openWork, pickBranch, dragBranch } = useGraphActions();
   const status = useWorktreeStatuses().get(cwd ?? "");
 
   const dirty = cwd !== null && status !== undefined && dirtyCount(status) > 0;
@@ -101,6 +113,26 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
           </svg>
         )}
       </button>
+
+      {/* The offer of a terminal in this branch, on the ring's shoulder. Faint
+          until the pointer is on it, like every other button that stands on the
+          canvas rather than in a row of its own — and gone altogether when the
+          canvas is zoomed out past what a pointer can be aimed at; see
+          `DETAIL_ZOOM`. */}
+      {kind !== "remote" && (
+        <button
+          type="button"
+          className="head__cli tools__button nopan"
+          aria-label={t("cli.open")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            openWork({ repository, branch: name, cwd, agent: null });
+          }}
+        >
+          <TerminalIcon sx={{ fontSize: 11 }} />
+        </button>
+      )}
     </div>
   );
 }

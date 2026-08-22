@@ -48,13 +48,26 @@
       "unknown": "状態不明"
     }
   },
+  "ask": {
+    "asking": "確認待ち",
+    "open": "{{agent}} のターミナルを開く"
+  },
   "chat": {
     "send": "送信",
     "stop": "停止"
   },
-  "settings": {
-    "terminal": "ターミナル",
-    "chat": "チャット"
+  "update": {
+    "check": "新しいバージョンを確認",
+    "checking": "新しいバージョンを確認中",
+    "current": "最新のバージョンです",
+    "fetching": "新しいバージョンをダウンロード中",
+    "restart": "再起動して更新を完了",
+    "failed": "更新が完了しませんでした"
+  },
+  "theme": {
+    "system": "OSに合わせる",
+    "light": "ライト",
+    "dark": "ダーク"
   },
   "filePreview": {
     "unsaved": "{{name}}は未保存",

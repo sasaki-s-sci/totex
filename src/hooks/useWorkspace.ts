@@ -209,24 +209,46 @@ function group(roots: string[], open: Open): Folder[] {
 }
 
 /**
- * Whether git is there at all, asked once.
+ * Whether the git that would read these folders is there at all.
  *
- * Nothing is drawn from it but the same rule every other failure draws: a
- * window whose git is missing can open folders and can draw nothing from them,
- * and the canvas staying empty is most of that answer already.
+ * Asked of the folders rather than of the machine, because those are not the
+ * same question: a folder inside a WSL distribution is read by that
+ * distribution's git, and a window that only ever opens those has no use for
+ * the git beside it — which may well not be installed. Asking about the machine
+ * would draw this rule over a window that works perfectly.
+ *
+ * With nothing open there is nothing to answer for. Nothing is drawn from this
+ * but the same rule every other failure draws: a window whose git is missing
+ * can open folders and can draw nothing from them, and the canvas staying empty
+ * is most of that answer already.
  */
-export function useGitMissing(): boolean {
+export function useGitMissing(roots: readonly string[]): boolean {
   const [missing, setMissing] = useState(false);
+  // By value: the array is rebuilt on every render, and each report costs a
+  // question per folder.
+  const key = JSON.stringify([...roots]);
 
   useEffect(() => {
     let cancelled = false;
-    invoke<string>("git_version").catch(() => {
-      if (!cancelled) setMissing(true);
+    const paths: string[] = JSON.parse(key);
+    if (paths.length === 0) {
+      setMissing(false);
+      return;
+    }
+    Promise.all(
+      paths.map((path) =>
+        invoke<string>("git_version", { path }).then(
+          () => true,
+          () => false,
+        ),
+      ),
+    ).then((answers) => {
+      if (!cancelled) setMissing(answers.includes(false));
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [key]);
 
   return missing;
 }

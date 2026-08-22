@@ -5,14 +5,23 @@
 //! writes when the graph would change: each repository's git directory, its
 //! refs and its worktree registry, plus the shallow part of the scanned tree
 //! where a newly cloned repository would appear.
+//!
+//! A folder inside a WSL distribution is watched by asking the distribution.
+//! Windows publishes the share but not its notifications — nothing on this side
+//! is ever told that a file in there moved — so the same targets are polled
+//! from inside instead, and what comes back is the same thing: the paths that
+//! were written, which is what lets a refresh re-read one repository.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
+
+use crate::host::Host;
+use crate::wsl;
 
 /// How long to wait for a burst of writes to settle. A single `git commit`
 /// touches several files, and a fetch touches many more.
@@ -21,7 +30,18 @@ const DEBOUNCE: Duration = Duration::from_millis(700);
 /// How deep below the scanned root to look for repositories appearing later.
 const NEW_REPOSITORY_DEPTH: usize = 2;
 
-pub type Watch = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, RecommendedCache>;
+type Local = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, RecommendedCache>;
+
+/// What is watching one open folder, on whichever side of the window it lives.
+///
+/// Held rather than read: both kinds stop when they are dropped, and dropping
+/// the one it replaces is the whole of what the state below has to do.
+pub struct Watch {
+    /// This machine's own change notifications.
+    _here: Option<Local>,
+    /// A poll running inside a distribution — one per group of targets.
+    _inside: Vec<wsl::Poll>,
+}
 
 #[derive(Default)]
 pub struct WatchState {
@@ -31,8 +51,8 @@ pub struct WatchState {
 }
 
 impl WatchState {
-    // Dropping a debouncer stops its thread and releases the watches it held,
-    // which is all any of these three have to do about the one they replace.
+    // Dropping a watch stops its thread and releases whatever it held, which is
+    // all any of these three have to do about the one they replace.
     pub fn set(&self, root: String, watch: Watch) {
         self.lock().insert(root, watch);
     }
@@ -58,7 +78,20 @@ pub(super) fn start(
     root: &str,
     git_dirs: &[String],
     repository_paths: &[String],
-    on_change: impl Fn(Vec<PathBuf>) + Send + 'static,
+    on_change: impl Fn(Vec<PathBuf>) + Send + Sync + 'static,
+) -> Result<Watch, String> {
+    let host = Host::of(Path::new(root));
+    let targets = watch_targets(&host, root, git_dirs, repository_paths);
+
+    match &host {
+        Host::Local => here(targets, on_change),
+        Host::Wsl(distro) => inside(&host, distro, targets, on_change),
+    }
+}
+
+fn here(
+    targets: Vec<Target>,
+    on_change: impl Fn(Vec<PathBuf>) + Send + Sync + 'static,
 ) -> Result<Watch, String> {
     let mut debouncer = new_debouncer(DEBOUNCE, None, move |result: DebounceEventResult| {
         let Ok(events) = result else {
@@ -71,13 +104,58 @@ pub(super) fn start(
     })
     .map_err(|error| error.to_string())?;
 
-    for target in watch_targets(root, git_dirs, repository_paths) {
+    for target in targets {
         // A repository can vanish between the scan and here; a failed watch is
         // never worth failing the whole call over.
         let _ = debouncer.watch(&target.path, target.mode);
     }
 
-    Ok(debouncer)
+    Ok(Watch {
+        _here: Some(debouncer),
+        _inside: Vec::new(),
+    })
+}
+
+/// The same targets, polled from inside the distribution holding them.
+///
+/// Two polls rather than one: `find` takes a single depth for every start point
+/// it is given, and these targets do not all want the same one — a git
+/// directory is watched for the files directly in it, its refs all the way
+/// down.
+fn inside(
+    host: &Host,
+    distro: &str,
+    targets: Vec<Target>,
+    on_change: impl Fn(Vec<PathBuf>) + Send + Sync + 'static,
+) -> Result<Watch, String> {
+    let told = Arc::new(on_change);
+    let mut polls = Vec::new();
+
+    for recursive in [false, true] {
+        let paths: Vec<String> = targets
+            .iter()
+            .filter(|target| matches!(target.mode, RecursiveMode::Recursive) == recursive)
+            .map(|target| host.native(&target.path))
+            .collect();
+        if paths.is_empty() {
+            continue;
+        }
+
+        let told = Arc::clone(&told);
+        let host = host.clone();
+        polls.push(wsl::watch(distro, recursive, &paths, move |moved| {
+            let paths: Vec<PathBuf> = moved.iter().map(|path| host.canonical(path)).collect();
+            let touched = relevant_paths(paths.iter());
+            if !touched.is_empty() {
+                told(touched);
+            }
+        })?);
+    }
+
+    Ok(Watch {
+        _here: None,
+        _inside: polls,
+    })
 }
 
 /// The paths worth acting on, deduplicated: a burst names the same file many
@@ -103,6 +181,7 @@ pub(super) struct Target {
 }
 
 pub(super) fn watch_targets(
+    host: &Host,
     root: &str,
     git_dirs: &[String],
     repository_paths: &[String],
@@ -110,10 +189,16 @@ pub(super) fn watch_targets(
     let mut targets: Vec<Target> = Vec::new();
     let mut taken: HashSet<PathBuf> = HashSet::new();
     let mut push = |path: PathBuf, mode: RecursiveMode| {
-        // `shallow_directories` can hand over thousands of paths for a large
-        // root, so what has already been taken is a set rather than a scan of
-        // everything taken so far.
-        if path.exists() && taken.insert(path.clone()) {
+        // `levels` can hand over thousands of paths for a large root, so what
+        // has already been taken is a set rather than a scan of everything
+        // taken so far.
+        //
+        // Whether it is there is only asked on this machine. A poll is handed
+        // its targets as words and says nothing about the ones that are not
+        // there, so asking would be a round trip apiece for an answer that
+        // changes nothing.
+        let here = !host.is_remote();
+        if (!here || path.exists()) && taken.insert(path.clone()) {
             targets.push(Target { path, mode });
         }
     };
@@ -122,40 +207,22 @@ pub(super) fn watch_targets(
         let git_dir = PathBuf::from(git_dir);
         // HEAD, packed-refs and the reflog all live directly in here.
         push(git_dir.clone(), RecursiveMode::NonRecursive);
-        push(git_dir.join("refs"), RecursiveMode::Recursive);
-        push(git_dir.join("worktrees"), RecursiveMode::Recursive);
+        push(host.join(&git_dir, "refs"), RecursiveMode::Recursive);
+        push(host.join(&git_dir, "worktrees"), RecursiveMode::Recursive);
     }
 
     // A repository cloned next to one we already know about.
     for path in repository_paths {
-        if let Some(parent) = Path::new(path).parent() {
-            push(parent.to_path_buf(), RecursiveMode::NonRecursive);
+        if let Some(parent) = host.parent(Path::new(path)) {
+            push(parent, RecursiveMode::NonRecursive);
         }
     }
 
-    for path in shallow_directories(Path::new(root), NEW_REPOSITORY_DEPTH) {
+    for path in super::discover::levels(host, Path::new(root), NEW_REPOSITORY_DEPTH) {
         push(path, RecursiveMode::NonRecursive);
     }
 
     targets
-}
-
-/// The root and its directories down to `depth`, which is where a new
-/// repository realistically shows up.
-fn shallow_directories(root: &Path, depth: usize) -> Vec<PathBuf> {
-    let mut found = vec![root.to_path_buf()];
-    let mut frontier = vec![root.to_path_buf()];
-
-    for _ in 0..depth {
-        let mut next = Vec::new();
-        for dir in &frontier {
-            next.extend(super::discover::child_directories(dir).unwrap_or_default());
-        }
-        found.extend(next.iter().cloned());
-        frontier = next;
-    }
-
-    found
 }
 
 /// Filters out the churn git makes while it works, which would otherwise

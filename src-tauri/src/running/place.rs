@@ -11,6 +11,9 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use crate::host::Host;
+use crate::wsl;
+
 /// A directory, placed: the repository it belongs to and what is checked out.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Place {
@@ -30,7 +33,76 @@ pub struct Place {
 /// An agent is perfectly entitled to be run somewhere that is not a checkout —
 /// a scratch directory, a home folder — and that is drawn as a plain directory
 /// rather than dropped.
-pub fn locate(cwd: &Path) -> Option<Place> {
+pub fn locate(host: &Host, cwd: &Path) -> Option<Place> {
+    match host {
+        Host::Local => here(cwd),
+        Host::Wsl(_) => inside(host, cwd),
+    }
+}
+
+/// The same question asked of a distribution, in one command.
+///
+/// The walk is a handful of small reads, which is nothing on this machine and a
+/// round trip apiece on one that is not — and this is asked for every agent on
+/// every sweep, several times a minute. So the walk itself goes over there.
+const WALK: &str = r#"
+dir=$1
+while :; do
+  if [ -d "$dir/.git" ]; then git=$dir/.git; break; fi
+  if [ -f "$dir/.git" ]; then
+    git=$(sed -n 's/^gitdir: *//p' "$dir/.git" | head -n 1)
+    case $git in /*) ;; *) git=$dir/$git ;; esac
+    break
+  fi
+  [ "$dir" = "/" ] && exit 1
+  dir=${dir%/*}
+  [ -n "$dir" ] || dir=/
+done
+printf '%s\000%s\000%s\000%s' "$dir" "$git" \
+  "$(cat "$git/commondir" 2>/dev/null)" "$(cat "$git/HEAD" 2>/dev/null)"
+"#;
+
+fn inside(host: &Host, cwd: &Path) -> Option<Place> {
+    let Host::Wsl(distro) = host else {
+        return None;
+    };
+    let output = wsl::script(distro, None, WALK, &[&host.native(cwd)]).ok()?;
+    if !output.ok() {
+        return None;
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut fields = text.split('\u{0}');
+    let worktree = fields.next()?;
+    let git_dir = wsl::clean(fields.next()?);
+    let common = fields.next().unwrap_or_default().trim();
+    let (branch, head) = parse_head(fields.next().unwrap_or_default());
+
+    // `commondir` is written relative to the git directory naming it, and is
+    // `../..` from a worktree's nine times out of ten.
+    let common = if common.is_empty() {
+        git_dir.clone()
+    } else if common.starts_with('/') {
+        wsl::clean(common)
+    } else {
+        wsl::clean(&wsl::join(&git_dir, common))
+    };
+    // `/repo/.git` is the repository at `/repo`. A bare one has no directory
+    // above it to name it by, so it is the repository itself.
+    let repo = match common.rsplit('/').next() {
+        Some(".git") => common.rsplit_once('/').map(|(head, _)| head).unwrap_or("/"),
+        _ => &common,
+    };
+
+    Some(Place {
+        repo: host.canonical(if repo.is_empty() { "/" } else { repo }),
+        worktree: host.canonical(worktree),
+        branch,
+        head,
+    })
+}
+
+fn here(cwd: &Path) -> Option<Place> {
     for dir in cwd.ancestors() {
         let dot = dir.join(".git");
         let git_dir = if dot.is_dir() {

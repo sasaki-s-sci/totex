@@ -148,7 +148,7 @@ fn a_directory_in_a_checkout_is_placed_on_its_branch() {
 
     // Asked from a directory well inside the checkout, which is where an agent
     // is as often as not.
-    let placed = place::locate(&root.join("src/deep")).expect("placed");
+    let placed = place::locate(&Host::Local, &root.join("src/deep")).expect("placed");
     assert_eq!(placed.worktree, root);
     assert_eq!(placed.repo, root);
     assert_eq!(placed.branch.as_deref(), Some("main"));
@@ -176,7 +176,7 @@ fn a_linked_worktree_is_placed_on_the_repository_it_came_from() {
         ],
     );
 
-    let placed = place::locate(&linked).expect("placed");
+    let placed = place::locate(&Host::Local, &linked).expect("placed");
     assert_eq!(placed.branch.as_deref(), Some("side"));
     assert_eq!(placed.worktree, linked);
     // The whole point: two checkouts, one repository, so the map draws one.
@@ -197,7 +197,7 @@ fn somewhere_that_is_not_a_checkout_is_not_placed() {
     {
         return;
     }
-    assert!(place::locate(temp.path()).is_none());
+    assert!(place::locate(&Host::Local, temp.path()).is_none());
 }
 
 // ------------------------------------------------------------- what each says
@@ -486,7 +486,7 @@ fn a_machine_whose_processes_cannot_be_read_still_shows_what_wrote_itself_down()
         r#"{"pid":7,"sessionId":"s-7","cwd":"/home/a/repo/one","status":"busy","kind":"bg"}"#,
     )
     .expect("parsed");
-    let agents = from_sessions(&[entry]);
+    let agents = from_sessions(&Host::Local, &[entry]);
 
     assert_eq!(agents.len(), 1);
     assert_eq!(agents[0].key, "claude:s-7");
@@ -494,4 +494,131 @@ fn a_machine_whose_processes_cannot_be_read_still_shows_what_wrote_itself_down()
     assert!(agents[0].background);
     // Nothing confirmed it is alive, and the map says which of the two it is.
     assert_eq!(agents[0].source, Source::Session);
+}
+
+// ------------------------------------------------------- inside a distribution
+
+/// A distribution to look into, or `None` where there is none to reach — which
+/// is every machine the CI builds on, so these skip rather than fail.
+fn reachable() -> Option<Host> {
+    crate::wsl::distros().into_iter().next().map(Host::Wsl)
+}
+
+/// The process table of a machine that is not this one.
+///
+/// A working directory is the whole answer to "where is this agent working",
+/// and on Windows there is no way to read one at all — so a window there sees
+/// no agents until it asks the distribution, which is what this is.
+#[test]
+fn reads_the_process_table_of_a_distribution() {
+    let Some(host) = reachable() else {
+        return;
+    };
+    let table = proc::table(&host);
+    assert!(!table.is_empty(), "nothing at all was running");
+
+    let init = table
+        .iter()
+        .find(|process| process.pid == 1)
+        .expect("the first process");
+    assert!(!init.program.is_empty());
+    assert!(
+        init.started_at.unwrap_or(0) > 1_600_000_000_000,
+        "the boot clock did not come back: {:?}",
+        init.started_at
+    );
+
+    // Every directory it reports is named the way the window names paths, so a
+    // running agent lands on the repository the graph already drew.
+    let mut standing = table.iter().filter_map(|process| process.cwd.as_ref());
+    assert!(
+        standing.all(|cwd| cwd.to_string_lossy().starts_with(r"\\wsl.localhost\")),
+        "a directory came back in the distribution's own spelling"
+    );
+}
+
+/// Placing a directory inside a distribution: the same three files git leaves
+/// lying about, read over there in one go.
+#[test]
+fn places_a_directory_inside_a_distribution() {
+    let Some(host) = reachable() else {
+        return;
+    };
+    let root = host.canonical("/tmp/totex-place-remote");
+    host.exec(None, &[], &["rm", "-rf", "/tmp/totex-place-remote"])
+        .expect("a shell");
+    host.exec(
+        None,
+        &[],
+        &[
+            "mkdir",
+            "-p",
+            "/tmp/totex-place-remote/repo/.git",
+            "/tmp/totex-place-remote/repo/deep",
+        ],
+    )
+    .expect("a shell");
+    host.exec(
+        None,
+        &[],
+        &[
+            "sh",
+            "-c",
+            "printf 'ref: refs/heads/main\n' > /tmp/totex-place-remote/repo/.git/HEAD",
+        ],
+    )
+    .expect("a shell");
+
+    let placed = place::locate(&host, &host.canonical("/tmp/totex-place-remote/repo/deep"))
+        .expect("a place");
+    assert_eq!(placed.repo, host.canonical("/tmp/totex-place-remote/repo"));
+    assert_eq!(placed.worktree, placed.repo);
+    assert_eq!(placed.branch.as_deref(), Some("main"));
+
+    // A directory that is in no repository at all is drawn as itself.
+    assert_eq!(place::locate(&host, &root), None);
+}
+
+/// A linked worktree keeps a line of text where its `.git` would be, and points
+/// back at the repository through `commondir`.
+#[test]
+fn places_a_linked_worktree_inside_a_distribution() {
+    let Some(host) = reachable() else {
+        return;
+    };
+    host.exec(None, &[], &["rm", "-rf", "/tmp/totex-place-linked"])
+        .expect("a shell");
+    host.exec(
+        None,
+        &[],
+        &[
+            "mkdir",
+            "-p",
+            "/tmp/totex-place-linked/repo/.git/worktrees/topic",
+            "/tmp/totex-place-linked/topic",
+        ],
+    )
+    .expect("a shell");
+    host.exec(
+        None,
+        &[],
+        &[
+            "sh",
+            "-c",
+            "cd /tmp/totex-place-linked; \
+             printf 'gitdir: /tmp/totex-place-linked/repo/.git/worktrees/topic\n' > topic/.git; \
+             printf '../..\n' > repo/.git/worktrees/topic/commondir; \
+             printf 'ref: refs/heads/topic\n' > repo/.git/worktrees/topic/HEAD",
+        ],
+    )
+    .expect("a shell");
+
+    let placed =
+        place::locate(&host, &host.canonical("/tmp/totex-place-linked/topic")).expect("a place");
+    assert_eq!(placed.repo, host.canonical("/tmp/totex-place-linked/repo"));
+    assert_eq!(
+        placed.worktree,
+        host.canonical("/tmp/totex-place-linked/topic")
+    );
+    assert_eq!(placed.branch.as_deref(), Some("topic"));
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 
 import type { AgentId } from "../lib/agents";
+import type { Ask } from "../lib/ask";
 import type { RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { Repository } from "../types/git";
@@ -71,6 +72,14 @@ export type GraphActions = {
   showSession: (session: Session) => void;
   /** End it: the process stops and it leaves the graph. */
   endSession: (session: Session) => void;
+  /**
+   * Take one of the answers to what a session is asking.
+   *
+   * The question goes back with the answer: a card is drawn from a reading that
+   * is already a moment old, and the session refuses an answer meant for a
+   * question it has moved on from.
+   */
+  answer: (session: Session, ask: Ask, key: string) => void;
   /** Take one file card off the canvas. */
   closeFilePreview: (requestId: number) => void;
   /**
@@ -115,6 +124,7 @@ const GraphActionsContext = createContext<GraphActions>({
   fold: () => {},
   showSession: () => {},
   endSession: () => {},
+  answer: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},

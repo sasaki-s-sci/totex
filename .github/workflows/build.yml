@@ -79,6 +79,21 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the release can be updated to
+        # The updater takes a version whose signature matches the key in the
+        # config and nothing else, so a tag built without the private key
+        # produces installers that every already-installed copy will refuse.
+        # That is only discovered a release later, so it is refused here.
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is unset, so nothing could be signed"
+            exit 1
+          fi
+
       - name: Install node, pnpm and task
         uses: jdx/mise-action@v4
 
@@ -112,7 +127,17 @@ jobs:
       - name: Build the installers
         # `tauri build` runs `pnpm build` first via beforeBuildCommand, which
         # type-checks the frontend, so a type error fails this job too.
-        run: pnpm tauri build --target ${{ matrix.target }}
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # A build with no key to reach -- a pull request from a fork -- still
+          # produces working installers. They are only not ones an installed
+          # copy will take as an update, and nothing but a tag is released.
+          sign=""
+          [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
+          pnpm tauri build --target ${{ matrix.target }} $sign
 
       - name: Collect the installers
         # Every platform bundles into its own subdirectories under one tree, so
@@ -123,7 +148,8 @@ jobs:
           mkdir -p dist-release
           find "src-tauri/target/${{ matrix.target }}/release/bundle" -type f \
             \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-               -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \) \
+               -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \
+               -o -name '*.app.tar.gz' -o -name '*.sig' \) \
             -not -name 'rw.*' \
             -exec cp {} dist-release/ \;
           if [ -z "$(ls -A dist-release)" ]; then
@@ -150,11 +176,27 @@ jobs:
       contents: write
 
     steps:
+      - uses: actions/checkout@v7
+
+      - name: Install node
+        uses: jdx/mise-action@v4
+
       - name: Take every platform's installers
         uses: actions/download-artifact@v7
         with:
           path: dist-release
           merge-multiple: true
+
+      - name: Write what the app checks for a new version against
+        # The one file in the release that nobody downloads: the app reads it
+        # to find out whether there is a newer version and where its own kind
+        # of installer for it is. See scripts/update-manifest.mjs.
+        shell: bash
+        run: |
+          node scripts/update-manifest.mjs dist-release "$GITHUB_REF_NAME"
+          # Every signature is inside latest.json by now, and what is left in
+          # the directory is what the release page offers somebody to download.
+          find dist-release -name '*.sig' -delete
 
       - name: Publish the release
         uses: softprops/action-gh-release@v3
@@ -168,6 +210,9 @@ jobs:
             | Windows | `.msi`, or `-setup.exe` |
             | macOS | `.dmg` — Intel and Apple Silicon in the one file |
             | Linux | `.AppImage`, `.deb` or `.rpm` |
+
+            `latest.json` and `totex.app.tar.gz` are what an installed copy
+            updates itself from; there is nothing to download in either.
 
             None of these are code-signed. macOS holds a downloaded app in
             quarantine until it is let out of it:

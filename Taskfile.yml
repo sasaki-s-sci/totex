@@ -43,12 +43,27 @@ tasks:
   build:
     desc: Build the installer for the host platform (task build -- EXTRA_ARGS)
     cmds:
-      - pnpm tauri build {{.CLI_ARGS}}
+      # The installers are also what the app updates itself from, and a build
+      # signs them with the release key so that an installed copy can tell one
+      # of ours from anything else that answers the same URL. That key is the
+      # release workflow's, not a checkout's, so a build without it signs
+      # nothing: the installer works, and only the updater would turn it down.
+      - task: bundle
+        vars: { ARGS: "{{.CLI_ARGS}}" }
 
   build:windows:
     desc: Build the Windows MSI and NSIS installers (must run on Windows)
     cmds:
-      - pnpm tauri build --target x86_64-pc-windows-msvc
+      - task: bundle
+        vars: { ARGS: "--target x86_64-pc-windows-msvc" }
+
+  bundle:
+    internal: true
+    cmds:
+      - |
+        sign=""
+        [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || sign="--no-sign"
+        pnpm tauri build $sign {{.ARGS}}
 
   web:build:
     desc: Type-check and bundle the frontend into dist/
@@ -59,6 +74,13 @@ tasks:
     desc: Regenerate src-tauri/icons from assets/app-icon.svg
     cmds:
       - pnpm tauri icon assets/app-icon.svg
+
+  installer:art:
+    desc: Redraw the Windows installer's header strip and its own icon
+    cmds:
+      # `task icon` cannot make either: one is a BMP, and the other has to be
+      # legible on the white of a file list, which the app's white mark is not.
+      - node scripts/installer-art.mjs
 
   typecheck:
     desc: Type-check the frontend

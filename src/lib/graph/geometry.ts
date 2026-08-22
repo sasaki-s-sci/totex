@@ -76,6 +76,24 @@ export function straightPath(source: Point, target: Point): string {
 }
 
 /**
+ * Many circles as independent pieces of one path.
+ *
+ * A dot on this canvas is a fixed-size circle on a grid, and a repository holds
+ * a thousand of them. Given to the engine one element apiece they were the
+ * greater part of what a frame cost, so every run of them — the history itself,
+ * and the peek at the history that is folded away — is drawn as one path
+ * instead. Each circle is two half-arcs off its own `M`, which is what keeps
+ * them separate pieces rather than one shape with the gaps filled in.
+ */
+export function circlesOf(points: readonly Point[], radius: number): string {
+  let path = "";
+  for (const point of points) {
+    path += `M ${point.x - radius} ${point.y} a ${radius} ${radius} 0 1 0 ${radius * 2} 0 a ${radius} ${radius} 0 1 0 ${-radius * 2} 0 `;
+  }
+  return path;
+}
+
+/**
  * The middle of a line, wherever the line itself goes.
  *
  * The S turns past halfway, so it is not symmetric about the straight line

@@ -16,12 +16,13 @@
 
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
-use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+
+use crate::host::Host;
 
 use super::cmd;
 use super::session::{report_all, repository_dir};
@@ -87,16 +88,25 @@ fn digest(value: &str) -> u64 {
 /// directory. The repository is hashed into the path because two repositories
 /// under one root are allowed to share a name, and the branch is hashed in
 /// beside its slug because two branch names can slug to the same thing.
-fn worktree_path(root: &Path, repo_path: &str, branch: &str) -> PathBuf {
-    root.join(format!("{:016x}", digest(repo_path)))
-        .join(format!("{}-{:08x}", slug(branch), digest(branch) as u32))
+fn worktree_path(host: &Host, root: &Path, repo_path: &str, branch: &str) -> PathBuf {
+    let owner = host.join(root, &format!("{:016x}", digest(repo_path)));
+    host.join(
+        &owner,
+        &format!("{}-{:08x}", slug(branch), digest(branch) as u32),
+    )
 }
 
 /// The worktree path, with its parent directory made.
+///
+/// The repository is hashed by the name the machine holding it uses, not by the
+/// spelling this window happens to have it under — so a checkout inside a
+/// distribution comes back to the same worktree whether it was opened from the
+/// Windows side or from inside.
 fn prepare_worktree_path(root: &Path, repo: &Path, branch: &str) -> Result<PathBuf, String> {
-    let path = worktree_path(root, &repo.to_string_lossy(), branch);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    let host = Host::of(repo);
+    let path = worktree_path(&host, root, &host.native(repo), branch);
+    if let Some(parent) = host.parent(&path) {
+        host.create_dir_all(&parent)?;
     }
     Ok(path)
 }
@@ -137,6 +147,10 @@ fn resolve_commit(dir: &Path, oid: &str) -> Result<String, String> {
 }
 
 /// The worktree a branch is already checked out in, if any.
+///
+/// Spelled the way the app spells paths rather than the way git printed it —
+/// git answers in the terms of the machine it ran on, and this goes back to the
+/// window as a directory to open.
 fn worktree_for(dir: &Path, branch: &str) -> Result<Option<String>, String> {
     let listing = cmd::run(dir, &["worktree", "list", "--porcelain"])?;
     let wanted = format!("branch refs/heads/{branch}");
@@ -145,7 +159,7 @@ fn worktree_for(dir: &Path, branch: &str) -> Result<Option<String>, String> {
         if let Some(rest) = line.strip_prefix("worktree ") {
             path = Some(rest);
         } else if line.trim() == wanted {
-            return Ok(path.map(str::to_string));
+            return Ok(path.map(|path| cmd::path_of(dir, path).to_string_lossy().into_owned()));
         }
     }
     Ok(None)
@@ -190,7 +204,8 @@ fn in_branch_worktree<T>(
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|since| since.as_nanos())
                 .unwrap_or_default();
-            let path = std::env::temp_dir().join(format!("totex-{label}-{stamp:x}"));
+            let host = Host::of(repo);
+            let path = host.join(&host.temp_dir(), &format!("totex-{label}-{stamp:x}"));
             cmd::run(
                 repo,
                 &[
@@ -223,12 +238,30 @@ fn in_branch_worktree<T>(
 // ---------------------------------------------------------------- plumbing
 
 /// Where every managed worktree lives, under the app's own data directory.
-fn worktrees_root(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join("worktrees"))
+///
+/// The data directory of the machine the repository is on, not of the one the
+/// window is running on. A worktree of a Linux checkout put on the Windows side
+/// would be a checkout git reads over a network filesystem, with the wrong file
+/// modes, of files no Windows account owns — and it is the same repository, so
+/// the two would fight. Inside a distribution it is the directory this app's own
+/// Linux build uses, so a folder opened from either side finds what it made.
+fn worktrees_root(app: &AppHandle, repo: &Path) -> Result<PathBuf, String> {
+    let host = Host::of(repo);
+    match &host {
+        Host::Local => Ok(app
+            .path()
+            .app_data_dir()
+            .map_err(|error| error.to_string())?
+            .join("worktrees")),
+        Host::Wsl(_) => {
+            let home = host.home().ok_or_else(|| "no-home".to_string())?;
+            let home = host.native(&home);
+            Ok(host.canonical(&format!(
+                "{home}/.local/share/{}/worktrees",
+                app.config().identifier
+            )))
+        }
+    }
 }
 
 // ---------------------------------------------------------------- commands
@@ -247,7 +280,7 @@ pub async fn create_workspace(
         validate_branch(&repo, &branch)?;
         let oid = resolve_commit(&repo, &oid)?;
 
-        let path = prepare_worktree_path(&worktrees_root(&app)?, &repo, &branch)?;
+        let path = prepare_worktree_path(&worktrees_root(&app, &repo)?, &repo, &branch)?;
         // One call, so a failure leaves neither the branch nor the directory.
         cmd::run(
             &repo,
@@ -290,7 +323,7 @@ pub async fn open_workspace(
             });
         }
 
-        let path = prepare_worktree_path(&worktrees_root(&app)?, &repo, &branch)?;
+        let path = prepare_worktree_path(&worktrees_root(&app, &repo)?, &repo, &branch)?;
         cmd::run(
             &repo,
             &[
@@ -416,7 +449,7 @@ pub async fn workspace_statuses(
 /// whatever that worktree last said. A repository with no commit in it yet is
 /// not that: there is no HEAD to diff against, and everything in it is
 /// untracked anyway.
-fn read_status(dir: &Path) -> Option<WorktreeStatus> {
+pub(super) fn read_status(dir: &Path) -> Option<WorktreeStatus> {
     let untracked = cmd::try_run(dir, &["ls-files", "--others", "--exclude-standard", "-z"])?;
 
     let mut status = WorktreeStatus::default();
@@ -633,18 +666,36 @@ mod tests {
 
     #[test]
     fn a_branch_always_lands_in_the_same_directory() {
+        let here = Host::Local;
         let root = Path::new("/data");
-        let once = worktree_path(root, "/repo/a", "feature/x");
-        assert_eq!(once, worktree_path(root, "/repo/a", "feature/x"));
+        let once = worktree_path(&here, root, "/repo/a", "feature/x");
+        assert_eq!(once, worktree_path(&here, root, "/repo/a", "feature/x"));
 
         // The name is readable, and what makes it unique is not.
         let leaf = once.file_name().unwrap().to_string_lossy().into_owned();
         assert!(leaf.starts_with("feature-x-"), "unreadable leaf: {leaf}");
 
         // Two repositories may share a branch name without sharing a directory.
-        assert_ne!(once, worktree_path(root, "/repo/b", "feature/x"));
+        assert_ne!(once, worktree_path(&here, root, "/repo/b", "feature/x"));
         // Two branches may slug the same without sharing a directory.
-        assert_ne!(once, worktree_path(root, "/repo/a", "feature+x"));
+        assert_ne!(once, worktree_path(&here, root, "/repo/a", "feature+x"));
+    }
+
+    /// A repository inside a distribution is keyed by the name the
+    /// distribution calls it, so opening the folder from the Windows side and
+    /// from inside lands the same branch in the same worktree.
+    #[test]
+    fn a_branch_lands_in_one_place_whichever_side_asked() {
+        let inside = Host::Wsl("Ubuntu".to_string());
+        let root = inside.canonical("/home/a/.local/share/com.totex.app/worktrees");
+        let from_windows = worktree_path(&inside, &root, "/home/a/repo", "topic");
+        let from_inside = worktree_path(
+            &Host::Local,
+            Path::new("/home/a/.local/share/com.totex.app/worktrees"),
+            "/home/a/repo",
+            "topic",
+        );
+        assert_eq!(inside.native(&from_windows), from_inside.to_string_lossy());
     }
 
     #[test]
@@ -854,6 +905,95 @@ mod tests {
         });
         let left = PathBuf::from(failed.expect_err("the action failed"));
         assert!(!left.exists(), "the scratch worktree outlived its failure");
+    }
+
+    /// Borrowing a worktree in a repository that is not on this machine.
+    ///
+    /// Every path here crosses the boundary twice: the scratch directory is
+    /// chosen in the window's spelling, handed to a git running inside the
+    /// distribution — which has never heard of a UNC path — and the worktree
+    /// git then lists comes back the other way to be removed again.
+    ///
+    /// Skipped where there is no WSL to reach, which is every CI machine.
+    #[test]
+    fn an_operation_borrows_a_worktree_inside_a_distribution() {
+        let Some(distro) = crate::wsl::distros().into_iter().next() else {
+            return;
+        };
+        let host = Host::Wsl(distro);
+        let repo = host.canonical("/tmp/totex-worktree-remote/project");
+        if cmd::version(Some(&repo)).is_err() {
+            return;
+        }
+
+        host.exec(None, &[], &["rm", "-rf", "/tmp/totex-worktree-remote"])
+            .expect("a shell");
+        host.exec(
+            None,
+            &[],
+            &["mkdir", "-p", "/tmp/totex-worktree-remote/project"],
+        )
+        .expect("a shell");
+        let identity = [
+            ("GIT_AUTHOR_NAME", "totex"),
+            ("GIT_AUTHOR_EMAIL", "totex@example.invalid"),
+            ("GIT_COMMITTER_NAME", "totex"),
+            ("GIT_COMMITTER_EMAIL", "totex@example.invalid"),
+            ("GIT_CONFIG_GLOBAL", "/dev/null"),
+            ("GIT_CONFIG_SYSTEM", "/dev/null"),
+        ];
+        for args in [
+            &["git", "init", "-b", "main"][..],
+            &["sh", "-c", "printf one > one.txt"],
+            &["git", "add", "."],
+            &["git", "commit", "-m", "one"],
+            &["git", "branch", "topic"],
+        ] {
+            let output = host.exec(Some(&repo), &identity, args).expect("a shell");
+            assert!(
+                output.ok(),
+                "{args:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        let (borrowed, was_there) = in_branch_worktree(&repo, "topic", "probe", |dir| {
+            Ok((dir.to_path_buf(), Host::of(dir).is_dir(dir)))
+        })
+        .expect("run in a scratch worktree");
+
+        assert!(
+            borrowed.to_string_lossy().starts_with(r"\\wsl.localhost\"),
+            "the scratch worktree was named in git's own spelling: {borrowed:?}"
+        );
+        assert!(was_there, "the scratch worktree was never checked out");
+        assert!(
+            !host.is_dir(&borrowed),
+            "the scratch worktree was left behind"
+        );
+
+        // The branch's own worktree is found and reused, spelled the way the
+        // window spells it — this is what the menus hand back as a directory.
+        let side = host.canonical("/tmp/totex-worktree-remote/side");
+        let output = host
+            .exec(
+                Some(&repo),
+                &identity,
+                &[
+                    "git",
+                    "worktree",
+                    "add",
+                    "--quiet",
+                    &host.native(&side),
+                    "topic",
+                ],
+            )
+            .expect("a shell");
+        assert!(output.ok(), "{}", String::from_utf8_lossy(&output.stderr));
+
+        let used = in_branch_worktree(&repo, "topic", "probe", |dir| Ok(dir.to_path_buf()))
+            .expect("run in the worktree");
+        assert_eq!(used, side);
     }
 
     #[test]

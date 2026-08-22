@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   attachShell,
@@ -48,6 +48,26 @@ export function CliView({ session, shown, onEnded }: Props) {
   // there, the terminal in it is empty, and the edge along the top is red.
   const [failed, setFailed] = useState(false);
 
+  // The colours the rows are drawn in, which are the window's own. Held apart
+  // from the terminal because the two do not change together: the window can be
+  // set to the other palette while a terminal is running, and a terminal
+  // rebuilt to hear about it would be rebuilt without its scrollback.
+  const colours = useMemo(
+    () => ({
+      background: theme.palette.background.paper,
+      foreground: theme.palette.text.primary,
+      cursor: theme.palette.primary.main,
+      cursorAccent: theme.palette.background.paper,
+      selectionBackground: theme.palette.action.selected,
+    }),
+    [
+      theme.palette.background.paper,
+      theme.palette.text.primary,
+      theme.palette.primary.main,
+      theme.palette.action.selected,
+    ],
+  );
+
   // Read through a ref rather than captured: the effect below builds a terminal,
   // and re-running it because a callback was rebuilt would throw away the
   // scrollback along with it.
@@ -56,7 +76,7 @@ export function CliView({ session, shown, onEnded }: Props) {
     ended.current = onEnded;
   }, [onEnded]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the theme is read once
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
   useEffect(() => {
     const element = host.current;
     if (!element) return;
@@ -65,11 +85,7 @@ export function CliView({ session, shown, onEnded }: Props) {
       fontSize: 12,
       fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
       cursorBlink: true,
-      theme: {
-        background: theme.palette.background.paper,
-        foreground: theme.palette.text.primary,
-        cursor: theme.palette.primary.main,
-      },
+      theme: colours,
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
@@ -187,6 +203,15 @@ export function CliView({ session, shown, onEnded }: Props) {
       // graph.
     };
   }, [session.id, session.cwd, session.agent]);
+
+  // A terminal keeps its own copy of the colours it was built with, so the
+  // window being set to the other palette is something it has to be told. Told
+  // rather than rebuilt: what is on the screen is the session's whole history,
+  // and it is the same rows in a different colour.
+  useEffect(() => {
+    const terminal = drawn.current;
+    if (terminal) terminal.options.theme = colours;
+  }, [colours]);
 
   // The keyboard follows the panel. Coming back to a terminal is coming back to
   // something to type into, and a click into the rows to say so is a step that

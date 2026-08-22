@@ -3,6 +3,7 @@ import type { Node } from "@xyflow/react";
 import type { Branch, Commit, Repository, Worktree } from "../../types/git";
 import type { Agent } from "../../types/running";
 import type { Session } from "../session";
+import type { AskFlowNode } from "./asking";
 
 /**
  * The vocabulary the graph is drawn in: the grid it is laid out on, the ink it
@@ -69,8 +70,8 @@ export const CLI_MARK = 16;
  * How far apart the marks hanging off a branch stand.
  *
  * Half a cell: history needs a column wide enough to carry a name along every
- * line in it, and nothing out here carries one — what hangs off a branch is the
- * offer of a branch and the offer of a terminal, two marks the size of a chip.
+ * line in it, and nothing out here carries one — what hangs off a branch is
+ * whatever is running in it, marks the size of a chip.
  *
  * It was a third of a cell, which stood the stack close enough to its branch
  * that the line between them read as a join rather than as a run out to a
@@ -109,8 +110,10 @@ export const STACK_TOP = (LANE_HEIGHT - CLI_STEP) / 2;
  * The stack is centred on the branch rather than hung under it: a branch is one
  * place, and everything running in it belongs to that place equally, so the
  * marks open out from the branch's line instead of trailing away from it. A
- * stack of one — a branch running nothing, showing only the offer at its foot —
- * reaches nowhere and stands exactly on the line.
+ * stack of one — a branch running a single terminal — reaches nowhere and
+ * stands exactly on the line, and a branch running nothing has no stack: the
+ * room for one more is the button on the branch's own ring, not a mark out
+ * here holding a place open.
  *
  * The room this asks for is therefore split between the row above and the row
  * below, which is why the layout needs the depth of both to space two rows —
@@ -230,6 +233,17 @@ export type CommitNodeData = {
    * this: the fold has its own dash and its own way back.
    */
   boundary: boolean;
+  /**
+   * At least one parent is known and merely folded away, and the collapse
+   * node's own dash does not already run here.
+   *
+   * This is the fold's dash, on the commits the fold's single line cannot
+   * reach: a lane is handed on the moment the commit holding it is drawn, so a
+   * chain cut short by the fold is followed along its own row by an unrelated
+   * one, and the two marks either side of the join have nothing drawn between
+   * them. Without this that gap reads as a line that failed to draw.
+   */
+  folded: boolean;
 };
 
 export type RefKind = "local" | "remote" | "worktree";
@@ -251,20 +265,6 @@ export type BranchHeadData = {
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
   /** The worktree this is checked out in, which a shell can be opened in. */
-  cwd: string | null;
-};
-
-/**
- * What pressing the offer at the foot of a branch's stack would open.
- *
- * A branch with no worktree yet gets one on the way in, so nothing here has to
- * know which branches have a directory and which are still only a name.
- */
-export type CliWork = {
-  repository: Repository;
-  /** The branch, or the name of a worktree with no branch of its own. */
-  branch: string;
-  /** Where it is checked out, or null while it is still only a name. */
   cwd: string | null;
 };
 
@@ -323,40 +323,29 @@ export type CollapseNodeData = {
 };
 
 /**
- * One terminal, or the room for one: the single mark this canvas draws for
- * anything to do with a shell.
+ * One terminal: the single mark this canvas draws for anything to do with a
+ * shell.
  *
  * There used to be three of these — the offer beside a branch, this window's
  * own session, and a terminal the sweep found somebody else running — and they
- * were three shapes in two places. They are one mark now, and the branch's
- * stack is a column of it: the terminals that are running, in the order they
- * were started, and one more at the foot that is not there yet. Pressing that
- * last one starts a terminal, so the mark that was dashed is drawn through and
- * a fresh dashed one appears under it. Nothing else on the canvas moves.
+ * were three shapes in two places. The offer is not a mark at all now: it is
+ * the button on the branch's own ring, and pressing it puts one of these on the
+ * canvas. So every mark in a stack is a terminal that exists, and the stack is
+ * exactly what is running in that branch, oldest first.
  *
- * So the whole of what a terminal is is said by its state: whether it exists,
- * whose it is, and what it is running. Which of those it is is read off the
- * three fields below, and there is no fourth case.
+ * The whole of what a terminal is is said by its state: whose it is, and what
+ * it is running. Which of those it is is read off the two fields below, and
+ * there is no third case.
  */
 export type CliNodeData = {
-  /**
-   * What pressing this would open, for the one mark in a stack that is only an
-   * offer; null for a terminal that is already running.
-   *
-   * This is also the whole of what says a mark is an offer. A terminal that no
-   * branch on the canvas is drawn for — one running in a folder, or in a
-   * repository folded into a mark — has neither this nor a stack to stand in,
-   * and no offer is made for it.
-   */
-  work: CliWork | null;
   /** This window's own, which is the one kind that can be shown and ended. */
   session: Session | null;
   /**
    * The process behind it, when there is one the sweep knows about.
    *
    * Set for a terminal somebody else opened and for one of this window's own
-   * that has been paired with what the sweep found; null for an offer, and for
-   * a session whose process has not been seen yet.
+   * that has been paired with what the sweep found; null for a session whose
+   * process has not been seen yet.
    */
   cli: Agent | null;
   /** The one the panel is showing, if it is this one. */
@@ -381,8 +370,9 @@ export type CliNodeData = {
  * The box every terminal mark is drawn in, wherever it is standing.
  *
  * One box for all of them, which is what lets a stack be read down a single
- * line: an offer and a terminal that is running are the same mark in the same
- * room, and taking one up changes what is drawn without moving anything.
+ * line: a terminal this window opened and one the sweep found somebody else
+ * running are the same mark in the same room, and the stack grows by a box
+ * rather than by a shape.
  */
 export const STACK_STYLE = {
   width: SESSION_WIDTH,
@@ -405,7 +395,11 @@ export type Draw = {
   rows: Map<string, LineEnd>;
 };
 
-/** How big a file card is, in canvas units. */
+/**
+ * How big a file card is, in the units of whatever it is standing in: canvas
+ * units while the card is on the canvas, and the pane's own pixels once it has
+ * been pinned over the window. Pinning is what carries the box between the two.
+ */
 export type FilePreviewBox = { width: number; height: number };
 
 /** A bounded file reading shown in a freely placed card on the canvas. */
@@ -457,6 +451,7 @@ export type AppNode =
   | FolderFlowNode
   | RepoMarkFlowNode
   | CliFlowNode
+  | AskFlowNode
   | FilePreviewFlowNode;
 
 /**
@@ -584,28 +579,16 @@ export function reachStroke(colour: string): StrokeStyle {
  *
  * Solid, in the colour of whatever is in it — and thicker than the dashes an
  * agent of the same terminal is drawn in, so that the place somebody is sitting
- * in front of is told from the places they have work going on at a glance. The
- * offer beside a branch is this same line drawn dashed, so the whole of the
- * difference between a terminal and the room for one is whether the line was
- * drawn through.
+ * in front of is told from the places they have work going on at a glance.
+ *
+ * Every line into this column is one of these now: what a branch could be
+ * running and is not is said by the button on its ring, and a dashed line out
+ * to a mark holding a place open was the canvas drawing something that had not
+ * happened.
  */
 export function runStroke(colour: string): StrokeStyle {
   return { colour, width: 1.4, opacity: 0.7 };
 }
-
-/**
- * An offer: the terminal a branch could have and does not.
- *
- * The same ink as the line to a terminal that is running, drawn dashed, so the
- * whole of the difference between a terminal and the room for one is whether
- * the line was drawn through.
- */
-export const OFFER_STROKE: StrokeStyle = {
-  colour: LINE_COLOR,
-  width: 1.3,
-  opacity: 0.45,
-  dash: "3 4",
-};
 
 /**
  * A line the pointer can reach, and what it would do.
@@ -692,8 +675,7 @@ export type Band = {
   height: number;
   lines: BandLines;
   /**
-   * What joins each branch to the terminals working in it, and to the offer of
-   * one more beside it.
+   * What joins each branch to the terminals working in it.
    *
    * Apart from `lines` because these are the one thing in a band that is not
    * the repository: a terminal opening changes them and changes nothing else,

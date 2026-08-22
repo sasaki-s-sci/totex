@@ -2,8 +2,18 @@ import type { Folder } from "../../hooks/useWorkspace";
 import type { Workspace } from "../../types/git";
 import type { Agent } from "../../types/running";
 import { agentOf } from "../agents";
+import type { Ask } from "../ask";
 import { groupBy } from "../collections";
 import { ordinalOf, type Session } from "../session";
+import {
+  ASK_GAP,
+  ASK_STACK_GAP,
+  ASK_WIDTH,
+  ASK_Z,
+  type AskFlowNode,
+  type AskNodeData,
+  askCard,
+} from "./asking";
 import { folderRow, isOpen } from "./folders";
 import { type PreparedRepository, prepare } from "./layout";
 import {
@@ -22,7 +32,6 @@ import {
   inBand,
   LANE_HEIGHT,
   type LineEnd,
-  OFFER_STROKE,
   onCell,
   onStack,
   REPO_GAP_X,
@@ -43,7 +52,7 @@ import {
 } from "./model";
 
 /** A node the build looks up rather than taking from a cached layout. */
-type Held = RepositoryFlowNode | FolderFlowNode | RepoMarkFlowNode | CliFlowNode;
+type Held = RepositoryFlowNode | FolderFlowNode | RepoMarkFlowNode | CliFlowNode | AskFlowNode;
 
 /**
  * The canvas: every repository the workspace holds, laid beside one another,
@@ -54,11 +63,11 @@ type Held = RepositoryFlowNode | FolderFlowNode | RepoMarkFlowNode | CliFlowNode
  * lands somewhere else — and what it does not rebuild comes back as the very
  * objects React Flow already has.
  *
- * Every branch carries a stack of one mark or more: the terminals running in
- * it, in the order they were started, and one at the foot that is not there
- * yet. Pressing that last one starts a terminal, so the dashed mark is drawn
- * through and a fresh dashed one appears under it — which is the whole of what
- * happens on the canvas when work begins.
+ * A branch carries a stack of whatever is running in it, in the order the
+ * terminals were started, and nothing at all while it is running nothing. The
+ * offer of one is the button on the branch's own ring — see `BranchHeadNode` —
+ * so pressing that button puts a mark in the column beside it, which is the
+ * whole of what happens on the canvas when work begins.
  *
  * A terminal is one process with work going on in any number of directories at
  * once, so its own stack is not the whole story: it is joined by a solid line
@@ -108,10 +117,19 @@ export type GraphInput = {
   running: readonly Agent[];
   /** The session the panel is showing, if any. */
   showing: string | null;
+  /**
+   * What each session is being asked, by session id.
+   *
+   * The one thing on this canvas that is a turn rather than a state: an agent
+   * that has stopped to ask is waiting on the person at the window, and until
+   * it is answered nothing else in that session is going to happen. Nearly
+   * always empty — see `useAsks`.
+   */
+  asks: ReadonlyMap<string, Ask>;
 };
 
 export function buildCommitGraph(
-  { workspace, folders, visible, opened, sessions, running, showing }: GraphInput,
+  { workspace, folders, visible, opened, sessions, running, showing, asks }: GraphInput,
   previous?: GraphResult,
 ): GraphResult {
   const sweep = sweepOf(running);
@@ -164,7 +182,8 @@ export function buildCommitGraph(
       node.type === "repository" ||
       node.type === "folder" ||
       node.type === "repo-mark" ||
-      node.type === "cli"
+      node.type === "cli" ||
+      node.type === "ask"
     ) {
       before.set(node.id, node);
     }
@@ -239,14 +258,16 @@ export function buildCommitGraph(
       nodes.push(repositoryNode(entry, at.x, at.y, width, before.get(entry.repository.id)));
       nodes.push(...entry.nodes);
 
-      // What is running in this repository, stacked in its own column, and the
-      // offer of one more terminal beside every branch.
-      const drawn = bandColumn(entry, open, elsewhere, pairs, sweep, claimed, showing, draw);
+      // What is running in this repository, stacked in its own column.
+      const drawn = bandColumn(entry, open, elsewhere, pairs, sweep, claimed, showing, asks, draw);
       nodes.push(...drawn.nodes);
       crossing.push(...drawn.crossing);
       // A column deeper than the band it belongs to is what the canvas has to
-      // make room for; the band itself is the history's own height.
+      // make room for; the band itself is the history's own height. A question
+      // standing beside a terminal reaches past the band either way, and is
+      // room the canvas has to hold without the band being widened for it.
       reach = Math.max(reach, at.y + drawn.bottom);
+      right = Math.max(right, at.x + drawn.right);
 
       // The lines come back as the band laid them out, in its own coordinates:
       // the band carries where it stands, so moving a repository is a different
@@ -277,6 +298,7 @@ export function buildCommitGraph(
     open,
     claimed.clis,
     showing,
+    asks,
     right === 0 ? 0 : right + REPO_GAP_X,
     draw,
   );
@@ -426,6 +448,15 @@ type Column = {
   crossing: { from: LineEnd; lead: number; places: readonly Reach[] }[];
   /** How far down the band the stacks reach, which the canvas is measured by. */
   bottom: number;
+  /**
+   * And how far along, which is only ever a question standing beside a mark.
+   *
+   * The band's own width holds its history and its terminals, and a card is
+   * neither: it comes and goes with a question, and the room for it cannot be
+   * held open in the band or every repository would carry an empty corridor
+   * for a thing that is almost never there.
+   */
+  right: number;
 };
 
 /** A terminal standing in a branch's stack. */
@@ -437,13 +468,13 @@ type Standing = {
 };
 
 /**
- * One repository's terminals, stacked on the branch each of them is working in,
- * with the room for one more at the foot of every stack.
+ * One repository's terminals, stacked on the branch each of them is working in.
  *
- * A stack is read downwards: what is running, oldest first, then the offer of
- * one more at its foot — and it is centred on the branch's own line rather than
- * hung under it, so it opens out either way as it grows. The list is packed a
- * `CLI_STEP` at a time
+ * A stack is read downwards: what is running, oldest first — and it is centred
+ * on the branch's own line rather than hung under it, so it opens out either
+ * way as it grows. A branch running nothing has no stack, because the offer of
+ * a terminal is the button on its ring rather than a mark held open out here.
+ * The list is packed a `CLI_STEP` at a time
  * rather than a row of the grid apiece — a row is what two lines of development
  * need to be told apart, and terminals are not lines of development — and the
  * layout has already pushed the branches below far enough down to hold it.
@@ -468,13 +499,25 @@ function bandColumn(
   /** What another band has already taken, so that nothing is drawn twice. */
   claimed: { sessions: Set<string>; clis: Set<string> },
   showing: string | null,
+  asks: ReadonlyMap<string, Ask>,
   draw: Draw,
 ): Column {
   const band = entry.repository.id;
-  const drawn: Column = { nodes: [], lines: [], crossing: [], bottom: 0 };
+  const drawn: Column = { nodes: [], lines: [], crossing: [], bottom: 0, right: 0 };
+  /**
+   * How far down the last card in this band reached.
+   *
+   * Cards stand in one column of their own, to the right of every stack, so two
+   * branches asked at once are two cards in the same column — and a card is
+   * several times the height of the mark it belongs to. So each one is set
+   * beside its own terminal wherever there is room, and pushed down past the
+   * last one where there is not: a question that has been shoved down the
+   * canvas is still readable, and two drawn over each other are not.
+   */
+  let floor = Number.NEGATIVE_INFINITY;
 
   for (const run of entry.runs) {
-    const cwd = run.work.cwd;
+    const cwd = run.cwd;
     const standing: Standing[] = [];
 
     if (cwd) {
@@ -498,18 +541,15 @@ function bandColumn(
       }
     }
 
-    // Where the top of the stack goes: the marks that are running and the room
-    // for one more, hung on the branch's own line with half of them above it
-    // and half below. A branch is one place and everything running in it is
-    // that place's, so the stack opens out from the branch rather than trailing
-    // under it — and the layout has made the room either side.
-    const marks = standing.length + 1;
-    const head = run.y - stackReach(marks);
+    // Where the top of the stack goes: the marks that are running, hung on the
+    // branch's own line with half of them above it and half below. A branch is
+    // one place and everything running in it is that place's, so the stack
+    // opens out from the branch rather than trailing under it — and the layout
+    // has made the room either side.
+    const head = run.y - stackReach(standing.length);
 
-    // The terminals that are running, then the room for one more under them.
-    // The offer is last because it is what has not happened yet: a stack reads
-    // downwards as the order things were started in, and the dashed mark at the
-    // foot of it is the next one.
+    // The terminals that are running, oldest first, and nothing else: a branch
+    // with none of them draws nothing here.
     for (const [slot, held] of standing.entries()) {
       const tool = held.cli?.tool ?? held.session?.agent ?? null;
       const colour = tool ? agentOf(tool).colour : SHELL_COLOR;
@@ -521,7 +561,6 @@ function bandColumn(
         cliNode(
           id,
           {
-            work: null,
             session: held.session,
             cli: held.cli,
             showing: held.session !== null && held.session.id === showing,
@@ -565,46 +604,106 @@ function bandColumn(
       }
 
       drawn.bottom = Math.max(drawn.bottom, y + CLI_STEP);
-    }
 
-    // The terminal this branch does not have yet, at the foot of its stack.
-    // Dashed, and standing exactly where the next one will stand: taking it up
-    // draws this mark through and puts a fresh dashed one under it. The stack
-    // is a half-step longer for it, so it settles half a step upwards as it
-    // grows — the branch's own line stays its middle.
-    const foot = head + standing.length * CLI_STEP;
-    drawn.nodes.push(
-      cliNode(
-        run.id,
-        {
-          work: run.work,
-          session: null,
-          cli: null,
-          showing: false,
-          ordinal: null,
-          colour: SHELL_COLOR,
-          carrying: 0,
-        },
-        band,
-        run.x,
-        foot,
-        draw,
-      ),
-    );
-    drawn.lines.push({
-      id: `${run.id}edge`,
-      from: onCell(run.head),
-      to: onStack(run.id),
-      curve: true,
-      trim: CLI_MARK / 2,
-      // Out of the branch's ring, which has nothing inside it.
-      lead: RING_TRIM,
-      stroke: OFFER_STROKE,
-    });
-    drawn.bottom = Math.max(drawn.bottom, foot + CLI_STEP);
+      // And what it is asking, if it has stopped to ask: the one thing out here
+      // that is words rather than a mark, standing beside the terminal that is
+      // waiting on an answer.
+      const asking = held.session ? asks.get(held.session.id) : undefined;
+      if (!held.session || !asking) continue;
+
+      const card = askCard(asking);
+      const at = Math.max(y + CLI_STEP / 2 - card.height / 2, floor);
+      floor = at + card.height + ASK_STACK_GAP;
+      const cardId = `ask${held.session.id}`;
+
+      drawn.nodes.push(
+        askNode(
+          cardId,
+          {
+            session: held.session,
+            ask: asking,
+            tool,
+            colour,
+            card,
+          },
+          band,
+          run.x + SESSION_WIDTH + ASK_GAP,
+          at,
+          draw,
+        ),
+      );
+      drawn.lines.push(cardLine(cardId, id, card.height, colour));
+
+      drawn.bottom = Math.max(drawn.bottom, at + card.height);
+      drawn.right = Math.max(drawn.right, run.x + SESSION_WIDTH + ASK_GAP + ASK_WIDTH);
+    }
   }
 
   return drawn;
+}
+
+/**
+ * The line from a terminal to the question it is standing on.
+ *
+ * Solid and in the agent's own colour, like the line from the branch to the
+ * terminal: this is the same piece of work, one step further along. What it
+ * does that the card cannot is say which of a stack of terminals is the one
+ * being asked — a card set beside a column of marks belongs to none of them
+ * until a line says so.
+ */
+function cardLine(card: string, mark: string, height: number, colour: string): GraphLine {
+  return {
+    id: `${card}line`,
+    from: onStack(mark),
+    to: { node: card, dx: 0, dy: height / 2 },
+    curve: true,
+    trim: 0,
+    lead: CLI_MARK / 2,
+    stroke: runStroke(colour),
+  };
+}
+
+/**
+ * One question's card, handed back unchanged where it can be.
+ *
+ * The same holding-on every other node here does, and it matters more for this
+ * one than for most: the sweep hands over the whole machine every couple of
+ * seconds, and a card that was rebuilt each time would be a card whose buttons
+ * were new objects under a pointer that was already on one of them.
+ */
+function askNode(
+  id: string,
+  data: AskNodeData,
+  band: string | null,
+  x: number,
+  y: number,
+  draw: Draw,
+): AskFlowNode {
+  const held = draw.before.get(id);
+  if (
+    held?.type === "ask" &&
+    held.data.session === data.session &&
+    held.data.ask === data.ask &&
+    held.data.tool === data.tool &&
+    held.data.colour === data.colour &&
+    (held.parentId ?? null) === band &&
+    held.position.x === x &&
+    held.position.y === y
+  ) {
+    return held;
+  }
+
+  return {
+    id,
+    type: "ask",
+    ...(band === null ? null : { parentId: band }),
+    position: { x, y },
+    data,
+    style: { width: ASK_WIDTH, height: data.card.height },
+    zIndex: ASK_Z,
+    draggable: false,
+    selectable: false,
+  };
 }
 
 /**
@@ -631,11 +730,17 @@ function cliColumn(
   /** The terminals a band has already taken into its own column. */
   claimed: ReadonlySet<string>,
   showing: string | null,
+  asks: ReadonlyMap<string, Ask>,
   x: number,
   draw: Draw,
 ): { nodes: AppNode[]; reach: GraphLine[]; right: number; bottom: number } {
   const nodes: AppNode[] = [];
   const lines: GraphLine[] = [];
+  /** The lines from a terminal out here to the card beside it. */
+  const cards: GraphLine[] = [];
+  /** How far down and along the cards in this column have reached. */
+  let floor = Number.NEGATIVE_INFINITY;
+  let widest = 0;
 
   let index = 0;
   for (const session of sessions) {
@@ -665,7 +770,6 @@ function cliColumn(
       cliNode(
         id,
         {
-          work: null,
           session,
           cli: mine,
           showing: session.id === showing,
@@ -680,6 +784,28 @@ function cliColumn(
       ),
     );
     lines.push(...drawn);
+
+    // What it is being asked, beside the mark, the same as in a band.
+    const asking = asks.get(session.id);
+    if (asking) {
+      const card = askCard(asking);
+      const at = Math.max(y + CLI_STEP / 2 - card.height / 2, floor);
+      floor = at + card.height + ASK_STACK_GAP;
+      const cardId = `ask${session.id}`;
+      nodes.push(
+        askNode(
+          cardId,
+          { session, ask: asking, tool, colour, card },
+          null,
+          x + SESSION_WIDTH + ASK_GAP,
+          at,
+          draw,
+        ),
+      );
+      cards.push(cardLine(cardId, id, card.height, colour));
+      widest = Math.max(widest, SESSION_WIDTH + ASK_GAP + ASK_WIDTH);
+    }
+
     index += 1;
   }
 
@@ -709,7 +835,6 @@ function cliColumn(
       cliNode(
         id,
         {
-          work: null,
           session: null,
           cli,
           showing: false,
@@ -729,9 +854,11 @@ function cliColumn(
 
   return {
     nodes,
-    reach: lines,
-    right: index === 0 ? 0 : x + SESSION_WIDTH,
-    bottom: index === 0 ? 0 : STACK_TOP + index * CLI_STEP,
+    // The cards' own lines go with them: both ends are out on the canvas here,
+    // the way everything in this column is.
+    reach: [...lines, ...cards],
+    right: index === 0 ? 0 : x + Math.max(SESSION_WIDTH, widest),
+    bottom: index === 0 ? 0 : Math.max(STACK_TOP + index * CLI_STEP, floor),
   };
 }
 
@@ -821,9 +948,6 @@ function cliNode(
   const held = draw.before.get(id);
   if (
     held?.type === "cli" &&
-    held.data.work?.repository === data.work?.repository &&
-    held.data.work?.branch === data.work?.branch &&
-    held.data.work?.cwd === data.work?.cwd &&
     held.data.session === data.session &&
     held.data.cli === data.cli &&
     held.data.showing === data.showing &&

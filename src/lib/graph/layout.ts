@@ -8,7 +8,6 @@ import {
   CELL_STYLE,
   CHIP_STEP,
   CLI_CLEAR,
-  type CliWork,
   COLUMN_WIDTH,
   type CollapseFlowNode,
   type CommitFlowNode,
@@ -85,33 +84,31 @@ export type PreparedRepository = {
 };
 
 /**
- * One branch's stack of terminals: where it starts, and what taking up the
- * offer at the foot of it would open.
+ * One branch's stack of terminals: where it starts, and how much room it was
+ * given.
  *
  * Held apart from the nodes themselves because which terminals are in it is not
  * history: they come and go while the layout they hang off does not. So the
- * layout says where the stack stands and how much room it was given, and
- * `build` puts the marks in it.
+ * layout says where the stack stands, and `build` puts the marks in it.
  *
  * The marks are packed a `CLI_STEP` at a time — the terminals that are running,
- * in the order they were started, and one more at the foot that is not there
- * yet — and the stack is centred on `x, y`, which is level with the branch
- * itself. A branch with nothing running in it reads as the branch and one
- * dashed mark beside it; every mark past that opens the stack out half a step
- * each way, and `build` works out from `stackReach` where the top of it lands.
+ * in the order they were started — and the stack is centred on `x, y`, which is
+ * level with the branch itself. A branch with nothing running in it has no
+ * stack at all: what it could be running is the button on its own ring, and the
+ * column beside it is empty until that button is pressed. Every mark opens the
+ * stack out half a step each way, and `build` works out from `stackReach` where
+ * the top of it lands.
  */
 export type BranchRun = {
-  /** The offer at the foot of the stack, which is this run's own id. */
-  id: string;
   /** The branch's own node, which is what a terminal working here is joined to. */
   head: string;
+  /** The directory the stack is of, or null while the branch is only a name. */
+  cwd: string | null;
   /** Band-relative middle of that node, where a line into this branch lands. */
   at: Point;
   /** Band-relative corner of the box a stack of one would stand in: its middle. */
   x: number;
   y: number;
-  /** What starting a terminal here opens. */
-  work: CliWork;
 };
 
 type Placed = {
@@ -120,6 +117,7 @@ type Placed = {
   branches: Branch[];
   worktrees: Worktree[];
   boundary: boolean;
+  folded: boolean;
 };
 
 /**
@@ -224,6 +222,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
         branches: entry.branches,
         worktrees: entry.worktrees,
         boundary: entry.boundary,
+        folded: entry.folded,
       },
       style: CELL_STYLE,
     };
@@ -349,12 +348,11 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     // branches either side of it away and that is the shape of the band.
     if (ref.run) {
       runs.push({
-        id: `${ref.id}cli`,
         head: ref.id,
+        cwd: ref.data.cwd,
         at: rings.get(ref.id) as Point,
         x: ref.run.x,
         y: row(ref.row) + STACK_TOP,
-        work: ref.run.data,
       });
     }
   }
@@ -594,12 +592,23 @@ function place(repository: Repository, shown: number, deep: Depth) {
   const drawn = new Set(commits.map((commit) => commit.id));
   const known = new Set(repository.commits.map((commit) => commit.id));
   const packed = assignLanes(commits, drawn, trunk?.commit);
+  // The one commit the collapse node's own dash already runs to, which is
+  // therefore the one that needs no dash of its own.
+  const oldest = commits.length - 1;
   const placed: Placed[] = commits.map((commit, position) => ({
     commit,
     lane: packed[position],
     branches: branchesAt.get(commit.id) ?? [],
     worktrees: worktreesAt.get(commit.id) ?? [],
     boundary: commit.parents.some((parent) => !known.has(parent)),
+    // A lane is handed on as soon as the commit holding it is drawn, so a chain
+    // whose parent was folded away is followed along the same row by whatever
+    // chain took the lane next — two marks a column apart with nothing between
+    // them, which reads as a line that failed to draw rather than as history
+    // put away. The dash says which it is.
+    folded:
+      position !== oldest &&
+      commit.parents.some((parent) => known.has(parent) && !drawn.has(parent)),
   }));
 
   // Which row every name is drawn on. A lane number is only ever read as the
@@ -644,12 +653,14 @@ function place(repository: Repository, shown: number, deep: Depth) {
   const rows = placed.map((entry) => signedRow(entry.lane));
   const held = new Map<number, number>();
   for (const ref of refs.placements) {
-    if (!ref.run?.data.cwd) continue;
-    // The terminals that are running, and the one at the foot of the stack that
-    // is not there yet. Every row carrying a stack at all, however short: half
-    // of one hangs over the row above, so a gap is a sum over both of the rows
-    // it lies between.
-    held.set(ref.row, (deep.get(ref.run.data.cwd) ?? 0) + 1);
+    if (!ref.run || !ref.data.cwd) continue;
+    // What is running there, and nothing else: the offer is a button on the
+    // branch's own ring now, so a branch with nothing in it asks for no room
+    // out here. Every row carrying a stack at all, however short: half of one
+    // hangs over the row above, so a gap is a sum over both of the rows it lies
+    // between.
+    const marks = deep.get(ref.data.cwd) ?? 0;
+    if (marks > 0) held.set(ref.row, marks);
   }
   const pitch = spacing(Math.min(refs.top, ...rows, 0), Math.max(refs.bottom, ...rows, 0), held);
 
@@ -950,12 +961,11 @@ type RefPlacement = {
   column: number;
   /** Counted from the trunk, so it can be either side of it. */
   row: number;
-  /** Where a terminal working in this branch is joined, and the offer of one. */
+  /** Where a terminal working in this branch stands; null where none can. */
   run: RunPlacement | null;
 };
 
 type RunPlacement = {
-  data: CliWork;
   /** Band-relative corner of the stack's first box; the row is the branch's own. */
   x: number;
 };
@@ -1022,8 +1032,8 @@ function anchorRefs(
  * one gets first refusal on the row its own line runs along, and where two
  * names want one row the one the alphabet puts first has it.
  *
- * `ring` is where a head's own mark stands in the column, which is what the
- * offers hanging off it are measured from.
+ * `ring` is where a head's own mark stands in the column, which is what
+ * everything hanging off it is measured from.
  */
 function placeRefs(anchored: Anchored[], repository: Repository, column: number, ring: number) {
   const placements: RefPlacement[] = [];
@@ -1051,15 +1061,10 @@ function placeRefs(anchored: Anchored[], repository: Repository, column: number,
 
     const id = `${repository.id}ref${entry.ref.key}`;
 
-    // What can be done in this branch, beside it: a terminal opened here. A
-    // remote branch is somewhere else, and is offered nothing.
-    let run: RunPlacement | null = null;
-    if (entry.ref.kind !== "remote") {
-      run = {
-        data: { repository, branch: entry.ref.name, cwd: entry.ref.cwd },
-        x: working - SESSION_WIDTH / 2,
-      };
-    }
+    // Where what is running in this branch stands, beside it. A remote branch
+    // is somewhere else: nothing can be opened in it, so nothing stands there.
+    const run: RunPlacement | null =
+      entry.ref.kind === "remote" ? null : { x: working - SESSION_WIDTH / 2 };
 
     placements.push({
       id,

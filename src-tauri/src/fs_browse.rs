@@ -4,14 +4,20 @@
 //! Paths cross the IPC boundary as plain strings so that Windows locations
 //! (`C:\Users\...`, `\\wsl.localhost\Ubuntu\home\...`) and WSL locations
 //! (`/home/...`, `/mnt/c/...`) both survive the round trip untouched.
+//!
+//! A path that names a WSL distribution is not read through the share Windows
+//! publishes it under — it is read inside the distribution, by [`crate::host`].
+//! The share is bytes over a network filesystem, which is slow enough to be
+//! felt in a listing and tells Windows nothing about who owns what; reaching in
+//! is the same reading the distribution's own tools would get.
 
 use std::ffi::OsStr;
-use std::fs;
-use std::io::Read;
 use std::path::{Component, Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
+
+use crate::host::Host;
+use crate::wsl;
 
 /// The picker and the tree are interactive views, so oversized directories are
 /// cut short instead of shipping a million rows to the webview.
@@ -36,7 +42,7 @@ pub enum RootKind {
     Home,
     /// A drive letter of the Windows host (`C:\`).
     WindowsDrive,
-    /// A WSL distribution seen from Windows (`\\wsl.localhost\Ubuntu`).
+    /// A WSL distribution, reached inside itself rather than over its share.
     WslDistro,
     /// The `/` of the Linux/WSL filesystem.
     UnixRoot,
@@ -72,10 +78,14 @@ pub struct Entry {
 #[serde(rename_all = "camelCase")]
 pub struct Listing {
     /// The directory that was actually read, which may differ from the request
-    /// once `~` expansion, `..` folding or the `\\wsl$\` fallback ran.
+    /// once `~` expansion or `..` folding ran.
     pub path: String,
     pub name: String,
     pub parent: Option<String>,
+    /// The distribution the directory is inside, when it is inside one. What
+    /// the window puts beside a Linux path so it reads as one place and not as
+    /// this machine's own `/home`.
+    pub distro: Option<String>,
     pub entries: Vec<Entry>,
     /// Set when the directory holds more than [`MAX_ENTRIES`] children.
     pub truncated: bool,
@@ -86,7 +96,7 @@ pub struct Listing {
 #[serde(rename_all = "camelCase")]
 pub struct FileHead {
     /// The file that actually answered, which may differ from the request once
-    /// `~` expansion, `..` folding or the `\\wsl$\` fallback ran.
+    /// `~` expansion or `..` folding ran.
     pub path: String,
     pub name: String,
     /// As much of the file as was read, when the bytes are text at all. `None`
@@ -167,32 +177,35 @@ pub fn clean_path(path: &Path) -> PathBuf {
     }
 }
 
-/// `\\wsl.localhost\` only exists on recent Windows builds; older ones publish
-/// the same share as `\\wsl$\`. Retrying under the legacy prefix keeps distro
-/// roots reachable on both.
-pub fn wsl_legacy_alias(path: &str) -> Option<String> {
-    let rest = path.strip_prefix(r"\\wsl.localhost\")?;
-    Some(format!(r"\\wsl$\{rest}"))
+/// What was typed, as the machine holding it and a settled path on it.
+///
+/// The one door every command here goes through. A WSL path is folded as the
+/// distribution would fold it rather than as this platform's `Path` would: on a
+/// Linux build a backslash is an ordinary letter, and the answer has to be the
+/// same in both builds.
+fn resolve(raw: &str) -> Result<(Host, PathBuf), String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("empty-path".to_string());
+    }
+    match wsl::locate(trimmed) {
+        Some(found) => {
+            let path = wsl::unc(&found.distro, &wsl::clean(&found.path));
+            Ok((Host::Wsl(found.distro), PathBuf::from(path)))
+        }
+        None => Ok((Host::Local, clean_path(&expand_user_path(trimmed)))),
+    }
 }
 
 /// Reads `raw_path` and returns its children, sorted directories first.
 pub fn read_directory(raw_path: &str, show_hidden: bool) -> Result<Listing, String> {
-    if raw_path.trim().is_empty() {
-        return Err("empty-path".to_string());
-    }
-    let requested = clean_path(&expand_user_path(raw_path));
-    let (path, dir) = open_directory(&requested)?;
+    let (host, path) = resolve(raw_path)?;
+    let children = host.read_dir(&path)?;
 
     let mut entries = Vec::new();
     let mut truncated = false;
-    for entry in dir {
-        let Ok(entry) = entry else {
-            // A single unreadable child must not sink the whole listing.
-            continue;
-        };
-        let Some(entry) = describe(&entry) else {
-            continue;
-        };
+    for child in children {
+        let entry = describe(&host, &path, child);
         if !show_hidden && entry.is_hidden {
             continue;
         }
@@ -205,30 +218,15 @@ pub fn read_directory(raw_path: &str, show_hidden: bool) -> Result<Listing, Stri
     sort_entries(&mut entries);
 
     Ok(Listing {
-        name: display_name(&path),
-        parent: path
-            .parent()
+        name: host.name(&path),
+        parent: host
+            .parent(&path)
             .map(|parent| parent.to_string_lossy().into_owned()),
+        distro: host.distro().map(str::to_string),
         path: path.to_string_lossy().into_owned(),
         entries,
         truncated,
     })
-}
-
-/// Opens `path`, falling back to the legacy WSL share when the modern one is
-/// missing, and reports which path actually answered.
-fn open_directory(path: &Path) -> Result<(PathBuf, fs::ReadDir), String> {
-    match fs::read_dir(path) {
-        Ok(dir) => Ok((path.to_path_buf(), dir)),
-        Err(error) => {
-            if let Some(alias) = wsl_legacy_alias(&path.to_string_lossy())
-                && let Ok(dir) = fs::read_dir(&alias)
-            {
-                return Ok((PathBuf::from(alias), dir));
-            }
-            Err(error.to_string())
-        }
-    }
 }
 
 /// Reads the top of `raw_path`, for a card on the canvas.
@@ -237,15 +235,12 @@ fn open_directory(path: &Path) -> Result<(PathBuf, fs::ReadDir), String> {
 /// different things, and the card that would draw the second one is not what a
 /// folder should put on the canvas.
 pub fn read_file_head(raw_path: &str) -> Result<FileHead, String> {
-    if raw_path.trim().is_empty() {
-        return Err("empty-path".to_string());
-    }
-    let requested = clean_path(&expand_user_path(raw_path));
-    let (path, bytes, size) = open_file(&requested)?;
+    let (host, path) = resolve(raw_path)?;
+    let (bytes, size) = host.read_head(&path, MAX_FILE_HEAD)?;
     let truncated = size > bytes.len() as u64;
 
     Ok(FileHead {
-        name: display_name(&path),
+        name: host.name(&path),
         path: path.to_string_lossy().into_owned(),
         text: as_text(&bytes, truncated),
         size,
@@ -265,68 +260,19 @@ pub fn read_file_head(raw_path: &str) -> Result<FileHead, String> {
 /// The file is written in place rather than replaced, so whatever it already is
 /// — a symlink, a mode, an owner, a hard link — it stays.
 pub fn write_file(raw_path: &str, text: &str, expect_size: u64) -> Result<u64, String> {
-    if raw_path.trim().is_empty() {
-        return Err("empty-path".to_string());
-    }
-    let requested = clean_path(&expand_user_path(raw_path));
-    let (path, metadata) = stat_file(&requested)?;
-    if metadata.is_dir() {
+    let (host, path) = resolve(raw_path)?;
+    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
+    if stat.is_dir {
         return Err("is-a-directory".to_string());
     }
-    if metadata.len() > MAX_FILE_HEAD {
+    if stat.size > MAX_FILE_HEAD {
         return Err("too-long".to_string());
     }
-    if metadata.len() != expect_size {
+    if stat.size != expect_size {
         return Err("changed".to_string());
     }
 
-    fs::write(&path, text).map_err(|error| error.to_string())?;
-    Ok(text.len() as u64)
-}
-
-/// What a path is, under the legacy WSL share as well, and which one answered.
-fn stat_file(path: &Path) -> Result<(PathBuf, fs::Metadata), String> {
-    match fs::metadata(path) {
-        Ok(metadata) => Ok((path.to_path_buf(), metadata)),
-        Err(error) => {
-            if let Some(alias) = wsl_legacy_alias(&path.to_string_lossy())
-                && let Ok(metadata) = fs::metadata(&alias)
-            {
-                return Ok((PathBuf::from(alias), metadata));
-            }
-            Err(error.to_string())
-        }
-    }
-}
-
-/// Opens `path` under the legacy WSL share as well, the way a directory is
-/// opened, and reports which one answered.
-fn open_file(path: &Path) -> Result<(PathBuf, Vec<u8>, u64), String> {
-    match head_of(path) {
-        Ok((bytes, size)) => Ok((path.to_path_buf(), bytes, size)),
-        Err(error) => {
-            if let Some(alias) = wsl_legacy_alias(&path.to_string_lossy())
-                && let Ok((bytes, size)) = head_of(Path::new(&alias))
-            {
-                return Ok((PathBuf::from(alias), bytes, size));
-            }
-            Err(error)
-        }
-    }
-}
-
-/// The first [`MAX_FILE_HEAD`] bytes of a file, and how long the file itself is.
-fn head_of(path: &Path) -> Result<(Vec<u8>, u64), String> {
-    let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
-    if metadata.is_dir() {
-        return Err("is-a-directory".to_string());
-    }
-    let file = fs::File::open(path).map_err(|error| error.to_string())?;
-    let mut bytes = Vec::new();
-    file.take(MAX_FILE_HEAD)
-        .read_to_end(&mut bytes)
-        .map_err(|error| error.to_string())?;
-    Ok((bytes, metadata.len()))
+    host.write(&path, text, expect_size)
 }
 
 /// The bytes as text, or `None` when they are not text.
@@ -353,58 +299,20 @@ fn as_text(bytes: &[u8], truncated: bool) -> Option<String> {
     }
 }
 
-fn describe(entry: &fs::DirEntry) -> Option<Entry> {
-    let path = entry.path();
-    let name = entry.file_name().to_string_lossy().into_owned();
-    let file_type = entry.file_type().ok()?;
-    let is_symlink = file_type.is_symlink();
-    // `DirEntry::file_type` never follows symlinks, so a link to a directory
-    // needs the target's metadata to be shown as a directory.
-    let is_dir = if is_symlink {
-        fs::metadata(&path)
-            .map(|meta| meta.is_dir())
-            .unwrap_or(false)
-    } else {
-        file_type.is_dir()
-    };
-    let metadata = entry.metadata().ok();
-    let modified_ms = metadata
-        .as_ref()
-        .and_then(|meta| meta.modified().ok())
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|since_epoch| since_epoch.as_millis() as u64);
-
-    Some(Entry {
-        is_hidden: is_hidden(&name, metadata.as_ref()),
-        size: if is_dir {
-            None
-        } else {
-            metadata.as_ref().map(|meta| meta.len())
-        },
-        modified_ms,
-        name,
+/// One child of a directory, as a row of the pane.
+fn describe(host: &Host, dir: &Path, child: crate::host::Child) -> Entry {
+    let path = host.join(dir, &child.name);
+    Entry {
+        // Dot files are hidden on both sides: WSL trees are browsed from
+        // Windows too, and only Windows marks a file hidden any other way.
+        is_hidden: child.stat.hidden || child.name.starts_with('.'),
+        size: (!child.stat.is_dir).then_some(child.stat.size),
+        modified_ms: child.stat.modified_ms,
+        name: child.name,
         path: path.to_string_lossy().into_owned(),
-        is_dir,
-        is_symlink,
-    })
-}
-
-fn is_hidden(name: &str, metadata: Option<&fs::Metadata>) -> bool {
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::MetadataExt;
-        const FILE_ATTRIBUTE_HIDDEN: u32 = 0x0000_0002;
-        const FILE_ATTRIBUTE_SYSTEM: u32 = 0x0000_0004;
-        if let Some(metadata) = metadata
-            && metadata.file_attributes() & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM) != 0
-        {
-            return true;
-        }
+        is_dir: child.stat.is_dir,
+        is_symlink: child.stat.is_symlink,
     }
-    #[cfg(not(windows))]
-    let _ = metadata;
-    // Dot files are hidden on both sides: WSL trees are browsed from Windows too.
-    name.starts_with('.')
 }
 
 /// Directories first, then by name.
@@ -418,14 +326,9 @@ fn sort_entries(entries: &mut [Entry]) {
         .sort_by_cached_key(|entry| (!entry.is_dir, entry.name.to_lowercase(), entry.name.clone()));
 }
 
-/// The name to show for a directory: roots such as `C:\` or `/` keep the whole
-/// path because they have no file name of their own.
-fn display_name(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.to_string_lossy().into_owned())
-}
-
+/// What the distribution this window is itself running in is called, which is
+/// the only name a build inside one has for its own filesystem.
+#[cfg(not(windows))]
 fn wsl_distro_name() -> Option<String> {
     std::env::var("WSL_DISTRO_NAME")
         .ok()
@@ -469,59 +372,18 @@ fn platform_roots() -> Vec<Root> {
             });
         }
     }
-    for distro in wsl_distros() {
-        let path = format!(r"\\wsl.localhost\{distro}");
+    // Named, not started. The row is the distribution's own root, and asking
+    // for it is what starts the distribution — listing the rail must not boot
+    // every one of them the machine has installed.
+    for distro in wsl::distros() {
         roots.push(Root {
             kind: RootKind::WslDistro,
-            label: distro,
-            detail: Some(path.clone()),
-            path,
+            label: distro.clone(),
+            detail: Some("/".to_string()),
+            path: wsl::unc(&distro, "/"),
         });
     }
     roots
-}
-
-/// The installed WSL distributions, as reported by `wsl.exe`.
-#[cfg(windows)]
-fn wsl_distros() -> Vec<String> {
-    use std::os::windows::process::CommandExt;
-    /// Keeps `wsl.exe` from flashing a console window over the app.
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-    let output = std::process::Command::new("wsl.exe")
-        .args(["--list", "--quiet"])
-        .creation_flags(CREATE_NO_WINDOW)
-        .output();
-    match output {
-        // WSL is simply not installed, which is not an error worth surfacing.
-        Err(_) => Vec::new(),
-        Ok(output) if !output.status.success() => Vec::new(),
-        Ok(output) => parse_wsl_list(&output.stdout),
-    }
-}
-
-/// Parses `wsl.exe --list --quiet`, which answers in UTF-16LE on most builds
-/// and in UTF-8 on others.
-#[cfg_attr(not(any(windows, test)), allow(dead_code))]
-pub fn parse_wsl_list(stdout: &[u8]) -> Vec<String> {
-    let zeros = stdout.iter().filter(|byte| **byte == 0).count();
-    let text = if zeros * 3 > stdout.len() {
-        let units: Vec<u16> = stdout
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect();
-        String::from_utf16_lossy(&units)
-    } else {
-        String::from_utf8_lossy(stdout).into_owned()
-    };
-
-    text.lines()
-        .map(|line| line.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}' || c == '\0'))
-        // `--quiet` drops the header, but not the default marker on old builds.
-        .map(|line| line.trim_end_matches("(Default)").trim())
-        .filter(|line| !line.is_empty())
-        .map(str::to_string)
-        .collect()
 }
 
 #[cfg(not(windows))]
@@ -532,7 +394,7 @@ fn platform_roots() -> Vec<Root> {
         detail: Some("/".to_string()),
         path: "/".to_string(),
     }];
-    let mounts = fs::read_to_string("/proc/mounts").unwrap_or_default();
+    let mounts = std::fs::read_to_string("/proc/mounts").unwrap_or_default();
     for mount in parse_windows_mounts(&mounts) {
         roots.push(Root {
             kind: RootKind::WindowsMount,
@@ -608,6 +470,8 @@ fn unescape_mount_field(field: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -623,30 +487,6 @@ mod tests {
         assert_eq!(clean_path(Path::new("/../..")), PathBuf::from("/"));
         assert_eq!(clean_path(Path::new("a/../../b")), PathBuf::from("../b"));
         assert_eq!(clean_path(Path::new("")), PathBuf::from("."));
-    }
-
-    #[test]
-    fn wsl_shares_fall_back_to_the_legacy_prefix() {
-        assert_eq!(
-            wsl_legacy_alias(r"\\wsl.localhost\Ubuntu\home").as_deref(),
-            Some(r"\\wsl$\Ubuntu\home")
-        );
-        assert_eq!(wsl_legacy_alias(r"C:\Users"), None);
-        assert_eq!(wsl_legacy_alias("/home/user"), None);
-    }
-
-    #[test]
-    fn wsl_list_is_read_as_utf16_or_utf8() {
-        let mut utf16 = Vec::new();
-        for unit in "Ubuntu-24.04\r\nDebian\r\n".encode_utf16() {
-            utf16.extend_from_slice(&unit.to_le_bytes());
-        }
-        assert_eq!(parse_wsl_list(&utf16), ["Ubuntu-24.04", "Debian"]);
-        assert_eq!(
-            parse_wsl_list(b"Ubuntu (Default)\nDebian\n"),
-            ["Ubuntu", "Debian"]
-        );
-        assert!(parse_wsl_list(b"").is_empty());
     }
 
     #[test]
@@ -787,6 +627,106 @@ mod tests {
         assert!(read_file_head(&dir.to_string_lossy()).is_err());
 
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A folder inside a distribution, named the way the window names it —
+    /// which is the whole point: the same path string the picker hands back is
+    /// the one that comes in here, and it is read inside the distribution.
+    ///
+    /// Skipped where there is no WSL to reach, which is every CI machine.
+    fn wsl_dir(name: &str) -> Option<String> {
+        let distro = crate::wsl::distros().into_iter().next()?;
+        let path = format!("/tmp/totex-browse-test/{name}");
+        crate::wsl::exec(
+            &distro,
+            None,
+            &[],
+            &[
+                "sh",
+                "-c",
+                &format!("rm -rf {0}; mkdir -p {0}", crate::wsl::quote(&path)),
+            ],
+        )
+        .ok()?;
+        Some(crate::wsl::unc(&distro, &path))
+    }
+
+    #[test]
+    fn a_folder_inside_a_distribution_is_listed_from_inside_it() {
+        let Some(dir) = wsl_dir("listing") else {
+            return;
+        };
+        let host = Host::of(Path::new(&dir));
+        host.exec(
+            Some(Path::new(&dir)),
+            &[],
+            &[
+                "sh",
+                "-c",
+                "mkdir Beta alpha; printf hello > notes.txt; printf shh > .secret",
+            ],
+        )
+        .expect("a shell");
+
+        let listing = read_directory(&dir, false).expect("a listing");
+        let names: Vec<&str> = listing.entries.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["alpha", "Beta", "notes.txt"]);
+        assert_eq!(listing.entries[2].size, Some(5));
+        assert_eq!(listing.name, "listing");
+        assert!(listing.distro.is_some(), "the row says which distribution");
+        // The paths it hands back are the ones it takes: they go straight back
+        // over IPC as the next directory to open.
+        assert!(listing.entries[0].path.starts_with(r"\\wsl.localhost\"));
+        assert!(read_directory(&listing.entries[0].path, false).is_ok());
+        assert!(
+            listing
+                .parent
+                .as_deref()
+                .is_some_and(|parent| parent.ends_with(r"\tmp\totex-browse-test")),
+            "{:?}",
+            listing.parent
+        );
+
+        let with_hidden = read_directory(&dir, true).expect("a listing");
+        assert_eq!(with_hidden.entries.len(), 4);
+    }
+
+    #[test]
+    fn a_climbing_path_inside_a_distribution_is_folded_before_it_is_read() {
+        let Some(dir) = wsl_dir("climb") else {
+            return;
+        };
+        let listing = read_directory(&format!(r"{dir}\one\.."), false).expect("a listing");
+        assert_eq!(listing.path, dir);
+    }
+
+    #[test]
+    fn a_card_reads_and_writes_a_file_inside_the_distribution() {
+        let Some(dir) = wsl_dir("card") else {
+            return;
+        };
+        let host = Host::of(Path::new(&dir));
+        host.exec(
+            Some(Path::new(&dir)),
+            &[],
+            &["sh", "-c", "printf 'one\ntwo\n' > notes.txt"],
+        )
+        .expect("a shell");
+        let file = format!(r"{dir}\notes.txt");
+
+        let head = read_file_head(&file).expect("a reading");
+        assert_eq!(head.name, "notes.txt");
+        assert_eq!(head.text.as_deref(), Some("one\ntwo\n"));
+        assert!(!head.truncated);
+
+        assert_eq!(write_file(&file, "one\ntwo\nthree\n", head.size), Ok(14));
+        assert_eq!(
+            read_file_head(&file).expect("a reading").text.as_deref(),
+            Some("one\ntwo\nthree\n")
+        );
+        // The reading the card holds is stale now, so its write is refused.
+        assert!(write_file(&file, "mine\n", head.size).is_err());
+        assert!(read_file_head(&dir).is_err(), "a folder is not a card");
     }
 
     #[test]

@@ -53,11 +53,16 @@ const MAX_COMMIT_LIMIT: usize = 5_000;
 /// on a network share.
 const HOLD_BUDGET: usize = 200;
 
-/// Reports the installed git, so the UI can explain the problem instead of
-/// failing every scan with the same error.
-#[tauri::command]
-pub fn git_version() -> Result<String, String> {
-    cmd::version()
+/// Reports the git that would read `path`, so the UI can explain the problem
+/// instead of failing every scan with the same error.
+///
+/// `path` rather than nothing: a folder inside a WSL distribution is read by
+/// that distribution's git, and a Windows window that only ever opens those has
+/// no use for the git beside it — which may well not be installed. Asking about
+/// the machine would draw the missing-git rule over a window that works.
+#[tauri::command(async)]
+pub fn git_version(path: Option<String>) -> Result<String, String> {
+    cmd::version(path.as_deref().map(Path::new))
 }
 
 /// How many repositories each of `paths` holds — itself, or somewhere
@@ -93,12 +98,20 @@ pub(super) struct Survey {
     warnings: Vec<String>,
 }
 
+/// The scanned root, settled: it is there, it is a directory, and every link
+/// along the way to it has been followed.
+///
+/// Resolved because git answers in resolved paths, and the graph matches what
+/// git says against this. Asked of the machine holding the folder rather than
+/// of `Path`: a folder inside a distribution is resolved by the distribution,
+/// and `canonicalize` would answer for a share it is not going to read.
 fn normalize_root(root: &str) -> Result<PathBuf, String> {
+    let host = crate::host::Host::of_str(root);
     let path = PathBuf::from(root);
-    if !path.is_dir() {
+    if !host.is_dir(&path) {
         return Err("not-a-directory".to_string());
     }
-    Ok(path.canonicalize().unwrap_or(path))
+    Ok(host.resolve(&path).unwrap_or(path))
 }
 
 fn clamp_commit_limit(limit: Option<usize>) -> usize {

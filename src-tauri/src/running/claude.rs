@@ -16,6 +16,8 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
+use crate::host::Host;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
@@ -39,29 +41,42 @@ pub struct Entry {
 }
 
 /// Where Claude Code keeps its state, honouring the override it reads itself.
-fn config_dir() -> Option<PathBuf> {
-    if let Ok(configured) = std::env::var("CLAUDE_CONFIG_DIR")
+///
+/// The override is an environment variable, and a distribution's environment is
+/// not this process's — nothing on the Windows side can read what a shell
+/// inside it exports. So a distribution is looked at where Claude Code puts its
+/// state for everybody who has not moved it.
+fn config_dir(host: &Host) -> Option<PathBuf> {
+    if !host.is_remote()
+        && let Ok(configured) = std::env::var("CLAUDE_CONFIG_DIR")
         && !configured.trim().is_empty()
     {
         return Some(PathBuf::from(configured));
     }
-    super::home().map(|home| home.join(".claude"))
+    super::home(host).map(|home| host.join(&home, ".claude"))
 }
 
-/// Every session file on this machine, in no particular order.
-pub fn entries() -> Vec<Entry> {
-    let Some(dir) = config_dir().map(|dir| dir.join("sessions")) else {
+/// Every session file on `host`, in no particular order.
+pub fn entries(host: &Host) -> Vec<Entry> {
+    let Some(dir) = config_dir(host).map(|dir| host.join(&dir, "sessions")) else {
         return Vec::new();
     };
-    let Ok(listing) = std::fs::read_dir(dir) else {
+    let Ok(listing) = host.read_dir(&dir) else {
         return Vec::new();
     };
 
-    listing
-        .flatten()
-        .filter(|file| file.path().extension().is_some_and(|kind| kind == "json"))
-        .filter_map(|file| std::fs::read_to_string(file.path()).ok())
-        .filter_map(|text| parse(&text))
+    // All of them in one reading: this runs every couple of seconds, and a
+    // directory of small files is a round trip apiece for a machine that is
+    // not this one.
+    let files: Vec<PathBuf> = listing
+        .iter()
+        .filter(|file| file.name.ends_with(".json"))
+        .map(|file| host.join(&dir, &file.name))
+        .collect();
+
+    host.texts(&files)
+        .iter()
+        .filter_map(|text| parse(text))
         .collect()
 }
 

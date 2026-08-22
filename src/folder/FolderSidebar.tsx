@@ -175,8 +175,9 @@ export function FolderSidebar({
         borderColor: "divider",
       }}
     >
-      {/* The column's header: the two marks that answer for the sidebar itself
-          rather than for any one folder in it.
+      {/* The column's header: the two marks that answer for the window itself
+          rather than for any one folder in it — where a folder is added, and
+          everything the window is set to, which is a dialog and not a mark.
 
           They stand in the band along the top of the window — the strip the
           window's own three marks are already in, at the other end of it — so

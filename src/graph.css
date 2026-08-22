@@ -251,6 +251,17 @@
   stroke-opacity: 0.4;
 }
 
+/* History that is only folded away, on the commits the collapse node's single
+   dash cannot reach. The collapse node's very ink, so that a stub in the middle
+   of a row and the line running out of the fold read as the same thing. */
+.commit-folded {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.6;
+  stroke-opacity: 0.5;
+  stroke-dasharray: 4 5;
+}
+
 /* Hover and selection are the exceptional one-at-a-time marks, drawn over the
    batch only while they have something to say. */
 .commit-hover,
@@ -328,14 +339,45 @@
 }
 
 /* A branch that also exists on a remote keeps that fact beside its local
-   ring. The mark is only a reading: the ring remains the whole click target. */
+   ring. The mark is only a reading: the ring remains the whole click target.
+
+   On the ring's left shoulder, because its right one is the terminal button's
+   — and the two read as what this branch is on one side and what can be done
+   in it on the other, rather than as two marks stacked in one corner. */
 .head__remote {
   position: absolute;
   top: calc(50% - 13px);
-  left: calc(50% + 5px);
+  left: calc(50% - 15px);
   color: var(--mui-palette-text-secondary);
   opacity: 0.8;
   pointer-events: none;
+}
+
+/* The terminal a branch could have, on the ring's right shoulder: press it and
+   a mark for the terminal it opened appears in the column past the branch.
+
+   It was a dashed mark standing out in that column with a dashed line to it,
+   which is the canvas drawing a terminal that does not exist — and it cost
+   every branch, running something or not, a mark's worth of room in its own
+   column. The offer belongs on the branch, beside everything else that can be
+   done to one; the column is left to say what is actually running.
+
+   Diagonally off the ring rather than beside it: level with the ring is where
+   the lines out to the terminals leave, and the line in from the history
+   arrives on the other side. The corner is the one place round a head that
+   nothing else on this canvas uses. */
+.head__cli {
+  position: absolute;
+  top: calc(50% - 20px);
+  left: calc(50% + 5px);
+  pointer-events: all;
+}
+
+/* Past what a pointer can be aimed at, the button is four pixels of grey on a
+   canvas being read for the shape of its history; see `DETAIL_ZOOM`. The ring
+   itself stays: a branch is drawn at every scale. */
+.graph[data-coarse] .head__cli {
+  display: none;
 }
 
 /* Work in the copy the ring stands for, drawn on the ring's own rim: what has
@@ -432,14 +474,22 @@
 /* ---------- what can be done with a folder ---------- */
 
 /* The one button a folder's row ends with: a folder is a directory and nothing
-   else, so a terminal in it is the whole of what it offers. A branch answers
-   this with a stack of marks of its own beside it instead — see `.cli__row`.
+   else, so a terminal in it is the whole of what it offers. A branch carries
+   the same button on its ring — see `.head__cli` — and what either of them
+   opens stands in a stack of marks beside it; see `.cli__row`.
+
+   The glyph and nothing else: no box round it and no paper under it, which is
+   the argument `.cli__row` already makes for what these buttons open. A frame
+   drawn round the offer and none round what the offer put on the canvas read as
+   two kinds of thing standing for one, and the frame was the part doing the
+   reading. The square the button answers in is untouched — a glyph on its own
+   is a small thing to aim at — it is only left unpainted.
 
    Out at rest and full under the cursor, and the difference is drawn in the
-   three colours the button paints rather than in its opacity: an opacity that
-   moves is run by the compositor, and one running here would take the canvas
-   with it. A colour mixed with `transparent` is the same paint an opacity gave
-   — the canvas shows through the button exactly as far. */
+   colour the glyph is painted rather than in its opacity: an opacity that moves
+   is run by the compositor, and one running here would take the canvas with it.
+   A colour mixed with `transparent` is the same paint an opacity gave — the
+   canvas shows through the mark exactly as far. */
 .tools__button {
   display: flex;
   align-items: center;
@@ -447,21 +497,15 @@
   width: 22px;
   height: 16px;
   padding: 0;
-  border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 70%, transparent);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--mui-palette-background-paper) 70%, transparent);
+  border: none;
+  background: none;
   color: color-mix(in srgb, var(--mui-palette-text-secondary) 70%, transparent);
   cursor: pointer;
-  transition:
-    color var(--reveal),
-    border-color var(--reveal),
-    background-color var(--reveal);
+  transition: color var(--reveal);
 }
 
 .tools__button:hover,
 .tools__button:focus-visible {
-  border-color: currentcolor;
-  background: var(--mui-palette-background-paper);
   color: var(--mui-palette-text-secondary);
 }
 
@@ -474,9 +518,16 @@
 .collapse__more {
   display: flex;
   align-items: center;
-  gap: 1px;
+  justify-content: center;
+  gap: 2px;
+  /* Wider than what is written in it. The pill is a handle before it is a
+     reading — it is taken hold of and run either way, and a badge sized to two
+     digits is a target the width of two digits. The room also keeps the pill the
+     same shape as a count goes from one digit to four, so a graph of a dozen
+     repositories reads as a column of one thing rather than of several. */
+  min-width: 56px;
   height: 16px;
-  padding: 0 5px 0 2px;
+  padding: 0 6px;
   /* Faint at rest in colour rather than in opacity; see `.tools__button`. */
   border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 75%, transparent);
   border-radius: 8px;
@@ -517,15 +568,127 @@
   box-shadow: var(--halo);
   color: var(--mui-palette-text-secondary);
   cursor: ew-resize;
+  /* Out to the left, so the left end is the one under the hand and the count
+     goes with it. Centred it would sit further from the hand the further the
+     pill was run, which is the one place the number is actually being read. */
+  justify-content: flex-start;
+}
+
+/* And the other way round when the pill is being closed rather than opened: the
+   right end is the moving one then, growing over the history it is closing on.
+   Opaque while it does — see the background above — because covering what it
+   is about to fold away is the whole of what a close looks like. */
+.collapse__more.is-pulling.is-closing {
+  justify-content: flex-end;
+}
+
+/* The folded history itself, drawn out to the left of the pill while the cursor
+   is on it or a pull is under way. Never at rest: this is an answer to being
+   asked, the way the fold marks on the lines are, and one per repository drawn
+   always would be a canvas of history nobody is reading.
+
+   Hung off the pill's far end rather than off the cell — `--far` is written by
+   the node, and by the pull while there is one — so the pill never grows over
+   the peek that is coming out of it. Zero-sized, so that everything inside it
+   can hang off that one point; it takes no pointer, because the pill is what
+   answers here and the peek is only what the pill has to say. */
+.collapse__peek {
+  position: absolute;
+  top: 50%;
+  right: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(calc(-1 * var(--far, 28px)));
+  pointer-events: none;
+}
+
+.peek__run {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translateY(-50%);
+  overflow: visible;
+}
+
+/* The fold's own dash, carried on past the pill: the same stroke the collapse
+   edge takes to the oldest commit still shown, so the row reads as one line
+   with the pill sitting in the middle of it. */
+.peek__line {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.6;
+  stroke-opacity: 0.5;
+  stroke-dasharray: 4 5;
+}
+
+/* A commit that is not there: the same dashed ring the branch that has not been
+   cut yet is drawn as, which is what that stroke means everywhere here. */
+.peek__dots {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.4;
+  stroke-opacity: 0.55;
+  stroke-dasharray: 3 3;
+}
+
+/* And what a pull has reached, drawn over the ghosts in the marks the history
+   is drawn in — `.commit-dots` and the stroke of a line of history, exactly.
+   Coming back is what the graph these will join looks like, so that is what
+   they are already drawn as. */
+.peek__back {
+  stroke: var(--line);
+  stroke-width: 1.6;
+  stroke-opacity: 0.82;
+}
+
+.peek__back-dots {
+  fill: var(--mark);
+  stroke: var(--mui-palette-background-default);
+  stroke-width: 6;
+}
+
+/* The one commit at the end of the run, named. A count says how much and never
+   what, and how far back to go is a question about what: this is the commit the
+   history would end on if the hand let go here.
+
+   Set above the run and running out to the right from the far end of the pill,
+   which is the only direction with any room in it: to the left is the run
+   itself and then the edge of the canvas the pill is being pulled towards, and
+   a subject set that way would be cut off by the edge exactly when the pull
+   that wants reading has got going. */
+.peek__commit {
+  position: absolute;
+  left: 0;
+  bottom: 14px;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  max-width: 396px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.peek__id {
+  flex: none;
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 65%, transparent);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.peek__subject {
+  overflow: hidden;
+  color: var(--mui-palette-text-secondary);
+  text-overflow: ellipsis;
 }
 
 /* ---------- what is running ---------- */
 
-/* One terminal, or the room for one. The same mark for all of them: an offer,
-   a terminal this window opened, and a terminal the sweep found somebody else
-   running were three shapes in two places, and they are one shape in one place
-   now — the stack standing on the branch each of them is working in, half of it
-   above that branch's line and half below.
+/* One terminal. The same mark for all of them: a terminal this window opened
+   and one the sweep found somebody else running were two shapes in two places,
+   and they are one shape in one place now — the stack standing on the branch
+   each of them is working in, half of it above that branch's line and half
+   below. What a branch could be running and is not is not here at all: that is
+   the button on the branch's own ring.
 
    The mark is the glyph and nothing else. There was a square round it, and the
    square was doing the reading: a column of boxes reads as a list of labels
@@ -551,29 +714,15 @@
   justify-content: center;
 }
 
-/* The terminal itself. A button for the two that answer to a press — the offer,
-   and this window's own — and a plain mark for somebody else's, which is a
-   reading and not a thing that can be done. */
+/* The terminal itself. A button for this window's own, which answers to a
+   press, and a plain mark for somebody else's, which is a reading and not a
+   thing that can be done. */
 .cli__open {
   display: flex;
   padding: 0;
   border: none;
   background: none;
   cursor: pointer;
-}
-
-/* Faint at rest and full under the cursor, so that a stack of what is running
-   does not appear to hold one more than it does. In colour rather than in
-   opacity: an opacity that moves is run by the compositor, and one running on
-   the canvas would take the whole canvas with it. */
-.cli__open--offer {
-  color: color-mix(in srgb, var(--mui-palette-text-secondary) 45%, transparent);
-  transition: color var(--reveal);
-}
-
-.cli__open--offer:hover,
-.cli__open--offer:focus-visible {
-  color: var(--mui-palette-text-secondary);
 }
 
 /* Nothing can be done to a terminal somebody else opened, so nothing about it
@@ -1147,4 +1296,158 @@ span.cli__open {
 
 .graph.is-merging .head__ring {
   cursor: grabbing;
+}
+
+/* ---------- a question, and the answers to it ---------- */
+
+/* The one card the canvas grows by itself.
+ *
+ * Every number in here is paired with one in `asking.ts`, which measures the
+ * card before the canvas places it: the padding, the line heights and the row a
+ * choice takes are how tall the box is worked out to be, and a rule changed on
+ * one side without the other is a card that clips what it says or leaves a hole
+ * under it. The text arrives already broken to width, which is why nothing here
+ * wraps: `pre` keeps the lines the layout counted, and the overflow is the
+ * guard for a line it measured a column short.
+ *
+ * Nothing in here scrolls and nothing in here animates opacity or transform —
+ * see the note at the top of this file. What is too long to draw was cut before
+ * it arrived. */
+.ask {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  padding: 9px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 7px;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--mui-shadows-6);
+  color: var(--mui-palette-text-primary);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+/* Whose question it is, and the way into the terminal it is being asked in.
+   The whole row is the way in: a card is small, and a target the size of one
+   word is a target somebody has to aim at. */
+.ask__head {
+  display: flex;
+  height: 15px;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  gap: 6px;
+  text-align: left;
+}
+
+.ask__who {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ask__ordinal {
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ask__head:hover .ask__ordinal,
+.ask__head:focus-visible .ask__ordinal {
+  color: var(--mui-palette-text-primary);
+}
+
+/* What the question is about, in the face it was written in: a command in a
+   proportional face is a command that has to be read twice. */
+.ask__detail {
+  flex: none;
+  margin-top: 7px;
+  color: var(--mui-palette-text-secondary);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  line-height: 13px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ask__question {
+  flex: none;
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 15px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ask__choices {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  margin-top: 7px;
+  gap: 4px;
+}
+
+/* One answer. The number is the agent's own, and it is drawn because it is also
+   what would be typed at the terminal: the same question answered in either
+   place is the same keystroke. */
+.ask__choice {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 6px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  gap: 6px;
+  text-align: left;
+  transition:
+    background-color var(--reveal),
+    border-color var(--reveal);
+}
+
+.ask__choice:hover,
+.ask__choice:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  background: var(--mui-palette-action-hover);
+}
+
+.ask__key {
+  width: 14px;
+  flex: none;
+  border-radius: 3px;
+  background: var(--mui-palette-action-selected);
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* Where the agent's own cursor is standing. Marked rather than made to look
+   like the answer to press: which one it is sitting on is a fact about the
+   terminal, and the card does not get to recommend anything. */
+.ask__choice.is-here .ask__key {
+  background: var(--mui-palette-text-secondary);
+  color: var(--mui-palette-background-paper);
+}
+
+.ask__answer {
+  min-width: 0;
+  flex: 1;
+  font-size: 11px;
+  line-height: 14px;
+  white-space: pre;
+  overflow: hidden;
 }

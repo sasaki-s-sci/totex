@@ -106,7 +106,7 @@ impl Session {
         let mut survey_warnings = self.survey_warnings.clone();
         let mut located = self.located.clone();
         if plan.rediscover {
-            if !self.root.is_dir() {
+            if !crate::host::Host::of(&self.root).is_dir(&self.root) {
                 return Err("not-a-directory".to_string());
             }
             let survey = super::survey(&self.root, &self.candidates);
@@ -239,12 +239,24 @@ impl SessionState {
     }
 }
 
+/// The folders the window currently has open, by the root each scan settled on.
+///
+/// Read by the sweep over running agents, which has no folder of its own to go
+/// on: it has to know which machines are worth looking at, and the answer is
+/// the ones somebody is working on.
+pub fn open_roots<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<String> {
+    app.try_state::<SessionState>()
+        .map(|state| state.lock().keys().cloned().collect())
+        .unwrap_or_default()
+}
+
 /// The key a folder is held under: the path its scan settled on. A folder that
 /// has since been removed can no longer be canonicalized, so the name the
 /// caller used is what it is looked up by.
 fn key_of(root: &str) -> String {
     let path = PathBuf::from(root);
-    path.canonicalize()
+    crate::host::Host::of(&path)
+        .resolve(&path)
         .unwrap_or(path)
         .to_string_lossy()
         .into_owned()

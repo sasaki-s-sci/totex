@@ -17,6 +17,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use crate::host::Host;
+
 /// How many rollouts back to look for the thread a running process is on.
 ///
 /// Only ever asked about processes that are running now, so the answer is
@@ -60,31 +62,49 @@ pub struct Thread {
     pub updated_at: Option<u64>,
 }
 
-fn sessions_dir() -> Option<PathBuf> {
-    if let Ok(configured) = std::env::var("CODEX_HOME")
+/// Where Codex keeps its rollouts, honouring the override it reads itself.
+///
+/// The override is an environment variable, which is this process's and not a
+/// distribution's — see the same note in `claude`.
+fn sessions_dir(host: &Host) -> Option<PathBuf> {
+    if !host.is_remote()
+        && let Ok(configured) = std::env::var("CODEX_HOME")
         && !configured.trim().is_empty()
     {
         return Some(PathBuf::from(configured).join("sessions"));
     }
-    super::home().map(|home| home.join(".codex").join("sessions"))
+    super::home(host).map(|home| host.join(&host.join(&home, ".codex"), "sessions"))
 }
 
-/// The newest rollouts on this machine, newest first.
-pub fn recent() -> Vec<Thread> {
-    let Some(root) = sessions_dir() else {
+/// The newest rollouts on `host`, newest first.
+pub fn recent(host: &Host) -> Vec<Thread> {
+    let Some(root) = sessions_dir(host) else {
         return Vec::new();
     };
 
+    let newest = newest_files(host, &root, RECENT_LIMIT);
+    let files: Vec<PathBuf> = newest.iter().map(|(file, _)| file.clone()).collect();
+    // The first line of every one of them in a single reading. A rollout runs
+    // to megabytes once a conversation has been going a while, and this is
+    // asked again every couple of seconds.
+    let lines = host.first_lines(&files);
+
     let mut found = Vec::new();
-    for file in newest_files(&root, RECENT_LIMIT) {
-        let Some(meta) = read_meta(&file) else {
+    for ((file, updated_at), line) in newest.into_iter().zip(lines) {
+        let Some(mut meta) = parse_meta(&line) else {
             continue;
         };
+        // The rollout says where it was started in that machine's own terms;
+        // the graph is drawn in the window's, and these are matched against
+        // the directory a process is standing in.
+        meta.cwd = meta
+            .cwd
+            .map(|cwd| host.canonical(&cwd).to_string_lossy().into_owned());
         found.push(Thread {
             rollout_id: rollout_id(&file),
             subagent: subagent_role(&meta),
             meta,
-            updated_at: modified_at(&file),
+            updated_at,
         });
     }
     found
@@ -149,20 +169,6 @@ pub fn subagent_role(meta: &Meta) -> Option<String> {
     Some(named.unwrap_or_else(|| "subagent".to_string()))
 }
 
-/// The first line of a rollout, which is the thread's own description of itself.
-///
-/// Only the first line: these files run to megabytes once a conversation has
-/// been going for a while, and everything after the first line is the
-/// conversation itself.
-fn read_meta(file: &Path) -> Option<Meta> {
-    use std::io::{BufRead, BufReader};
-
-    let handle = std::fs::File::open(file).ok()?;
-    let mut line = String::new();
-    BufReader::new(handle).read_line(&mut line).ok()?;
-    parse_meta(&line)
-}
-
 /// The id at the end of `rollout-<timestamp>-<uuid>.jsonl`.
 ///
 /// The filename is part of Codex's on-disk layout and is the only place a
@@ -208,23 +214,38 @@ pub fn parse_meta(line: &str) -> Option<Meta> {
 /// hand, so the cost is the last day or two of history rather than all of it.
 /// Names sort chronologically — they begin with the timestamp — which is what
 /// lets this order a directory without asking the filesystem for dates.
-fn newest_files(root: &Path, limit: usize) -> Vec<PathBuf> {
+/// How many days of the tree one reading covers.
+///
+/// The days are walked newest first and the walk stops as soon as it has
+/// enough, so this is only how eager each step is — and a step that asks a
+/// distribution about eight directories costs what asking about one costs.
+const DAYS_AT_A_TIME: usize = 8;
+
+/// Each file's own last write comes back with it, out of the same listing: it
+/// is the closest thing on disk to "is this thread doing something right now",
+/// and asking for it separately would be a question per file.
+fn newest_files(host: &Host, root: &Path, limit: usize) -> Vec<(PathBuf, Option<u64>)> {
+    let days = newest_dirs(host, root, 3);
     let mut found = Vec::new();
-    for day in newest_dirs(root, 3) {
-        let mut files: Vec<PathBuf> = std::fs::read_dir(&day)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .is_some_and(|name| name.starts_with("rollout-") && name.ends_with(".jsonl"))
-            })
-            .collect();
-        files.sort();
-        files.reverse();
-        found.extend(files);
+
+    for batch in days.chunks(DAYS_AT_A_TIME) {
+        let (listing, _) = host.children(batch);
+        for day in batch {
+            let mut files: Vec<(PathBuf, Option<u64>)> = listing
+                .get(day)
+                .into_iter()
+                .flatten()
+                .filter(|child| {
+                    child.name.starts_with("rollout-") && child.name.ends_with(".jsonl")
+                })
+                .map(|child| (host.join(day, &child.name), child.stat.modified_ms))
+                .collect();
+            // Names sort chronologically — they begin with the timestamp —
+            // which is what lets this order a directory without asking the
+            // filesystem for dates.
+            files.sort_by(|left, right| right.0.cmp(&left.0));
+            found.extend(files);
+        }
         if found.len() >= limit {
             found.truncate(limit);
             break;
@@ -234,17 +255,18 @@ fn newest_files(root: &Path, limit: usize) -> Vec<PathBuf> {
 }
 
 /// The `depth` newest leaves of the date tree, newest first.
-fn newest_dirs(root: &Path, depth: usize) -> Vec<PathBuf> {
+fn newest_dirs(host: &Host, root: &Path, depth: usize) -> Vec<PathBuf> {
     let mut level = vec![root.to_path_buf()];
     for _ in 0..depth {
+        let (listing, _) = host.children(&level);
         let mut next = Vec::new();
         for dir in &level {
-            let mut children: Vec<PathBuf> = std::fs::read_dir(dir)
+            let mut children: Vec<PathBuf> = listing
+                .get(dir)
                 .into_iter()
                 .flatten()
-                .flatten()
-                .map(|entry| entry.path())
-                .filter(|path| path.is_dir())
+                .filter(|child| child.stat.is_dir)
+                .map(|child| host.join(dir, &child.name))
                 .collect();
             children.sort();
             children.reverse();
@@ -256,11 +278,4 @@ fn newest_dirs(root: &Path, depth: usize) -> Vec<PathBuf> {
         level = next;
     }
     level
-}
-
-/// When a file was last written, in milliseconds since the epoch.
-fn modified_at(file: &Path) -> Option<u64> {
-    let modified = std::fs::metadata(file).ok()?.modified().ok()?;
-    let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
-    Some(since.as_millis() as u64)
 }

@@ -9,16 +9,23 @@
 //! directly. A window started from the desktop inherits none of the profile,
 //! and these agents live wherever their installer put them — `~/.local/bin`,
 //! a version manager's shims — so looking them up any other way finds nothing.
+//!
+//! Which login shell is decided by the directory. A turn in a folder inside a
+//! WSL distribution runs in that distribution: the agent is installed there and
+//! nowhere else, and the files it is about to edit are its own.
 
 use std::collections::HashMap;
 use std::io::Read;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
+use crate::host::Host;
 use crate::stream::Chunk;
+use crate::wsl;
 
 /// Carries a chunk of a run's output to the window.
 const DATA_EVENT: &str = "agent:data";
@@ -47,29 +54,63 @@ impl AgentState {
 // ---------------------------------------------------------------- the shell
 
 /// One argument, as the shell has to read it to get it back unchanged.
-#[cfg(not(windows))]
-fn quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
-}
-
-#[cfg(windows)]
-fn quote(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\"\""))
+///
+/// Two dialects, chosen by which shell is about to read the line rather than by
+/// which platform this is: a Windows window runs `cmd` for a Windows folder and
+/// a Bourne shell inside a distribution for one of its folders.
+fn quote(value: &str, posix: bool) -> String {
+    if posix {
+        format!("'{}'", value.replace('\'', "'\\''"))
+    } else {
+        format!("\"{}\"", value.replace('"', "\"\""))
+    }
 }
 
 /// The command line, as a shell would read it.
-fn line(program: &str, args: &[String]) -> String {
+fn line(program: &str, args: &[String], posix: bool) -> String {
     let mut rendered = String::from(program);
     for arg in args {
         rendered.push(' ');
-        rendered.push_str(&quote(arg));
+        rendered.push_str(&quote(arg, posix));
     }
     rendered
 }
 
-/// A login shell running one command, which is where the agent is found.
+/// Runs the line through the user's own login shell, whichever it is.
+///
+/// `$SHELL` is not read from the environment because there is none to read: the
+/// command is started by `wsl.exe`, which is not a login of the user's own. The
+/// password file is where the answer actually lives, and it is the same answer
+/// `wsl.exe` uses when it is given nothing to run.
+const LOGIN: &str = r#"shell=$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f7)
+exec "${shell:-/bin/sh}" -l -c "$1"
+"#;
+
+/// A login shell running one command in `cwd`, which is where the agent is.
+fn shell_command(cwd: &str, program: &str, args: &[String]) -> Command {
+    match Host::of_str(cwd) {
+        Host::Local => {
+            let mut command = local_shell(&line(program, args, !cfg!(windows)));
+            command.current_dir(cwd);
+            command
+        }
+        Host::Wsl(distro) => {
+            let host = Host::Wsl(distro.clone());
+            let mut command = wsl::command(&distro, Some(&host.native(Path::new(cwd))));
+            command
+                .arg("-e")
+                .arg("sh")
+                .arg("-c")
+                .arg(LOGIN)
+                .arg("totex")
+                .arg(line(program, args, true));
+            command
+        }
+    }
+}
+
 #[cfg(not(windows))]
-fn shell_command(line: &str) -> Command {
+fn local_shell(line: &str) -> Command {
     let mut command = Command::new(crate::pty::shell());
     // Separate flags rather than `-lc`: not every shell bundles short options.
     command.arg("-l").arg("-c").arg(line);
@@ -77,7 +118,7 @@ fn shell_command(line: &str) -> Command {
 }
 
 #[cfg(windows)]
-fn shell_command(line: &str) -> Command {
+fn local_shell(line: &str) -> Command {
     use std::os::windows::process::CommandExt;
 
     let mut command = Command::new("cmd");
@@ -130,8 +171,7 @@ pub fn agent_send<R: Runtime>(
         return Err("busy".to_string());
     }
 
-    let mut child = shell_command(&line(&program, &args))
-        .current_dir(&cwd)
+    let mut child = shell_command(&cwd, &program, &args)
         // Nothing to type at: this is a run, not a session. An agent that asks
         // would otherwise wait on a terminal that is never coming.
         .stdin(Stdio::null())
@@ -194,13 +234,83 @@ pub fn agent_cancel<R: Runtime>(app: AppHandle<R>, id: String) {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
+
+    use tauri::Listener;
+    use tauri::test::{MockRuntime, mock_builder, mock_context, noop_assets};
+
     use super::*;
+
+    fn mock_app() -> tauri::App<MockRuntime> {
+        mock_builder()
+            .manage(AgentState::default())
+            .build(mock_context(noop_assets()))
+            .expect("mock app")
+    }
+
+    /// One whole turn, run in a folder inside a WSL distribution.
+    ///
+    /// The point is where it ran: the agent's own working directory is what
+    /// every file it writes is relative to, and a turn started on the Windows
+    /// side of the share would be editing the same files through a network
+    /// filesystem — with a `cmd` that will not even take the directory.
+    ///
+    /// Skipped where there is no WSL to reach, which is every CI machine.
+    #[test]
+    fn a_turn_in_a_distribution_runs_inside_it() {
+        let Some(distro) = wsl::distros().into_iter().next() else {
+            return;
+        };
+        let app = mock_app();
+        let handle = app.handle().clone();
+
+        let (tx, rx) = mpsc::channel();
+        handle.listen(DATA_EVENT, move |event| {
+            if let Ok(chunk) = serde_json::from_str::<serde_json::Value>(event.payload())
+                && let Some(data) = chunk.get("data").and_then(|value| value.as_str())
+            {
+                let _ = tx.send(data.to_string());
+            }
+        });
+
+        agent_send(
+            handle.clone(),
+            "turn".to_string(),
+            wsl::unc(&distro, "/etc"),
+            "sh".to_string(),
+            vec![
+                "-c".to_string(),
+                // The apostrophe is the point of the quoting: a person's own
+                // words go through here whole.
+                "printf 'totex[%s] don'\\''t' \"$(pwd)\"".to_string(),
+            ],
+        )
+        .expect("the turn starts");
+
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut seen = String::new();
+        while Instant::now() < deadline && !seen.contains("totex[/etc]") {
+            if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(250)) {
+                seen.push_str(&chunk);
+            }
+        }
+
+        assert!(
+            seen.contains("totex[/etc] don't"),
+            "the turn did not run inside the distribution: {seen:?}"
+        );
+    }
 
     #[test]
     fn an_argument_survives_the_shell_unchanged() {
         // The prompt is whatever was typed, quotes and all, and the shell must
         // hand it to the agent as one word.
-        let rendered = line("claude", &["-p".to_string(), "it's \"fine\"".to_string()]);
+        let rendered = line(
+            "claude",
+            &["-p".to_string(), "it's \"fine\"".to_string()],
+            !cfg!(windows),
+        );
         assert!(rendered.starts_with("claude "));
         assert!(rendered.contains("-p"));
         assert!(
@@ -213,7 +323,7 @@ mod tests {
     #[test]
     fn the_shell_reads_back_exactly_what_was_quoted() {
         let awkward = "a 'b' \"c\" $d `e` \\f";
-        let rendered = line("printf", &["%s".to_string(), awkward.to_string()]);
+        let rendered = line("printf", &["%s".to_string(), awkward.to_string()], true);
         let output = Command::new("/bin/sh")
             .arg("-c")
             .arg(&rendered)

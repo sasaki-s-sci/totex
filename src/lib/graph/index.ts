@@ -7,9 +7,17 @@
  * comes out here; the rest is between the three of them.
  */
 
+export type { AskCard, AskFlowNode, AskNodeData } from "./asking";
 export { buildCommitGraph, type GraphInput } from "./build";
 export { isOpen } from "./folders";
-export { distanceTo, type Point, shortOf, sigmoidPath, straightPath } from "./geometry";
+export {
+  circlesOf,
+  distanceTo,
+  type Point,
+  shortOf,
+  sigmoidPath,
+  straightPath,
+} from "./geometry";
 export { commitNodeId, foldCell } from "./layout";
 export {
   type AppNode,
@@ -19,7 +27,6 @@ export {
   type BranchHeadFlowNode,
   type CliFlowNode,
   type CliNodeData,
-  type CliWork,
   COLUMN_WIDTH,
   type CollapseFlowNode,
   type CommitFlowNode,

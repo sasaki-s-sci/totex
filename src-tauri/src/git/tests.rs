@@ -83,7 +83,87 @@ fn find<'a>(repositories: &'a [Repository], name: &str) -> &'a Repository {
 
 /// Skips the git-backed tests when git is unavailable rather than failing.
 fn git_available() -> bool {
-    cmd::version().is_ok()
+    cmd::version(None).is_ok()
+}
+
+/// The whole scan, over a repository that is not on this machine at all: a
+/// checkout inside a WSL distribution, addressed by the share — which is the
+/// path the window has for it, and the one every id and every menu will carry.
+///
+/// Skipped where there is no WSL to reach, which is every machine the CI
+/// builds on.
+#[test]
+fn scans_a_repository_inside_a_distribution() {
+    let Some(distro) = crate::wsl::distros().into_iter().next() else {
+        return;
+    };
+    let host = crate::host::Host::Wsl(distro);
+    let root = host.canonical("/tmp/totex-git-remote");
+    if cmd::version(Some(&root)).is_err() {
+        return;
+    }
+
+    host.exec(None, &[], &["rm", "-rf", "/tmp/totex-git-remote"])
+        .expect("a shell");
+    host.exec(None, &[], &["mkdir", "-p", "/tmp/totex-git-remote/project"])
+        .expect("a shell");
+
+    let project = host.join(&root, "project");
+    let identity = [
+        ("GIT_AUTHOR_NAME", "totex"),
+        ("GIT_AUTHOR_EMAIL", "totex@example.invalid"),
+        ("GIT_COMMITTER_NAME", "totex"),
+        ("GIT_COMMITTER_EMAIL", "totex@example.invalid"),
+        ("GIT_CONFIG_GLOBAL", "/dev/null"),
+        ("GIT_CONFIG_SYSTEM", "/dev/null"),
+    ];
+    let inside = |args: &[&str]| {
+        let output = host.exec(Some(&project), &identity, args).expect("a shell");
+        assert!(
+            output.ok(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    inside(&["git", "init", "-b", "main"]);
+    inside(&["sh", "-c", "printf one > one.txt"]);
+    inside(&["git", "add", "."]);
+    inside(&["git", "commit", "-m", "one"]);
+    inside(&["git", "branch", "topic"]);
+    inside(&["sh", "-c", "printf two > two.txt"]);
+    inside(&["git", "add", "."]);
+    inside(&["git", "commit", "-m", "two"]);
+
+    let workspace = scan(root.to_string_lossy().into_owned(), None).expect("a scan");
+    assert_eq!(workspace.warnings, Vec::<String>::new());
+    assert_eq!(workspace.repositories.len(), 1);
+
+    let repository = &workspace.repositories[0];
+    assert_eq!(repository.name, "project");
+    assert_eq!(repository.head.as_deref(), Some("refs/heads/main"));
+    assert_eq!(repository.commits.len(), 2);
+    assert_eq!(repository.branches.len(), 2, "main and topic");
+
+    // Everything git printed comes back spelled the way the window spells it,
+    // because these are what the canvas keys on and what its menus hand back.
+    for named in [repository.path.as_str(), repository.git_dir.as_str()] {
+        assert!(
+            named.starts_with(r"\\wsl.localhost\"),
+            "git's own spelling leaked out: {named}"
+        );
+    }
+    let main = repository
+        .worktrees
+        .iter()
+        .find(|worktree| worktree.is_main)
+        .expect("the checkout itself");
+    assert!(main.exists, "the worktree it is standing in");
+    assert_eq!(main.path, repository.path);
+
+    // The status the graph draws a rim from is read by that distribution's git.
+    inside(&["sh", "-c", "printf changed > one.txt"]);
+    let status = super::workspace::read_status(&project).expect("a status");
+    assert_eq!((status.added, status.deleted, status.modified), (0, 0, 1));
 }
 
 #[test]
@@ -590,6 +670,7 @@ fn the_watch_set_covers_refs_and_the_shallow_tree() {
     std::fs::create_dir_all(root.join("nested").join("deeper")).expect("create nested");
 
     let targets = super::watch::watch_targets(
+        &crate::host::Host::Local,
         &root.to_string_lossy(),
         &[git_dir.to_string_lossy().into_owned()],
         &[root.join("zeta").to_string_lossy().into_owned()],

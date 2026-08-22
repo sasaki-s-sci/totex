@@ -6,6 +6,7 @@ import {
   type Band,
   COLUMN_WIDTH,
   type CommitFlowNode,
+  circlesOf,
   DOT_SIZE,
   distanceTo,
   type FoldTarget,
@@ -207,15 +208,22 @@ function CommitDots({
 }) {
   const marks: Point[] = [];
   const boundaries: Point[] = [];
+  const folded: Point[] = [];
   for (const dot of dots.values()) {
     const at = commitAt(dot, standing);
     marks.push(at);
+    // A commit with both has nothing to say twice: the solid stub already says
+    // that the line goes on past the mark.
     if (dot.node.data.boundary) boundaries.push(at);
+    else if (dot.node.data.folded) folded.push(at);
   }
 
   return (
     <>
-      {boundaries.length > 0 && <path className="commit-boundaries" d={boundariesOf(boundaries)} />}
+      {boundaries.length > 0 && (
+        <path className="commit-boundaries" d={stubsOf(boundaries, BOUNDARY_STUB)} />
+      )}
+      {folded.length > 0 && <path className="commit-folded" d={stubsOf(folded, FOLDED_STUB)} />}
       <path className="commit-dots" d={circlesOf(marks, DOT_SIZE / 2)} />
     </>
   );
@@ -227,19 +235,21 @@ function commitAt(dot: CommitDot, standing: ReadonlyMap<string, XYPosition>): Po
   return at ? { x: at.x + COLUMN_WIDTH / 2, y: at.y + LANE_HEIGHT / 2 } : dot.at;
 }
 
-/** Many circles as independent pieces of one path. */
-function circlesOf(points: readonly Point[], radius: number): string {
-  let path = "";
-  for (const point of points) {
-    path += `M ${point.x - radius} ${point.y} a ${radius} ${radius} 0 1 0 ${radius * 2} 0 a ${radius} ${radius} 0 1 0 ${-radius * 2} 0 `;
-  }
-  return path;
-}
+/** How far back a boundary commit's stub reaches: history that is not there. */
+const BOUNDARY_STUB = COLUMN_WIDTH * 0.3;
+/**
+ * How far back the stub on a commit whose parent is only folded away reaches.
+ *
+ * Longer than the boundary's, and still well short of the next mark along: the
+ * gap it stands in is a whole column, and a stub that only just left the dot
+ * would read as a line that gave up rather than as one that was put away.
+ */
+const FOLDED_STUB = COLUMN_WIDTH * 0.45;
 
-/** The short line showing that history continues beyond a boundary commit. */
-function boundariesOf(points: readonly Point[]): string {
+/** The short line showing that history continues past a commit's own mark. */
+function stubsOf(points: readonly Point[], reach: number): string {
   let path = "";
-  for (const point of points) path += `M ${point.x} ${point.y} H ${point.x - COLUMN_WIDTH * 0.3} `;
+  for (const point of points) path += `M ${point.x} ${point.y} H ${point.x - reach} `;
   return path;
 }
 

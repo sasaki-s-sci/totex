@@ -25,8 +25,8 @@ import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
 
 /** The smallest box a reading is still worth drawing in. */
-const MIN_WIDTH = 180;
-const MIN_HEIGHT = 96;
+export const MIN_WIDTH = 180;
+export const MIN_HEIGHT = 96;
 
 /** The card's own edge, which stands outside everything measured inside it. */
 const BORDERS = 2;

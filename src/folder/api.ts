@@ -24,6 +24,14 @@ export interface Listing {
   path: string;
   name: string;
   parent: string | null;
+  /**
+   * The WSL distribution the directory is inside, or `null` for this machine.
+   *
+   * A path inside one is read and worked on inside it rather than through the
+   * share Windows publishes it under, so `/home/a/repo` in one distribution and
+   * the same name in another are two places. This is what says which.
+   */
+  distro: string | null;
   entries: FsEntry[];
   truncated: boolean;
 }

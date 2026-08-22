@@ -18,6 +18,18 @@
       :root {
         color-scheme: light dark;
       }
+      /* Once the window has been told which of the two it is drawn in, that is
+         what it is drawn in — here as well as in the palette, so the scrollbars
+         and the caret the engine draws for itself agree with the page. `main`
+         writes the attribute before the first render; until then, and whenever
+         the answer is still the machine's, the two rules below say nothing and
+         the media query has it. */
+      :root[data-color-scheme="light"] {
+        color-scheme: light;
+      }
+      :root[data-color-scheme="dark"] {
+        color-scheme: dark;
+      }
       html,
       body,
       #root {
@@ -46,6 +58,23 @@
           background: #151b2b;
           border-right-color: #273149;
         }
+      }
+      /* And the same two colours again for a window that was told, which beats
+         the media query on its own — a dark machine set to a light window opens
+         light, rather than opening dark and turning over on the first frame. */
+      :root[data-color-scheme="light"] body {
+        background: #eef1f7;
+      }
+      :root[data-color-scheme="light"] .boot__column {
+        background: #ffffff;
+        border-right-color: #d5dced;
+      }
+      :root[data-color-scheme="dark"] body {
+        background: #0f1420;
+      }
+      :root[data-color-scheme="dark"] .boot__column {
+        background: #151b2b;
+        border-right-color: #273149;
       }
     </style>
   </head>

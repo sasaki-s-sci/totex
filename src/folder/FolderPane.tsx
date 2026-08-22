@@ -15,6 +15,7 @@ import {
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import { type FsEntry, type Listing, readDirectory, repositoryCounts } from "./api";
 import { baseName } from "./format";
+import { ROOT_ICONS } from "./roots";
 import { watchDirectory } from "./watch";
 
 /** Small enough that a column of panes still reads as one list. */
@@ -99,6 +100,10 @@ export function FolderPane({
 
   const name = root?.path === path ? root.name : baseName(path);
   const parent = root?.path === path ? root.parent : null;
+  // Which machine the folder is on, when it is not this one. `/home/a` means
+  // one thing in one distribution and another in the next, and the name on its
+  // own says neither.
+  const distro = root?.path === path ? root.distro : null;
 
   function open(entry: FsEntry) {
     setSelected(entry.path);
@@ -150,6 +155,7 @@ export function FolderPane({
           }}
         >
           <DisclosureMark on={showing} />
+          {distro && <DistroMark distro={distro} />}
           <Typography variant="body2" noWrap>
             {name}
           </Typography>
@@ -192,6 +198,19 @@ export function FolderPane({
       )}
     </Box>
   );
+}
+
+/**
+ * The mark for a folder that lives inside a WSL distribution.
+ *
+ * The same mark the rail puts beside that distribution's own row, so a pane
+ * showing one of its folders is recognisably the same place the pane was
+ * started from. It carries the distribution's name rather than saying it: the
+ * window draws marks, and a name is only wanted when somebody asks for it.
+ */
+function DistroMark({ distro }: { distro: string }) {
+  const Icon = ROOT_ICONS["wsl-distro"];
+  return <Icon titleAccess={distro} sx={{ flex: "none", fontSize: 14, color: "text.secondary" }} />;
 }
 
 interface LevelProps {

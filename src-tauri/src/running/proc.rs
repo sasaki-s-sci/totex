@@ -7,11 +7,16 @@
 //! process that wrote it, and a rollout on disk says where an agent *was*.
 //!
 //! Linux only, deliberately. `/proc` is where a working directory can be read
-//! back out of a process at all, and this app's window runs on the same machine
-//! as the agents it is drawing. Everywhere else the table comes back empty and
-//! the tools' own session files are all there is — see `running::scan`.
+//! back out of a process at all. That is not the same as "this machine": a
+//! window on Windows with a folder open inside a WSL distribution is looking at
+//! agents running in that distribution, and its `/proc` is reachable — so the
+//! table is asked of a host rather than of the process this is. Where there is
+//! no `/proc` at all the table comes back empty and the tools' own session
+//! files are all there is — see `running::scan`.
 
 use std::path::PathBuf;
+
+use crate::host::Host;
 
 /// One running process, in the terms this module cares about.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,9 +46,110 @@ pub struct Process {
 /// factor, which is why it is not worth a dependency.
 const TICKS_PER_SECOND: u64 = 100;
 
-/// Everything running that this user can see into.
+/// Everything running on `host` that this user can see into.
+pub fn table(host: &Host) -> Vec<Process> {
+    match host {
+        Host::Local => here(),
+        Host::Wsl(distro) => match crate::wsl::script(distro, None, DUMP, &[]) {
+            Ok(output) => parse_table(host, &String::from_utf8_lossy(&output.stdout)),
+            Err(_) => Vec::new(),
+        },
+    }
+}
+
+/// The whole of `/proc` that any of this needs, in one command.
+///
+/// Every line is `<path>:<contents>` — what `grep -H` gives for a file, and
+/// what `find` is told to print for the working directory, which is a symlink
+/// and so has a target rather than contents.
+///
+/// One command because this runs every couple of seconds: a process per file
+/// per process would be thousands of them, inside a distribution, forever.
+///
+/// The command line is the one thing here that is not text — the kernel hands
+/// it over NUL-separated — so its separators are turned into a byte a line can
+/// hold. An argument holding a newline of its own is cut there, which is a
+/// shape none of the three commands this looks for has.
+const DUMP: &str = r#"
+grep -a -H '^btime ' /proc/stat 2>/dev/null
+find /proc -mindepth 2 -maxdepth 2 -name cwd -type l -printf '%h/cwd:%l\n' 2>/dev/null
+grep -a -H '' /proc/[0-9]*/stat /proc/[0-9]*/comm 2>/dev/null
+grep -a -H '' /proc/[0-9]*/cmdline 2>/dev/null | tr '\000' '\001'
+"#;
+
+/// Reads what [`DUMP`] prints back into the table `/proc` gives directly.
+pub fn parse_table(host: &Host, dump: &str) -> Vec<Process> {
+    use std::collections::HashMap;
+
+    #[derive(Default)]
+    struct Fields<'a> {
+        stat: &'a str,
+        comm: &'a str,
+        args: &'a str,
+        cwd: &'a str,
+    }
+
+    let mut boot: Option<u64> = None;
+    let mut found: HashMap<u32, Fields> = HashMap::new();
+
+    for line in dump.lines() {
+        // A path holds no colon, so the first one ends it however odd what
+        // follows is — and what follows is a process's own name for itself.
+        let Some((path, content)) = line.split_once(':') else {
+            continue;
+        };
+        if path == "/proc/stat" {
+            boot = parse_btime(content);
+            continue;
+        }
+        let Some((pid, field)) = path
+            .strip_prefix("/proc/")
+            .and_then(|rest| rest.split_once('/'))
+        else {
+            continue;
+        };
+        let Ok(pid) = pid.parse::<u32>() else {
+            continue;
+        };
+        let fields = found.entry(pid).or_default();
+        match field {
+            "stat" => fields.stat = content,
+            "comm" => fields.comm = content,
+            "cmdline" => fields.args = content,
+            "cwd" => fields.cwd = content,
+            _ => {}
+        }
+    }
+
+    let mut table = Vec::new();
+    for (pid, fields) in found {
+        let Some((ppid, start_ticks)) = parse_stat(fields.stat) else {
+            continue;
+        };
+        let args: Vec<String> = fields
+            .args
+            .split('\u{1}')
+            .filter(|word| !word.is_empty())
+            .map(str::to_string)
+            .collect();
+        table.push(Process {
+            pid,
+            ppid,
+            started_at: boot.map(|boot| started_at(boot, start_ticks)),
+            program: program_of(&args, fields.comm),
+            args,
+            // Named the way the rest of the app names paths on this host, so
+            // the directory an agent stands in is the one the graph has.
+            cwd: (!fields.cwd.is_empty()).then(|| host.canonical(fields.cwd)),
+            start_ticks,
+        });
+    }
+    table
+}
+
+/// Everything running on this machine that this user can see into.
 #[cfg(target_os = "linux")]
-pub fn table() -> Vec<Process> {
+fn here() -> Vec<Process> {
     let boot = boot_time();
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return Vec::new();
@@ -65,7 +171,7 @@ pub fn table() -> Vec<Process> {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn table() -> Vec<Process> {
+fn here() -> Vec<Process> {
     Vec::new()
 }
 
@@ -130,6 +236,7 @@ pub fn parse_btime(content: &str) -> Option<u64> {
 }
 
 /// A command line, which the kernel hands over as NUL-separated words.
+#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
 pub fn parse_cmdline(raw: &[u8]) -> Vec<String> {
     raw.split(|byte| *byte == 0)
         .filter(|word| !word.is_empty())

@@ -1,5 +1,7 @@
 import { Box } from "@mui/material";
 
+import type { UpdateStage } from "../lib/update";
+
 /**
  * The marks the window's own controls carry, and the button they sit in.
  *
@@ -214,18 +216,165 @@ export function UpMark() {
 }
 
 /**
- * Two sliders with their knobs.
+ * A wheel: the rim, the eight teeth on it and the bore through the middle.
  *
- * A wheel is the more usual mark for settings, but a wheel at fifteen pixels is
- * a circle with a fringe — the teeth are what make it a wheel, and they are the
- * first thing to go. Two lines and two knobs survive the size.
+ * The teeth are what make it a wheel rather than a sun, and at fifteen pixels
+ * they are the first thing to go — a tooth drawn at the hairline the rest of
+ * this file is drawn at lands under two pixels and reads as a ray. So they are
+ * struck thicker than everything around them and squared off at the tip, and
+ * they start on the rim rather than clear of it: a mark that touches what it
+ * belongs to is a tooth, and one that stands off it is a ray.
  */
 export function SettingsMark() {
   return (
     <Frame>
-      <path d="M3.5 9 H7 M12 9 H20.5 M3.5 15 H12 M17 15 H20.5" />
-      <circle cx="9.5" cy="9" r="2.4" />
-      <circle cx="14.5" cy="15" r="2.4" />
+      <circle cx="12" cy="12" r="6.4" />
+      <circle cx="12" cy="12" r="2.4" />
+      {/* Eight teeth: four on the axes, four on the diagonals, each from the
+          rim out to the same radius. The diagonal ends are the axis ones over
+          the root of two, written out rather than computed — this is a drawing,
+          and the numbers are the drawing. */}
+      <g strokeWidth="3.2" strokeLinecap="butt">
+        <path d="M12 5.6 V2.8 M12 18.4 V21.2 M5.6 12 H2.8 M18.4 12 H21.2" />
+        <path d="M7.47 7.47 L5.51 5.51 M16.53 16.53 L18.49 18.49 M16.53 7.47 L18.49 5.51 M7.47 16.53 L5.51 18.49" />
+      </g>
+    </Frame>
+  );
+}
+
+/**
+ * Which of the three the window is set to: the machine's own, light, or dark.
+ *
+ * One mark for the three, because it is one button — the state it is in is
+ * what is drawn, the way `MaximiseMark` draws which of its two moves is next.
+ * A half-filled disc for the machine's own is the older mark of the three and
+ * the one that says "whichever it is over there" without a word: the sun and
+ * the moon are a choice, and this is the absence of one.
+ */
+export function ThemeMark({ mode }: { mode: "system" | "light" | "dark" }) {
+  if (mode === "dark") {
+    return (
+      <Frame>
+        <path d="M20.5 13.4 A8.6 8.6 0 1 1 10.6 3.5 A6.9 6.9 0 0 0 20.5 13.4 Z" />
+      </Frame>
+    );
+  }
+
+  if (mode === "light") {
+    return (
+      <Frame>
+        <circle cx="12" cy="12" r="4.2" />
+        <path d="M12 2.5 V4.6 M12 19.4 V21.5 M2.5 12 H4.6 M19.4 12 H21.5" />
+        <path d="M5.22 5.22 L6.7 6.7 M17.3 17.3 L18.78 18.78 M17.3 6.7 L18.78 5.22 M5.22 18.78 L6.7 17.3" />
+      </Frame>
+    );
+  }
+
+  return (
+    <Frame>
+      <circle cx="12" cy="12" r="7.5" />
+      {/* The lit half, filled rather than outlined: the one place a mark in
+          this window is a shape and not a line, because half a disc drawn as a
+          line is a disc with a rule through it. */}
+      <path d="M12 4.5 A7.5 7.5 0 0 1 12 19.5 Z" fill="currentColor" stroke="none" />
+    </Frame>
+  );
+}
+
+/**
+ * The radius the two ring marks are struck at, and the way round it.
+ *
+ * A circle's dash offset is counted in the length of its own outline, so the
+ * circumference has to be a number here rather than a shape — it is what says
+ * how much of the ring a part-finished download has filled.
+ */
+const RING = 7.5;
+const AROUND = 2 * Math.PI * RING;
+
+/** The turn the two waiting rings are spun at. */
+const SPIN = {
+  transformOrigin: "12px 12px",
+  animation: "totex-mark-spin 900ms linear infinite",
+  "@keyframes totex-mark-spin": { to: { transform: "rotate(360deg)" } },
+  // A window that has asked for less movement gets a ring standing still,
+  // which still says the same thing: three quarters of a circle is not a
+  // circle, and what is missing from it is what is being waited for.
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+} as const;
+
+/**
+ * Where the app is in replacing itself, as one mark on one button.
+ *
+ * Five drawings, one press between them, the way `ThemeMark` and
+ * `MaximiseMark` are one button each: an arrow down for the offer to look, a
+ * ring while it is looking, a tick for nothing to do, the same ring filling as
+ * the new version arrives, and a circular arrow for the restart that finishes
+ * it. A failure is the arrow again, in red — see `UpdateButton`, which is what
+ * colours it: what went wrong is not a thing this window has a word for, and
+ * pressing again is the whole of what can be done about it.
+ *
+ * The arrow is the download and not a version number, because the version is
+ * not the point: there is one newer than this or there is not, and the mark
+ * that says which is the mark that fetches it.
+ */
+export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: number | null }) {
+  if (stage === "checking" || (stage === "fetching" && progress === null)) {
+    return (
+      <Frame>
+        {/* Three quarters of a ring: a whole one turning is a whole one. */}
+        <Box component="g" sx={SPIN}>
+          <path d="M12 4.5 A7.5 7.5 0 1 1 4.5 12" />
+        </Box>
+      </Frame>
+    );
+  }
+
+  if (stage === "fetching") {
+    return (
+      <Frame>
+        {/* The ring it is filling, faint, so that how far along it is can be
+            read against how far there is to go. */}
+        <circle cx="12" cy="12" r={RING} opacity={0.3} />
+        <circle
+          cx="12"
+          cy="12"
+          r={RING}
+          strokeDasharray={AROUND}
+          strokeDashoffset={AROUND * (1 - (progress ?? 0))}
+          // Dashes start where the outline does, which is the right-hand side.
+          // Turned a quarter back so that a ring fills from the top.
+          transform="rotate(-90 12 12)"
+        />
+      </Frame>
+    );
+  }
+
+  if (stage === "current") {
+    return (
+      <Frame>
+        <path d="M5.5 12.5 L10 17 L18.5 7" />
+      </Frame>
+    );
+  }
+
+  if (stage === "ready") {
+    return (
+      <Frame>
+        {/* Three quarters of a ring again, but stopped and with a head on it:
+            the waiting is over and the last of it is a press away. */}
+        <path d="M19.5 12 A7.5 7.5 0 1 1 12 4.5" />
+        <path d="M9.8 2.3 L12 4.5 L9.8 6.7" />
+      </Frame>
+    );
+  }
+
+  return (
+    <Frame>
+      <path d="M12 4 V14.6" />
+      <path d="M7.6 10.2 L12 14.6 L16.4 10.2" />
+      {/* The line it lands on: an arrow with nothing under it is a direction,
+          and this one is a thing arriving somewhere. */}
+      <path d="M5 19 H19" />
     </Frame>
   );
 }

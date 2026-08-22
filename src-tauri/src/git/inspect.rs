@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use crate::host::Host;
+
 use super::cmd;
 use super::model::{Branch, BranchKind, Commit, Remote, Repository, Worktree};
 
@@ -42,13 +44,16 @@ pub fn locate(dir: &Path) -> Result<Located, String> {
     let bare = cmd::run(dir, &["rev-parse", "--is-bare-repository"])?
         .trim()
         .eq("true");
-    let common_dir = PathBuf::from(
-        cmd::run(
+    // git answers in the terms of the machine it ran on, so a repository inside
+    // a distribution says `/home/a/repo/.git`. Everything above compares that
+    // against paths the folder tree produced, which spell the same directory as
+    // the share — see `cmd::path_of`.
+    let common_dir = cmd::path_of(
+        dir,
+        &cmd::run(
             dir,
             &["rev-parse", "--path-format=absolute", "--git-common-dir"],
-        )?
-        .trim()
-        .to_string(),
+        )?,
     );
 
     let path = if bare {
@@ -68,7 +73,9 @@ pub fn locate(dir: &Path) -> Result<Located, String> {
 fn main_worktree(dir: &Path) -> Option<PathBuf> {
     let output = cmd::try_run(dir, &["worktree", "list", "--porcelain"])?;
     let first = output.lines().next()?;
-    first.strip_prefix("worktree ").map(PathBuf::from)
+    first
+        .strip_prefix("worktree ")
+        .map(|path| cmd::path_of(dir, path))
 }
 
 /// The id every layer agrees on: the common git directory, which is shared by
@@ -91,11 +98,8 @@ pub fn inspect(located: &Located, commit_limit: usize) -> Result<Repository, Str
     let (head, head_detached) = read_head(dir);
     let default_branch = read_default_branch(dir, &branches, &remotes);
 
-    let name = located
-        .path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_else(|| id.clone());
+    let name = Host::of(dir).name(&located.path);
+    let name = if name.is_empty() { id.clone() } else { name };
 
     Ok(Repository {
         id,
@@ -306,6 +310,7 @@ fn read_worktrees(dir: &Path, repo_id: &str, common_dir: &Path) -> Vec<Worktree>
     let Some(output) = cmd::try_run(dir, &["worktree", "list", "--porcelain"]) else {
         return Vec::new();
     };
+    let host = Host::of(dir);
 
     let mut worktrees: Vec<Worktree> = Vec::new();
     for block in output.split("\n\n") {
@@ -320,19 +325,16 @@ fn read_worktrees(dir: &Path, repo_id: &str, common_dir: &Path) -> Vec<Worktree>
             // opened, so the block's own line is handled first and the rest
             // share one guard rather than each repeating it.
             if key == "worktree" {
-                let path = PathBuf::from(value.unwrap_or_default());
-                let name = path
-                    .file_name()
-                    .map(|name| name.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.to_string_lossy().into_owned());
+                let path = cmd::path_of(dir, value.unwrap_or_default());
+                let name = host.name(&path);
                 // The main worktree is the one whose git directory is the
                 // common directory itself.
-                let is_main = path.join(".git").is_dir() || path == common_dir;
+                let is_main = host.is_dir(&host.join(&path, ".git")) || path == *common_dir;
                 current = Some(Worktree {
                     id: format!("{repo_id}\u{1}worktree\u{1}{}", path.display()),
                     repo_id: repo_id.to_string(),
                     name,
-                    exists: path.is_dir(),
+                    exists: host.is_dir(&path),
                     path: path.to_string_lossy().into_owned(),
                     head: None,
                     short_head: None,

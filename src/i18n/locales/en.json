@@ -48,13 +48,26 @@
       "unknown": "Unknown"
     }
   },
+  "ask": {
+    "asking": "is asking",
+    "open": "Open the {{agent}} terminal"
+  },
   "chat": {
     "send": "Send",
     "stop": "Stop"
   },
-  "settings": {
-    "terminal": "Terminal",
-    "chat": "Chat"
+  "update": {
+    "check": "Check for a new version",
+    "checking": "Checking for a new version",
+    "current": "This is the newest version",
+    "fetching": "Downloading the new version",
+    "restart": "Restart to finish updating",
+    "failed": "The update did not finish"
+  },
+  "theme": {
+    "system": "Follow the machine",
+    "light": "Light",
+    "dark": "Dark"
   },
   "filePreview": {
     "unsaved": "{{name}} is unsaved",

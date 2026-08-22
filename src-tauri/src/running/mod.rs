@@ -49,6 +49,8 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Runtime, State};
 
+use crate::host::Host;
+
 /// Carries the whole picture whenever any part of it moved.
 pub const CHANGED_EVENT: &str = "running:changed";
 
@@ -164,12 +166,15 @@ pub struct Running {
     pub agents: Vec<Agent>,
 }
 
-/// The user's home, which is where all three keep their state.
-pub(crate) fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from)
-        .filter(|home| !home.as_os_str().is_empty())
+/// The user's home on `host`, which is where all three keep their state.
+pub(crate) fn home(host: &Host) -> Option<PathBuf> {
+    match host {
+        Host::Local => std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .filter(|home| !home.as_os_str().is_empty()),
+        Host::Wsl(_) => host.home(),
+    }
 }
 
 fn now_ms() -> u64 {
@@ -181,18 +186,63 @@ fn now_ms() -> u64 {
 
 // ------------------------------------------------------------------ the sweep
 
-/// Looks at the machine once.
-pub fn scan() -> Running {
-    let mut table = proc::table();
-    let sessions = claude::entries();
+/// The machines worth looking at: this one, and every distribution the window
+/// has a folder open on.
+///
+/// Not every distribution installed. Starting one to ask what is running in it
+/// would be this panel booting a machine nobody asked for; the ones already
+/// being worked in are the ones with agents in them worth drawing.
+fn hosts<R: Runtime>(app: &AppHandle<R>) -> Vec<Host> {
+    let mut hosts = vec![Host::Local];
+    let mut seen = HashSet::new();
+    for root in crate::git::session::open_roots(app) {
+        if let Host::Wsl(distro) = Host::of_str(&root)
+            && seen.insert(distro.clone())
+        {
+            hosts.push(Host::Wsl(distro));
+        }
+    }
+    hosts
+}
+
+/// Looks at each of them once, and puts what they said together.
+pub fn scan(hosts: &[Host]) -> Running {
+    let mut agents = Vec::new();
+    for host in hosts {
+        agents.extend(look(host));
+    }
+    settle(agents)
+}
+
+/// Looks at one machine once.
+fn look(host: &Host) -> Vec<Agent> {
+    let mut agents = sweep(host);
+    // A pid is a number on one machine, and two distributions hand out the same
+    // ones. The keys are what the canvas keeps its nodes by, so a pid-shaped
+    // key has to say which machine it counted on.
+    if let Some(distro) = host.distro() {
+        for agent in &mut agents {
+            agent.key = format!("{distro}\u{1}{}", agent.key);
+            agent.parent = agent
+                .parent
+                .as_ref()
+                .map(|parent| format!("{distro}\u{1}{parent}"));
+        }
+    }
+    agents
+}
+
+fn sweep(host: &Host) -> Vec<Agent> {
+    let mut table = proc::table(host);
+    let sessions = claude::entries(host);
 
     if table.is_empty() {
-        // Everywhere but Linux there is no way in to a process's working
+        // Where there is no `/proc` there is no way in to a process's working
         // directory, so only what the tools write down themselves is left —
         // which today is Claude Code and nobody else. The window is not told
         // that the picture is short: what it draws is the agents it was given,
         // and a shorter list is the same list drawn.
-        return settle(from_sessions(&sessions));
+        return from_sessions(host, &sessions);
     }
 
     // Codex rollouts and processes are both newest first. That matters when
@@ -204,7 +254,7 @@ pub fn scan() -> Running {
             .cmp(&left.started_at)
             .then_with(|| right.pid.cmp(&left.pid))
     });
-    let threads = codex::recent();
+    let threads = codex::recent(host);
     let mut claimed_codex = HashSet::new();
     let by_pid: HashMap<u32, &proc::Process> = table.iter().map(|one| (one.pid, one)).collect();
     let claimed: HashMap<u32, &claude::Entry> = sessions
@@ -229,7 +279,7 @@ pub fn scan() -> Running {
         };
         let placed = places
             .entry(cwd.clone())
-            .or_insert_with(|| place::locate(&cwd))
+            .or_insert_with(|| place::locate(host, &cwd))
             .clone();
 
         match tool {
@@ -263,7 +313,7 @@ pub fn scan() -> Running {
 
     claim_ours(&mut agents, &by_pid);
     link_parents(&mut agents, &by_pid);
-    settle(agents)
+    agents
 }
 
 /// Whether a session file was written by the process that has its number now.
@@ -448,16 +498,17 @@ fn from_opencode(process: &proc::Process, cwd: &Path, placed: Option<place::Plac
 
 /// The Claude Code sessions on their own, for a machine whose processes cannot
 /// be read.
-fn from_sessions(entries: &[claude::Entry]) -> Vec<Agent> {
+fn from_sessions(host: &Host, entries: &[claude::Entry]) -> Vec<Agent> {
     entries
         .iter()
         .filter_map(|entry| {
-            let cwd = PathBuf::from(entry.cwd.clone()?);
+            // The file says where it was started in that machine's own terms.
+            let cwd = host.canonical(&entry.cwd.clone()?);
             let key = match entry.session_id.clone() {
                 Some(id) => format!("claude:{id}"),
                 None => format!("claude:pid:{}", entry.pid?),
             };
-            let mut agent = base(Tool::Claude, key, None, &cwd, place::locate(&cwd));
+            let mut agent = base(Tool::Claude, key, None, &cwd, place::locate(host, &cwd));
             agent.pid = entry.pid;
             agent.session_id = entry.session_id.clone();
             agent.name = entry.name.clone();
@@ -580,10 +631,10 @@ impl RunningWatch {
     }
 }
 
-/// One look at the machine, for the window that has just opened.
+/// One look at the machines, for the window that has just opened.
 #[tauri::command(async)]
-pub fn running_scan() -> Running {
-    scan()
+pub fn running_scan<R: Runtime>(app: AppHandle<R>) -> Running {
+    scan(&hosts(&app))
 }
 
 /// Starts or stops the sweep behind `running:changed`.
@@ -606,7 +657,10 @@ pub fn running_watch<R: Runtime>(app: AppHandle<R>, state: State<'_, RunningWatc
     std::thread::spawn(move || {
         let mut last: Option<Running> = None;
         while going.load(Ordering::Relaxed) {
-            let next = scan();
+            // Asked again every sweep rather than settled once: a folder inside
+            // a distribution can be opened while the panel is up, and the
+            // machine it is on is one more to look at from then on.
+            let next = scan(&hosts(&app));
             // Only when it moved. A machine with four agents sitting idle
             // produces the same answer every two seconds, and a window that
             // re-rendered on every one of them would be a window that is never

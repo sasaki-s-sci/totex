@@ -8,15 +8,24 @@
 //! Only the levels that are open are watched, and none of them recursively: an
 //! expanded tree is a handful of directories, while the tree below them is
 //! however large the checkout is.
+//!
+//! The tree can have folders from more than one machine open at once — a
+//! Windows drive in one pane and a distribution in the next — so the set is
+//! split by where each directory lives. This machine's own notifications watch
+//! its own; a distribution is asked from inside, because Windows is never told
+//! that a file under the share moved.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 use tauri::{AppHandle, Emitter, Runtime, State};
+
+use crate::host::Host;
+use crate::wsl;
 
 /// Carries the directories whose contents moved, as absolute paths.
 pub const CHANGED_EVENT: &str = "fs:changed";
@@ -25,26 +34,37 @@ pub const CHANGED_EVENT: &str = "fs:changed";
 /// the tree still reads as answering the command itself.
 const DEBOUNCE: Duration = Duration::from_millis(120);
 
-type Watch = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, RecommendedCache>;
+type Local = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, RecommendedCache>;
+
+/// Everything watching for the tree as it now stands.
+///
+/// Dropping it stops all of it — the local watcher's thread and every poll
+/// running inside a distribution — which is the only thing replacing the set
+/// has to do about the set it replaces.
+#[derive(Default)]
+struct Watching {
+    /// The directories this was built for, so a set that has not changed is
+    /// recognised before anything is torn down.
+    paths: BTreeSet<PathBuf>,
+    local: Option<Local>,
+    inside: Vec<wsl::Poll>,
+}
 
 #[derive(Default)]
 pub struct BrowseWatch {
-    /// The live watcher, and the directories it was built for.
-    current: Mutex<Option<(Watch, BTreeSet<PathBuf>)>>,
+    current: Mutex<Option<Watching>>,
 }
 
 impl BrowseWatch {
     fn watching(&self) -> BTreeSet<PathBuf> {
         crate::sync::lock(&self.current)
             .as_ref()
-            .map(|(_, paths)| paths.clone())
+            .map(|held| held.paths.clone())
             .unwrap_or_default()
     }
 
-    fn replace(&self, next: Option<(Watch, BTreeSet<PathBuf>)>) {
+    fn replace(&self, next: Option<Watching>) {
         let mut guard = crate::sync::lock(&self.current);
-        // Dropping the previous debouncer stops its thread and releases the
-        // watches it held.
         *guard = next;
     }
 }
@@ -71,8 +91,44 @@ pub fn watch_directories<R: Runtime>(
         return Ok(());
     }
 
+    let watched = Arc::new(wanted.clone());
+    let mut held = Watching {
+        paths: wanted.clone(),
+        ..Watching::default()
+    };
+
+    let mut elsewhere: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+    let mut here: Vec<PathBuf> = Vec::new();
+    for path in &wanted {
+        match Host::of(path) {
+            Host::Local => here.push(path.clone()),
+            Host::Wsl(distro) => elsewhere.entry(distro).or_default().push(path.clone()),
+        }
+    }
+
+    if !here.is_empty() {
+        held.local = Some(locally(&app, Arc::clone(&watched), &here)?);
+    }
+    for (distro, paths) in elsewhere {
+        // A distribution that will not answer costs the folders inside it their
+        // refreshes and nothing else. The rest of the tree is still watched,
+        // which is what a tree spanning two machines has to be able to do.
+        if let Ok(poll) = inside(&app, Arc::clone(&watched), &distro, &paths) {
+            held.inside.push(poll);
+        }
+    }
+
+    state.replace(Some(held));
+    Ok(())
+}
+
+/// The directories on this machine, watched by it.
+fn locally<R: Runtime>(
+    app: &AppHandle<R>,
+    watched: Arc<BTreeSet<PathBuf>>,
+    paths: &[PathBuf],
+) -> Result<Local, String> {
     let handle = app.clone();
-    let watched = wanted.clone();
     let mut debouncer = new_debouncer(DEBOUNCE, None, move |result: DebounceEventResult| {
         let Ok(events) = result else {
             return;
@@ -84,14 +140,33 @@ pub fn watch_directories<R: Runtime>(
     })
     .map_err(|error| error.to_string())?;
 
-    for path in &wanted {
+    for path in paths {
         // A directory can go away between the tree reading it and here; one
         // that cannot be watched simply is not, and the rest still are.
         let _ = debouncer.watch(path, RecursiveMode::NonRecursive);
     }
 
-    state.replace(Some((debouncer, wanted)));
-    Ok(())
+    Ok(debouncer)
+}
+
+/// The directories inside one distribution, watched from inside it.
+fn inside<R: Runtime>(
+    app: &AppHandle<R>,
+    watched: Arc<BTreeSet<PathBuf>>,
+    distro: &str,
+    paths: &[PathBuf],
+) -> Result<wsl::Poll, String> {
+    let host = Host::Wsl(distro.to_string());
+    let native: Vec<String> = paths.iter().map(|path| host.native(path)).collect();
+    let handle = app.clone();
+
+    wsl::watch(distro, false, &native, move |moved| {
+        let paths: Vec<PathBuf> = moved.iter().map(|path| host.canonical(path)).collect();
+        let touched = directories(paths.iter(), &watched);
+        if !touched.is_empty() {
+            let _ = handle.emit(CHANGED_EVENT, touched);
+        }
+    })
 }
 
 /// The watched directories a burst of paths belongs to.
@@ -106,8 +181,12 @@ fn directories<'a>(
 ) -> Vec<String> {
     let mut touched: Vec<String> = Vec::new();
     for path in paths {
-        for candidate in [path.parent(), Some(path.as_path())].into_iter().flatten() {
-            if watched.contains(candidate) {
+        let host = Host::of(path);
+        for candidate in [host.parent(path), Some(path.clone())]
+            .into_iter()
+            .flatten()
+        {
+            if watched.contains(&candidate) {
                 let named = candidate.to_string_lossy().into_owned();
                 if !touched.contains(&named) {
                     touched.push(named);
@@ -151,5 +230,19 @@ mod tests {
             PathBuf::from("/tmp/demo/two.txt"),
         ];
         assert_eq!(directories(paths.iter(), &watched), vec!["/tmp/demo"]);
+    }
+
+    /// A file inside a distribution belongs to the open directory holding it,
+    /// which is spelled the way the tree spells it and not the way the poll
+    /// that found it does.
+    #[test]
+    fn a_path_inside_a_distribution_finds_its_open_directory() {
+        let open = PathBuf::from(r"\\wsl.localhost\Ubuntu\home\a");
+        let watched: BTreeSet<PathBuf> = [open.clone()].into_iter().collect();
+        let paths = [PathBuf::from(r"\\wsl.localhost\Ubuntu\home\a\notes.txt")];
+        assert_eq!(
+            directories(paths.iter(), &watched),
+            vec![open.to_string_lossy().into_owned()]
+        );
     }
 }

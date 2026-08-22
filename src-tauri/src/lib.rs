@@ -1,12 +1,16 @@
 mod agent;
+mod ask;
 mod display;
 mod fs_browse;
 mod fs_watch;
 mod git;
+mod host;
 mod pty;
 mod running;
 mod stream;
 mod sync;
+mod update;
+mod wsl;
 
 use fs_browse::{FileHead, Listing, Root};
 
@@ -42,7 +46,17 @@ pub fn run() {
     // and only one of the display servers a WSL session offers honours that.
     display::prefer_wayland();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // Only a desktop build has anything to replace: the two plugins behind the
+    // settings dialog's update mark are the download-and-swap and the restart
+    // that follows it, and neither exists on a phone.
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+
+    builder
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
@@ -54,6 +68,7 @@ pub fn run() {
             read_directory,
             read_file_head,
             write_file,
+            update::self_update_supported,
             fs_watch::watch_directories,
             git::git_version,
             git::repository_counts,
@@ -75,6 +90,8 @@ pub fn run() {
             pty::pty_run,
             pty::pty_resize,
             pty::pty_close,
+            pty::pty_asking,
+            pty::pty_answer,
             agent::agent_send,
             agent::agent_cancel,
             running::running_scan,
