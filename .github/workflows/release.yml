@@ -1,0 +1,194 @@
+name: Release
+
+# Cutting a release is one decision -- which part of the version turns over --
+# and this is the whole of it. The number is worked out from what the tree
+# already says it is, written into every file that carries it, committed and
+# tagged, and the tag is handed to the build. Nothing about a release is typed
+# by hand, so a tag can never name a version the tree does not, and the three
+# places the version lives cannot drift apart at the one moment it matters.
+on:
+  workflow_dispatch:
+    inputs:
+      part:
+        description: Which part of the version turns over
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+
+# Two of these at once would work the same number out twice and race to push it.
+concurrency: release
+
+jobs:
+  cut:
+    name: Cut a ${{ inputs.part }} release
+    runs-on: ubuntu-latest
+    permissions:
+      # The bump commit and the tag.
+      contents: write
+      # Handing the tag to the build -- see the last step.
+      actions: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A release is cut from main whichever branch this was started from:
+          # what is released is what is on main, and a tag on anything else
+          # names a version nobody can get back to.
+          ref: main
+          # The tag message says what has landed since the last release, which
+          # takes the history and the tags to read it against.
+          fetch-depth: 0
+
+      - name: Refuse a release nothing could update to
+        # The same gate the build puts on a tag, applied before the tag exists.
+        # Without the key the installers are ones every installed copy turns
+        # down, and a tag is not a thing to have to take back.
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is unset, so nothing could be signed"
+            exit 1
+          fi
+
+      - name: Work out what this turns over to
+        id: version
+        env:
+          PART: ${{ inputs.part }}
+        run: |
+          set -euo pipefail
+
+          # Three files carry the version and they are only ever the same
+          # number. Read all three rather than the one that names the
+          # installers, because a tree that disagrees with itself here is a
+          # release that ships a crate and a bundle claiming different things.
+          conf=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
+          pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
+          crate=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml | head -1)
+          if [ "$pkg" != "$conf" ] || [ "$crate" != "$conf" ]; then
+            echo "::error::the tree disagrees about its own version: tauri.conf.json $conf, package.json $pkg, Cargo.toml $crate"
+            exit 1
+          fi
+
+          # Three numbers and nothing else: this adds to them, and there is
+          # nothing sensible to add to a version with a suffix on it.
+          if ! printf '%s' "$conf" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::$conf is not a version this knows how to turn over"
+            exit 1
+          fi
+
+          IFS=. read -r major minor patch <<<"$conf"
+          case "$PART" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "::error::$PART is not a part of a version"; exit 1 ;;
+          esac
+          next="$major.$minor.$patch"
+
+          # A tag that is already there is a release that already happened, and
+          # taking it over would leave installed copies pointed at a download
+          # that is no longer what they were told it was.
+          if git rev-parse -q --verify "refs/tags/v$next" >/dev/null; then
+            echo "::error::v$next is already a tag"
+            exit 1
+          fi
+
+          echo "from=$conf" >>"$GITHUB_OUTPUT"
+          echo "to=$next" >>"$GITHUB_OUTPUT"
+          echo "cutting v$conf -> v$next"
+
+      - name: Write it into everything that carries it
+        env:
+          FROM: ${{ steps.version.outputs.from }}
+          TO: ${{ steps.version.outputs.to }}
+        run: |
+          set -euo pipefail
+
+          # The first match in each file is the package's own version; the ones
+          # further down belong to dependencies.
+          sed -i "0,/\"version\": \"$FROM\"/s//\"version\": \"$TO\"/" package.json
+          sed -i "0,/\"version\": \"$FROM\"/s//\"version\": \"$TO\"/" src-tauri/tauri.conf.json
+          sed -i "0,/^version = \"$FROM\"/s//version = \"$TO\"/" src-tauri/Cargo.toml
+
+          # The lock says the version of every crate in the build, this one
+          # included, and cargo rewrites it on the next build either way. Doing
+          # it here is what keeps the committed lock true of the committed
+          # manifest. The line wanted is the one under the crate's own name.
+          awk -v to="$TO" '
+            found && /^version = / { $0 = "version = \"" to "\"" }
+            { found = ($0 == "name = \"totex\""); print }
+          ' src-tauri/Cargo.lock >Cargo.lock.next
+          mv Cargo.lock.next src-tauri/Cargo.lock
+
+          # None of the four is allowed to have been missed: a file left on the
+          # old number is the disagreement the step above refuses to start on.
+          grep -q "\"version\": \"$TO\"" package.json &&
+            grep -q "\"version\": \"$TO\"" src-tauri/tauri.conf.json &&
+            grep -q "^version = \"$TO\"" src-tauri/Cargo.toml &&
+            grep -A1 '^name = "totex"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
+              echo "::error::the version was not written everywhere it lives"
+              git --no-pager diff --stat
+              exit 1
+            }
+
+          git --no-pager diff
+
+      - name: Commit it, tag it, and push both
+        id: cut
+        env:
+          TO: ${{ steps.version.outputs.to }}
+        run: |
+          set -euo pipefail
+
+          # What has landed since the last release, read before the bump commit
+          # exists so that the tag says what is in it rather than that it is a
+          # tag. With no release before this one, that is the whole history.
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            landed=$(git log --format='- %s' "$previous..HEAD")
+          else
+            landed=$(git log --format='- %s' HEAD)
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -aqm "Turn the version over to $TO" -m \
+            "Cut by .github/workflows/release.yml, which is where the number is worked out, written into the three files that carry it, and tagged."
+
+          printf 'totex %s\n\n%s\n' "$TO" "$landed" >"$RUNNER_TEMP/tag-message.txt"
+          git tag -a "v$TO" -F "$RUNNER_TEMP/tag-message.txt"
+          git push origin main "refs/tags/v$TO"
+
+          echo "tag=v$TO" >>"$GITHUB_OUTPUT"
+
+      - name: Hand the tag to the build
+        # A tag pushed with this workflow's own token starts nothing -- that is
+        # GitHub refusing to let a workflow set workflows off, and it is why the
+        # build is asked for here rather than left to the push. Started on the
+        # tag, the run is the one a tag push would have made: everything in the
+        # build that asks whether this is a release asks the ref, and the ref is
+        # the tag.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.cut.outputs.tag }}
+        run: gh workflow run build.yml --ref "$TAG"
+
+      - name: Say what was cut
+        env:
+          FROM: ${{ steps.version.outputs.from }}
+          TAG: ${{ steps.cut.outputs.tag }}
+        run: |
+          {
+            echo "Cut **$TAG** from $FROM."
+            echo
+            echo "The installers are being built now — see the Build workflow on $TAG,"
+            echo "which is what publishes the release."
+          } >>"$GITHUB_STEP_SUMMARY"

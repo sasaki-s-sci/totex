@@ -3,6 +3,11 @@ name: Build
 on:
   push:
     branches: [main]
+    # A tag is what turns a build into a release. Tags come from
+    # .github/workflows/release.yml, which works the number out and pushes both
+    # the bump and the tag -- and then asks for this build by hand, because a
+    # tag pushed by a workflow starts nothing. A tag pushed by a person starts
+    # it here, and the two runs are the same run.
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
