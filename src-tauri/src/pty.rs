@@ -14,6 +14,19 @@
 //! Output is pushed to the window rather than polled, because a shell produces
 //! nothing for minutes and then a screenful at once — and it is gathered on the
 //! way by `stream`, because the screenful arrives a few bytes at a time.
+//!
+//! This is the one thing in the app that cannot be worked out again. A folder's
+//! snapshot, a watch on the directories git writes, the question an agent is
+//! standing on: every one of those can be thrown away and taken afresh, out of
+//! what is on disk or out of what a session has already said. A running shell
+//! cannot. It is a process with a history nobody else has a copy of, and
+//! whatever ends this program ends it too.
+//!
+//! So nothing that could be derived is kept in here. What wants to follow the
+//! sessions registers to be told through `follow` rather than being given a
+//! field on one — which is the same thing it would have to do if this were a
+//! program of its own and the rest of the app were talking to it down a socket.
+//! See `derived`, which is where the line between the two is written down.
 
 use std::collections::HashMap;
 use std::io::Write;
@@ -24,7 +37,6 @@ use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system}
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::ask::{Ask, Watcher};
 use crate::host::Host;
 use crate::wsl;
 
@@ -32,12 +44,6 @@ use crate::wsl;
 const DATA_EVENT: &str = "pty:data";
 /// Carries the session that has ended, so the window can say so.
 const EXIT_EVENT: &str = "pty:exit";
-/// Carries what a session is asking, and its going away again.
-///
-/// Sent whether or not a terminal is being drawn for the session: a question is
-/// asked of the person at the window, not of the panel, and the graph is where
-/// the window has to be able to see it and answer it.
-const ASK_EVENT: &str = "pty:ask";
 
 /// How much of what a session has said is kept for a terminal that is not there
 /// yet.
@@ -107,57 +113,124 @@ struct Said {
     seq: usize,
 }
 
-/// What a session is asking, or — with nothing in it — that it has stopped.
-///
-/// Addressed to the session rather than to a terminal, like everything else
-/// here: the question belongs to the process, and the marks that draw it are
-/// wherever the graph happens to be drawing that process.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Asking {
-    id: String,
-    ask: Option<Ask>,
-}
-
 /// What a session has said so far, for a terminal that has just attached.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Held {
-    text: String,
+    pub text: String,
     /// How far `text` reaches into everything the session has said.
-    upto: usize,
+    pub upto: usize,
 }
+
+/// One session that is still running, for whatever has stopped knowing about
+/// it.
+///
+/// What a window is handed when it comes up in front of shells it did not
+/// start — a reload, or one day this whole side of the app being replaced
+/// underneath it. The id, the directory and the size are this side's own;
+/// `meta` is the window's, and is handed back exactly as it was left.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Running {
+    pub id: String,
+    pub cwd: String,
+    /// The size the shell is at, which is the size a screen has to be rebuilt
+    /// at to read the same thing off it.
+    pub rows: u16,
+    pub cols: u16,
+    pub meta: Option<String>,
+}
+
+/// What the sessions do, for whatever is following them.
+///
+/// The window is not the only thing that has to be told. What an agent is
+/// asking is read off the screen its own session drew it on, and that reading
+/// is fed from here — so it is handed the things a program on the other end of
+/// a socket would have to be handed, and nothing else: a session started, a run
+/// of what it said and where that falls in the whole of it, a size, an ending.
+#[derive(Clone, Copy)]
+pub enum Event<'a> {
+    /// A shell has started, at the size it was started at.
+    Opened { rows: u16, cols: u16 },
+    /// A run of output, and how much the session had said before it.
+    Said { data: &'a str, at: usize },
+    /// The screen it is drawn on has been given a different amount of room.
+    Resized { rows: u16, cols: u16 },
+    /// The shell has ended, and the session with it.
+    Ended,
+}
+
+/// Something following the sessions, told what each of them does as it does it.
+pub type Follower = Arc<dyn Fn(&str, Event<'_>) + Send + Sync>;
 
 /// One running shell. The master is kept so the session can be resized.
 struct Session {
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
-    /// Whether a Bourne shell is at the other end, which is what a line typed
-    /// at it has to be quoted for. Not a property of this platform: a window on
-    /// Windows opens a PowerShell for a Windows folder and a Linux login shell
-    /// for one inside a distribution, and the two read a quote differently.
-    posix: bool,
     /// Shared with the thread reading the pty, which fills it whether or not
     /// there is a window at the other end of the event.
     said: Arc<Mutex<Backlog>>,
-    /// The session's screen, and whatever question is standing on it.
+    /// Where it was started, and how much room it was last told it has.
     ///
-    /// Shared with the same thread and for the same reason: an agent asks when
-    /// it asks, and a window that only followed the sessions somebody happened
-    /// to have open would miss exactly the questions worth carrying — the ones
-    /// nobody is sitting in front of.
-    watch: Arc<Mutex<Watcher>>,
+    /// Kept because they are facts about the process rather than about whoever
+    /// is drawing it: a window that has forgotten this session — or a window
+    /// that was never the one to open it — is handed both back, and a screen
+    /// read at the wrong width is a box with its right-hand side in the middle
+    /// of a line.
+    cwd: String,
+    rows: u16,
+    cols: u16,
+    /// Whatever the window asked to have kept beside this session.
+    ///
+    /// Never looked at here, and deliberately a string rather than anything
+    /// with a shape: what the window needs to put a session back where it was
+    /// — which branch's row it belongs on, today — is the window's own business
+    /// and changes when the window changes. Holding it unread is what lets it
+    /// change without any of this knowing.
+    meta: Option<String>,
 }
 
 #[derive(Default)]
 pub struct PtyState {
     sessions: Mutex<HashMap<String, Session>>,
+    /// Whatever is following the sessions besides the window.
+    ///
+    /// Registered rather than compiled in. What follows them today is the
+    /// reading of the questions agents ask, which is derived from their output
+    /// and has no business owning a process — and keeping the arrangement this
+    /// way round is what lets that reading be thrown away and taken again
+    /// without anything in here being disturbed.
+    following: Mutex<Vec<Follower>>,
 }
 
 impl PtyState {
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Session>> {
         crate::sync::lock(&self.sessions)
+    }
+
+    /// Adds one, for the life of the app.
+    pub fn follow(&self, follower: Follower) {
+        crate::sync::lock(&self.following).push(follower);
+    }
+
+    /// Tells them all.
+    ///
+    /// The list is copied out before any of it is called: a follower does its
+    /// own work here — reading a screen, telling the window what it found — and
+    /// holding a lock of this module's across that would put every session
+    /// behind whatever the slowest of them is doing.
+    fn tell(&self, id: &str, event: Event<'_>) {
+        let following: Vec<Follower> = {
+            let held = crate::sync::lock(&self.following);
+            if held.is_empty() {
+                return;
+            }
+            held.clone()
+        };
+        for follower in following {
+            follower(id, event);
+        }
     }
 }
 
@@ -178,14 +251,14 @@ pub(crate) fn shell() -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
-/// The command a session runs, and what kind of shell it will be.
+/// The command a session runs.
 ///
 /// A folder inside a WSL distribution gets that distribution's own login shell,
 /// started inside it. Not the share: `cmd` refuses a UNC directory to run in,
 /// PowerShell in one is a Windows shell looking at Linux files, and the tools
 /// somebody opens a terminal to reach — the agents, the language runtimes — are
 /// installed in the distribution and not beside the window.
-fn session_command(cwd: &str) -> (CommandBuilder, bool) {
+fn session_command(cwd: &str) -> CommandBuilder {
     match Host::of_str(cwd) {
         Host::Local => {
             let mut command = CommandBuilder::new(shell());
@@ -194,7 +267,7 @@ fn session_command(cwd: &str) -> (CommandBuilder, bool) {
             // for this, and without one it falls back to a dumb terminal with
             // no colour.
             command.env("TERM", "xterm-256color");
-            (command, !cfg!(windows))
+            command
         }
         Host::Wsl(distro) => {
             let host = Host::Wsl(distro.clone());
@@ -208,7 +281,7 @@ fn session_command(cwd: &str) -> (CommandBuilder, bool) {
             // The one way a variable crosses into a distribution: `WSLENV`
             // names which of them to carry, and `/u` says this direction only.
             command.env("WSLENV", carried("TERM/u"));
-            (command, true)
+            command
         }
     }
 }
@@ -229,6 +302,8 @@ fn carried(name: &str) -> String {
 /// arriving together for the same id would otherwise both find nothing and both
 /// spawn a shell, and the one that lost the race would be a process nothing can
 /// reach, nothing can close, and nothing will ever read.
+///
+/// `meta` is kept and never read — see the field.
 #[tauri::command]
 pub fn pty_open<R: Runtime>(
     app: AppHandle<R>,
@@ -236,102 +311,137 @@ pub fn pty_open<R: Runtime>(
     cwd: String,
     rows: u16,
     cols: u16,
+    meta: Option<String>,
 ) -> Result<(), String> {
+    let rows = rows.max(1);
+    let cols = cols.max(1);
     let state = app.state::<PtyState>();
-    let mut sessions = state.lock();
-    if sessions.contains_key(&id) {
-        return Ok(());
+
+    {
+        let mut sessions = state.lock();
+        if sessions.contains_key(&id) {
+            return Ok(());
+        }
+
+        let pty = native_pty_system()
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| error.to_string())?;
+
+        let command = session_command(&cwd);
+
+        let child = pty
+            .slave
+            .spawn_command(command)
+            .map_err(|error| error.to_string())?;
+        let writer = pty
+            .master
+            .take_writer()
+            .map_err(|error| error.to_string())?;
+        let reader = pty
+            .master
+            .try_clone_reader()
+            .map_err(|error| error.to_string())?;
+
+        // Reading blocks until the shell says something, so it happens away from
+        // here — and what it says is gathered before it crosses to the window,
+        // because a shell under a stream hands over a character at a time.
+        let handle = app.clone();
+        let name = id.clone();
+        let sending = handle.clone();
+        let sending_name = name.clone();
+        let said = Arc::new(Mutex::new(Backlog::default()));
+        let keeping = Arc::clone(&said);
+        let reading = crate::stream::pump(reader, move |data| {
+            // Kept before it is sent, and kept whether or not anybody is there to
+            // send it to. This is the whole of what makes the session a process
+            // rather than a panel: the prompt a shell prints in the moment between
+            // being started and being drawn is waiting in here when the terminal
+            // finally asks for it.
+            let at = crate::sync::lock(&keeping).keep(&data);
+            // And handed on to whatever is following the sessions, which is
+            // where the questions agents ask are read out of it. Told before
+            // the window is, because a follower is part of this program and the
+            // window is at the end of a message: what it does with the run is
+            // done by the time anything is drawn from it.
+            if let Some(state) = sending.try_state::<PtyState>() {
+                state.tell(&sending_name, Event::Said { data: &data, at });
+            }
+            sending
+                .emit(
+                    DATA_EVENT,
+                    Said {
+                        id: sending_name.clone(),
+                        data,
+                        seq: at,
+                    },
+                )
+                .is_ok()
+        });
+        std::thread::spawn(move || {
+            let _ = reading.join();
+            let _ = handle.emit(EXIT_EVENT, name.clone());
+            // The window is not coming back for it, so the session is dropped here
+            // rather than waiting for a close that will never be asked for.
+            if let Some(state) = handle.try_state::<PtyState>() {
+                state.lock().remove(&name);
+                // Said after it is gone, so that a follower which looks at what
+                // is running finds what is actually left.
+                state.tell(&name, Event::Ended);
+            }
+        });
+
+        sessions.insert(
+            id.clone(),
+            Session {
+                master: pty.master,
+                writer,
+                child,
+                said,
+                cwd,
+                rows,
+                cols,
+                meta,
+            },
+        );
     }
 
-    let pty = native_pty_system()
-        .openpty(PtySize {
-            rows: rows.max(1),
-            cols: cols.max(1),
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|error| error.to_string())?;
-
-    let (command, posix) = session_command(&cwd);
-
-    let child = pty
-        .slave
-        .spawn_command(command)
-        .map_err(|error| error.to_string())?;
-    let writer = pty
-        .master
-        .take_writer()
-        .map_err(|error| error.to_string())?;
-    let reader = pty
-        .master
-        .try_clone_reader()
-        .map_err(|error| error.to_string())?;
-
-    // Reading blocks until the shell says something, so it happens away from
-    // here — and what it says is gathered before it crosses to the window,
-    // because a shell under a stream hands over a character at a time.
-    let handle = app.clone();
-    let name = id.clone();
-    let sending = handle.clone();
-    let sending_name = name.clone();
-    let said = Arc::new(Mutex::new(Backlog::default()));
-    let keeping = Arc::clone(&said);
-    let watch = Arc::new(Mutex::new(Watcher::new(rows.max(1), cols.max(1))));
-    let watching = Arc::clone(&watch);
-    let reading = crate::stream::pump(reader, move |data| {
-        // Kept before it is sent, and kept whether or not anybody is there to
-        // send it to. This is the whole of what makes the session a process
-        // rather than a panel: the prompt a shell prints in the moment between
-        // being started and being drawn is waiting in here when the terminal
-        // finally asks for it.
-        let seq = crate::sync::lock(&keeping).keep(&data);
-        // Followed as it goes past, which is the only place a question exists:
-        // a terminal is a stream of bytes for drawing with, and what the agent
-        // is asking is a shape on the screen those bytes draw. Only a change is
-        // sent on — an agent writing a paragraph says nothing about any
-        // question, and that is nearly all of the output there ever is.
-        if let Some(ask) = crate::sync::lock(&watching).keep(&data) {
-            let _ = sending.emit(
-                ASK_EVENT,
-                Asking {
-                    id: sending_name.clone(),
-                    ask,
-                },
-            );
-        }
-        sending
-            .emit(
-                DATA_EVENT,
-                Said {
-                    id: sending_name.clone(),
-                    data,
-                    seq,
-                },
-            )
-            .is_ok()
-    });
-    std::thread::spawn(move || {
-        let _ = reading.join();
-        let _ = handle.emit(EXIT_EVENT, name.clone());
-        // The window is not coming back for it, so the session is dropped here
-        // rather than waiting for a close that will never be asked for.
-        if let Some(state) = handle.try_state::<PtyState>() {
-            state.lock().remove(&name);
-        }
-    });
-
-    sessions.insert(
-        id,
-        Session {
-            master: pty.master,
-            writer,
-            child,
-            posix,
-            said,
-            watch,
-        },
-    );
+    // Outside the lock, like every other one of these: a follower is free to
+    // ask what is running, and would find this module holding the map it is
+    // asking about.
+    state.tell(&id, Event::Opened { rows, cols });
     Ok(())
+}
+
+/// Every session that is still running.
+///
+/// What a window asks for when it comes up in front of shells it does not know
+/// about — its own, from before it was reloaded, or ones it never started. A
+/// session is a process, so this is the only place the truth about which of
+/// them exist has ever been; a window that kept its own list was keeping a copy.
+#[tauri::command]
+pub fn pty_sessions<R: Runtime>(app: AppHandle<R>) -> Vec<Running> {
+    running(&app)
+}
+
+/// The same thing, for the rest of this side of the app.
+pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
+    let state = app.state::<PtyState>();
+    let sessions = state.lock();
+    sessions
+        .iter()
+        .map(|(id, session)| Running {
+            id: id.clone(),
+            cwd: session.cwd.clone(),
+            rows: session.rows,
+            cols: session.cols,
+            meta: session.meta.clone(),
+        })
+        .collect()
 }
 
 /// Everything a session has said that is still kept, for a terminal that has
@@ -344,7 +454,8 @@ pub fn pty_open<R: Runtime>(
 /// What comes back is read alongside the event: a terminal registers for the
 /// live output first and asks for this second, so a run that lands between the
 /// two arrives twice rather than not at all — and `upto` is how the terminal
-/// tells which one that was.
+/// tells which one that was. What reads a screen off the backlog does the same
+/// thing with the same two numbers.
 #[tauri::command]
 pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Option<Held> {
     let state = app.state::<PtyState>();
@@ -370,54 +481,6 @@ pub fn pty_write<R: Runtime>(app: AppHandle<R>, id: String, data: String) -> Res
     session.writer.flush().map_err(|error| error.to_string())
 }
 
-/// Types a command at the shell, quoted the way this platform's shell reads it.
-///
-/// Separate from `pty_write` because quoting is not the window's business: what
-/// a shell needs to see to get one argument back unchanged differs between
-/// `sh` and PowerShell, and the window would have to know which one is at the
-/// other end of the pty to say it. Still typed rather than run for us — it is
-/// echoed like anything typed, and a rerun is one arrow key away.
-#[tauri::command]
-pub fn pty_run<R: Runtime>(app: AppHandle<R>, id: String, argv: Vec<String>) -> Result<(), String> {
-    let Some((program, args)) = argv.split_first() else {
-        return Ok(());
-    };
-    let posix = {
-        let state = app.state::<PtyState>();
-        let sessions = state.lock();
-        sessions.get(&id).ok_or("no-session")?.posix
-    };
-
-    let mut line = program.clone();
-    for arg in args {
-        line.push(' ');
-        line.push_str(&quote(arg, posix));
-    }
-    line.push('\n');
-    pty_write(app, id, line)
-}
-
-/// One argument, as the shell running in the pty has to read it.
-///
-/// The pty runs the user's own login shell, not the one a command is spawned
-/// through — so this is not `agent::quote`, which quotes for `sh -c` and `cmd
-/// /C`. Single quotes in both dialects, because what is being quoted here is a
-/// person's sentence: `$`, backticks and backslashes all have to come out the
-/// far side as themselves. Which dialect is a property of the session and not
-/// of the platform: a Windows window opens both kinds.
-fn quote(value: &str, posix: bool) -> String {
-    if posix {
-        // Ending the quoted run, escaping the quote outside it, and opening a
-        // new one: the one form every Bourne-family shell, `fish` included,
-        // reads back as a single apostrophe.
-        format!("'{}'", value.replace('\'', "'\\''"))
-    } else {
-        // PowerShell, which is what `shell()` falls back to: inside single
-        // quotes nothing expands, and a doubled quote is one quote.
-        format!("'{}'", value.replace('\'', "''"))
-    }
-}
-
 /// Tells the shell how much room it has, so that anything full-screen — an
 /// editor, a pager — draws to the right size.
 #[tauri::command]
@@ -427,94 +490,39 @@ pub fn pty_resize<R: Runtime>(
     rows: u16,
     cols: u16,
 ) -> Result<(), String> {
+    let rows = rows.max(1);
+    let cols = cols.max(1);
     let state = app.state::<PtyState>();
-    let sessions = state.lock();
-    let Some(session) = sessions.get(&id) else {
-        // A resize arriving after the shell exited is not worth an error.
-        return Ok(());
-    };
+
+    {
+        let mut sessions = state.lock();
+        let Some(session) = sessions.get_mut(&id) else {
+            // A resize arriving after the shell exited is not worth an error.
+            return Ok(());
+        };
+        session
+            .master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| error.to_string())?;
+        session.rows = rows;
+        session.cols = cols;
+    }
+
     // The screen a question is read off is the shell's own, so it is the same
     // size as the shell's: a box drawn to eighty columns and read against a
     // hundred and twenty is a box with its right-hand side in the middle of a
     // line.
-    crate::sync::lock(&session.watch).resize(rows.max(1), cols.max(1));
-    session
-        .master
-        .resize(PtySize {
-            rows: rows.max(1),
-            cols: cols.max(1),
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|error| error.to_string())
-}
-
-/// Every question standing right now, for a window that has just come up.
-///
-/// The event is what carries these from moment to moment; this is the first
-/// look, for the same reason the sweep has one — a window that only listened
-/// would show nothing until the next time an agent happened to redraw, which
-/// for a session sitting on a question is never.
-#[tauri::command]
-pub fn pty_asking<R: Runtime>(app: AppHandle<R>) -> Vec<Asking> {
-    let state = app.state::<PtyState>();
-    let sessions = state.lock();
-    sessions
-        .iter()
-        .filter_map(|(id, session)| {
-            let ask = crate::sync::lock(&session.watch).asking().cloned()?;
-            Some(Asking {
-                id: id.clone(),
-                ask: Some(ask),
-            })
-        })
-        .collect()
-}
-
-/// Answers the question a session is asking, by typing what takes that answer.
-///
-/// The number is the whole of it: every one of these lists is answered by its
-/// own numbers, so this is a keystroke at the agent rather than a walk down the
-/// list with the arrow keys — which would depend on where the agent'"'"'s own cursor
-/// is standing, and so on a reading that is already a moment old.
-///
-/// `seq` is what makes that safe. A card is drawn from a question that was on
-/// the screen when it was read, and the one thing that must never happen is a
-/// press meant for "may I delete this" arriving at whatever the agent went on
-/// to ask instead — so an answer names the question it was given for, and is
-/// refused outright if that is no longer the one being asked.
-#[tauri::command]
-pub fn pty_answer<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-    seq: u64,
-    key: String,
-) -> Result<(), String> {
-    {
-        let state = app.state::<PtyState>();
-        let mut sessions = state.lock();
-        let session = sessions.get_mut(&id).ok_or("no-session")?;
-        // Put away and answered in one go: the question is taken off the graph
-        // as the key goes, rather than a redraw later, because the moment
-        // between a press and an agent'"'"'s next frame is exactly how long a card
-        // that has been answered must not still be standing there.
-        if !crate::sync::lock(&session.watch).answered(seq) {
-            return Err("asking-something-else".to_string());
-        }
-        session
-            .writer
-            .write_all(key.as_bytes())
-            .map_err(|error| error.to_string())?;
-        session.writer.flush().map_err(|error| error.to_string())?;
-    }
-
-    // Said outright rather than left to the next reading: whatever else the
-    // window is drawing this session as, the question has been answered.
-    let _ = app.emit(ASK_EVENT, Asking { id, ask: None });
+    state.tell(&id, Event::Resized { rows, cols });
     Ok(())
 }
 
-/// Ends a session. The reader thread stops on its own once the pty is dropped.
+/// Ends a session. The reader thread stops on its own once the pty is dropped,
+/// and it is that thread — not this — which says the session has gone.
 #[tauri::command]
 pub fn pty_close<R: Runtime>(app: AppHandle<R>, id: String) {
     if let Some(mut session) = app.state::<PtyState>().lock().remove(&id) {
@@ -617,6 +625,7 @@ mod tests {
             dir.display().to_string(),
             24,
             80,
+            None,
         )
         .expect("the shell starts");
 
@@ -668,17 +677,9 @@ mod tests {
             wsl::unc(&distro, "/etc"),
             24,
             200,
+            None,
         )
         .expect("the shell starts");
-        // Quoted by this end, so it also proves the line was quoted for the
-        // shell that is actually there rather than for this platform's.
-        pty_run(
-            handle.clone(),
-            id.clone(),
-            vec!["printf".into(), "totex[%s]".into(), "don't $HOME".into()],
-        )
-        .expect("the shell takes input");
-        let quoted = wait_answering(&handle, &id, &rx, "totex[don't $HOME]");
 
         pty_write(
             handle.clone(),
@@ -690,58 +691,8 @@ mod tests {
         pty_close(handle.clone(), id.clone());
 
         assert!(
-            quoted.contains("totex[don't $HOME]"),
-            "the argument did not arrive whole: {quoted:?}"
-        );
-        assert!(
             seen.contains("totex-at-/etc"),
             "the shell did not answer from inside the distribution: {seen:?}"
-        );
-    }
-
-    /// What a first message to an agent actually looks like: several lines of
-    /// someone's own words, apostrophes and shell metacharacters included. All
-    /// of it has to reach the command as one argument.
-    #[cfg(unix)]
-    #[test]
-    fn a_typed_argument_reaches_the_command_whole() {
-        let app = mock_app();
-        let handle = app.handle().clone();
-        let id = "quoting".to_string();
-
-        let (tx, rx) = mpsc::channel();
-        handle.listen(DATA_EVENT, move |event| {
-            if let Ok(chunk) = serde_json::from_str::<serde_json::Value>(event.payload())
-                && let Some(data) = chunk.get("data").and_then(|value| value.as_str())
-            {
-                let _ = tx.send(data.to_string());
-            }
-        });
-
-        pty_open(
-            handle.clone(),
-            id.clone(),
-            std::env::temp_dir().display().to_string(),
-            24,
-            200,
-        )
-        .expect("the shell starts");
-
-        let message = "don't $HOME `run` \"this\"";
-        pty_run(
-            handle.clone(),
-            id.clone(),
-            vec!["printf".into(), "totex[%s]".into(), message.into()],
-        )
-        .expect("the shell takes input");
-
-        let expected = format!("totex[{message}]");
-        let seen = wait_for(&rx, &expected);
-        pty_close(handle.clone(), id.clone());
-
-        assert!(
-            seen.contains(&expected),
-            "the argument did not survive the shell: {seen:?}"
         );
     }
 
@@ -760,6 +711,7 @@ mod tests {
             std::env::temp_dir().display().to_string(),
             24,
             80,
+            None,
         )
         .expect("the shell starts");
         pty_write(handle.clone(), id.clone(), "echo totex-kept\n".to_string())
@@ -784,115 +736,6 @@ mod tests {
             held.contains("totex-kept"),
             "nothing was kept for a terminal that was not there: {held:?}"
         );
-    }
-
-    /// The whole way through, in one go: a shell draws the box an agent draws,
-    /// the window is told what is being asked without anybody having opened a
-    /// terminal on it, and the answer is typed back at the session.
-    ///
-    /// The box is printed rather than an agent run, because what is being
-    /// tested is the road between the two — the pty, the screen the output is
-    /// followed into, the event, and the answer going the other way. What an
-    /// agent actually draws is `ask`'s own business, and is tested there.
-    #[cfg(unix)]
-    #[test]
-    fn a_question_drawn_in_a_session_reaches_the_window_and_is_answered() {
-        let app = mock_app();
-        let handle = app.handle().clone();
-        let id = "asking".to_string();
-
-        // A login shell asks where the cursor is before it draws its prompt and
-        // waits for the answer; nothing it is told to do happens until it has
-        // one. See `wait_answering`, which does the same for the tests above.
-        let answering = handle.clone();
-        let answering_id = id.clone();
-        handle.listen(DATA_EVENT, move |event| {
-            if let Ok(chunk) = serde_json::from_str::<serde_json::Value>(event.payload())
-                && let Some(data) = chunk.get("data").and_then(|value| value.as_str())
-                && data.contains("\u{1b}[6n")
-            {
-                let _ = pty_write(
-                    answering.clone(),
-                    answering_id.clone(),
-                    "\u{1b}[1;1R".to_string(),
-                );
-            }
-        });
-
-        let (tx, rx) = mpsc::channel();
-        handle.listen(ASK_EVENT, move |event| {
-            let _ = tx.send(event.payload().to_string());
-        });
-
-        pty_open(
-            handle.clone(),
-            id.clone(),
-            std::env::temp_dir().display().to_string(),
-            24,
-            80,
-        )
-        .expect("the shell starts");
-
-        // Drawn and then left standing: a question is the last thing on the
-        // screen, which is the whole of what tells one from a list somebody
-        // wrote. The sleep is what keeps the shell from printing its next
-        // prompt underneath.
-        let drawn = [
-            "\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\\n",
-            "\u{2502} Bash command \u{2502}\\n",
-            "\u{2502}              \u{2502}\\n",
-            "\u{2502}   ls -la      \u{2502}\\n",
-            "\u{2502}              \u{2502}\\n",
-            "\u{2502} Proceed?     \u{2502}\\n",
-            "\u{2502} \u{276f} 1. Yes     \u{2502}\\n",
-            "\u{2502}   2. No      \u{2502}\\n",
-            "\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\\n",
-        ]
-        .concat();
-        pty_write(
-            handle.clone(),
-            id.clone(),
-            format!("printf '{drawn}'; sleep 30\n"),
-        )
-        .expect("the shell takes input");
-
-        let deadline = Instant::now() + Duration::from_secs(20);
-        let mut asked = None;
-        while Instant::now() < deadline {
-            let Ok(payload) = rx.recv_timeout(Duration::from_millis(250)) else {
-                continue;
-            };
-            let said: serde_json::Value = serde_json::from_str(&payload).expect("an ask");
-            if said.get("ask").is_some_and(|ask| !ask.is_null()) {
-                asked = Some(said);
-                break;
-            }
-        }
-
-        let Some(said) = asked else {
-            pty_close(handle.clone(), id.clone());
-            panic!("the window was never told a question was being asked");
-        };
-        let ask = &said["ask"];
-        assert_eq!(said["id"], serde_json::json!(id));
-        assert_eq!(ask["question"], serde_json::json!("Proceed?"));
-        assert_eq!(ask["choices"][0]["key"], serde_json::json!("1"));
-        assert_eq!(ask["choices"][1]["label"], serde_json::json!("No"));
-        assert_eq!(ask["choices"].as_array().map(Vec::len), Some(2));
-
-        let seq = ask["seq"].as_u64().expect("the question is numbered");
-        assert!(
-            pty_answer(handle.clone(), id.clone(), seq, "1".to_string()).is_ok(),
-            "the answer was refused"
-        );
-        // And the same answer again, which is now for a question nobody is
-        // asking: this is what stops a press landing on whatever came next.
-        assert!(
-            pty_answer(handle.clone(), id.clone(), seq, "1".to_string()).is_err(),
-            "an answer to a question that has been answered went through"
-        );
-
-        pty_close(handle.clone(), id.clone());
     }
 
     #[test]

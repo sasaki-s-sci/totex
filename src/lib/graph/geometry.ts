@@ -80,10 +80,10 @@ export function straightPath(source: Point, target: Point): string {
  *
  * A dot on this canvas is a fixed-size circle on a grid, and a repository holds
  * a thousand of them. Given to the engine one element apiece they were the
- * greater part of what a frame cost, so every run of them — the history itself,
- * and the peek at the history that is folded away — is drawn as one path
- * instead. Each circle is two half-arcs off its own `M`, which is what keeps
- * them separate pieces rather than one shape with the gaps filled in.
+ * greater part of what a frame cost, so a repository's whole history is drawn
+ * as one path instead. Each circle is two half-arcs off its own `M`, which is
+ * what keeps them separate pieces rather than one shape with the gaps filled
+ * in.
  */
 export function circlesOf(points: readonly Point[], radius: number): string {
   let path = "";

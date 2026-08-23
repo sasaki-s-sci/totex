@@ -40,21 +40,11 @@
   "cli": {
     "shell": "シェル",
     "open": "シェル",
-    "end": "終了",
-    "activity": {
-      "busy": "実行中",
-      "idle": "待機中",
-      "waiting": "入力待ち",
-      "unknown": "状態不明"
-    }
+    "end": "終了"
   },
   "ask": {
     "asking": "確認待ち",
-    "open": "{{agent}} のターミナルを開く"
-  },
-  "chat": {
-    "send": "送信",
-    "stop": "停止"
+    "open": "ターミナルを開く"
   },
   "update": {
     "check": "新しいバージョンを確認",

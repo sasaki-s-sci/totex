@@ -48,7 +48,7 @@ import { useWorktreeStatuses } from "../worktreeStatus";
  * It is also the handle for the branch: click it for what can be done with its
  * working directory, or drag it onto another head to merge into that one.
  *
- * What can be done *in* the branch is the one button on its shoulder: a
+ * What can be done *in* the branch is the one button standing over it: a
  * terminal opened here, which is the same button a folder's row ends with.
  * Pressing it puts a mark in the column past the branch — see `CliNode` — and
  * that mark is joined back to this ring by a line. The offer used to be a
@@ -57,14 +57,17 @@ import { useWorktreeStatuses } from "../worktreeStatus";
  * what is running and nothing else, and what could be running is on the branch
  * itself, where the rest of what can be done to a branch already is.
  *
- * Up and to the right, because it is the one corner nothing else uses: the
+ * Straight above the ring, because everything else round a head is taken: the
  * line from the history arrives on the left, the lines out to the terminals
- * leave level with the ring, and what is uncommitted is on the rim. A remote
- * branch has no button — it is somewhere else, and nothing can be opened in it.
+ * leave level with the ring, what is uncommitted is on the rim, and the cloud
+ * that says a branch is also on a remote stands on the left shoulder. Above
+ * rather than off a corner, so the button is on the branch's own vertical and a
+ * column of heads carries a column of these. A remote branch has no button —
+ * it is somewhere else, and nothing can be opened in it.
  */
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
-  const { name, kind, hasRemote, cwd, repository } = data;
+  const { name, kind, hasRemote, cwd, repository, provisional } = data;
   const { openWork, pickBranch, dragBranch } = useGraphActions();
   const status = useWorktreeStatuses().get(cwd ?? "");
 
@@ -83,7 +86,11 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const ink = !cwd ? dashes() : dirty && !doing ? rimOf(status) : null;
 
   return (
-    <div className="cell head" data-repository={repository.id} data-branch={name}>
+    <div
+      className={`cell head${provisional ? " is-provisional" : ""}`}
+      data-repository={repository.id}
+      data-branch={name}
+    >
       {hasRemote && <CloudIcon className="head__remote" aria-hidden sx={{ fontSize: 10 }} />}
       {/* Whatever follows the branch along its row runs out to the right. */}
       <button
@@ -114,7 +121,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
         )}
       </button>
 
-      {/* The offer of a terminal in this branch, on the ring's shoulder. Faint
+      {/* The offer of a terminal in this branch, standing over its ring. Faint
           until the pointer is on it, like every other button that stands on the
           canvas rather than in a row of its own — and gone altogether when the
           canvas is zoomed out past what a pointer can be aimed at; see
@@ -127,7 +134,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            openWork({ repository, branch: name, cwd, agent: null });
+            openWork({ repository, branch: name, cwd });
           }}
         >
           <TerminalIcon sx={{ fontSize: 11 }} />
@@ -140,7 +147,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
 /** The line the ring is drawn on: the width of the button's border, and the
     circle that width is laid along. Both are in the mark's own units, which is
     what the ink's `viewBox` is written in. */
-const RING_WIDTH = 1.5;
+const RING_WIDTH = 1;
 const CENTRE = HEAD_SIZE / 2;
 const RADIUS = (HEAD_SIZE - RING_WIDTH) / 2;
 /** Half a pixel of the circle, as a share of the way round it: what one arc

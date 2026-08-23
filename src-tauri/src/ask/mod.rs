@@ -22,20 +22,32 @@
 //! everything else alone. A prompt it does not recognise is a prompt the graph
 //! says nothing about, which is exactly what the graph said before.
 
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use serde::Serialize;
+
+pub mod watch;
 
 /// One question, as it can be answered from anywhere the window draws it.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Ask {
-    /// Which question this is, counted up through the life of one session.
+    /// Which question this is, read off the question itself.
     ///
     /// What an answer is addressed to. A card on the graph is drawn from a
     /// reading that is already a moment old, and the one thing that must never
     /// happen is a press that was meant for "may I delete this" arriving at
-    /// whatever the agent went on to ask next — so the answer carries the
-    /// number of the question it was drawn for, and is refused if that is no
-    /// longer the question on the screen.
+    /// whatever the agent went on to ask next — so the answer carries this
+    /// back with it, and is refused if it is no longer the question on the
+    /// screen.
+    ///
+    /// Taken from what the question says rather than from a count of the ones
+    /// before it. Two things follow. The same box read twice is the same
+    /// question both times, so the whole reading can be dropped and taken again
+    /// from a session's backlog without the card somebody is looking at
+    /// becoming unanswerable — see `watch`. And what is promised is slightly
+    /// stronger than a count ever promised: an answer only ever lands on a
+    /// question that says exactly what the person was shown.
     pub seq: u64,
     /// What the question is about, in the order the box says it: the tool being
     /// asked for, the command, the file, whatever else was set above the
@@ -63,12 +75,48 @@ pub struct Choice {
     pub selected: bool,
 }
 
-/// A question as it was read, before it is given a number.
+/// A question as it was read, before it has a name to be answered by.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Reading {
     pub detail: Vec<String>,
     pub question: String,
     pub choices: Vec<Choice>,
+}
+
+impl Reading {
+    /// What an answer is addressed to: this question and no other.
+    ///
+    /// Everything the person was shown goes into it and nothing else does —
+    /// not where the agent's own cursor is standing, because moving that leaves
+    /// the question exactly as it was, and not when it was asked, because a
+    /// reading taken a second time from the same bytes has to come out the
+    /// same as the first.
+    ///
+    /// Cut to forty-eight bits because the window counts in doubles: a whole
+    /// sixty-four would arrive there rounded, come back rounded, and match
+    /// nothing.
+    pub fn seq(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.detail.hash(&mut hasher);
+        self.question.hash(&mut hasher);
+        for choice in &self.choices {
+            choice.key.hash(&mut hasher);
+            choice.label.hash(&mut hasher);
+        }
+        hasher.finish() & ((1 << 48) - 1)
+    }
+}
+
+impl Ask {
+    /// The question a reading found, under the name an answer comes back with.
+    pub fn of(reading: Reading) -> Self {
+        Self {
+            seq: reading.seq(),
+            detail: reading.detail,
+            question: reading.question,
+            choices: reading.choices,
+        }
+    }
 }
 
 /// How many lines above a question are kept as what it is about.
@@ -364,106 +412,6 @@ fn is_edge(line: &str) -> bool {
         || line
             .chars()
             .all(|letter| RULES.contains(&letter) || letter == ' ')
-}
-
-/// A session's screen, and the question it has on it.
-///
-/// One of these per running session, fed everything the session says whether or
-/// not a terminal is being drawn for it — a question is asked of the person and
-/// not of the panel, and a session nobody has opened is exactly the one whose
-/// question the graph has to carry.
-pub struct Watcher {
-    screen: Screen,
-    asking: Option<Ask>,
-    /// How many questions this session has asked, which is what numbers them.
-    asked: u64,
-}
-
-impl Watcher {
-    pub fn new(rows: u16, cols: u16) -> Self {
-        Self {
-            screen: Screen::new(rows, cols),
-            asking: None,
-            asked: 0,
-        }
-    }
-
-    /// Follows a run of output, and says what is being asked when that changed.
-    ///
-    /// `None` for output that left the question as it was, which is nearly all
-    /// of it: an agent writing a paragraph is a hundred of these, and the graph
-    /// should hear about none of them.
-    pub fn keep(&mut self, data: &str) -> Option<Option<Ask>> {
-        self.screen.feed(data);
-        self.settle(read(&self.screen.lines()))
-    }
-
-    pub fn resize(&mut self, rows: u16, cols: u16) {
-        self.screen.resize(rows, cols);
-    }
-
-    pub fn asking(&self) -> Option<&Ask> {
-        self.asking.as_ref()
-    }
-
-    /// Puts the question away once it has been answered.
-    ///
-    /// The agent will redraw the screen without it a moment later and the
-    /// reading would clear itself, but a moment is exactly how long a card that
-    /// has been pressed must not stay on the graph. False when it is no longer
-    /// the question being asked, which is what refuses an answer meant for
-    /// something else.
-    pub fn answered(&mut self, seq: u64) -> bool {
-        if self.asking.as_ref().is_some_and(|ask| ask.seq == seq) {
-            self.asking = None;
-            return true;
-        }
-        false
-    }
-
-    /// The reading against what was already being asked.
-    fn settle(&mut self, reading: Option<Reading>) -> Option<Option<Ask>> {
-        let Some(reading) = reading else {
-            return self.asking.take().map(|_| None);
-        };
-
-        // The same question with the agent's own cursor on another line is the
-        // same question. Numbering it afresh would refuse the answer somebody
-        // is in the middle of giving, for no better reason than that they moved
-        // the selection in the terminal while the card was up.
-        let seq = match &self.asking {
-            Some(held)
-                if held.detail == reading.detail
-                    && held.question == reading.question
-                    && held.choices.len() == reading.choices.len()
-                    && held
-                        .choices
-                        .iter()
-                        .zip(&reading.choices)
-                        .all(|(held, found)| {
-                            held.key == found.key && held.label == found.label
-                        }) =>
-            {
-                held.seq
-            }
-            _ => {
-                self.asked += 1;
-                self.asked
-            }
-        };
-
-        let ask = Ask {
-            seq,
-            detail: reading.detail,
-            question: reading.question,
-            choices: reading.choices,
-        };
-        if self.asking.as_ref() == Some(&ask) {
-            return None;
-        }
-        self.asking = Some(ask.clone());
-        Some(Some(ask))
-    }
 }
 
 /// Where the escape sequence being read has got to.
@@ -860,7 +808,7 @@ mod tests {
 
     /// A permission box the shape all three of them draw: what it is about, a
     /// blank line, the question, and the numbered answers.
-    fn asking_box() -> String {
+    pub(super) fn asking_box() -> String {
         [
             "\u{1b}[2J\u{1b}[H",
             "╭──────────────────────────────────────────────╮\r\n",
@@ -1031,58 +979,6 @@ mod tests {
         assert_eq!(found.question, "実行してよいですか?");
         assert_eq!(found.choices[0].label, "はい");
         assert_eq!(found.choices[1].label, "いいえ");
-    }
-
-    #[test]
-    fn a_question_asked_twice_is_two_questions_and_a_redraw_is_one() {
-        let mut watcher = Watcher::new(24, 60);
-
-        let first = watcher
-            .keep(&asking_box())
-            .expect("the question is news")
-            .expect("and it is being asked");
-        assert_eq!(first.seq, 1);
-
-        // The very same screen again: nothing to say.
-        assert!(watcher.keep("").is_none());
-
-        // Answered, and the agent draws on. The card goes away.
-        watcher.screen.feed("\u{1b}[2J\u{1b}[H");
-        watcher.screen.feed("⏺ Removed the build directory.\r\n");
-        assert_eq!(watcher.keep(""), Some(None));
-        assert!(watcher.asking().is_none());
-
-        // And the next question is a different question.
-        let second = watcher
-            .keep(&asking_box())
-            .expect("asked again")
-            .expect("and being asked");
-        assert_eq!(second.seq, 2, "an answer must not reach the wrong question");
-    }
-
-    #[test]
-    fn a_selection_moving_leaves_the_question_the_one_it_was() {
-        let mut watcher = Watcher::new(24, 60);
-        let first = watcher.keep(&asking_box()).unwrap().unwrap();
-
-        watcher.screen.feed("\u{1b}[2J\u{1b}[H");
-        let moved = watcher
-            .keep(&asking_box().replace("│ ❯ 1. Yes", "│   1. Yes"))
-            .expect("the cursor moved")
-            .expect("and it is still being asked");
-
-        assert_eq!(moved.seq, first.seq, "the answer is still the same answer");
-        assert!(!moved.choices[0].selected);
-    }
-
-    #[test]
-    fn an_answer_to_a_question_that_has_moved_on_is_refused() {
-        let mut watcher = Watcher::new(24, 60);
-        let ask = watcher.keep(&asking_box()).unwrap().unwrap();
-
-        assert!(!watcher.answered(ask.seq + 1), "not the question on screen");
-        assert!(watcher.answered(ask.seq));
-        assert!(watcher.asking().is_none(), "and it is put away at once");
     }
 
     /// Erasing, scrolling and the cursor being sent about: what a screen is for.

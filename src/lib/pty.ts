@@ -1,5 +1,5 @@
 /**
- * The process behind a `cli` session.
+ * The process behind a session.
  *
  * A session is a process, not a panel. It is started when it is opened, it
  * carries on while the window is showing something else, and it is only ever
@@ -10,8 +10,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 
-import { agentOf } from "./agents";
-import type { Session } from "./session";
+import { type Session, sessionMeta } from "./session";
 
 /** Carries a run of a session's output. */
 export const DATA_EVENT = "pty:data";
@@ -30,6 +29,31 @@ export type Said = {
    * once live and once inside the text — and this is which.
    */
   seq: number;
+};
+
+/**
+ * One session that is still running, as the window finds it again.
+ *
+ * A session is a process, so what is running has only ever been true where the
+ * processes are: a window keeping its own list was keeping a copy, and a copy
+ * is exactly what is lost when the window is reloaded or replaced. So the list
+ * is asked for instead — see `restored`, which is what turns these back into
+ * sessions.
+ */
+export type Running = {
+  id: string;
+  cwd: string;
+  /**
+   * The size the shell is being run at.
+   *
+   * Not read here. A terminal built for this session measures itself and says
+   * what room it really has; this is for whatever has to rebuild a screen the
+   * session drew, which has to do it at the width it was drawn at.
+   */
+  rows: number;
+  cols: number;
+  /** What the window left beside it, handed back exactly as it was left. */
+  meta: string | null;
 };
 
 /** Everything a session has said that is still kept. */
@@ -61,10 +85,8 @@ const started = new Map<string, Promise<void>>();
  * not start is forgotten rather than remembered as started, so the terminal
  * that asks next tries again — and is the one that goes red when it fails.
  *
- * Whatever the session was opened for is typed here too. It belongs with the
- * start and not with the drawing: a session opened with an agent is running
- * that agent from the moment it exists, whether or not the panel got as far as
- * building a terminal for it.
+ * A shell and nothing else. What is to be run in it is typed into it, by
+ * whoever opened it, the way it would be in any other terminal.
  */
 export function startShell(session: Session): Promise<void> {
   const already = started.get(session.id);
@@ -75,25 +97,28 @@ export function startShell(session: Session): Promise<void> {
     cwd: session.cwd,
     rows: ROWS,
     cols: COLS,
-  })
-    .then(async () => {
-      // Typed rather than run for us: the shell reads it when it is ready, it
-      // is echoed the way anything typed is, and a rerun is one arrow key away
-      // in the shell's own history. A session opened with something to do
-      // carries that with it, as the agent's own first argument — the quoting
-      // is the Rust side's, which is the half that knows what shell is at the
-      // other end.
-      if (!session.agent) return;
-      const argv = agentOf(session.agent).start(session.opening ?? null);
-      await invoke<void>("pty_run", { id: session.id, argv });
-    })
-    .catch((cause) => {
-      started.delete(session.id);
-      throw cause;
-    });
+    // Kept beside the process and never read there, so that a window which has
+    // forgotten this session can be handed back everything it knew about it.
+    meta: sessionMeta(session),
+  }).catch((cause) => {
+    started.delete(session.id);
+    throw cause;
+  });
 
   started.set(session.id, starting);
   return starting;
+}
+
+/**
+ * Every session that is still running, whoever started it.
+ *
+ * What a window asks for when it comes up: its own sessions from before it was
+ * reloaded, and one day the ones it was never the window for. Nothing here is
+ * the same thing as opening one — these are already running, and this is only
+ * finding out about them.
+ */
+export function runningShells(): Promise<Running[]> {
+  return invoke<Running[]>("pty_sessions");
 }
 
 /**

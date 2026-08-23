@@ -1,12 +1,12 @@
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 
-import { agentOf } from "../../lib/agents";
 import type { AskFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
 
 /**
- * A question an agent has stopped to ask, and the answers to it.
+ * A question something running in a terminal has stopped to ask, and the
+ * answers to it.
  *
  * The one card this canvas grows by itself, and the one thing on it that is
  * words rather than a mark. Everything else here says what it is by being a
@@ -31,29 +31,25 @@ import { useGraphActions } from "../graphActions";
  */
 export function AskNode({ data }: NodeProps<AskFlowNode>) {
   const { t } = useTranslation();
-  const { session, ask, tool, colour, card } = data;
+  const { session, ask, card } = data;
   const { answer, showSession } = useGraphActions();
-  const label = tool ? agentOf(tool).label : t("cli.shell");
 
   return (
-    <div className="ask" style={{ borderColor: colour }}>
-      {/* Whose question it is, and the way through to the terminal it is being
-          asked in. Everything a card cannot hold is in there — the diff, the
+    <div className="ask">
+      {/* Which terminal is asking, and the way through to it. Everything a card cannot hold is in there — the diff, the
           rest of the argument, the reason — and one press is the whole of the
           way to it. */}
       <button
         type="button"
         className="ask__head nopan"
-        aria-label={t("ask.open", { agent: label })}
+        aria-label={t("ask.open")}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
           showSession(session);
         }}
       >
-        <span className="ask__who" style={{ color: colour }}>
-          {label}
-        </span>
+        <span className="ask__who">{session.branch}</span>
         <span className="ask__ordinal">{t("ask.asking")}</span>
       </button>
 

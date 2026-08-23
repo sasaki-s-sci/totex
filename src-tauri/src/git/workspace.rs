@@ -460,39 +460,24 @@ pub(super) fn read_status(dir: &Path) -> Option<WorktreeStatus> {
     Some(status)
 }
 
-/// Reads `git diff --name-status -z`: what became of a file and the path it
-/// became of, each NUL-terminated rather than a line of its own, so that a path
-/// with a newline or a quote in it arrives as git holds it.
+/// Counts `git diff --name-status -z`, whatever the record says about how a
+/// file got that way.
 ///
-/// A rename or a copy carries a similarity score on its letter and two paths
-/// after it — where the file was and where it is now — which is why the paths
-/// are stepped over by what the letter says rather than one at a time.
+/// The walk itself belongs to [`super::changes`], which reads the same output
+/// for the folder column — the difference is only what a record is taken to
+/// mean. A rename is one file that changed here, because nothing arrived and
+/// nothing was lost as far as the branch is concerned; the column, drawing the
+/// two names, counts it as one of each.
 fn count_name_status(listing: &str, status: &mut WorktreeStatus) {
-    let mut fields = listing.split('\0').filter(|field| !field.is_empty());
-
-    while let Some(kind) = fields.next() {
-        let Some(letter) = kind.chars().next() else {
-            continue;
-        };
-        let paths = if letter == 'R' || letter == 'C' { 2 } else { 1 };
-        for _ in 0..paths {
-            if fields.next().is_none() {
-                return;
-            }
-        }
-
-        match letter {
-            // A copy is a file the worktree has and the commit does not,
-            // whatever it was made out of.
-            'A' | 'C' => status.added += 1,
-            'D' => status.deleted += 1,
-            // Everything else is a file both have and differ over: rewritten,
-            // renamed, turned into a symlink, or left unmerged. A rename is one
-            // file that changed rather than one arriving and one leaving —
-            // nothing was written and nothing was lost.
-            _ => status.modified += 1,
-        }
-    }
+    super::changes::walk_name_status(listing, |letter, _, _| match letter {
+        // A copy is a file the worktree has and the commit does not, whatever
+        // it was made out of.
+        'A' | 'C' => status.added += 1,
+        'D' => status.deleted += 1,
+        // Everything else is a file both have and differ over: rewritten,
+        // renamed, turned into a symlink, or left unmerged.
+        _ => status.modified += 1,
+    });
 }
 
 /// How many files git has not been told about, which are files the worktree has

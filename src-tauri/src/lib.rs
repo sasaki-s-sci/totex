@@ -1,12 +1,11 @@
-mod agent;
 mod ask;
+mod derived;
 mod display;
 mod fs_browse;
 mod fs_watch;
 mod git;
 mod host;
 mod pty;
-mod running;
 mod stream;
 mod sync;
 mod update;
@@ -61,17 +60,26 @@ pub fn run() {
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
         .manage(pty::PtyState::default())
-        .manage(agent::AgentState::default())
-        .manage(running::RunningWatch::default())
+        .manage(ask::watch::AskState::default())
+        // What the sessions say is read for the questions agents ask, and the
+        // reading is registered here rather than built into the sessions
+        // themselves — see `derived` for why the two are kept apart, and
+        // `pty::follow` for the whole of what joins them.
+        .setup(|app| {
+            ask::watch::attend(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_roots,
             read_directory,
             read_file_head,
             write_file,
             update::self_update_supported,
+            derived::rederive,
             fs_watch::watch_directories,
             git::git_version,
             git::repository_counts,
+            git::changes::directory_changes,
             git::session::scan_workspace,
             git::session::close_workspace,
             git::workspace::create_workspace,
@@ -85,17 +93,13 @@ pub fn run() {
             git::workspace::cherry_pick_commit,
             git::workspace::undo_commit,
             pty::pty_open,
+            pty::pty_sessions,
             pty::pty_attach,
             pty::pty_write,
-            pty::pty_run,
             pty::pty_resize,
             pty::pty_close,
-            pty::pty_asking,
-            pty::pty_answer,
-            agent::agent_send,
-            agent::agent_cancel,
-            running::running_scan,
-            running::running_watch,
+            ask::watch::pty_asking,
+            ask::watch::pty_answer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

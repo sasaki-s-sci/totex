@@ -10,7 +10,6 @@ import type { UpdateStage } from "../lib/update";
  * whatever the engine decides one em is, and this app has already been caught
  * by that — WebKit gave a glyph no size at all and left an empty disc on the
  * canvas. A path at a stated size is the same drawing in every engine.
- * `AgentIcon` makes the same argument for the marks on the graph.
  *
  * The buttons themselves are transparent: no strip to sit in, no plate behind
  * them, nothing but the mark. In the folder column they stand at full: they are

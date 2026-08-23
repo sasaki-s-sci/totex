@@ -40,21 +40,11 @@
   "cli": {
     "shell": "Shell",
     "open": "Shell",
-    "end": "End",
-    "activity": {
-      "busy": "Running",
-      "idle": "Idle",
-      "waiting": "Waiting for input",
-      "unknown": "Unknown"
-    }
+    "end": "End"
   },
   "ask": {
     "asking": "is asking",
-    "open": "Open the {{agent}} terminal"
-  },
-  "chat": {
-    "send": "Send",
-    "stop": "Stop"
+    "open": "Open the terminal"
   },
   "update": {
     "check": "Check for a new version",

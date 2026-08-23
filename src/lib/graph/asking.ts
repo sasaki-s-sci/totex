@@ -1,6 +1,5 @@
 import type { Node } from "@xyflow/react";
 
-import type { AgentId } from "../agents";
 import type { Ask } from "../ask";
 import type { Session } from "../session";
 
@@ -98,15 +97,6 @@ export type AskNodeData = {
   session: Session;
   /** The question itself, whose number goes back with the answer. */
   ask: Ask;
-  /**
-   * What is running in the session, which the card says at its head.
-   *
-   * The agent rather than its name: what a plain shell is called is a word in
-   * the catalogues, and this file is not where the window's words live.
-   */
-  tool: AgentId | null;
-  /** And its colour, which is the one thing that says which agent asked. */
-  colour: string;
   card: AskCard;
 };
 

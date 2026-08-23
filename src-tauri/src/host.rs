@@ -298,67 +298,6 @@ impl Host {
         }
     }
 
-    /// The whole of each of these small files, in order; empty for one that
-    /// would not open.
-    ///
-    /// One question for all of them rather than one apiece. The sweep reads a
-    /// directory of session files every couple of seconds, and inside a
-    /// distribution each read would otherwise be a round trip and a process.
-    pub fn texts(&self, paths: &[PathBuf]) -> Vec<String> {
-        self.gathered(paths, WHOLE, |path| {
-            std::fs::read_to_string(path).unwrap_or_default()
-        })
-    }
-
-    /// The first line of each of these files, without its newline.
-    ///
-    /// What a Codex rollout says about itself is its first line, and the rest
-    /// of the file is the conversation — megabytes of it, for a thread somebody
-    /// has been talking to all afternoon.
-    pub fn first_lines(&self, paths: &[PathBuf]) -> Vec<String> {
-        self.gathered(paths, FIRST_LINE, |path| {
-            use std::io::BufRead;
-            let Ok(file) = std::fs::File::open(path) else {
-                return String::new();
-            };
-            let mut line = String::new();
-            let _ = std::io::BufReader::new(file).read_line(&mut line);
-            line.trim_end_matches(['\r', '\n']).to_string()
-        })
-    }
-
-    /// Runs one of the gathering scripts, or reads them here, keeping the order
-    /// asked for so that the answers line up with the paths.
-    fn gathered(
-        &self,
-        paths: &[PathBuf],
-        script: &str,
-        here: impl Fn(&Path) -> String,
-    ) -> Vec<String> {
-        match self {
-            Self::Local => paths.iter().map(|path| here(path)).collect(),
-            Self::Wsl(distro) => {
-                let mut found = Vec::with_capacity(paths.len());
-                for batch in paths.chunks(BATCH) {
-                    let native: Vec<String> = batch.iter().map(|path| self.native(path)).collect();
-                    let args: Vec<&str> = native.iter().map(String::as_str).collect();
-                    let Ok(output) = wsl::script(distro, None, script, &args) else {
-                        found.extend(batch.iter().map(|_| String::new()));
-                        continue;
-                    };
-                    let mut said = output
-                        .stdout
-                        .split(|byte| *byte == 0)
-                        .map(|record| String::from_utf8_lossy(record).into_owned());
-                    for _ in batch {
-                        found.push(said.next().unwrap_or_default());
-                    }
-                }
-                found
-            }
-        }
-    }
-
     /// Writes a file in place, refusing when it is no longer `expect` bytes
     /// long — see [`crate::fs_browse::write_file`], which is what this is for.
     pub fn write(&self, path: &Path, text: &str, expect: u64) -> Result<u64, String> {
@@ -524,14 +463,6 @@ const WRITE: &str = r#"
 [ "$(wc -c <"$1")" = "$2" ] || exit 4
 printf '%s' "$3" | base64 -d >"$1"
 "#;
-
-/// Each file whole, NUL-terminated. A file that will not open is an empty
-/// record, so the answers still line up with what was asked about.
-const WHOLE: &str = r#"for f in "$@"; do cat -- "$f" 2>/dev/null; printf '\000'; done"#;
-
-/// The same, but only the first line of each.
-const FIRST_LINE: &str =
-    r#"for f in "$@"; do head -n 1 -- "$f" 2>/dev/null | tr -d '\n'; printf '\000'; done"#;
 
 // ---------------------------------------------------------------- reading them
 
@@ -809,10 +740,8 @@ mod tests {
         let file = host.join(&dir, "file");
 
         host.write(&file, "it's \"new\"\n", 5).expect("a write");
-        assert_eq!(
-            host.texts(std::slice::from_ref(&file)),
-            vec!["it's \"new\"\n"]
-        );
+        let (bytes, _) = host.read_head(&file, 64).expect("a read");
+        assert_eq!(String::from_utf8_lossy(&bytes), "it's \"new\"\n");
         // The file is no longer five bytes, so the stale write is refused.
         assert_eq!(host.write(&file, "x", 5), Err("changed".to_string()));
     }

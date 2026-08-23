@@ -1,7 +1,5 @@
 import type { Folder } from "../../hooks/useWorkspace";
 import type { Workspace } from "../../types/git";
-import type { Agent } from "../../types/running";
-import { agentOf } from "../agents";
 import type { Ask } from "../ask";
 import { groupBy } from "../collections";
 import { ordinalOf, type Session } from "../session";
@@ -21,6 +19,7 @@ import {
   type Band,
   CLI_MARK,
   CLI_STEP,
+  CLI_STROKE,
   type CliFlowNode,
   type CliNodeData,
   type Draw,
@@ -39,10 +38,7 @@ import {
   type RepoMarkFlowNode,
   type RepositoryFlowNode,
   RING_TRIM,
-  reachStroke,
-  runStroke,
   SESSION_WIDTH,
-  SHELL_COLOR,
   STACK_STYLE,
   STACK_TOP,
   STEP,
@@ -63,23 +59,21 @@ type Held = RepositoryFlowNode | FolderFlowNode | RepoMarkFlowNode | CliFlowNode
  * lands somewhere else — and what it does not rebuild comes back as the very
  * objects React Flow already has.
  *
- * A branch carries a stack of whatever is running in it, in the order the
- * terminals were started, and nothing at all while it is running nothing. The
- * offer of one is the button on the branch's own ring — see `BranchHeadNode` —
- * so pressing that button puts a mark in the column beside it, which is the
- * whole of what happens on the canvas when work begins.
+ * A branch carries a stack of the terminals this window has opened in it, in
+ * the order they were opened, and nothing at all while it is running nothing.
+ * The offer of one is the button on the branch's own ring — see
+ * `BranchHeadNode` — so pressing that button puts a mark in the column beside
+ * it, which is the whole of what happens on the canvas when work begins.
  *
- * A terminal is one process with work going on in any number of directories at
- * once, so its own stack is not the whole story: it is joined by a solid line
- * to the branch it is standing under, and by a thinner dashed one to every
- * other directory it has an agent running in. Whose terminal it is makes no
- * difference to any of that — this window's own carry the mark that ends them,
- * and stand in the same stacks as everybody else's.
+ * This window's own terminals and nothing else. One somebody opened somewhere
+ * else cannot be shown in the panel, typed into or ended from here — a pty
+ * belongs to the process that made it — and a mark that answers to none of
+ * those is a list entry rather than a thing on a canvas.
  *
  * The one place that is not a branch's is the last column: a terminal working
  * somewhere no band on the canvas draws — in a folder itself, or in a
  * repository that is folded into a mark — stands past the whole canvas
- * instead, where its lines can still reach whatever is drawn for it.
+ * instead, where its line can still reach whatever is drawn for it.
  */
 
 /**
@@ -107,14 +101,6 @@ export type GraphInput = {
   opened: ReadonlyMap<string, boolean>;
   /** What this window is running, in the order it was opened. */
   sessions: readonly Session[];
-  /**
-   * Every agent the machine is running, this window's own included — those are
-   * already drawn as sessions, and are left to be.
-   *
-   * Only what is working in one of the directories the graph was opened on is
-   * drawn. The rest of the machine is somebody else's business.
-   */
-  running: readonly Agent[];
   /** The session the panel is showing, if any. */
   showing: string | null;
   /**
@@ -126,43 +112,36 @@ export type GraphInput = {
    * always empty — see `useAsks`.
    */
   asks: ReadonlyMap<string, Ask>;
+  /**
+   * The repository a pull is under way in, if any.
+   *
+   * Its depth in `visible` is the one the hand has reached rather than the one
+   * it has settled on, so everything drawn from it is drawn as a proposal. No
+   * other repository is affected: a pull is one hand on one fold.
+   */
+  reaching: string | null;
 };
 
 export function buildCommitGraph(
-  { workspace, folders, visible, opened, sessions, running, showing, asks }: GraphInput,
+  { workspace, folders, visible, opened, sessions, showing, asks, reaching }: GraphInput,
   previous?: GraphResult,
 ): GraphResult {
-  const sweep = sweepOf(running);
-  // Which process is behind each of this window's own sessions, settled before
-  // anything is placed: a session carries a button and a number, and the
-  // process it belongs to must not also stand in the column as a bare terminal
-  // nobody here started.
-  const pairs = pairUp(sessions, sweep);
   // By the directory it runs in, not the branch it was started from: a branch
   // cut to be named by the agent working in it is renamed while that agent is
   // still running, and the number a second terminal is told apart by has to be
   // the same one before and after.
   const open = groupBy(sessions, (session) => session.cwd);
-  // And the terminals nobody here started, by the directory each of them is
-  // itself working in — which is the one a branch of some repository is checked
-  // out in, and so the column that terminal belongs in.
-  const elsewhere = groupBy(
-    sweep.clis.filter((cli) => !pairs.paired.has(cli.key)),
-    (cli) => cli.worktree ?? cli.cwd,
-  );
 
   // How many marks each branch's stack will hold, worked out before anything is
   // laid out: a stack that is deeper than the lane it hangs in pushes the rows
   // under it down, which is a shape rather than a filling and so is the
-  // layout's own business.
+  // layout's own business. Every one of them, crowded or not — a stack is
+  // centred on its branch's own line, so the room it takes is split between the
+  // row above it and the row below, and the gap between two rows is a sum over
+  // both of their stacks. A branch running one terminal reaches half a step up
+  // as well as half a step down, and the row above has to know it.
   const deep = new Map<string, number>();
   for (const [cwd, held] of open) deep.set(cwd, held.length);
-  for (const [cwd, held] of elsewhere) deep.set(cwd, (deep.get(cwd) ?? 0) + held.length);
-  // Every one of them, crowded or not: a stack is centred on its branch's own
-  // line, so the room it takes is split between the row above it and the row
-  // below, and the gap between two rows is a sum over both of their stacks. A
-  // branch running one terminal reaches half a step up as well as half a step
-  // down, and the row above has to know it.
 
   const prepared = new Map(
     workspace.repositories.map((repository) => [
@@ -199,16 +178,7 @@ export function buildCommitGraph(
    * order — so the first repository that draws the branch a terminal is working
    * in keeps it, and the last column takes whatever is left.
    */
-  const claimed = { sessions: new Set<string>(), clis: new Set<string>() };
-  /**
-   * A terminal in a band's column and the other directories it has work going
-   * on in.
-   *
-   * Held over rather than drawn as the bands go down: where a line lands is not
-   * known until every band has been laid out, and one of these routinely ends
-   * in a repository that has not been reached yet.
-   */
-  const crossing: { from: LineEnd; lead: number; places: readonly Reach[] }[] = [];
+  const claimed = new Set<string>();
 
   /** How far down and how far along what has been laid out reaches. */
   let bottom = 0;
@@ -255,13 +225,13 @@ export function buildCommitGraph(
       const at = { x: origin.x + x, y: origin.y + y };
       reach = Math.max(reach, at.y + entry.style.height);
       right = Math.max(right, at.x + width);
+      const proposed = entry.repository.id === reaching;
       nodes.push(repositoryNode(entry, at.x, at.y, width, before.get(entry.repository.id)));
-      nodes.push(...entry.nodes);
+      nodes.push(...(proposed ? provisional(entry.nodes) : entry.nodes));
 
       // What is running in this repository, stacked in its own column.
-      const drawn = bandColumn(entry, open, elsewhere, pairs, sweep, claimed, showing, asks, draw);
+      const drawn = bandColumn(entry, open, claimed, showing, asks, draw);
       nodes.push(...drawn.nodes);
-      crossing.push(...drawn.crossing);
       // A column deeper than the band it belongs to is what the canvas has to
       // make room for; the band itself is the history's own height. A question
       // standing beside a terminal reaches past the band either way, and is
@@ -280,6 +250,7 @@ export function buildCommitGraph(
         height: entry.style.height,
         lines: entry.lines,
         runs: batched(drawn.lines),
+        provisional: proposed,
       });
     }
 
@@ -292,11 +263,8 @@ export function buildCommitGraph(
   // mistaken for something standing in one, and every line out of this column
   // crosses into the history rather than starting inside it.
   const column = cliColumn(
-    sessions.filter((session) => !claimed.sessions.has(session.id)),
-    sweep,
-    pairs,
+    sessions.filter((session) => !claimed.has(session.id)),
     open,
-    claimed.clis,
     showing,
     asks,
     right === 0 ? 0 : right + REPO_GAP_X,
@@ -306,16 +274,10 @@ export function buildCommitGraph(
   right = Math.max(right, column.right);
   bottom = Math.max(bottom, column.bottom);
 
-  // And what the terminals standing in the bands have going on elsewhere, now
-  // that every branch they could be pointing at has a place on the canvas.
-  const across = crossing.flatMap((held, index) =>
-    linesFrom(`stack${index}`, held.from, held.places, held.lead, draw),
-  );
-
   return {
     nodes,
     bands,
-    reach: batched([...column.reach, ...across]),
+    reach: batched(column.reach),
     // Room for what hangs off the far edge of a band: the offer the cursor
     // draws is a cell past the commit it comes out of.
     extent: { width: right + STEP.x, height: bottom + STEP.y },
@@ -323,73 +285,20 @@ export function buildCommitGraph(
 }
 
 /**
- * What the sweep found, in the terms the canvas draws it in.
+ * A band's own nodes, marked as being proposed rather than shown.
  *
- * The machine hands over a flat list of agents and the canvas draws terminals,
- * so the list is split once here: the processes, which are a mark each, and
- * what every one of them is running inside itself — which is a count on that
- * mark and a line out of it, never a mark of its own.
+ * Copied here rather than laid out that way, because the layout is cached per
+ * repository and per depth and a pull passes through depths it may well come
+ * back to — a cache holding a flag that belongs to one moment of one gesture
+ * would hand it back long after the hand had gone.
+ *
+ * Only the branches carry it. A commit is drawn in the band's own SVG, which
+ * is told about the pull once, as a class on the group the whole band is in.
  */
-type Sweep = {
-  /** Every agent with a process of its own, in the sweep's order. */
-  clis: Agent[];
-  /** How many process-less agents each terminal is running, by its key. */
-  carrying: Map<string, number>;
-  /**
-   * What each terminal has working somewhere other than its own directory, by
-   * its key — its own directory is a line of its own and is always drawn.
-   */
-  reaching: Map<string, Reach[]>;
-};
-
-/** One line out of a terminal: where the work is, and what is doing it. */
-type Reach = {
-  /** The directory, which is what the line is drawn to. */
-  place: string;
-  /** The agent's own colour, which is what the line is drawn in. */
-  colour: string;
-  /**
-   * Whether this is the terminal's own directory rather than an agent's.
-   *
-   * The whole of what tells the two apart: a terminal is joined to the place it
-   * is itself driving by a line drawn through, and to everywhere else it has an
-   * agent working by a thinner one drawn in dashes. So one mark says both what
-   * somebody is doing and what they have set running.
-   */
-  own?: boolean;
-};
-
-function sweepOf(running: readonly Agent[]): Sweep {
-  const clis = running.filter((agent) => agent.pid !== null);
-  const carrying = new Map<string, number>();
-  const reaching = new Map<string, Reach[]>();
-  // Where each terminal itself is, which is what "somewhere else" is measured
-  // against.
-  const home = new Map(clis.map((cli) => [cli.key, cli.worktree ?? cli.cwd] as const));
-
-  for (const agent of running) {
-    const parent = agent.parent;
-    const from = parent ? home.get(parent) : undefined;
-    if (!parent || from === undefined) continue;
-
-    // A thread of its parent rather than a process: nothing to point at, so it
-    // is counted on the mark of the terminal running it.
-    if (agent.pid === null) carrying.set(parent, (carrying.get(parent) ?? 0) + 1);
-
-    const place = agent.worktree ?? agent.cwd;
-    if (place === from) continue;
-    const colour = agentOf(agent.tool).colour;
-    const places = reaching.get(parent) ?? [];
-    // Two of the same agent working in the same directory are one line. The
-    // count on the mark is what says there were two; drawing the line twice
-    // would only draw it over itself.
-    if (!places.some((held) => held.place === place && held.colour === colour)) {
-      places.push({ place, colour });
-    }
-    reaching.set(parent, places);
-  }
-
-  return { clis, carrying, reaching };
+function provisional(nodes: PreparedRepository["nodes"]): PreparedRepository["nodes"] {
+  return nodes.map((node) =>
+    node.type === "head" ? { ...node, data: { ...node.data, provisional: true } } : node,
+  );
 }
 
 /**
@@ -401,51 +310,11 @@ function sweepOf(running: readonly Agent[]): Sweep {
  */
 const REACH_TRIM = 4;
 
-/**
- * Which process is behind each of this window's own sessions.
- *
- * This window's own terminals turn up in the sweep like anything else, as
- * descendants of this very process, and neither side writes down which session
- * a given one is. So they are paired by the one thing they agree on — the
- * directory — in the order both were started, and a session with an agent
- * paired to it is drawn in that agent's colour rather than as the bare shell it
- * was opened as. What is left unpaired is a terminal of ours the pairing cannot
- * account for, and is drawn like anybody else's rather than dropped.
- *
- * Settled once, before anything is placed: a session goes on the row of the
- * branch it is working in, and the process behind it must not also turn up out
- * in the column as a terminal nobody here started.
- */
-type Pairing = {
-  /** The process behind a session, by that session's id. */
-  mine: Map<string, Agent>;
-  /** The sweep's keys that are already drawn as a session of this window's. */
-  paired: ReadonlySet<string>;
-};
-
-function pairUp(sessions: readonly Session[], sweep: Sweep): Pairing {
-  const ours = groupBy(
-    sweep.clis.filter((cli) => cli.own),
-    (cli) => cli.worktree ?? cli.cwd,
-  );
-  const mine = new Map<string, Agent>();
-  const paired = new Set<string>();
-  for (const session of sessions) {
-    const found = (ours.get(session.cwd) ?? []).find((cli) => !paired.has(cli.key));
-    if (!found) continue;
-    paired.add(found.key);
-    mine.set(session.id, found);
-  }
-  return { mine, paired };
-}
-
 /** What a repository's branches hold beside them. */
 type Column = {
   nodes: AppNode[];
   /** The lines joining each branch to its own stack, in band coordinates. */
   lines: GraphLine[];
-  /** What those terminals have going on in other repositories. */
-  crossing: { from: LineEnd; lead: number; places: readonly Reach[] }[];
   /** How far down the band the stacks reach, which the canvas is measured by. */
   bottom: number;
   /**
@@ -459,14 +328,6 @@ type Column = {
   right: number;
 };
 
-/** A terminal standing in a branch's stack. */
-type Standing = {
-  /** This window's own, when it is one: the mark can then be shown and ended. */
-  session: Session | null;
-  /** The process behind it, for anything the sweep found. */
-  cli: Agent | null;
-};
-
 /**
  * One repository's terminals, stacked on the branch each of them is working in.
  *
@@ -474,16 +335,10 @@ type Standing = {
  * on the branch's own line rather than hung under it, so it opens out either
  * way as it grows. A branch running nothing has no stack, because the offer of
  * a terminal is the button on its ring rather than a mark held open out here.
- * The list is packed a `CLI_STEP` at a time
- * rather than a row of the grid apiece — a row is what two lines of development
- * need to be told apart, and terminals are not lines of development — and the
- * layout has already pushed the branches below far enough down to hold it.
- *
- * A terminal that has an agent working in some other checkout draws a thinner
- * dashed line to wherever that checkout is on the canvas, which is routinely
- * another repository altogether. That is the half a stack cannot say: where the
- * mark stands is where somebody is sitting, and the lines are what they have
- * going on.
+ * The list is packed a `CLI_STEP` at a time rather than a row of the grid
+ * apiece — a row is what two lines of development need to be told apart, and
+ * terminals are not lines of development — and the layout has already pushed
+ * the branches below far enough down to hold it.
  *
  * Built here rather than in the layout because which terminals are running is
  * not history: one opening changes nothing but its own branch's stack, and the
@@ -492,18 +347,14 @@ type Standing = {
 function bandColumn(
   entry: PreparedRepository,
   open: ReadonlyMap<string, Session[]>,
-  /** The terminals nobody here started, by the directory each is working in. */
-  elsewhere: ReadonlyMap<string, Agent[]>,
-  pairs: Pairing,
-  sweep: Sweep,
   /** What another band has already taken, so that nothing is drawn twice. */
-  claimed: { sessions: Set<string>; clis: Set<string> },
+  claimed: Set<string>,
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,
   draw: Draw,
 ): Column {
   const band = entry.repository.id;
-  const drawn: Column = { nodes: [], lines: [], crossing: [], bottom: 0, right: 0 };
+  const drawn: Column = { nodes: [], lines: [], bottom: 0, right: 0 };
   /**
    * How far down the last card in this band reached.
    *
@@ -518,7 +369,7 @@ function bandColumn(
 
   for (const run of entry.runs) {
     const cwd = run.cwd;
-    const standing: Standing[] = [];
+    const standing: Session[] = [];
 
     if (cwd) {
       // Where a line into this checkout lands, from anywhere on the canvas: the
@@ -530,14 +381,9 @@ function bandColumn(
       // draw. The first claim keeps it; drawing it twice would hand React Flow
       // one id twice.
       for (const session of open.get(cwd) ?? []) {
-        if (claimed.sessions.has(session.id)) continue;
-        claimed.sessions.add(session.id);
-        standing.push({ session, cli: pairs.mine.get(session.id) ?? null });
-      }
-      for (const cli of elsewhere.get(cwd) ?? []) {
-        if (claimed.clis.has(cli.key)) continue;
-        claimed.clis.add(cli.key);
-        standing.push({ session: null, cli });
+        if (claimed.has(session.id)) continue;
+        claimed.add(session.id);
+        standing.push(session);
       }
     }
 
@@ -550,25 +396,17 @@ function bandColumn(
 
     // The terminals that are running, oldest first, and nothing else: a branch
     // with none of them draws nothing here.
-    for (const [slot, held] of standing.entries()) {
-      const tool = held.cli?.tool ?? held.session?.agent ?? null;
-      const colour = tool ? agentOf(tool).colour : SHELL_COLOR;
-      const carrying = held.cli ? (sweep.carrying.get(held.cli.key) ?? 0) : 0;
-      const id = held.session ? `session${held.session.id}` : `cli${held.cli?.key}`;
+    for (const [slot, session] of standing.entries()) {
+      const id = `session${session.id}`;
       const y = head + slot * CLI_STEP;
 
       drawn.nodes.push(
         cliNode(
           id,
           {
-            session: held.session,
-            cli: held.cli,
-            showing: held.session !== null && held.session.id === showing,
-            ordinal: held.session
-              ? ordinalOf(open.get(held.session.cwd) ?? [], held.session)
-              : null,
-            colour,
-            carrying,
+            session,
+            showing: session.id === showing,
+            ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
           },
           band,
           run.x,
@@ -587,52 +425,33 @@ function bandColumn(
         // to hide a line that went too far.
         trim: CLI_MARK / 2,
         lead: RING_TRIM,
-        stroke: runStroke(colour),
+        stroke: CLI_STROKE,
       });
-
-      // Where else this terminal has work going on. Named through the band
-      // rather than through the mark itself: these are the one kind of line
-      // that crosses from one repository into another, so they are drawn on the
-      // canvas, where a mark standing inside a band has no position of its own.
-      const reaching = held.cli ? (sweep.reaching.get(held.cli.key) ?? []) : [];
-      if (reaching.length > 0) {
-        drawn.crossing.push({
-          from: inBand(band, run.x + SESSION_WIDTH / 2, y + CLI_STEP / 2),
-          lead: CLI_MARK / 2,
-          places: reaching,
-        });
-      }
 
       drawn.bottom = Math.max(drawn.bottom, y + CLI_STEP);
 
       // And what it is asking, if it has stopped to ask: the one thing out here
       // that is words rather than a mark, standing beside the terminal that is
       // waiting on an answer.
-      const asking = held.session ? asks.get(held.session.id) : undefined;
-      if (!held.session || !asking) continue;
+      const asking = asks.get(session.id);
+      if (!asking) continue;
 
       const card = askCard(asking);
       const at = Math.max(y + CLI_STEP / 2 - card.height / 2, floor);
       floor = at + card.height + ASK_STACK_GAP;
-      const cardId = `ask${held.session.id}`;
+      const cardId = `ask${session.id}`;
 
       drawn.nodes.push(
         askNode(
           cardId,
-          {
-            session: held.session,
-            ask: asking,
-            tool,
-            colour,
-            card,
-          },
+          { session, ask: asking, card },
           band,
           run.x + SESSION_WIDTH + ASK_GAP,
           at,
           draw,
         ),
       );
-      drawn.lines.push(cardLine(cardId, id, card.height, colour));
+      drawn.lines.push(cardLine(cardId, id, card.height));
 
       drawn.bottom = Math.max(drawn.bottom, at + card.height);
       drawn.right = Math.max(drawn.right, run.x + SESSION_WIDTH + ASK_GAP + ASK_WIDTH);
@@ -645,13 +464,12 @@ function bandColumn(
 /**
  * The line from a terminal to the question it is standing on.
  *
- * Solid and in the agent's own colour, like the line from the branch to the
- * terminal: this is the same piece of work, one step further along. What it
- * does that the card cannot is say which of a stack of terminals is the one
- * being asked — a card set beside a column of marks belongs to none of them
- * until a line says so.
+ * Drawn the same way as the line from the branch to the terminal: this is the
+ * same piece of work, one step further along. What it does that the card cannot
+ * is say which of a stack of terminals is the one being asked — a card set
+ * beside a column of marks belongs to none of them until a line says so.
  */
-function cardLine(card: string, mark: string, height: number, colour: string): GraphLine {
+function cardLine(card: string, mark: string, height: number): GraphLine {
   return {
     id: `${card}line`,
     from: onStack(mark),
@@ -659,7 +477,7 @@ function cardLine(card: string, mark: string, height: number, colour: string): G
     curve: true,
     trim: 0,
     lead: CLI_MARK / 2,
-    stroke: runStroke(colour),
+    stroke: CLI_STROKE,
   };
 }
 
@@ -667,8 +485,8 @@ function cardLine(card: string, mark: string, height: number, colour: string): G
  * One question's card, handed back unchanged where it can be.
  *
  * The same holding-on every other node here does, and it matters more for this
- * one than for most: the sweep hands over the whole machine every couple of
- * seconds, and a card that was rebuilt each time would be a card whose buttons
+ * one than for most: a question is redrawn whenever the terminal under it says
+ * anything at all, and a card rebuilt each time would be a card whose buttons
  * were new objects under a pointer that was already on one of them.
  */
 function askNode(
@@ -684,8 +502,6 @@ function askNode(
     held?.type === "ask" &&
     held.data.session === data.session &&
     held.data.ask === data.ask &&
-    held.data.tool === data.tool &&
-    held.data.colour === data.colour &&
     (held.parentId ?? null) === band &&
     held.position.x === x &&
     held.position.y === y
@@ -712,23 +528,15 @@ function askNode(
  * A terminal belongs in the column of the repository whose branch it is working
  * in. One working in a folder itself, or in a repository that is folded into a
  * mark, has no such column — so it stands past the whole canvas instead, where
- * its lines can still reach the folder row or the mark that is drawn for it.
+ * its line can still reach the folder row or the mark that is drawn for it.
  *
- * This window's own sessions lead this column when they end up here at all. The
- * rest is the machine's, in the sweep's own order: a terminal that is still
- * running keeps its place in the column while the ones around it come and go.
- *
- * Its own directory is a line drawn through, like a terminal standing in a
- * band; everywhere else it has an agent working is a thinner dashed one. Same
- * two lines, wherever the mark ended up.
+ * In the order they were opened, like a stack in a band: a terminal that is
+ * still running keeps its place in the column while the ones around it come and
+ * go.
  */
 function cliColumn(
   sessions: readonly Session[],
-  sweep: Sweep,
-  pairs: Pairing,
   open: ReadonlyMap<string, Session[]>,
-  /** The terminals a band has already taken into its own column. */
-  claimed: ReadonlySet<string>,
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,
   x: number,
@@ -745,37 +553,21 @@ function cliColumn(
   let index = 0;
   for (const session of sessions) {
     const id = `session${session.id}`;
-    const mine = pairs.mine.get(session.id) ?? null;
-
-    const tool = mine?.tool ?? session.agent;
-    const colour = tool ? agentOf(tool).colour : SHELL_COLOR;
     const y = STACK_TOP + index * CLI_STEP;
-    const drawn = linesFrom(
-      id,
-      onStack(id),
-      [
-        { place: session.cwd, colour, own: true },
-        ...(mine ? (sweep.reaching.get(mine.key) ?? []) : []),
-      ],
-      CLI_MARK / 2,
-      draw,
-    );
+    const drawn = reachLine(id, onStack(id), session.cwd, CLI_MARK / 2, draw);
     // Nothing on the canvas to join it to, so it is not on the canvas. Closing
     // a repository is about the graph and nothing else — what was running in it
     // carries on running, and putting the folder back brings the whole column
     // back with its terminals still in it.
-    if (drawn.length === 0) continue;
+    if (!drawn) continue;
 
     nodes.push(
       cliNode(
         id,
         {
           session,
-          cli: mine,
           showing: session.id === showing,
           ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
-          colour,
-          carrying: mine ? (sweep.carrying.get(mine.key) ?? 0) : 0,
         },
         null,
         x,
@@ -783,7 +575,7 @@ function cliColumn(
         draw,
       ),
     );
-    lines.push(...drawn);
+    lines.push(drawn);
 
     // What it is being asked, beside the mark, the same as in a band.
     const asking = asks.get(session.id);
@@ -795,60 +587,17 @@ function cliColumn(
       nodes.push(
         askNode(
           cardId,
-          { session, ask: asking, tool, colour, card },
+          { session, ask: asking, card },
           null,
           x + SESSION_WIDTH + ASK_GAP,
           at,
           draw,
         ),
       );
-      cards.push(cardLine(cardId, id, card.height, colour));
+      cards.push(cardLine(cardId, id, card.height));
       widest = Math.max(widest, SESSION_WIDTH + ASK_GAP + ASK_WIDTH);
     }
 
-    index += 1;
-  }
-
-  for (const cli of sweep.clis) {
-    // Already drawn as a session of this window's, or already standing under
-    // the branch it is working in.
-    if (pairs.paired.has(cli.key) || claimed.has(cli.key)) continue;
-
-    const id = `cli${cli.key}`;
-    const y = STACK_TOP + index * CLI_STEP;
-    const drawn = linesFrom(
-      id,
-      onStack(id),
-      [
-        { place: cli.worktree ?? cli.cwd, colour: agentOf(cli.tool).colour, own: true },
-        ...(sweep.reaching.get(cli.key) ?? []),
-      ],
-      CLI_MARK / 2,
-      draw,
-    );
-    // The machine is full of terminals that have nothing to do with any of the
-    // folders on the graph. A mark with no line is a list entry, and a list of
-    // what is running is not what this canvas is for.
-    if (drawn.length === 0) continue;
-
-    nodes.push(
-      cliNode(
-        id,
-        {
-          session: null,
-          cli,
-          showing: false,
-          ordinal: null,
-          colour: agentOf(cli.tool).colour,
-          carrying: sweep.carrying.get(cli.key) ?? 0,
-        },
-        null,
-        x,
-        y,
-        draw,
-      ),
-    );
-    lines.push(...drawn);
     index += 1;
   }
 
@@ -863,41 +612,34 @@ function cliColumn(
 }
 
 /**
- * The lines out of one terminal, to whichever of its directories the graph is
- * actually drawing.
+ * The line out of a terminal in the last column, to the directory it is running
+ * in — when the graph is drawing that directory at all.
  *
- * An empty answer is what says a terminal in the column has no business being
- * on this canvas: it is working somewhere none of the folders on the graph
- * reach.
+ * Nothing is what says a terminal out here has no business being on this
+ * canvas: it is working somewhere none of the folders on the graph reach, and a
+ * mark with no line is a list entry rather than a place.
  */
-function linesFrom(
+function reachLine(
   node: string,
   from: LineEnd,
-  places: readonly Reach[],
-  /** Half the mark these leave, so that none of them is drawn inside it. */
+  place: string,
+  /** Half the mark it leaves, so that it is not drawn inside it. */
   lead: number,
   draw: Draw,
-): GraphLine[] {
-  const lines: GraphLine[] = [];
-  for (const [index, reach] of places.entries()) {
-    const to = draw.rows.get(reach.place);
-    // The directory is not one the graph was opened on. A line to nothing is
-    // worse than the absence of one, and the absence is the whole answer.
-    if (!to) continue;
-    lines.push({
-      id: `${node}reach${index}`,
-      from,
-      to,
-      curve: true,
-      trim: REACH_TRIM,
-      lead,
-      // Drawn through to the place it is itself driving, and in dashes to the
-      // places its agents are. The mark says what is running; the two lines say
-      // which of them somebody is sitting in front of.
-      stroke: reach.own ? runStroke(reach.colour) : reachStroke(reach.colour),
-    });
-  }
-  return lines;
+): GraphLine | null {
+  const to = draw.rows.get(place);
+  // The directory is not one the graph was opened on. A line to nothing is
+  // worse than the absence of one, and the absence is the whole answer.
+  if (!to) return null;
+  return {
+    id: `${node}reach`,
+    from,
+    to,
+    curve: true,
+    trim: REACH_TRIM,
+    lead,
+    stroke: CLI_STROKE,
+  };
 }
 
 /**
@@ -905,7 +647,7 @@ function linesFrom(
  * path.
  *
  * The same batching a band does with its history, for the same reason: a canvas
- * with a score of agents on it should cost the engine a handful of elements.
+ * with a score of terminals on it should cost the engine a handful of elements.
  */
 function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
   const batches = new Map<string, { key: string; stroke: StrokeStyle; parts: GraphLine[] }>();
@@ -922,8 +664,7 @@ function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
 }
 
 /**
- * One terminal's mark, or the room for one, handed back unchanged where it can
- * be.
+ * One terminal's mark, handed back unchanged where it can be.
  *
  * `band` is the repository whose branch it is standing under, and null for one
  * out in the last column — where it goes when the canvas draws no branch for
@@ -931,11 +672,10 @@ function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
  * two it is, so moving between them is a node that changed rather than two
  * nodes.
  *
- * Held on to across a sweep: the sweep hands over the whole machine whenever
- * any part of it moved, so a terminal that did not move is the same object it
- * was and its mark is the one React Flow already has. The count it carries is
- * part of that — a subagent starting is a new number on a mark that is
- * otherwise the one already on the canvas.
+ * Held on to across a rebuild: the graph is rebuilt whenever anything on it
+ * moves, and a terminal that did not move is the same object it was — so its
+ * mark is the one React Flow already has, rather than an equal copy it has to
+ * take down and put up again.
  */
 function cliNode(
   id: string,
@@ -949,11 +689,8 @@ function cliNode(
   if (
     held?.type === "cli" &&
     held.data.session === data.session &&
-    held.data.cli === data.cli &&
     held.data.showing === data.showing &&
     held.data.ordinal === data.ordinal &&
-    held.data.colour === data.colour &&
-    held.data.carrying === data.carrying &&
     (held.parentId ?? null) === band &&
     held.position.x === x &&
     held.position.y === y
