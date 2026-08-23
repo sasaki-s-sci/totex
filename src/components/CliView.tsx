@@ -23,7 +23,7 @@ import "@xterm/xterm/css/xterm.css";
  * The Return that means another line rather than the end of one.
  *
  * There is only one Return on the wire to a shell, and everything reading it
- * takes it for the end of what was being typed — so Ctrl+Return cannot be sent
+ * takes it for the end of what was being typed — so Shift+Return cannot be sent
  * as itself. What is sent instead is the Return with an escape in front of it:
  * the meta Return, which is what a terminal has always sent for Alt+Return and
  * what the agents run in here already read as "one more line, not yet".
@@ -124,24 +124,21 @@ export function CliView({ session, shown, onEnded }: Props) {
     let live = true;
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
 
-    // The two things Ctrl means in here that it does not mean to a shell. Both
-    // are taken before xterm reads them; everything else Ctrl does — the copy,
-    // the interrupt, the word the cursor jumps over — is the terminal's own and
-    // is left alone.
+    // The two keystrokes that mean something in here they do not mean to a
+    // shell. Both are taken before xterm reads them; everything else — the
+    // copy, the interrupt, the word the cursor jumps over — is the terminal's
+    // own and is left alone.
     terminal.attachCustomKeyEventHandler((event) => {
-      const held =
-        event.type === "keydown" &&
-        event.ctrlKey &&
-        !event.altKey &&
-        !event.metaKey &&
-        !event.shiftKey;
-      if (!held) return true;
+      if (event.type !== "keydown") return true;
+      // Alt and the window key are nobody's business here: whatever they are
+      // held down for, it is not one of these two.
+      const plain = !event.altKey && !event.metaKey;
 
-      // Ctrl+Return, which xterm would send as a plain Return and the agent
+      // Shift+Return, which xterm would send as a plain Return and the agent
       // would run. Put on the wire as the Return that only breaks the line, so
       // that a question worth several lines can be typed in the terminal the
       // same way it is typed anywhere else.
-      if (event.key === "Enter") {
+      if (plain && event.shiftKey && !event.ctrlKey && event.key === "Enter") {
         void writeShell(session.id, ANOTHER_LINE).catch(() => undefined);
         return false;
       }
@@ -152,7 +149,8 @@ export function CliView({ session, shown, onEnded }: Props) {
       // few of these are control characters nobody has typed on purpose in
       // years, and the way out of a terminal is worth more than they are.
       // Refusing here is all it takes; the key carries on to the window.
-      if (event.key.length === 1 && event.key >= "0" && event.key <= "9") return false;
+      const digit = event.key.length === 1 && event.key >= "0" && event.key <= "9";
+      if (plain && event.ctrlKey && !event.shiftKey && digit) return false;
 
       return true;
     });
