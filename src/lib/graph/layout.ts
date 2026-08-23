@@ -339,7 +339,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
         // really is somewhere else.
         dash: ref.data.kind === "remote" ? "4 5" : undefined,
       },
-      name: labelOf(ref.data.name, dots[ref.from], reaches),
+      name: labelOf(ref.data.name, ref.note, dots[ref.from], reaches),
     });
 
     // Where this branch's terminals stand: a stack centred on the branch's own
@@ -392,21 +392,28 @@ const NARROW = 3.3;
 const WIDE = 6;
 
 /**
- * A branch's name, cut to what its own line has room for.
+ * A branch's name, cut to what its own line has room for, with what the branch
+ * is to the repository set after it in brackets.
  *
  * Measured by eye rather than by the browser: laying the text out to find its
  * width would cost a reflow per branch, and being a character out only moves
  * where a name that was going to be cut short gets cut.
+ *
+ * The note is taken out of the room before the name is, and is never itself
+ * cut: it is the shorter half and the one that says something the name cannot,
+ * so a long branch name loses its own last letters rather than the word that
+ * says the repository is standing on it.
  */
-function labelOf(name: string, from: Point, to: Point): Label {
+function labelOf(name: string, note: string | null, from: Point, to: Point): Label {
   const span = Math.hypot(to.x - from.x, to.y - from.y);
-  const room = span - DOT_CLEARANCE - HEAD_CLEARANCE;
+  const tail = note === null ? "" : ` (${note})`;
+  const room = span - DOT_CLEARANCE - HEAD_CLEARANCE - widthOf(tail);
 
   let width = 0;
   let kept = "";
   let text = name;
   for (const character of name) {
-    width += (character.codePointAt(0) ?? 0) > 0x7f ? WIDE : NARROW;
+    width += advanceOf(character);
     if (width > room) {
       text = `${kept}…`;
       break;
@@ -415,14 +422,53 @@ function labelOf(name: string, from: Point, to: Point): Label {
   }
 
   return {
-    full: name,
-    text,
+    full: `${name}${tail}`,
+    text: `${text}${tail}`,
     // Set against the far end, where the curve has flattened out, and stopped
     // short of the head so the ring cannot cover the last letters. The straight
     // run stands in for the curve's own length, which is the longer of the two —
     // so this errs towards leaving more room, not less.
     at: span > HEAD_CLEARANCE ? 1 - HEAD_CLEARANCE / span : 0,
   };
+}
+
+/** Rough advance of one character at the name's size. */
+function advanceOf(character: string): number {
+  return (character.codePointAt(0) ?? 0) > 0x7f ? WIDE : NARROW;
+}
+
+/** Rough width of a run of text at the name's size, measured the same way. */
+function widthOf(text: string): number {
+  let width = 0;
+  for (const character of text) {
+    width += advanceOf(character);
+  }
+  return width;
+}
+
+/**
+ * What a branch is to the repository, set after its name in brackets.
+ *
+ * Two of them are worth saying, and both are things a name cannot say for
+ * itself: the branch the repository is standing on, and the one it treats as
+ * its default — where a pull request lands, and what a new branch is cut from.
+ * A branch that is neither, which is nearly all of them, is left as its name
+ * alone; the brackets are what makes the two that matter stand out of a column
+ * of names, so putting one on everything would be putting one on nothing.
+ *
+ * A branch can be both, and usually is — the repository is standing on its
+ * default. That reads as one bracket saying both rather than two, because two
+ * brackets on one name reads as two separate remarks about it.
+ *
+ * `fallback` is the default as git itself reports it, which `branchPriority`
+ * explains: a full ref name, so it matches the branch's `refName` rather than
+ * the shortened name that is drawn.
+ */
+function noteOf(ref: Ref, fallback: string | null): string | null {
+  const notes: string[] = [];
+  if (ref.head) notes.push("Head");
+  if (fallback !== null && ref.refName === fallback) notes.push("default");
+  return notes.length > 0 ? notes.join(", ") : null;
 }
 
 /** How history itself is drawn. */
@@ -961,6 +1007,8 @@ type RefPlacement = {
   column: number;
   /** Counted from the trunk, so it can be either side of it. */
   row: number;
+  /** What this branch is to the repository, set after its name; see `noteOf`. */
+  note: string | null;
   /** Where a terminal working in this branch stands; null where none can. */
   run: RunPlacement | null;
 };
@@ -1078,6 +1126,7 @@ function placeRefs(anchored: Anchored[], repository: Repository, column: number,
       from: entry.from,
       column,
       row,
+      note: noteOf(entry.ref, repository.defaultBranch),
       run,
     });
 
