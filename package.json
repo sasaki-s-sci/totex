@@ -1,6 +1,6 @@
 {
   "name": "totex",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "frontContract": 1,
   "type": "module",
