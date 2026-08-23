@@ -81,7 +81,7 @@ pub fn run() {
     let builder = tauri::Builder::default();
 
     // Only a desktop build has anything to replace: the two plugins behind the
-    // settings dialog's update mark are the download-and-swap and the restart
+    // settings dialog's update button are the download-and-swap and the restart
     // that follows it, and neither exists on a phone.
     #[cfg(desktop)]
     let builder = builder

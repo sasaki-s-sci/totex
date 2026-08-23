@@ -54,26 +54,33 @@
     "open": "ターミナルを開く",
     "working": "作業中"
   },
+  "settings": {
+    "title": "設定",
+    "theme": "テーマ",
+    "mcp": "エージェントの報告",
+    "mcpHint": "エージェントの作業内容をグラフに表示する",
+    "register": "エージェントの設定",
+    "registerHint": "このマシンのエージェントに接続先を書き込む",
+    "update": "更新"
+  },
   "mcp": {
-    "serve": "エージェントの作業内容を受け取る",
-    "stop": "受け取りをやめる",
-    "register": "このマシンのエージェントを設定する",
-    "registering": "設定中",
-    "registered": "設定しました",
-    "refused": "設定できませんでした"
+    "register": "設定する",
+    "registering": "設定中…",
+    "registered": "設定済み",
+    "refused": "失敗しました"
   },
   "update": {
-    "check": "新しいバージョンを確認",
-    "checking": "新しいバージョンを確認中",
-    "current": "最新のバージョンです",
-    "fetching": "新しいバージョンをダウンロード中",
-    "reload": "ウィンドウを再読み込みして更新を完了",
-    "restart": "再起動して更新を完了",
-    "held": "新しいバージョンがありますが、このコピーには導入できません",
-    "failed": "更新が完了しませんでした"
+    "check": "更新を確認",
+    "checking": "確認中…",
+    "current": "最新です",
+    "fetching": "ダウンロード中…",
+    "reload": "再読み込みして完了",
+    "restart": "再起動して完了",
+    "held": "パッケージ管理から更新",
+    "failed": "失敗、やり直す"
   },
   "theme": {
-    "system": "OSに合わせる",
+    "system": "システム",
     "light": "ライト",
     "dark": "ダーク"
   },
