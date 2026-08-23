@@ -4077,11 +4077,18 @@ checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
 name = "totex"
 version = "0.1.2"
 dependencies = [
+ "base64 0.22.1",
+ "dirs",
+ "flate2",
+ "minisign-verify",
  "notify",
  "notify-debouncer-full",
  "portable-pty",
+ "reqwest",
+ "semver",
  "serde",
  "serde_json",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-process",

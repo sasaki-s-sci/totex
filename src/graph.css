@@ -67,9 +67,15 @@
      working in a worktree, the work standing in a checkout, and a refusal.
      Everything that is only history is this ink. */
   --mark: var(--mui-palette-text-primary);
-  /* Under the cursor, and picked out by the cursor keys. */
-  --halo: 0 0 0 6px color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
-  --halo-selected: 0 0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+  /* Under the cursor, and picked out by the cursor keys.
+
+     Drawn from the mark's own edge, so the clearance covers its inner 3px and
+     what is left showing is the band outside that: a line, not a collar. A
+     wider one read as the mark having grown under the cursor rather than as
+     the cursor having found it, and on a canvas of marks a hair apart it was
+     also the halo touching the neighbours of whatever it was answering for. */
+  --halo: 0 0 0 5px color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
+  --halo-selected: 0 0 0 5px color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
 }
 
 /* ---------- the grid ---------- */
@@ -267,7 +273,10 @@
 .commit-hover,
 .commit-selection {
   fill: none;
-  stroke-width: 6;
+  /* The band a branch head wears, on the mark a commit is: the circle it is
+     laid along stands outside the dot's own clearance — see `HALO_RADIUS` —
+     so the two read as one halo rather than as a ring and a collar. */
+  stroke-width: 2;
 }
 
 .commit-hover {
@@ -336,30 +345,6 @@
 
 .head:hover .head__ring {
   box-shadow: var(--clearance), var(--halo);
-}
-
-/* A branch that also exists on a remote keeps that fact beside its local
-   ring. The mark is only a reading: the ring remains the whole click target.
-
-   On the ring's left shoulder, and standing off it far enough to clear the
-   ring of canvas the mark carries: that clearance is paint, and it is painted
-   after this icon, so a cloud tucked any closer lost its lower corner under it
-   and read as half a mark. It is drawn over whatever else the ring puts around
-   itself for the same reason — the halo under the cursor passes beneath the
-   cloud rather than across it.
-
-   The left shoulder rather than the right, which the line out to the terminals
-   leaves along, and above the line in from the history rather than across it.
-   What can be done in the branch is straight above the ring; this side is left
-   to say what the branch is. */
-.head__remote {
-  position: absolute;
-  top: calc(50% - 12px);
-  left: calc(50% - 22px);
-  z-index: 1;
-  color: var(--mui-palette-text-secondary);
-  opacity: 0.8;
-  pointer-events: none;
 }
 
 /* The terminal a branch could have, straight above its ring: press it and a
@@ -661,8 +646,8 @@
    the mark that ends it on the other, and what it is doing underneath. All
    three are placed against the glyph rather than laid out beside it, so the
    glyph stays on the stack's own centre line whether or not this particular
-   terminal has any of them — and the fourth, the dot for the one the panel is
-   holding, sits on the glyph's own corner. */
+   terminal has any of them. Which one the panel is holding hangs off nothing:
+   it is said by the glyph itself — see `.cli__open.is-showing`. */
 .cli__row {
   display: flex;
   /* `CLI_MARK` in the layout, which is what a line into one of these stops
@@ -680,7 +665,9 @@
    One colour for all of them, and it is the same one their lines are drawn in.
    What is being run inside a terminal is not this canvas's to know — the window
    opened a shell, and what somebody types into it is theirs — so a colour that
-   named it would be a colour naming a guess. */
+   named it would be a colour naming a guess. The one below is the single
+   exception, and it names nothing about the shell: it is the window saying
+   which of these it is holding open. */
 .cli__open {
   display: flex;
   padding: 0;
@@ -688,25 +675,57 @@
   background: none;
   color: var(--mui-palette-text-disabled);
   cursor: pointer;
+  transition:
+    color var(--reveal),
+    filter var(--reveal);
 }
 
-/* Which terminal the panel is holding, on the top corner of its glyph.
+/* The number this terminal answers to while Ctrl is held, drawn where its glyph
+   was.
+
+   In place of the glyph rather than beside it: a stack is one mark drawn over
+   and over, and hanging a badge off each of them put a second column of small
+   things down the canvas — which is the reading the stack was made to avoid.
+   While the key is down the number is the whole of what the mark has to say,
+   and the glyph comes straight back when it is let go.
+
+   Set in the ink the picked ring is drawn in, because they are the same thing
+   said twice: this is where a key would land. Tabular figures so that 1 and 11
+   stand in the same place, and the mark does not shuffle as the eye runs down
+   the stack. */
+.cli__jump {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--mui-palette-primary-main);
+}
+
+/* Which terminal the panel is holding: its own glyph, lit.
 
    The panel stands beside the canvas and says which session it is showing; what
    it cannot say is where out here that session is standing, and a stack is one
-   glyph drawn over and over. So the dot is on the mark. The top right corner
-   because it is the one side nothing already hangs off — the mark that ends the
-   session is out to the right — and it carries a hairline of the canvas's own colour, which is how everything
-   on this grid is held off whatever it is drawn over. */
-.cli__live {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--mui-palette-success-main);
-  box-shadow: 0 0 0 1px var(--mui-palette-background-default);
+   glyph drawn over and over. So the answer is on the mark — and it is the mark,
+   rather than a dot on the corner of it. A dot was a second small thing to find
+   beside a small thing, on a canvas where what the eye is running down the stack
+   for is which of these is the one being read; the glyph is what is being looked
+   at, so the glyph is what changes.
+
+   It takes the ink everything picked out on this canvas is drawn in, and a
+   little of that ink spills round it. The colour alone said `this one`, but at
+   11px against a column of the same glyph it said it quietly; the spill is what
+   makes it read as lit rather than merely tinted, and it is the only thing out
+   here drawn that way, so there is nothing for it to be confused with.
+
+   A `drop-shadow` rather than a `box-shadow`: the mark is the terminal's own
+   outline and nothing else, and a shadow cast by the box would be a square glow
+   round a glyph that is not a square. It follows the number the mark carries
+   while Ctrl is held, which is right — that number is this same mark, and it is
+   drawn in this same ink. */
+.cli__open.is-showing {
+  color: var(--mui-palette-primary-main);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent));
 }
 
 /* Ending a session is the one thing here that cannot be undone, so it is faint
@@ -1334,6 +1353,18 @@
   color: var(--mui-palette-background-paper);
 }
 
+/* And where its own mark is standing, on a list it drew no keys beside. The
+   mark and the blank beside the others are the terminal's own layout: what is
+   in that column there is exactly what is in it here. */
+.ask__mark {
+  width: 14px;
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
 .ask__answer {
   min-width: 0;
   flex: 1;
@@ -1341,4 +1372,181 @@
   line-height: 14px;
   white-space: pre;
   overflow: hidden;
+}
+
+/* The one place to write, for a question that offered nothing to press. One
+   row: the height of it is paired with `FIELD_LINE` in `asking.ts`, and a card
+   is not where a paragraph is written. */
+.ask__field {
+  display: flex;
+  flex: none;
+  margin-top: 7px;
+  gap: 4px;
+}
+
+.ask__written {
+  min-width: 0;
+  box-sizing: border-box;
+  height: 24px;
+  flex: 1;
+  padding: 0 6px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  transition: border-color var(--reveal);
+}
+
+.ask__written:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  outline: none;
+}
+
+.ask__send {
+  display: grid;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    background-color var(--reveal),
+    border-color var(--reveal);
+}
+
+.ask__send:hover,
+.ask__send:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  background: var(--mui-palette-action-hover);
+  color: var(--mui-palette-text-primary);
+}
+
+/* What a terminal says it is working on.
+
+   The same card as a question's, in the same place and at the same width: from
+   across the canvas the shape says there is something to read beside this
+   terminal, and which of the two it is is read at the card rather than guessed
+   at from its outline. What is different is that there is nothing on it to
+   press — nobody is waiting, the agent is working, and one press on the head is
+   the whole way into the terminal where anything could be done about it. */
+.report {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  padding: 9px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 7px;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--mui-shadows-6);
+  color: var(--mui-palette-text-primary);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.report__head {
+  display: flex;
+  height: 15px;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  gap: 6px;
+  text-align: left;
+}
+
+.report__who {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How far through the plan it is, where there is a plan. In the corner, which
+   is the one place on the card a number can stand without being read as part
+   of the sentence under it. */
+.report__count {
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.report__head:hover .report__count,
+.report__head:focus-visible .report__count {
+  color: var(--mui-palette-text-primary);
+}
+
+/* What is being done, in the window's own face rather than the terminal's:
+   this is a sentence written to be read, not a command to be checked. */
+.report__doing {
+  flex: none;
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 15px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.report__steps {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  margin-top: 7px;
+}
+
+/* One step. Marked rather than numbered, and set quieter than the line above
+   it: the sentence is what is happening, and this is only where in the list it
+   is happening. */
+.report__step {
+  display: flex;
+  height: 14px;
+  align-items: baseline;
+  color: var(--mui-palette-text-secondary);
+  font-size: 11px;
+  gap: 5px;
+  line-height: 14px;
+  overflow: hidden;
+}
+
+/* Behind it, and out of the way of what is in hand. */
+.report__step.is-done {
+  color: var(--mui-palette-text-disabled);
+}
+
+.report__step.is-here {
+  color: var(--mui-palette-text-primary);
+}
+
+.report__mark {
+  width: 8px;
+  flex: none;
+  font-size: 8px;
+  text-align: center;
+}
+
+.report__step.is-done .report__mark {
+  font-size: 9px;
+}
+
+.report__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

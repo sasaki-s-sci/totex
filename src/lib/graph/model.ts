@@ -3,6 +3,7 @@ import type { Node } from "@xyflow/react";
 import type { Branch, Commit, Repository, Worktree } from "../../types/git";
 import type { Session } from "../session";
 import type { AskFlowNode } from "./asking";
+import type { ReportFlowNode } from "./reporting";
 
 /**
  * The vocabulary the graph is drawn in: the grid it is laid out on, the ink it
@@ -441,6 +442,7 @@ export type AppNode =
   | RepoMarkFlowNode
   | CliFlowNode
   | AskFlowNode
+  | ReportFlowNode
   | FilePreviewFlowNode;
 
 /**

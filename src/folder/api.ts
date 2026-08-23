@@ -86,7 +86,7 @@ export function repositoryCounts(paths: string[]): Promise<Record<string, number
 /**
  * What became of a file, as far as a row in the column can show it.
  *
- * Green for what has arrived, amber for what has been rewritten, red for what
+ * Green for what has arrived, orange for what has been rewritten, red for what
  * has gone — the three the graph's rims are drawn in, said here one file at a
  * time.
  */

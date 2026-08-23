@@ -84,7 +84,7 @@ export function watchChanges(path: string, onChange: () => void): () => void {
  *
  * Called by the level that just re-read its own directory. Which directory it
  * was is not passed on: a file written in one of them can be the reason a
- * folder in another turns amber, and the whole set is one crossing anyway.
+ * folder in another turns orange, and the whole set is one crossing anyway.
  */
 export function refreshChanges() {
   schedule();

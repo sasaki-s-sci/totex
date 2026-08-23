@@ -163,6 +163,16 @@ pub enum Event<'a> {
 /// Something following the sessions, told what each of them does as it does it.
 pub type Follower = Arc<dyn Fn(&str, Event<'_>) + Send + Sync>;
 
+/// Something the app puts in the environment of every session it starts, asked
+/// once per session as that session is about to run.
+///
+/// Registered for the same reason a follower is. A shell is started with an
+/// environment whether anybody thinks about it or not, and what goes in it
+/// besides the terminal's own name is a fact about the rest of the app — the
+/// address a session can be reached at, today — which this module has no
+/// business knowing. It is asked, and it hands over names and values.
+pub type Dresser = Arc<dyn Fn(&str, &str) -> Vec<(String, String)> + Send + Sync>;
+
 /// One running shell. The master is kept so the session can be resized.
 struct Session {
     master: Box<dyn MasterPty + Send>,
@@ -202,6 +212,8 @@ pub struct PtyState {
     /// way round is what lets that reading be thrown away and taken again
     /// without anything in here being disturbed.
     following: Mutex<Vec<Follower>>,
+    /// Whatever the app wants in the environment of the sessions it starts.
+    dressing: Mutex<Vec<Dresser>>,
 }
 
 impl PtyState {
@@ -212,6 +224,30 @@ impl PtyState {
     /// Adds one, for the life of the app.
     pub fn follow(&self, follower: Follower) {
         crate::sync::lock(&self.following).push(follower);
+    }
+
+    /// Adds something to the environment of every session started from now on.
+    pub fn dress(&self, dresser: Dresser) {
+        crate::sync::lock(&self.dressing).push(dresser);
+    }
+
+    /// What is to go in one session's environment, asked of all of them.
+    ///
+    /// Asked before the session it is for exists, and with nothing of this
+    /// module's held: what answers this is the rest of the app, and the rest of
+    /// the app is free to ask what is running while it does.
+    fn dressed(&self, id: &str, cwd: &str) -> Vec<(String, String)> {
+        let dressing: Vec<Dresser> = {
+            let held = crate::sync::lock(&self.dressing);
+            if held.is_empty() {
+                return Vec::new();
+            }
+            held.clone()
+        };
+        dressing
+            .iter()
+            .flat_map(|dresser| dresser(id, cwd))
+            .collect()
     }
 
     /// Tells them all.
@@ -258,7 +294,7 @@ pub(crate) fn shell() -> String {
 /// PowerShell in one is a Windows shell looking at Linux files, and the tools
 /// somebody opens a terminal to reach — the agents, the language runtimes — are
 /// installed in the distribution and not beside the window.
-fn session_command(cwd: &str) -> CommandBuilder {
+fn session_command(cwd: &str, dressing: &[(String, String)]) -> CommandBuilder {
     match Host::of_str(cwd) {
         Host::Local => {
             let mut command = CommandBuilder::new(shell());
@@ -267,6 +303,9 @@ fn session_command(cwd: &str) -> CommandBuilder {
             // for this, and without one it falls back to a dumb terminal with
             // no colour.
             command.env("TERM", "xterm-256color");
+            for (name, value) in dressing {
+                command.env(name, value);
+            }
             command
         }
         Host::Wsl(distro) => {
@@ -278,19 +317,29 @@ fn session_command(cwd: &str) -> CommandBuilder {
             command.arg(host.native(Path::new(cwd)));
             // `wsl.exe` with nothing to run starts the user's login shell.
             command.env("TERM", "xterm-256color");
+            for (name, value) in dressing {
+                command.env(name, value);
+            }
             // The one way a variable crosses into a distribution: `WSLENV`
             // names which of them to carry, and `/u` says this direction only.
-            command.env("WSLENV", carried("TERM/u"));
+            let mut crossing = vec!["TERM"];
+            crossing.extend(dressing.iter().map(|(name, _)| name.as_str()));
+            command.env("WSLENV", carried(&crossing));
             command
         }
     }
 }
 
-/// `WSLENV` with one more name on it, keeping whatever was already there.
-fn carried(name: &str) -> String {
+/// `WSLENV` with these names on it too, keeping whatever was already there.
+fn carried(names: &[&str]) -> String {
+    let crossing = names
+        .iter()
+        .map(|name| format!("{name}/u"))
+        .collect::<Vec<String>>()
+        .join(":");
     match std::env::var("WSLENV") {
-        Ok(existing) if !existing.trim().is_empty() => format!("{existing}:{name}"),
-        _ => name.to_string(),
+        Ok(existing) if !existing.trim().is_empty() => format!("{existing}:{crossing}"),
+        _ => crossing,
     }
 }
 
@@ -317,6 +366,11 @@ pub fn pty_open<R: Runtime>(
     let cols = cols.max(1);
     let state = app.state::<PtyState>();
 
+    // Asked for out here rather than beside the spawn: whatever answers is the
+    // rest of the app, it is free to ask this module what is running while it
+    // does, and it would find the map below held against it.
+    let dressing = state.dressed(&id, &cwd);
+
     {
         let mut sessions = state.lock();
         if sessions.contains_key(&id) {
@@ -332,7 +386,7 @@ pub fn pty_open<R: Runtime>(
             })
             .map_err(|error| error.to_string())?;
 
-        let command = session_command(&cwd);
+        let command = session_command(&cwd, &dressing);
 
         let child = pty
             .slave

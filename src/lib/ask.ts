@@ -24,9 +24,25 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 /** Carries what a session is asking, and its going away again. */
 export const ASK_EVENT = "pty:ask";
 
-/** One of the numbered answers, as the agent itself offered it. */
+/**
+ * How the answer to a question is given.
+ *
+ * The agents ask in four shapes and the card draws three of them: a key beside
+ * every answer for the lists that print one, a bare row of answers for the
+ * lists that are walked with the arrow keys instead, and a place to write for
+ * the questions that have no list at all. What is actually typed at the session
+ * is the session's own business — see `ask/watch.rs` — and none of it is worked
+ * out here.
+ */
+export type Taking = "key" | "line" | "walk" | "words";
+
+/** One of the answers, as the agent itself offered it. */
 export type Choice = {
-  /** What is typed to take it, which is the number the agent printed. */
+  /**
+   * What an answer names this one by: the key the agent printed, or — for a
+   * list drawn without keys — the place it stands in. Only a real key is drawn
+   * on the card, because only a real key could be pressed at the terminal.
+   */
   key: string;
   label: string;
   /** Where the agent's own cursor is standing. */
@@ -51,6 +67,9 @@ export type Ask = {
   /** What the question is about: the tool, the command, the file. */
   detail: string[];
   question: string;
+  /** How it is answered, which is what the card draws under the question. */
+  taking: Taking;
+  /** The answers offered, or none at all when the answer is to be written. */
   choices: Choice[];
 };
 
@@ -79,6 +98,17 @@ export function askingNow(): Promise<Asking[]> {
  */
 export function answerAsk(id: string, seq: number, key: string): Promise<void> {
   return invoke("pty_answer", { id, seq, key });
+}
+
+/**
+ * Answers one that asked to be written at, by writing at it.
+ *
+ * The same rules as an answer that is pressed: the question's own number goes
+ * with it, and the session refuses words meant for a question it has moved on
+ * from. The return that submits the line is the session's to add.
+ */
+export function replyAsk(id: string, seq: number, text: string): Promise<void> {
+  return invoke("pty_reply", { id, seq, text });
 }
 
 export function onAsking(next: (asking: Asking) => void): Promise<UnlistenFn> {

@@ -1,9 +1,10 @@
 import CloseIcon from "@mui/icons-material/Close";
-import TerminalIcon from "@mui/icons-material/Terminal";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
+import { useCliJump } from "../cliJumps";
 import { useGraphActions } from "../graphActions";
+import { CliMark } from "../marks";
 
 /**
  * One terminal: the only mark this canvas draws for anything to do with a
@@ -31,10 +32,16 @@ import { useGraphActions } from "../graphActions";
  * can be done is a reading pretending to be a place. What the window opened is
  * what the window draws.
  */
-export function CliNode({ data }: NodeProps<CliFlowNode>) {
+export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { t } = useTranslation();
   const { session, showing, ordinal } = data;
   const { showSession, endSession } = useGraphActions();
+  // What Ctrl and this number would reach, while Ctrl is being held. Drawn in
+  // place of the glyph rather than beside it: the number is the whole of what
+  // the mark is for while the key is down, and a mark carrying both would be
+  // saying the one thing anybody already knows about it — that it is a
+  // terminal — next to the one thing they are looking for.
+  const jump = useCliJump(id);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
   // something reading the window aloud is given in place of the marks.
@@ -45,7 +52,7 @@ export function CliNode({ data }: NodeProps<CliFlowNode>) {
       <div className="mark mark--centred cli__row">
         <button
           type="button"
-          className="cli__open nopan"
+          className={`cli__open nopan${showing ? " is-showing" : ""}`}
           aria-label={name}
           aria-pressed={showing}
           onPointerDown={(event) => event.stopPropagation()}
@@ -54,15 +61,8 @@ export function CliNode({ data }: NodeProps<CliFlowNode>) {
             showSession(session);
           }}
         >
-          <TerminalIcon sx={{ fontSize: 11 }} />
+          {jump === null ? <CliMark size={11} /> : <span className="cli__jump">{jump}</span>}
         </button>
-
-        {/* Which of them the panel is holding. On the corner of the glyph
-            rather than under it, because the corner is the one side of the
-            mark nothing else hangs off — the mark that ends the session is out
-            to the right — and because this is a thing about the mark itself
-            rather than about what the terminal is doing. */}
-        {showing && <span className="cli__live" />}
 
         {/* The one thing here that cannot be undone, so it is faint until the
             pointer is on the mark. Its room is always held, so a stack does not

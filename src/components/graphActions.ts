@@ -88,6 +88,14 @@ export type GraphActions = {
    * question it has moved on from.
    */
   answer: (session: Session, ask: Ask, key: string) => void;
+  /**
+   * Answer one that asked to be written at, with what was written on the card.
+   *
+   * Apart from carrying words rather than a key it is the same act, under the
+   * same guard: the question goes back with the answer and a question that has
+   * moved on refuses it.
+   */
+  reply: (session: Session, ask: Ask, text: string) => void;
   /** Take one file card off the canvas. */
   closeFilePreview: (requestId: number) => void;
   /**
@@ -135,6 +143,7 @@ const GraphActionsContext = createContext<GraphActions>({
   showSession: () => {},
   endSession: () => {},
   answer: () => {},
+  reply: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},

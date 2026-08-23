@@ -1,5 +1,3 @@
-import CloudIcon from "@mui/icons-material/CloudOutlined";
-import TerminalIcon from "@mui/icons-material/Terminal";
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,6 +5,7 @@ import { type BranchHeadFlowNode, HEAD_SIZE } from "../../lib/graph";
 import { dirtyCount, type WorktreeStatus } from "../../lib/workspace";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
+import { CliMark } from "../marks";
 import { useWorktreeStatuses } from "../worktreeStatus";
 
 /**
@@ -59,11 +58,16 @@ import { useWorktreeStatuses } from "../worktreeStatus";
  *
  * Straight above the ring, because everything else round a head is taken: the
  * line from the history arrives on the left, the lines out to the terminals
- * leave level with the ring, what is uncommitted is on the rim, and the cloud
- * that says a branch is also on a remote stands on the left shoulder. Above
+ * leave level with the ring, and what is uncommitted is on the rim. Above
  * rather than off a corner, so the button is on the branch's own vertical and a
  * column of heads carries a column of these. A remote branch has no button —
  * it is somewhere else, and nothing can be opened in it.
+ *
+ * That a branch is also on a remote is not drawn. It stood as a cloud on the
+ * ring's left shoulder, and it was the one mark here that said something the
+ * window could do nothing about: every other thing on a head is a state this
+ * window changes or a button it answers. It is still said to anything reading
+ * the window aloud, where a mark cannot be seen at all.
  */
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
@@ -91,7 +95,6 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
       data-repository={repository.id}
       data-branch={name}
     >
-      {hasRemote && <CloudIcon className="head__remote" aria-hidden sx={{ fontSize: 10 }} />}
       {/* Whatever follows the branch along its row runs out to the right. */}
       <button
         type="button"
@@ -137,7 +140,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
             openWork({ repository, branch: name, cwd });
           }}
         >
-          <TerminalIcon sx={{ fontSize: 11 }} />
+          <CliMark size={11} />
         </button>
       )}
     </div>
@@ -158,10 +161,11 @@ const SEAM = 0.5 / (2 * Math.PI * RADIUS);
  * What the rim is made of: the three things that can have become of a file,
  * each holding the share of the circle it holds of the work.
  *
- * Green for what has arrived, amber for what has been rewritten, red for what
- * has gone — the three colours this window already answers in — laid down in
- * that order from the top and read clockwise, so the rim runs from what the
- * branch is making round to what it is throwing away. A branch that is only
+ * Green for what has arrived, orange for what has been rewritten, red for what
+ * has gone — the scheme's `added`, `changed` and `removed`, which are the three
+ * colours this window already answers in — laid down in that order from the top
+ * and read clockwise, so the rim runs from what the branch is making round to
+ * what it is throwing away. A branch that is only
  * adding is a green ring at any size, and one that is mostly deleting cannot be
  * mistaken for it.
  *

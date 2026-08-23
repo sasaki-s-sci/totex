@@ -70,6 +70,37 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the installers carry the app's own key
+        # scripts/install.sh and scripts/install.ps1 turn down a download that
+        # is not signed by the key written into them, and the app turns down an
+        # update that is not signed by the one in its config. It is the same
+        # key: an installer that would accept something the app would not is a
+        # way onto a machine that nobody checked. There is nowhere a shell
+        # script, a PowerShell script and a JSON config can all read one string
+        # from, so it is written three times, and this is what keeps the three
+        # the same string.
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          declared=$(sed -n 's/.*"pubkey": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
+          if [ -z "$declared" ]; then
+            echo "::error file=src-tauri/tauri.conf.json::there is no updater key in here"
+            exit 1
+          fi
+          for script in scripts/install.sh scripts/install.ps1; do
+            grep -qF "$declared" "$script" || {
+              echo "::error file=$script::this does not carry the key in src-tauri/tauri.conf.json"
+              exit 1
+            }
+          done
+          # Nothing else in the build runs either of them, so this is the only
+          # place a typo in one is found before somebody installs with it.
+          sh -n scripts/install.sh
+          pwsh -NoProfile -Command '
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref] $null, [ref] $errors) | Out-Null
+            if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }'
+
       - name: Verify the tag names the version being built
         # The version in the config is what goes into the installers' own file
         # names, so a tag that disagrees with it ships downloads nobody can
@@ -163,6 +194,38 @@ jobs:
           fi
           ls -l dist-release
 
+      - name: Pack the pages on their own
+        # The other half of a release. The pages the window is drawn out of are
+        # the same on all three platforms -- one `pnpm build` produces them, and
+        # `tauri build` has just run it -- so one job packs them and the other
+        # two leave them alone. An installed copy can take these without
+        # replacing the program under them, which is the only way a `.deb` or an
+        # `.rpm` is ever brought forward by this app at all: see
+        # src-tauri/src/front.
+        #
+        # The contents of dist/ go in at the root of the archive, which is what
+        # the app unpacks and reads back as though it had been built in.
+        #
+        # Signed with the same key, by the same signer, in the same job as the
+        # installers beside it: a copy checks a front against the key in its own
+        # config before it unpacks a byte of it, exactly as it checks one of
+        # these installers. A build with nothing to sign with packs nothing --
+        # an unsigned front is one every copy would refuse, and nothing but a
+        # tag is released anyway.
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "there is no key to sign a front with, so none is packed"
+            exit 0
+          fi
+          tar -czf dist-release/front.tar.gz -C dist .
+          pnpm tauri signer sign dist-release/front.tar.gz
+          ls -l dist-release/front.tar.gz dist-release/front.tar.gz.sig
+
       - name: Upload the installers
         uses: actions/upload-artifact@v7
         with:
@@ -203,6 +266,14 @@ jobs:
           # the directory is what the release page offers somebody to download.
           find dist-release -name '*.sig' -delete
 
+      - name: Take the two scripts that install these
+        # The two scripts are attached to every release under names that do not
+        # change, which is the whole of what gives them a URL that does not
+        # change either: releases/latest/download/install.sh is always the
+        # newest one, and a release's own copy is always beside the bundles it
+        # was cut with.
+        run: cp scripts/install.sh scripts/install.ps1 dist-release/
+
       - name: Publish the release
         uses: softprops/action-gh-release@v3
         with:
@@ -210,14 +281,45 @@ jobs:
           fail_on_unmatched_files: true
           generate_release_notes: true
           body: |
+            **macOS and Linux**
+
+            ```sh
+            curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | sh
+            ```
+
+            **Windows**
+
+            ```powershell
+            irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex
+            ```
+
+            Both check what they download against the key totex is signed
+            with, and both are the same two scripts in every release — nothing
+            in them names a version. This one is asked for by name, which a
+            script being read down a pipe has to be handed:
+
+            ```sh
+            curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | sh -s -- --version ${{ github.ref_name }}
+            ```
+
+            ```powershell
+            & ([scriptblock]::Create((irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1))) -Version ${{ github.ref_name }}
+            ```
+
+            The files below are what they download, for anybody who would
+            rather click:
+
             | Platform | Download |
             | --- | --- |
             | Windows | `.msi`, or `-setup.exe` |
             | macOS | `.dmg` — Intel and Apple Silicon in the one file |
             | Linux | `.AppImage`, `.deb` or `.rpm` |
 
-            `latest.json` and `totex.app.tar.gz` are what an installed copy
-            updates itself from; there is nothing to download in either.
+            `latest.json`, `totex.app.tar.gz` and `front.tar.gz` are what an
+            installed copy updates itself from; there is nothing to download in
+            any of them. The last is the window's own pages, which every kind of
+            installed copy can take on its own — a `.deb` and an `.rpm` included,
+            where the program itself is the package manager's to bring forward.
 
             None of these are code-signed. macOS holds a downloaded app in
             quarantine until it is let out of it:

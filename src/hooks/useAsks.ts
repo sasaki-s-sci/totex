@@ -1,7 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type Ask, answerAsk, askingNow, onAsking } from "../lib/ask";
+import { type Ask, answerAsk, askingNow, onAsking, replyAsk } from "../lib/ask";
 import { EXIT_EVENT } from "../lib/pty";
 
 /** Nothing is being asked, which is the ordinary state of the machine. */
@@ -118,5 +118,20 @@ export function useAsks() {
     [settle],
   );
 
-  return { asks, answer };
+  /**
+   * Writes at one that asked for words, and takes the card with it.
+   *
+   * The same as taking an answer, because it is the same thing: the question is
+   * a turn, and it has been taken. What is written goes as it stands — a
+   * question wanting words has no list to be one of.
+   */
+  const reply = useCallback(
+    (id: string, ask: Ask, text: string) => {
+      settle(id, null);
+      void replyAsk(id, ask.seq, text).catch(() => undefined);
+    },
+    [settle],
+  );
+
+  return { asks, answer, reply };
 }

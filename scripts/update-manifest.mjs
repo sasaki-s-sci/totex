@@ -15,13 +15,25 @@
  * and it is the only thing that makes this safe — a `.deb` install is files a
  * package manager owns, and handing it an AppImage to overwrite itself with
  * would leave the manager describing a version that is no longer there. So
- * nothing is listed for `.deb` or `.rpm`, the app never offers those an update
- * mark at all (see `src-tauri/src/update.rs`), and the lookup falls through to
+ * nothing is listed for `.deb` or `.rpm`, the app never offers those the whole
+ * of an update (see `src-tauri/src/update.rs`), and the lookup falls through to
  * nothing rather than to the wrong file.
  *
  * macOS is the one platform listed twice. One universal build serves both
  * processors, but the updater asks as the machine it is running on, so both
  * names have to point at the same download.
+ *
+ * ## And the one entry that is not a platform
+ *
+ * `front` is the other half of the app: the pages the window is drawn out of,
+ * which every kind of installed copy can take on its own without replacing the
+ * program under them — including the two the updater will not touch. They are
+ * the same pages on all three platforms, so there is one download and no
+ * platform in its name, and what makes it a key of its own rather than a fifth
+ * platform is that nothing in the updater plugin reads it. It reads what it
+ * knows and ignores the rest; `src-tauri/src/front` reads this, out of the same
+ * document, because what the newest release is should not be two files that can
+ * disagree.
  *
  * ## Why every one of them is required
  *
@@ -34,9 +46,13 @@
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** The name the app is pointed at, in `plugins > updater > endpoints`. */
 const MANIFEST = "latest.json";
+
+/** The pages of the release, packed by the build job that produced `dist`. */
+const FRONT = "front.tar.gz";
 
 /**
  * Which kind of copy each bundle replaces.
@@ -93,9 +109,35 @@ if (missing.length > 0) {
   fail(`nothing to update ${missing.join(", ")} with`);
 }
 
+// What the pages of this release were built to talk to. Written in one place
+// -- package.json -- and read from there by both halves: `src-tauri/build.rs`
+// puts it into the program, and this puts it beside the pages, so a copy can
+// tell before it downloads anything whether the two would understand each
+// other. See `choose` in src-tauri/src/front/take.rs.
+const packageJson = fileURLToPath(new URL("../package.json", import.meta.url));
+const { frontContract } = JSON.parse(readFileSync(packageJson, "utf8"));
+if (!Number.isInteger(frontContract)) {
+  fail("package.json declares no frontContract to publish the pages under");
+}
+
+if (!files.includes(FRONT)) {
+  fail(`nothing to update the pages with: no ${FRONT} was built`);
+}
+let frontSignature;
+try {
+  frontSignature = readFileSync(join(directory, `${FRONT}.sig`), "utf8").trim();
+} catch {
+  fail(`${FRONT} has no signature beside it — the build was not signed`);
+}
+
 const manifest = {
   version,
   pub_date: new Date().toISOString(),
+  front: {
+    needs: frontContract,
+    signature: frontSignature,
+    url: `https://github.com/${repository}/releases/download/${tag}/${FRONT}`,
+  },
   platforms: Object.fromEntries(
     // `name` was only ever for the error messages above; the app reads the two.
     wanted.map((target) => [
@@ -109,6 +151,7 @@ const out = join(directory, MANIFEST);
 writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`);
 process.stdout.write(`${out}\n`);
 for (const target of wanted) process.stdout.write(`  ${target}  ${platforms[target].name}\n`);
+process.stdout.write(`  front (needs ${frontContract})  ${FRONT}\n`);
 
 function fail(message) {
   process.stderr.write(`${message}\n`);

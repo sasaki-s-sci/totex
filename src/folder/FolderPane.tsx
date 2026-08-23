@@ -25,15 +25,18 @@ const ICON = { minWidth: 22, color: "text.secondary" } as const;
 /**
  * What a row is drawn in when its file is not what the last commit says it is.
  *
- * The three colours the branches on the graph carry on their rims — green for
- * what has arrived, amber for what has been rewritten, red for what has gone —
- * so the column and the canvas answer the same question the same way, one in
- * names and the other in shares of a circle.
+ * The three colours the branches on the graph carry on their rims — the scheme's
+ * `added`, `changed` and `removed`, which is a file that has arrived, one that
+ * has been rewritten and one that has gone — so the column and the canvas answer
+ * the same question the same way, one in names and the other in shares of a
+ * circle. Which three hues those actually are is the preset's to say; see
+ * src/theme/scheme.ts. MUI's names for them are what `sx` takes.
  *
  * A folder is drawn in what everything underneath it comes to, which is how the
  * one colour a file has that is not on the disk any more is seen at all: a
- * deleted file has no row, and the folder it was in turns red. A folder whose
- * contents disagree is amber — it has been rewritten, whatever each file did.
+ * deleted file has no row, and the folder it was in turns `removed`. A folder
+ * whose contents disagree is `changed` — it has been rewritten, whatever each
+ * file did.
  */
 const CHANGE_COLOUR: Record<Change, string> = {
   added: "success.main",
@@ -345,7 +348,7 @@ function Level({
     // or a file written by whatever is running in the panel — leaves the pane
     // as soon as it leaves the disk. What is uncommitted moved with it, and is
     // read again on the back of the same event rather than waiting for its own
-    // clock: a file saved in the panel is a row that turns amber as it is
+    // clock: a file saved in the panel is a row that turns orange as it is
     // saved.
     const stop = watchDirectory(path, () => {
       read(false);

@@ -34,7 +34,6 @@
   },
   "worktree": {
     "terminal": "Terminal",
-    "path": "Path",
     "deleteBranch": "Delete the local branch"
   },
   "cli": {
@@ -44,14 +43,30 @@
   },
   "ask": {
     "asking": "is asking",
-    "open": "Open the terminal"
+    "open": "Open the terminal",
+    "write": "Type an answer",
+    "send": "Send"
+  },
+  "report": {
+    "open": "Open the terminal",
+    "working": "is working"
+  },
+  "mcp": {
+    "serve": "Let the agents say what they are doing",
+    "stop": "Stop listening",
+    "register": "Set up the agent on this machine",
+    "registering": "Setting up the agent",
+    "registered": "The agent is set up",
+    "refused": "The agent could not be set up"
   },
   "update": {
     "check": "Check for a new version",
     "checking": "Checking for a new version",
     "current": "This is the newest version",
     "fetching": "Downloading the new version",
+    "reload": "Reload the window to finish updating",
     "restart": "Restart to finish updating",
+    "held": "There is a newer version this copy cannot install",
     "failed": "The update did not finish"
   },
   "theme": {

@@ -1,7 +1,4 @@
-import CheckIcon from "@mui/icons-material/Check";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import TerminalIcon from "@mui/icons-material/Terminal";
 import { Popover } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +12,7 @@ import {
   workspaceStatus,
 } from "../lib/workspace";
 import type { Repository } from "../types/git";
+import { CliMark } from "./marks";
 import { Palette, PaletteButton, PaletteDivider } from "./palette";
 import { useMenuAction } from "./useMenuAction";
 
@@ -37,7 +35,7 @@ type Props = {
 };
 
 /**
- * What can be done with a branch, as three marks.
+ * What can be done with a branch, as two marks.
  *
  * The state of the directory is not written here — the ring the menu was opened
  * from is already drawn from it, and saying it again in words was the same fact
@@ -52,7 +50,6 @@ type Props = {
 export function WorktreeMenu({ target, onClose, onOpen, onEndAttached }: Props) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<WorktreeStatus | null>(null);
-  const [copied, setCopied] = useState(false);
   const { busy, failed, confirming, setConfirming, run, reset } = useMenuAction(onClose);
 
   const cwd = target?.cwd ?? null;
@@ -60,7 +57,6 @@ export function WorktreeMenu({ target, onClose, onOpen, onEndAttached }: Props) 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the worktree is the trigger
   useEffect(() => {
     setStatus(null);
-    setCopied(false);
     reset();
     if (!cwd) return;
 
@@ -105,20 +101,7 @@ export function WorktreeMenu({ target, onClose, onOpen, onEndAttached }: Props) 
             })
           }
         >
-          <TerminalIcon fontSize="small" />
-        </PaletteButton>
-
-        {/* The mark answers by becoming a tick: the path is on the clipboard,
-            which is somewhere else, so this is the only place it can be said. */}
-        <PaletteButton
-          label={t("worktree.path")}
-          disabled={!cwd}
-          onClick={() => {
-            if (!cwd) return;
-            void navigator.clipboard.writeText(cwd).then(() => setCopied(true));
-          }}
-        >
-          {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+          <CliMark size={20} />
         </PaletteButton>
 
         <PaletteDivider />

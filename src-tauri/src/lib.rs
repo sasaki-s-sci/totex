@@ -1,15 +1,19 @@
 mod ask;
 mod derived;
 mod display;
+mod front;
 mod fs_browse;
 mod fs_watch;
 mod git;
 mod host;
+mod mcp;
 mod pty;
 mod stream;
 mod sync;
 mod update;
 mod wsl;
+
+use std::sync::Arc;
 
 use fs_browse::{FileHead, Listing, Root};
 
@@ -45,6 +49,20 @@ pub fn run() {
     // and only one of the display servers a WSL session offers honours that.
     display::prefer_wayland();
 
+    // Which pages this run draws itself out of, settled before there is a
+    // window to draw. `set_assets` hands back what it replaced, so the built-in
+    // front is taken out of the context and put back inside the thing that
+    // stands in front of it -- see `front` for the whole of why.
+    let mut context = tauri::generate_context!();
+    let serving = Arc::new(front::Serving::prepare(
+        &context.config().identifier,
+        env!("CARGO_PKG_VERSION")
+            .parse()
+            .expect("the crate's own version"),
+    ));
+    let built_in = context.set_assets(Box::new(front::Nothing));
+    context.set_assets(Box::new(front::Front::new(Arc::clone(&serving), built_in)));
+
     let builder = tauri::Builder::default();
 
     // Only a desktop build has anything to replace: the two plugins behind the
@@ -56,17 +74,22 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
+        .manage(serving)
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
         .manage(pty::PtyState::default())
         .manage(ask::watch::AskState::default())
+        .manage(mcp::McpState::default())
         // What the sessions say is read for the questions agents ask, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
         // `pty::follow` for the whole of what joins them.
         .setup(|app| {
             ask::watch::attend(app.handle());
+            // And what a session says of its own accord, which arrives through a
+            // door of its own rather than out of anything it drew.
+            mcp::attend(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -74,7 +97,9 @@ pub fn run() {
             read_directory,
             read_file_head,
             write_file,
-            update::self_update_supported,
+            update::update_supported,
+            front::take::take_front,
+            front::take::confirm_front,
             derived::rederive,
             fs_watch::watch_directories,
             git::git_version,
@@ -100,7 +125,13 @@ pub fn run() {
             pty::pty_close,
             ask::watch::pty_asking,
             ask::watch::pty_answer,
+            mcp::mcp_serving,
+            mcp::mcp_serve,
+            mcp::mcp_stop,
+            mcp::mcp_reports,
+            mcp::mcp_install,
+            ask::watch::pty_reply,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

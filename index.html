@@ -14,7 +14,14 @@
          dark by preference. So the two colours it is about to be — the ground
          and the column standing on it — are written here, in the document, where
          they cost a parse and no script at all. React clears this out when it
-         puts the real column in its place. */
+         puts the real column in its place.
+
+         These are `DEFAULT_PRESET`'s grounds, copied — src/theme/presets.ts. A
+         window opened on somebody else's preset therefore boots on these and
+         arrives on its own a frame later, which is the one thing a preset
+         cannot reach: nothing is parsed yet, and a script that ran first would
+         cost more than the flash it saved. Revising the default means revising
+         the six colours below with it. */
       :root {
         color-scheme: light dark;
       }
@@ -48,15 +55,15 @@
         width: 288px;
         flex: none;
         background: #ffffff;
-        border-right: 1px solid #d5dced;
+        border-right: 1px solid #d5dcea;
       }
       @media (prefers-color-scheme: dark) {
         body {
-          background: #0f1420;
+          background: #070a11;
         }
         .boot__column {
-          background: #151b2b;
-          border-right-color: #273149;
+          background: #141a28;
+          border-right-color: #242e44;
         }
       }
       /* And the same two colours again for a window that was told, which beats
@@ -67,14 +74,14 @@
       }
       :root[data-color-scheme="light"] .boot__column {
         background: #ffffff;
-        border-right-color: #d5dced;
+        border-right-color: #d5dcea;
       }
       :root[data-color-scheme="dark"] body {
-        background: #0f1420;
+        background: #070a11;
       }
       :root[data-color-scheme="dark"] .boot__column {
-        background: #151b2b;
-        border-right-color: #273149;
+        background: #141a28;
+        border-right-color: #242e44;
       }
     </style>
   </head>

@@ -1,9 +1,9 @@
-import TerminalIcon from "@mui/icons-material/Terminal";
 import { Typography } from "@mui/material";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { FolderFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
+import { CliMark } from "../marks";
 
 /**
  * A folder on the graph, drawn as the one line that heads its repositories.
@@ -59,7 +59,7 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
             openWork({ repository: null, branch: name, cwd: root });
           }}
         >
-          <TerminalIcon sx={{ fontSize: 11 }} />
+          <CliMark size={11} />
         </button>
       </div>
     </div>

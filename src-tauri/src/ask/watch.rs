@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use super::{Ask, Reading, Screen, read};
+use super::{Ask, Reading, Screen, Taking, read};
 use crate::pty::{self, Event, PtyState};
 
 /// Carries what a session is asking, and its going away again.
@@ -84,7 +84,7 @@ impl Watcher {
         }
         self.fed = at + data.len();
         self.screen.feed(data);
-        self.settle(read(&self.screen.lines()))
+        self.settle(read(&self.screen))
     }
 
     /// Takes a whole backlog at once and stands wherever it leaves the screen.
@@ -95,7 +95,7 @@ impl Watcher {
     /// has itself just come up asks instead — see `pty_asking`.
     fn replay(&mut self, text: &str, upto: usize) {
         self.screen.feed(text);
-        self.asking = read(&self.screen.lines()).map(Ask::of);
+        self.asking = read(&self.screen).map(Ask::of);
         self.fed = upto;
     }
 
@@ -246,12 +246,35 @@ pub fn pty_asking<R: Runtime>(app: AppHandle<R>) -> Vec<Asking> {
         .collect()
 }
 
-/// Answers the question a session is asking, by typing what takes that answer.
+/// What is typed at a session to take one of the answers it is offering.
 ///
-/// The key is the whole of it: every one of these lists is answered by its own
-/// numbers, so this is a keystroke at the agent rather than a walk down the
-/// list with the arrow keys — which would depend on where the agent's own
-/// cursor is standing, and so on a reading that is already a moment old.
+/// The keystrokes, rather than the answer: typing at it is the only way a
+/// terminal has of being told anything, and the four kinds of question are four
+/// different things to type. Three of them are the same keystrokes whenever
+/// they are sent, which is what the agents' own keys are for.
+///
+/// The fourth is not, and is the reason this is worked out here rather than
+/// carried in the card. A list drawn with no keys on it can only be answered by
+/// walking the agent's own mark down to the line and taking it, and how far to
+/// walk is a fact about the screen as it stands at the moment of the press —
+/// not about the reading the card was drawn from, which by then is old enough
+/// for somebody to have moved the mark in the terminal since.
+fn typing(ask: &Ask, key: &str) -> Option<String> {
+    let at = ask.choices.iter().position(|choice| choice.key == key)?;
+    Some(match ask.taking {
+        Taking::Key => ask.choices[at].key.clone(),
+        Taking::Line => format!("{}\r", ask.choices[at].key),
+        Taking::Walk => {
+            let here = ask.choices.iter().position(|choice| choice.selected)?;
+            let step = if at > here { "\u{1b}[B" } else { "\u{1b}[A" };
+            format!("{}\r", step.repeat(at.abs_diff(here)))
+        }
+        // Words are written rather than pressed, and go by `pty_reply`.
+        Taking::Words => return None,
+    })
+}
+
+/// Answers the question a session is asking, by typing what takes that answer.
 ///
 /// `seq` is what makes that safe. A card is drawn from a question that was on
 /// the screen when it was read, and the one thing that must never happen is a
@@ -265,23 +288,66 @@ pub fn pty_answer<R: Runtime>(
     seq: u64,
     key: String,
 ) -> Result<(), String> {
-    {
+    let typed = {
         let state = app.state::<AskState>();
         let mut watching = state.lock();
         let watcher = watching.get_mut(&id).ok_or("no-session")?;
+        let asking = watcher.asking().ok_or("asking-nothing")?;
+        if asking.seq != seq {
+            return Err("asking-something-else".to_string());
+        }
+        let typed = typing(asking, &key).ok_or("no-answer")?;
         // Put away and answered in one go: the question is taken off the graph
         // as the key goes, rather than at a redraw later, because the moment
         // between a press and an agent's next frame is exactly how long a card
         // that has been answered must not still be standing there.
-        if !watcher.answered(seq) {
-            return Err("asking-something-else".to_string());
-        }
-    }
+        watcher.answered(seq);
+        typed
+    };
 
-    pty::pty_write(app.clone(), id.clone(), key)?;
+    pty::pty_write(app.clone(), id.clone(), typed)?;
 
     // Said outright rather than left to the next reading: whatever else the
     // window is drawing this session as, the question has been answered.
+    let _ = app.emit(ASK_EVENT, Asking { id, ask: None });
+    Ok(())
+}
+
+/// Answers a question that asked to be written at, by writing at it.
+///
+/// The other half of `pty_answer`, under the same rules: the question names
+/// itself, an answer to a question that has moved on is refused, and the card
+/// goes as the words do. A return goes with them, because a question waiting on
+/// a line is not looking at it until there is one.
+///
+/// Only what can be typed goes. What is written into a field on a canvas is not
+/// always typing — it is as often something pasted from somewhere else — and a
+/// return in the middle of it would answer the question half way through, while
+/// an escape in it would be read by the agent as a key it was never sent.
+#[tauri::command]
+pub fn pty_reply<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    seq: u64,
+    text: String,
+) -> Result<(), String> {
+    {
+        let state = app.state::<AskState>();
+        let mut watching = state.lock();
+        let watcher = watching.get_mut(&id).ok_or("no-session")?;
+        let asking = watcher.asking().ok_or("asking-nothing")?;
+        if asking.seq != seq {
+            return Err("asking-something-else".to_string());
+        }
+        if asking.taking != Taking::Words {
+            return Err("asking-for-a-key".to_string());
+        }
+        watcher.answered(seq);
+    }
+
+    let said: String = text.chars().filter(|letter| !letter.is_control()).collect();
+    pty::pty_write(app.clone(), id.clone(), format!("{said}\r"))?;
+
     let _ = app.emit(ASK_EVENT, Asking { id, ask: None });
     Ok(())
 }
@@ -353,17 +419,42 @@ mod tests {
 
     /// Waits for a question to reach the window, and hands it over.
     fn wait_asked(rx: &mpsc::Receiver<String>) -> Option<serde_json::Value> {
+        wait_for(rx, |_| true)
+    }
+
+    /// And for a particular one, for a test that has drawn more than one thing.
+    fn wait_for(
+        rx: &mpsc::Receiver<String>,
+        wanted: impl Fn(&serde_json::Value) -> bool,
+    ) -> Option<serde_json::Value> {
         let deadline = Instant::now() + Duration::from_secs(20);
         while Instant::now() < deadline {
             let Ok(payload) = rx.recv_timeout(Duration::from_millis(250)) else {
                 continue;
             };
             let said: serde_json::Value = serde_json::from_str(&payload).expect("an ask");
-            if said.get("ask").is_some_and(|ask| !ask.is_null()) {
+            if said
+                .get("ask")
+                .is_some_and(|ask| !ask.is_null() && wanted(ask))
+            {
                 return Some(said);
             }
         }
         None
+    }
+
+    /// A list drawn with no keys beside it, with the agent's mark on one line.
+    fn walking_box(on: usize) -> String {
+        let answers = ["Allow once", "Allow always", "Deny"];
+        let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+        drawn.push_str("\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n");
+        drawn.push_str("\u{2502} Run this command?  \u{2502}\r\n");
+        for (at, answer) in answers.iter().enumerate() {
+            let mark = if at == on { '\u{276f}' } else { ' ' };
+            drawn.push_str(&format!("\u{2502} {mark} {answer:<14} \u{2502}\r\n"));
+        }
+        drawn.push_str("\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n");
+        drawn
     }
 
     /// Hands a run to a watcher the way a session does: after everything it has
@@ -458,6 +549,99 @@ mod tests {
         assert!(!watcher.answered(ask.seq + 1), "not the question on screen");
         assert!(watcher.answered(ask.seq));
         assert!(watcher.asking().is_none(), "and it is put away at once");
+    }
+
+    /// A list with no keys on it is answered from where the mark is standing,
+    /// and from where it is standing at the moment of the press.
+    ///
+    /// The card cannot carry the walk: it is drawn from a reading that is
+    /// already a moment old, and the mark is the one part of a question that
+    /// moves without the question changing — somebody at the terminal walking
+    /// the list themselves leaves the card exactly as it was. So the same card,
+    /// pressed twice with the mark somewhere else the second time, is two
+    /// different walks to the same answer.
+    #[test]
+    fn a_list_with_no_keys_is_answered_by_walking_the_mark() {
+        let mut watcher = Watcher::new(24, 40);
+        let ask = feed(&mut watcher, &walking_box(1))
+            .expect("the question is news")
+            .expect("and it is being asked");
+
+        assert_eq!(ask.taking, Taking::Walk);
+        assert_eq!(typing(&ask, "1").as_deref(), Some("\u{1b}[A\r"));
+        assert_eq!(typing(&ask, "2").as_deref(), Some("\r"));
+        assert_eq!(typing(&ask, "3").as_deref(), Some("\u{1b}[B\r"));
+        assert!(typing(&ask, "4").is_none(), "there is no fourth answer");
+
+        let moved = feed(&mut watcher, &walking_box(2))
+            .expect("the mark moved")
+            .expect("and it is still being asked");
+        assert_eq!(moved.seq, ask.seq, "the answer is still the same answer");
+        assert_eq!(typing(&moved, "1").as_deref(), Some("\u{1b}[A\u{1b}[A\r"));
+    }
+
+    /// A question that wants words, the whole way through.
+    ///
+    /// The shell asks for something to be typed, the window is told it is being
+    /// asked for words rather than for a key, and what is written on the card
+    /// is typed at the session with the return that submits it. A press is
+    /// refused: there is nothing there to press.
+    #[cfg(unix)]
+    #[test]
+    fn a_question_that_wants_words_is_answered_by_writing_at_it() {
+        let app = mock_app();
+        let handle = app.handle().clone();
+        let id = "writing".to_string();
+
+        answering(&handle, &id);
+        let (tx, rx) = mpsc::channel();
+        handle.listen(ASK_EVENT, move |event| {
+            let _ = tx.send(event.payload().to_string());
+        });
+
+        pty::pty_open(
+            handle.clone(),
+            id.clone(),
+            std::env::temp_dir().display().to_string(),
+            24,
+            80,
+            None,
+        )
+        .expect("the shell starts");
+        pty::pty_write(
+            handle.clone(),
+            id.clone(),
+            "printf '\\nWhat shall the branch be called: '; read name; sleep 30\n".to_string(),
+        )
+        .expect("the shell takes input");
+
+        let Some(said) = wait_for(&rx, |ask| ask["taking"] == "words") else {
+            pty::pty_close(handle.clone(), id.clone());
+            panic!("the window was never told words were being asked for");
+        };
+        let ask = &said["ask"];
+        assert_eq!(
+            ask["question"],
+            serde_json::json!("What shall the branch be called:")
+        );
+        assert_eq!(ask["choices"].as_array().map(Vec::len), Some(0));
+
+        let seq = ask["seq"].as_u64().expect("the question is named");
+        assert!(
+            pty_answer(handle.clone(), id.clone(), seq, "1".to_string()).is_err(),
+            "a question with nothing to press took a press"
+        );
+        assert!(
+            pty_reply(handle.clone(), id.clone(), seq, "alpha".to_string()).is_ok(),
+            "the answer was refused"
+        );
+        // And again, at a question nobody is asking any more.
+        assert!(
+            pty_reply(handle.clone(), id.clone(), seq, "alpha".to_string()).is_err(),
+            "an answer to a question that has been answered went through"
+        );
+
+        pty::pty_close(handle.clone(), id.clone());
     }
 
     fn asking_now(app: &AppHandle<MockRuntime>, id: &str) -> Option<serde_json::Value> {

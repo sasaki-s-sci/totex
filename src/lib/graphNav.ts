@@ -99,3 +99,21 @@ export function first(picks: readonly Pickable[]): Pickable | null {
   }
   return best;
 }
+
+/**
+ * The terminals on the canvas, top to bottom.
+ *
+ * The order Ctrl and a number reach them in: a mark's number is its place down
+ * the canvas, so it is read off what is drawn rather than out of the order the
+ * sessions happen to have been opened in — the numbers then run down the window
+ * the way the eye does, and two terminals level with one another are numbered
+ * left to right.
+ *
+ * The bands are handed through with them because a terminal standing in one is
+ * positioned against it; `pickables` is where that offset is worked out, and it
+ * draws nothing for a band itself.
+ */
+export function jumpable(nodes: readonly AppNode[]): Pickable[] {
+  const stacks = nodes.filter((node) => node.type === "cli" || node.type === "repository");
+  return pickables(stacks).sort((one, other) => one.y - other.y || one.x - other.x);
+}

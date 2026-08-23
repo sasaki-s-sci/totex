@@ -35,8 +35,10 @@ import {
 } from "../lib/graph";
 import { reconcile } from "../lib/graph/reconcile";
 import { centreOf } from "../lib/graphNav";
+import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
+import { CliJumpsProvider } from "./cliJumps";
 import { GraphLines } from "./GraphLines";
 import { type BranchPick, GraphActionsProvider, type WorkRequest } from "./graphActions";
 import { type GraphMarks, GraphMarksProvider } from "./graphMarks";
@@ -47,6 +49,7 @@ import { CollapseNode } from "./nodes/CollapseNode";
 import { FilePreviewCard, FilePreviewNode, MIN_HEIGHT, MIN_WIDTH } from "./nodes/FilePreviewNode";
 import { FolderNode } from "./nodes/FolderNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
+import { ReportNode } from "./nodes/ReportNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
@@ -61,6 +64,7 @@ const nodeTypes = {
   collapse: CollapseNode,
   cli: CliNode,
   ask: AskNode,
+  report: ReportNode,
   "file-preview": FilePreviewNode,
 } satisfies NodeTypes;
 
@@ -198,8 +202,19 @@ type Props = {
    * window can see that one is outstanding without the panel being opened.
    */
   asks: ReadonlyMap<string, Ask>;
+  /**
+   * What each session says it is working on, by session id.
+   *
+   * Drawn in the same place as a question and never at the same time: nothing
+   * is waiting on this one, so it is there to be read rather than answered.
+   * Empty unless the window is standing a server for the agents to say it
+   * through — see `mcp`.
+   */
+  reports: ReadonlyMap<string, Report>;
   /** One of those answers was taken. */
   onAnswer: (session: Session, ask: Ask, key: string) => void;
+  /** Or, for a question with nothing to press, something was written at it. */
+  onReply: (session: Session, ask: Ask, text: string) => void;
   /**
    * The branches the window is working on, and the ones it was refused.
    *
@@ -215,6 +230,12 @@ type Props = {
   onCloseRepository: (repository: Repository) => void;
   onMerge: (request: MergeRequest) => void;
   onShowSession: (session: Session) => void;
+  /**
+   * A terminal was reached by its number — Ctrl, and the number the mark wears
+   * while Ctrl is held. It goes in the panel and stays there, which is what
+   * makes it a jump rather than the press the mark itself answers.
+   */
+  onJumpSession: (session: Session) => void;
   onEndSession: (session: Session) => void;
   /** Files asked for from the explorer or dropped onto the window. */
   filePreviews: readonly FilePreviewRequest[];
@@ -227,7 +248,9 @@ export function GitGraph({
   sessions,
   showing,
   asks,
+  reports,
   onAnswer,
+  onReply,
   marks,
   onSelect,
   onOpenWork,
@@ -235,6 +258,7 @@ export function GitGraph({
   onCloseRepository,
   onMerge,
   onShowSession,
+  onJumpSession,
   onEndSession,
   filePreviews,
   onCloseFilePreview,
@@ -256,10 +280,10 @@ export function GitGraph({
   const graph = useMemo(
     () =>
       buildCommitGraph(
-        { workspace, folders, visible, opened, sessions, showing, asks, reaching },
+        { workspace, folders, visible, opened, sessions, showing, asks, reports, reaching },
         applied.current ?? undefined,
       ),
-    [workspace, folders, visible, opened, sessions, showing, asks, reaching],
+    [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(graph.nodes);
@@ -843,7 +867,22 @@ export function GitGraph({
     [expand, graph.nodes, onOpenWork, onSelect, onShowSession],
   );
 
-  const picked = useGraphKeys({ nodes: graph.nodes, instance, host, activate });
+  /**
+   * Goes to a terminal that was asked for by its number.
+   *
+   * Apart from `activate` because it means something else: Return is the
+   * keyboard's click and a click on a terminal's mark is a toggle, while a
+   * number names one terminal and has to land on it whether or not the panel is
+   * already holding it.
+   */
+  const jump = useCallback(
+    (node: AppNode) => {
+      if (node.type === "cli") onJumpSession(node.data.session);
+    },
+    [onJumpSession],
+  );
+
+  const { picked, jumps } = useGraphKeys({ nodes: graph.nodes, instance, host, activate, jump });
 
   // Ctrl and a plus or a minus, for as long as there is a file card to read.
   useReadingKeys(filePreviews.length > 0);
@@ -925,6 +964,7 @@ export function GitGraph({
       showSession: onShowSession,
       endSession: onEndSession,
       answer: onAnswer,
+      reply: onReply,
       closeFilePreview: onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,
@@ -946,6 +986,7 @@ export function GitGraph({
       onShowSession,
       onEndSession,
       onAnswer,
+      onReply,
       onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,
@@ -958,87 +999,92 @@ export function GitGraph({
     <GraphActionsProvider value={actions}>
       <WorktreeStatusProvider value={worktreeStatus}>
         <GraphMarksProvider value={marks}>
-          {/* `is-merging` and the two ends of a merge are written on here by
-            `useBranchDrag` rather than handed down, so the class stays put
-            across a render: React only writes an attribute whose prop changed,
-            and this one never does. Which is why how far out the canvas is
-            zoomed is said in an attribute of its own rather than in the class:
-            a class React rewrote would take the merge's own marks with it. */}
-          <div ref={host} className="graph" data-coarse={coarse || undefined}>
-            {/* The canvas stays mounted while folders enter and leave it. Its
-              controlled nodes and repository-set framing already carry those
-              changes; replacing the instance would initialise an empty view
-              before the scanned nodes arrive. */}
-            <ReactFlow<AppNode, Edge>
-              nodes={shown}
-              nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onInit={(flow) => {
-                instance.current = flow;
-                setFlowReady(true);
-                // The first frame is framed by `fitView` rather than by a move, so
-                // the canvas has to be asked where it ended up.
-                resolve(flow.getViewport().zoom);
-              }}
-              onMove={handleMove}
-              onNodeClick={handleNodeClick}
-              onPaneClick={() => setSelectedCommit(null)}
-              nodesConnectable={false}
-              nodesDraggable
-              elevateNodesOnSelect={false}
-              // Commit history is the unbounded part and is one shared SVG;
-              // the small interactive node set stays mounted. React Flow's own
-              // per-frame visibility pass cost more than moving those nodes.
-              onlyRenderVisibleElements={false}
-              minZoom={MIN_ZOOM}
-              maxZoom={MAX_ZOOM}
-              proOptions={proOptions}
-              fitView
-            >
-              <GraphLines
-                bands={graph.bands}
-                reach={graph.reach}
-                extent={graph.extent}
-                nodes={lineNodes}
-                selected={selectedCommit}
-                picked={picked}
-                onCommit={handleCommitClick}
-              />
-            </ReactFlow>
+          {/* The numbers the terminals are wearing, which is nothing at all
+            until Ctrl is held. Only the terminal marks read this, so the key
+            costs a render of those and of nothing else on the canvas. */}
+          <CliJumpsProvider value={jumps}>
+            {/* `is-merging` and the two ends of a merge are written on here by
+              `useBranchDrag` rather than handed down, so the class stays put
+              across a render: React only writes an attribute whose prop changed,
+              and this one never does. Which is why how far out the canvas is
+              zoomed is said in an attribute of its own rather than in the class:
+              a class React rewrote would take the merge's own marks with it. */}
+            <div ref={host} className="graph" data-coarse={coarse || undefined}>
+              {/* The canvas stays mounted while folders enter and leave it. Its
+                controlled nodes and repository-set framing already carry those
+                changes; replacing the instance would initialise an empty view
+                before the scanned nodes arrive. */}
+              <ReactFlow<AppNode, Edge>
+                nodes={shown}
+                nodeTypes={nodeTypes}
+                onNodesChange={onNodesChange}
+                onInit={(flow) => {
+                  instance.current = flow;
+                  setFlowReady(true);
+                  // The first frame is framed by `fitView` rather than by a move, so
+                  // the canvas has to be asked where it ended up.
+                  resolve(flow.getViewport().zoom);
+                }}
+                onMove={handleMove}
+                onNodeClick={handleNodeClick}
+                onPaneClick={() => setSelectedCommit(null)}
+                nodesConnectable={false}
+                nodesDraggable
+                elevateNodesOnSelect={false}
+                // Commit history is the unbounded part and is one shared SVG;
+                // the small interactive node set stays mounted. React Flow's own
+                // per-frame visibility pass cost more than moving those nodes.
+                onlyRenderVisibleElements={false}
+                minZoom={MIN_ZOOM}
+                maxZoom={MAX_ZOOM}
+                proOptions={proOptions}
+                fitView
+              >
+                <GraphLines
+                  bands={graph.bands}
+                  reach={graph.reach}
+                  extent={graph.extent}
+                  nodes={lineNodes}
+                  selected={selectedCommit}
+                  picked={picked}
+                  onCommit={handleCommitClick}
+                />
+              </ReactFlow>
 
-            {/* The cards that have been pinned off the canvas, drawn over it.
-              The layer itself is the whole pane and lets everything through —
-              what answers on it is the cards, and the graph underneath answers
-              for the rest of it, so a pinned card costs the canvas around it
-              nothing. */}
-            {pinnedFiles.length > 0 && (
-              <div className="graph__pinned">
-                {pinnedFiles.map((node) => {
-                  const box = fileSize(node);
-                  return (
-                    <div
-                      key={node.id}
-                      className="graph__pin"
-                      onPointerDown={(event) => pinDrag.onPointerDown(event, node.data.requestId)}
-                      onPointerMove={pinDrag.onPointerMove}
-                      onPointerUp={pinDrag.onPointerUp}
-                      onPointerCancel={pinDrag.onPointerUp}
-                      style={{
-                        left: node.data.pinnedAt?.x,
-                        top: node.data.pinnedAt?.y,
-                        width: box.width,
-                        // Put away, a card is as tall as its header, which is
-                        // the header's own answer and not a number kept here.
-                        height: node.data.collapsed ? undefined : box.height,
-                      }}
-                    >
-                      <FilePreviewCard data={node.data} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {/* The cards that have been pinned off the canvas, drawn over it.
+                The layer itself is the whole pane and lets everything through —
+                what answers on it is the cards, and the graph underneath answers
+                for the rest of it, so a pinned card costs the canvas around it
+                nothing. */}
+              {pinnedFiles.length > 0 && (
+                <div className="graph__pinned">
+                  {pinnedFiles.map((node) => {
+                    const box = fileSize(node);
+                    return (
+                      <div
+                        key={node.id}
+                        className="graph__pin"
+                        onPointerDown={(event) => pinDrag.onPointerDown(event, node.data.requestId)}
+                        onPointerMove={pinDrag.onPointerMove}
+                        onPointerUp={pinDrag.onPointerUp}
+                        onPointerCancel={pinDrag.onPointerUp}
+                        style={{
+                          left: node.data.pinnedAt?.x,
+                          top: node.data.pinnedAt?.y,
+                          width: box.width,
+                          // Put away, a card is as tall as its header, which is
+                          // the header's own answer and not a number kept here.
+                          height: node.data.collapsed ? undefined : box.height,
+                        }}
+                      >
+                        <FilePreviewCard data={node.data} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </CliJumpsProvider>
         </GraphMarksProvider>
       </WorktreeStatusProvider>
     </GraphActionsProvider>

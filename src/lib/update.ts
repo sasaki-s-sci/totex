@@ -12,15 +12,35 @@ import { useSyncExternalStore } from "react";
  * is available" — pressing the mark is asking for it, and the answer to that is
  * either the newest already being here or a download that has started.
  *
+ * A release comes in two halves and they are not taken together. The pages the
+ * window is drawn out of are a small download and a reload; the program under
+ * them is a large one and a restart that ends every terminal in the window. So
+ * the first press takes the pages and stops at `swapped`, and the press after
+ * that — on a window already showing the new ones — goes on to the program and
+ * stops at `ready`. Which of the two a press ends in is the backend's to say:
+ * see `src-tauri/src/front/take.rs`.
+ *
  * `ready` is only ever reached on macOS and Linux. The Windows installers are
  * run over the top of a closed app, so installing there ends this process and
  * the installer opens the new one: the window goes away and comes back, and
  * nothing is left waiting for a press.
+ *
+ * `held` is the end of the walk for a `.deb` or an `.rpm`: the pages are as new
+ * as the release page has, and the program under them belongs to a package
+ * manager, which is who brings it forward.
  */
-export type UpdateStage = "unknown" | "checking" | "current" | "fetching" | "ready" | "failed";
+export type UpdateStage =
+  | "unknown"
+  | "checking"
+  | "current"
+  | "fetching"
+  | "ready"
+  | "swapped"
+  | "held"
+  | "failed";
 
 export type UpdateState = {
-  /** Whether this copy is one the updater can replace; null until asked. */
+  /** Whether this copy is one a release can do anything for; null until asked. */
   supported: boolean | null;
   stage: UpdateStage;
   /** How much of the download has arrived, 0..1, or null while it is untold. */
@@ -58,7 +78,7 @@ export function useUpdate(): UpdateState {
 }
 
 /**
- * Asks the backend whether this copy is one that can be replaced at all.
+ * Asks the backend whether this copy is one a release page can do anything for.
  *
  * Asked once for the life of the window: it is a fact about how the app was
  * installed, which does not change while it is running. A copy that says no
@@ -66,7 +86,7 @@ export function useUpdate(): UpdateState {
  */
 export function askSupported(): void {
   if (state.supported !== null) return;
-  invoke<boolean>("self_update_supported").then(
+  invoke<boolean>("update_supported").then(
     (yes) => settle({ supported: yes }),
     // A backend that will not answer is a window with no update mark, which is
     // the same thing an old copy of the app shows.
@@ -74,21 +94,55 @@ export function askSupported(): void {
   );
 }
 
+/**
+ * Says that this window has finished drawing itself.
+ *
+ * Nothing is done with it unless the window was drawn out of a front taken from
+ * a release, in which case this is the front being told it works: until it has
+ * said so once, the next start of the app throws it away rather than open on
+ * it. That is the whole of the way back out of a front that cannot draw a
+ * window — see `src-tauri/src/front`, and note that this is called from every
+ * window on every start, because a window cannot tell which front it is.
+ */
+export function confirmFront(): void {
+  invoke("confirm_front").catch(() => undefined);
+}
+
+/** What the backend did about the release it found. */
+type Found = "front" | "whole" | "held" | "current";
+
 /** How long the endpoint is given to answer, in milliseconds. */
 const CHECK_TIMEOUT = 20_000;
 
 /**
- * The whole of what the mark does, up to the restart.
+ * The whole of what the mark does, up to the reload or the restart.
  *
  * Looking and taking are one press because they are one intention: a window
  * that has just been told a newer version exists has nothing else to do with
- * that. What is not one press is the restart — this app holds terminals with
- * agents running in them, and ending those is nobody's business but the
- * person's who started them.
+ * that. What is not one press is the ending — this app holds terminals with
+ * agents running in them, and reaching the point where they are interrupted is
+ * nobody's business but the person's who started them.
  */
 export async function takeUpdate(): Promise<void> {
   if (state.stage === "checking" || state.stage === "fetching") return;
   settle({ stage: "checking", progress: null });
+
+  // The one ask that both halves are decided by. It reads the release page,
+  // and if the pages of it are the part this copy can have, it has taken them
+  // by the time it answers: a front is about a megabyte, which is nothing to
+  // draw a second ring for.
+  let found: Found;
+  try {
+    found = await invoke<Found>("take_front");
+  } catch {
+    settle({ stage: "failed", progress: null });
+    return;
+  }
+  if (found !== "whole") {
+    const reached = { front: "swapped", held: "held", current: "current" } as const;
+    settle({ stage: reached[found], progress: null });
+    return;
+  }
 
   let update: Update | null = null;
   try {
@@ -131,6 +185,18 @@ export async function takeUpdate(): Promise<void> {
     // has either been installed or been given up on.
     await update?.close().catch(() => undefined);
   }
+}
+
+/**
+ * Draws the window again, out of the front that has just arrived.
+ *
+ * Only the page: the program is the same program, so every terminal it is
+ * holding is still open and still being written to, and what a view of one
+ * loses is redrawn from the backlog the moment it attaches again. That is what
+ * makes this the cheap half of a release and worth having on its own.
+ */
+export function reload(): void {
+  window.location.reload();
 }
 
 /**

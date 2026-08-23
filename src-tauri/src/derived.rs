@@ -21,6 +21,13 @@
 //! sessions. The folders do not: which of them a window has put on the graph is
 //! the window's own business, and is asked for again the way it was asked for
 //! the first time.
+//!
+//! And one thing is on the other side of the line without being a process. What
+//! an agent says it is working on — see `mcp` — arrives through a door of its
+//! own rather than out of anything a session drew, so there is nothing to work
+//! it out from: it is a thing that was said once, the same as the session's own
+//! backlog, and dropping it would not lose a reading but the report itself. So
+//! it stays. It goes when the session it belongs to goes, and not before.
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -38,4 +45,8 @@ pub fn rederive<R: Runtime>(app: AppHandle<R>) {
     git::session::forget_all(&app);
     app.state::<BrowseWatch>().clear();
     ask::watch::rederive(&app);
+    // Nothing about `mcp` is touched. The server is a door held open by this
+    // process and the reports behind it were said rather than read, so there is
+    // no version of either that could be taken again from what is on disk or
+    // from what the sessions have said.
 }

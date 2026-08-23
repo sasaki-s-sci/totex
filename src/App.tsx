@@ -12,6 +12,7 @@ import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { FolderSidebar } from "./folder/FolderSidebar";
 import { useAsks } from "./hooks/useAsks";
 import { useMarks } from "./hooks/useMarks";
+import { useReports } from "./hooks/useReports";
 import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import type { Ask } from "./lib/ask";
@@ -19,6 +20,7 @@ import { FILE_DRAG_TYPE, type FilePreviewRequest } from "./lib/filePreview";
 import type { CommitFlowNode } from "./lib/graph";
 import { onDemand, warmInTurn } from "./lib/onDemand";
 import { type Session, shellSession } from "./lib/session";
+import { confirmFront } from "./lib/update";
 import { mergeBranch, openWorkspace } from "./lib/workspace";
 import { MODE_KEY, storedMode, theme } from "./theme";
 import type { Repository, Workspace } from "./types/git";
@@ -100,6 +102,7 @@ function Window() {
     showing,
     open: openSession,
     show: showSession,
+    jump: jumpSession,
     end: endSession,
     endIn: endSessionsIn,
   } = useSessions();
@@ -107,7 +110,13 @@ function Window() {
   // What any of them has stopped to ask, which the graph draws beside the
   // terminal doing the asking. A question is a turn nobody has taken: it is
   // worth seeing from the canvas, and worth being able to answer from there.
-  const { asks, answer } = useAsks();
+  const { asks, answer, reply } = useAsks();
+
+  // And what any of them says it is working on, which is the other half of what
+  // the graph can show about a running agent. Nothing is waiting on this one —
+  // it is read rather than answered — and it is empty until the window is
+  // standing a server for the agents to say it through.
+  const reports = useReports();
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
@@ -128,6 +137,11 @@ function Window() {
   const answerAsk = useCallback(
     (session: Session, ask: Ask, key: string) => answer(session.id, ask, key),
     [answer],
+  );
+
+  const replyToAsk = useCallback(
+    (session: Session, ask: Ask, text: string) => reply(session.id, ask, text),
+    [reply],
   );
 
   const closeFilePreview = useCallback((requestId: number) => {
@@ -210,6 +224,13 @@ function Window() {
       repositories: workspace.repositories.filter((repository) => !closed.has(repository.id)),
     };
   }, [workspace, closed]);
+
+  // The window has been drawn, which is what a front taken from a release is
+  // waiting to be told: until one window has got this far out of it, the next
+  // start of the app throws it away rather than open on it. Said here because
+  // this is the first moment the whole of the window exists, and said out of
+  // every window because none of them knows which front it was drawn from.
+  useEffect(confirmFront, []);
 
   // The menus the graph can open are fetched in the idle moments after the
   // window opens, so the first click does not have to wait for their chunks.
@@ -375,7 +396,9 @@ function Window() {
             sessions={sessions}
             showing={showing}
             asks={asks}
+            reports={reports}
             onAnswer={answerAsk}
+            onReply={replyToAsk}
             marks={marks}
             onSelect={pickCommit}
             onOpenWork={openWork}
@@ -383,6 +406,7 @@ function Window() {
             onCloseRepository={closeRepository}
             onMerge={merge}
             onShowSession={showSession}
+            onJumpSession={jumpSession}
             onEndSession={endSession}
             filePreviews={filePreviews}
             onCloseFilePreview={closeFilePreview}

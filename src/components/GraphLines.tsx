@@ -301,7 +301,9 @@ function CommitEmphasis({
                 rx={6}
               />
             )}
-            {mark.selected && <circle className="commit-selection" cx={at.x} cy={at.y} r={10} />}
+            {mark.selected && (
+              <circle className="commit-selection" cx={at.x} cy={at.y} r={HALO_RADIUS} />
+            )}
           </g>
         );
       })}
@@ -381,6 +383,12 @@ const HOVER_SCREEN = 22;
 const HOVER_LIMIT = LANE_HEIGHT * 0.6;
 /** How near the pointer has to be to a dot to be on that commit. */
 const DOT_REACH = 13;
+/**
+ * The circle a commit's halo is laid along: the dot, the ring of canvas it
+ * carries, and then half the band itself — so the halo starts where a branch
+ * head's does and is the same width; see `--halo`.
+ */
+const HALO_RADIUS = DOT_SIZE / 2 + 4;
 /** How far the fold mark reaches out from the line it sits on. */
 const MARK_RADIUS = 10;
 /**
@@ -592,7 +600,7 @@ function Hover({
           dot and down to the row a branch cut here would take. Dotted because
           it is not there yet, and never takes the pointer — clicking the commit
           is what makes it real. */}
-      {dotAt && <circle className="commit-hover" cx={dotAt.x} cy={dotAt.y} r={10} />}
+      {dotAt && <circle className="commit-hover" cx={dotAt.x} cy={dotAt.y} r={HALO_RADIUS} />}
       {dotAt && (
         <g className="ghost" transform={`translate(${dotAt.x} ${dotAt.y})`}>
           <path

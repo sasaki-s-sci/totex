@@ -69,6 +69,18 @@ export function useSessions() {
     setShowing((current) => (current === next.id ? null : next.id));
   }, []);
 
+  /**
+   * Puts one in the panel and leaves it there.
+   *
+   * What Ctrl and a number do. Deliberately not the toggle above: a jump names
+   * the terminal it wants, and one that shut the panel because that terminal
+   * was already in it would be a way through the window that sometimes went
+   * nowhere — worst of all when it is used to get back to where the typing was.
+   */
+  const jump = useCallback((next: Session) => {
+    setShowing(next.id);
+  }, []);
+
   /** Ends a session: the process stops, and it leaves the graph with it. */
   const end = useCallback(
     (going: Session) => {
@@ -102,5 +114,5 @@ export function useSessions() {
    *  unsafe to throw away. */
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
 
-  return { sessions, showing, attached, open, show, end, endIn };
+  return { sessions, showing, attached, open, show, jump, end, endIn };
 }

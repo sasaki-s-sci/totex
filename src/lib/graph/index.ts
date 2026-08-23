@@ -55,3 +55,4 @@ export {
   STEP,
   type StrokeStyle,
 } from "./model";
+export type { CardStep, ReportCard, ReportFlowNode, ReportNodeData } from "./reporting";

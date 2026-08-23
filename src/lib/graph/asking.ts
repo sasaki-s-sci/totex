@@ -47,6 +47,14 @@ const QUESTION_LINE = 15;
 const CHOICE_LINE = 14;
 const CHOICE_PAD = 8;
 const CHOICE_GAP = 4;
+/**
+ * The row a written answer is typed into.
+ *
+ * One row and no more. A question that wants words wants a branch name or a
+ * sentence saying what to do instead, and a card is not the place to write a
+ * paragraph — the terminal it was asked in is.
+ */
+const FIELD_LINE = 24;
 /** The line round the card, and the one round each of its answers. */
 const BORDER = 2;
 
@@ -75,7 +83,7 @@ const DETAIL_LINES = 4;
 const QUESTION_LINES = 3;
 const CHOICE_WRAP = 2;
 
-/** One answer, as it is drawn: its number, and its words already cut to width. */
+/** One answer, as it is drawn: its key, and its words already cut to width. */
 export type CardChoice = {
   key: string;
   lines: string[];
@@ -121,16 +129,21 @@ export function askCard(ask: Ask): AskCard {
   if (detail.length > 0) height += SPLIT + detail.length * DETAIL_LINE;
   if (question.length > 0) height += SPLIT + question.length * QUESTION_LINE;
   height += SPLIT;
-  for (const choice of choices) {
-    height += choice.lines.length * CHOICE_LINE + CHOICE_PAD + BORDER;
+  if (ask.taking === "words") {
+    // Nothing to press, and one place to write instead.
+    height += FIELD_LINE;
+  } else {
+    for (const choice of choices) {
+      height += choice.lines.length * CHOICE_LINE + CHOICE_PAD + BORDER;
+    }
+    height += Math.max(0, choices.length - 1) * CHOICE_GAP;
   }
-  height += Math.max(0, choices.length - 1) * CHOICE_GAP;
 
   return { detail, question, choices, height };
 }
 
 /** As many lines as are allowed, with the last one saying there were more. */
-function clamp(lines: string[], most: number): string[] {
+export function clamp(lines: string[], most: number): string[] {
   if (lines.length <= most) return lines;
   const kept = lines.slice(0, most);
   kept[most - 1] = `${kept[most - 1].trimEnd()}…`;
@@ -143,8 +156,12 @@ function clamp(lines: string[], most: number): string[] {
  * Broken at the spaces where there are any, and through the middle of a word
  * where there are none — which is most of what a card shows, because a path and
  * a command are one word each and both of them are longer than the card.
+ *
+ * Shared with the other card a terminal can have standing beside it — see
+ * `reporting`. The two are the same card in two states, and text measured two
+ * different ways would be the one thing that gave that away.
  */
-function wrap(text: string, width: number): string[] {
+export function wrap(text: string, width: number): string[] {
   const trimmed = text.trim();
   if (trimmed === "") return [];
 

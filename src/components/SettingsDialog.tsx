@@ -1,4 +1,5 @@
 import { Dialog, Stack } from "@mui/material";
+import { McpButton } from "./McpButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { UpdateButton } from "./UpdateButton";
 
@@ -15,6 +16,14 @@ type Props = {
  * band is the one row the window reserves, and a thing set once is not worth a
  * mark standing in it.
  *
+ * Under it, the door the agents say what they are working on through: a server
+ * this window stands beside its terminals, and the one line of setup that tells
+ * an agent where it is. It is here for the same reason the choice above it is —
+ * it is set once, and a thing set once is not worth a mark in the one row the
+ * window reserves — and it is above the update for the same reason that is
+ * last: this is about the window in front of you, and that is about the copy of
+ * the app on disk.
+ *
  * Below it, and only where it can work: replacing the app with a newer one. It
  * is last because it is not a choice — it is done once and the dialog is closed
  * again — and it is here rather than in the window's own band because that band
@@ -25,6 +34,7 @@ export function SettingsDialog({ open, onClose }: Props) {
     <Dialog open={open} onClose={onClose}>
       <Stack spacing={1} sx={{ p: 1.25, alignItems: "center" }}>
         <ThemeToggle />
+        <McpButton />
         <UpdateButton />
       </Stack>
     </Dialog>

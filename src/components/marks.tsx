@@ -42,6 +42,28 @@ const ROW_SIZE = 20;
  */
 export const MARK_BUTTON = 24;
 
+/**
+ * How heavy every line in this file is, in pixels on the screen.
+ *
+ * One pixel, and the same one at every size a mark is drawn at. The weight is
+ * stated here rather than in the square the paths are written in, because those
+ * are two different things: the square is 24 wide whatever the mark ends up as,
+ * so a stroke stated in it is a share of the drawing and lands at whatever the
+ * drawing's size makes of it. That is how a folder at 20 came to be struck a
+ * third heavier than a chevron at 15 — the same number, two sizes — and a set
+ * of marks where the bigger ones are also the bolder ones reads as two sets.
+ *
+ * A hairline rather than the two-in-24 these were drawn at, which came out at a
+ * pixel and a quarter: these marks sit beside names and beside a graph, and
+ * neither is something a mark should be heavier than.
+ */
+const HAIRLINE = 1;
+
+/** That weight, back in the units of the square the paths are written in. */
+function struck(size: number, weight: number = HAIRLINE): number {
+  return (weight * 24) / size;
+}
+
 function Frame({ size = SIZE, children }: { size?: number; children: React.ReactNode }) {
   return (
     <svg
@@ -50,7 +72,7 @@ function Frame({ size = SIZE, children }: { size?: number; children: React.React
       height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={struck(size)}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -161,6 +183,42 @@ export function FolderMark({ on }: { on: boolean }) {
   );
 }
 
+/**
+ * A terminal: the prompt, and the line waiting after it.
+ *
+ * Drawn here rather than taken from the icon set, like everything else in this
+ * file, and for the reason this file exists at all — the set's terminal is a
+ * filled glyph, and a filled glyph has no line to make thinner. Beside marks
+ * struck at a hairline it read as the one solid thing on the canvas, which on a
+ * graph where a terminal is the commonest mark there is meant the commonest
+ * mark was also the loudest.
+ *
+ * Two strokes, and no screen round them. The set's version draws the box as
+ * well, and a box is what the drawing cannot afford: these stand at eleven
+ * pixels on the canvas, where the frame takes most of the square and leaves the
+ * prompt inside it two pixels to be a prompt in — and a prompt that cannot be
+ * read is a rounded rectangle. Without it the two strokes have the whole square
+ * and the mark says the same thing, which is what a shell has looked like on
+ * every screen it has ever been on.
+ *
+ * The chevron is the one this file draws for a folder that is shut, which is
+ * why the line after it matters: `>` alone is a direction, and `>` with
+ * somewhere to type is a terminal. They never stand in the same column anyway —
+ * disclosure is the folder column's, this one is the canvas's and the menus'.
+ *
+ * Sized by whoever draws it. On the canvas these sit on the graph's own grid
+ * and are the smallest thing on it; in a menu they stand at the size the rest
+ * of that row is set at.
+ */
+export function CliMark({ size }: { size?: number }) {
+  return (
+    <Frame size={size}>
+      <path d="M4.8 7.6 L10.4 12 L4.8 16.4" />
+      <path d="M13.4 16.4 H20" />
+    </Frame>
+  );
+}
+
 /** Two strokes, crossed. */
 export function CloseMark() {
   return (
@@ -220,9 +278,11 @@ export function UpMark() {
  * The teeth are what make it a wheel rather than a sun, and at fifteen pixels
  * they are the first thing to go — a tooth drawn at the hairline the rest of
  * this file is drawn at lands under two pixels and reads as a ray. So they are
- * struck thicker than everything around them and squared off at the tip, and
- * they start on the rim rather than clear of it: a mark that touches what it
- * belongs to is a tooth, and one that stands off it is a ray.
+ * struck half again as heavy as everything around them and squared off at the
+ * tip, and they start on the rim rather than clear of it: a mark that touches
+ * what it belongs to is a tooth, and one that stands off it is a ray. Half
+ * again rather than a number of their own, so that they follow `HAIRLINE`
+ * wherever it goes.
  */
 export function SettingsMark() {
   return (
@@ -233,7 +293,7 @@ export function SettingsMark() {
           rim out to the same radius. The diagonal ends are the axis ones over
           the root of two, written out rather than computed — this is a drawing,
           and the numbers are the drawing. */}
-      <g strokeWidth="3.2" strokeLinecap="butt">
+      <g strokeWidth={struck(SIZE, HAIRLINE * 1.6)} strokeLinecap="butt">
         <path d="M12 5.6 V2.8 M12 18.4 V21.2 M5.6 12 H2.8 M18.4 12 H21.2" />
         <path d="M7.47 7.47 L5.51 5.51 M16.53 16.53 L18.49 18.49 M16.53 7.47 L18.49 5.51 M7.47 16.53 L5.51 18.49" />
       </g>
@@ -304,13 +364,19 @@ const SPIN = {
 /**
  * Where the app is in replacing itself, as one mark on one button.
  *
- * Five drawings, one press between them, the way `ThemeMark` and
+ * Seven drawings, one press between them, the way `ThemeMark` and
  * `MaximiseMark` are one button each: an arrow down for the offer to look, a
  * ring while it is looking, a tick for nothing to do, the same ring filling as
- * the new version arrives, and a circular arrow for the restart that finishes
- * it. A failure is the arrow again, in red — see `UpdateButton`, which is what
- * colours it: what went wrong is not a thing this window has a word for, and
- * pressing again is the whole of what can be done about it.
+ * the new version arrives, two arrows round a circle for the reload that
+ * finishes the pages, and one arrow round a circle for the restart that
+ * finishes the program. A failure is the arrow again, in red — see
+ * `UpdateButton`, which is what colours it: what went wrong is not a thing this
+ * window has a word for, and pressing again is the whole of what can be done
+ * about it.
+ *
+ * The seventh is the arrow struck through: a release nothing here can take any
+ * more of. The two circles are told apart by how many arrows are in them, which
+ * is also how much of the app each of them replaces.
  *
  * The arrow is the download and not a version number, because the version is
  * not the point: there is one newer than this or there is not, and the mark
@@ -356,6 +422,19 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
     );
   }
 
+  if (stage === "swapped") {
+    return (
+      <Frame>
+        {/* Two halves of a ring chasing each other, both stopped and both with
+            a head: the page going round again, which is all a reload is. */}
+        <path d="M4.5 12 A7.5 7.5 0 0 1 16.6 6.1" />
+        <path d="M13.9 4.1 L17 6.2 L14.9 9.3" />
+        <path d="M19.5 12 A7.5 7.5 0 0 1 7.4 17.9" />
+        <path d="M10.1 19.9 L7 17.8 L9.1 14.7" />
+      </Frame>
+    );
+  }
+
   if (stage === "ready") {
     return (
       <Frame>
@@ -363,6 +442,19 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
             the waiting is over and the last of it is a press away. */}
         <path d="M19.5 12 A7.5 7.5 0 1 1 12 4.5" />
         <path d="M9.8 2.3 L12 4.5 L9.8 6.7" />
+      </Frame>
+    );
+  }
+
+  if (stage === "held") {
+    return (
+      <Frame>
+        {/* The arrow that would have taken it, struck through: there is one,
+            and it is not this copy's to have. */}
+        <path d="M12 4 V14.6" />
+        <path d="M7.6 10.2 L12 14.6 L16.4 10.2" />
+        <path d="M5 19 H19" />
+        <path d="M4.4 20.4 L19.6 5.2" />
       </Frame>
     );
   }
