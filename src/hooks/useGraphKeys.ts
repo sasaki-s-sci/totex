@@ -35,6 +35,23 @@ type Options = {
   activate: (node: AppNode) => void;
   /** Go to a terminal that was asked for by number: it goes in the panel. */
   jump: (node: AppNode) => void;
+  /**
+   * What the walk has arrived at, which is not the same as what it is holding.
+   *
+   * The ring goes when Ctrl does, and a commit is not a node the canvas keeps
+   * anything about — so the one lasting thing a walk does is said here, and the
+   * window keeps it.
+   */
+  land: (node: AppNode | null) => void;
+  /**
+   * What the window has already picked out, which is where a walk carries on
+   * from when it has not walked yet.
+   *
+   * A commit clicked with the mouse is where the eye is, and a first arrow that
+   * left it for the top corner of the canvas would be a walk starting over
+   * rather than a walk carrying on.
+   */
+  selected: string | null;
 };
 
 /**
@@ -52,7 +69,7 @@ type Options = {
  * one of them to another — the graph is thousands of them, and none of the rest
  * changed.
  */
-export function useGraphKeys({ nodes, instance, host, activate, jump }: Options) {
+export function useGraphKeys({ nodes, instance, host, activate, jump, land, selected }: Options) {
   const [picked, setPicked] = useState<string | null>(null);
   // Whether Ctrl is down, which is the whole of what puts the numbers on the
   // terminals. Only the marks read it, so it costs a render of those and
@@ -60,8 +77,8 @@ export function useGraphKeys({ nodes, instance, host, activate, jump }: Options)
   const [holding, setHolding] = useState(false);
   // The listeners are registered once and read through this, so a graph that
   // changes underneath them does not cost a pair of listeners each time.
-  const latest = useRef({ nodes, activate, jump });
-  latest.current = { nodes, activate, jump };
+  const latest = useRef({ nodes, activate, jump, land, selected });
+  latest.current = { nodes, activate, jump, land, selected };
   // Where every node can be landed on, rebuilt only when the graph itself is.
   // A held arrow key repeats far faster than the canvas changes, and walking
   // every node twice per repeat is the bulk of what a walk would cost.
@@ -139,6 +156,7 @@ export function useGraphKeys({ nodes, instance, host, activate, jump }: Options)
       setPicked(stack.id);
       reveal(stack);
       const node = latest.current.nodes.find((candidate) => candidate.id === stack.id);
+      latest.current.land(node ?? null);
       if (node) latest.current.jump(node);
     };
 
@@ -167,12 +185,16 @@ export function useGraphKeys({ nodes, instance, host, activate, jump }: Options)
       if (direction) {
         event.preventDefault();
         const picks = index.current;
-        const from = picks.find((pick) => pick.id === at.current);
+        // Where the walk is, or failing that where the window is: a commit that
+        // has been picked out already is the place the eye is reading from.
+        const standing = at.current ?? latest.current.selected;
+        const from = picks.find((pick) => pick.id === standing);
         const next = from ? step(from, picks, direction) : first(picks);
         if (!next) return;
         at.current = next.id;
         setPicked(next.id);
         reveal(next);
+        latest.current.land(latest.current.nodes.find((node) => node.id === next.id) ?? null);
         return;
       }
 

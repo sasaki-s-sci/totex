@@ -10,6 +10,9 @@
   },
   "folder": {
     "add": "Add",
+    "pathHint": "Path, e.g. ~/repo",
+    "noFolder": "No folder there",
+    "drop": "Forget",
     "settings": "Settings",
     "close": "Close",
     "up": "Up",

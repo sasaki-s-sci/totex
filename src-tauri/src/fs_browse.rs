@@ -60,6 +60,26 @@ pub struct Root {
     pub detail: Option<String>,
 }
 
+/// A folder someone typed and kept, spelled out for the row that offers it.
+///
+/// Not a [`Root`]: those are what the machine has, worked out afresh every time
+/// the menu is opened, and there is nothing to keep about them. This is the
+/// other kind — a place that exists because a person named it, which between
+/// two windows is only ever a path until something spells it out again.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Place {
+    /// What a pane is started at: folded, and spelled the way every path in
+    /// this app is spelled.
+    pub path: String,
+    /// The folder's own name, which is what the row is read by.
+    pub label: String,
+    /// The whole of it with the home directory written `~`, for the line under
+    /// the name. Shortened because that is where a person's folders are, and a
+    /// column this narrow has no width to spend saying so on every row.
+    pub display: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
@@ -137,6 +157,78 @@ pub fn expand_user_path(input: &str) -> PathBuf {
         }
     }
     PathBuf::from(trimmed)
+}
+
+/// The path with the home directory written `~`, the way a shell writes it.
+///
+/// Which directory that is comes from the environment — see [`home_dir`] — so
+/// nothing here holds an opinion about where a person's folders are. A path
+/// that is not under it is left exactly as it was: this shortens a spelling, it
+/// does not decide anything.
+///
+/// The separator is whichever one the path is already using, so a Windows path
+/// comes back `~\repo` and a Linux one `~/repo` — the same path, still spelled
+/// the way the machine holding it spells it.
+fn shorten_home(path: &str, home: Option<&Path>) -> String {
+    let Some(home) = home else {
+        return path.to_string();
+    };
+    let home = home.to_string_lossy();
+    // A home that is the root of the disk shortens everything on it, which is
+    // not a shorter spelling of anything — it is the whole filesystem renamed.
+    let home = home.trim_end_matches(['/', '\\']);
+    if home.is_empty() {
+        return path.to_string();
+    }
+    if path == home {
+        return "~".to_string();
+    }
+    for separator in ['/', '\\'] {
+        if let Some(rest) = path.strip_prefix(&format!("{home}{separator}")) {
+            return format!("~{separator}{rest}");
+        }
+    }
+    path.to_string()
+}
+
+/// One settled path, as the row that offers it needs it.
+fn describe_place(host: &Host, path: &Path) -> Place {
+    let spelled = path.to_string_lossy().into_owned();
+    Place {
+        label: host.name(path),
+        display: shorten_home(&spelled, home_dir().as_deref()),
+        path: spelled,
+    }
+}
+
+/// Settles one typed path into a place to keep, or says why it is not one.
+///
+/// The disk is asked, once and here: a path that is a file, or nothing at all,
+/// is refused where it was typed rather than kept and left to fail at the pane
+/// that could not open it.
+pub fn resolve_folder(raw: &str) -> Result<Place, String> {
+    let (host, path) = resolve(raw)?;
+    if !host.is_dir(&path) {
+        return Err("no-such-folder".to_string());
+    }
+    Ok(describe_place(&host, &path))
+}
+
+/// Spells out the folders that were kept, without asking the disk about any.
+///
+/// What is stored is the paths alone, so this is what a menu is drawn from, and
+/// it runs every time one is opened. Nothing here touches a file: a folder
+/// inside a WSL distribution is stat'd by starting a process in it, and a
+/// handful of kept folders would be a handful of processes started to draw a
+/// menu. What became of them is answered by the pane that opens one.
+pub fn describe_folders(paths: &[String]) -> Vec<Place> {
+    paths
+        .iter()
+        .filter_map(|raw| {
+            let (host, path) = resolve(raw).ok()?;
+            Some(describe_place(&host, &path))
+        })
+        .collect()
 }
 
 /// Folds `.` and `..` lexically. Unlike [`fs::canonicalize`] this keeps UNC
@@ -340,16 +432,15 @@ fn wsl_distro_name() -> Option<String> {
 pub fn list_roots() -> Vec<Root> {
     let mut roots = Vec::new();
     if let Some(home) = home_dir() {
-        // Called what the directory is called. The rail names places, and a
-        // place named by this app rather than by the disk is a word the window
-        // wrote — the mark beside the row is what says which kind it is.
+        // Written `~`, which is what a shell calls it and what can be typed
+        // into the field over the menu to reach it. The directory's own name is
+        // whatever the account is called, and an account's name says nothing
+        // about the place — where it actually is, is the line under it, read
+        // from the environment like everything else here.
         let path = home.to_string_lossy().into_owned();
         roots.push(Root {
             kind: RootKind::Home,
-            label: home
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| path.clone()),
+            label: "~".to_string(),
             detail: Some(path.clone()),
             path,
         });
@@ -487,6 +578,75 @@ mod tests {
         assert_eq!(clean_path(Path::new("/../..")), PathBuf::from("/"));
         assert_eq!(clean_path(Path::new("a/../../b")), PathBuf::from("../b"));
         assert_eq!(clean_path(Path::new("")), PathBuf::from("."));
+    }
+
+    #[test]
+    fn a_path_under_home_is_written_with_a_tilde() {
+        let home = Path::new("/home/someone");
+        assert_eq!(shorten_home("/home/someone", Some(home)), "~");
+        assert_eq!(shorten_home("/home/someone/repo", Some(home)), "~/repo");
+        // A name that merely begins with the home directory's is another name.
+        assert_eq!(
+            shorten_home("/home/someone-else/repo", Some(home)),
+            "/home/someone-else/repo"
+        );
+        assert_eq!(shorten_home("/etc", Some(home)), "/etc");
+        // The separator the path is already using is the one it comes back in.
+        assert_eq!(
+            shorten_home(r"C:\Users\a\repo", Some(Path::new(r"C:\Users\a"))),
+            r"~\repo"
+        );
+        // Nowhere to shorten to: a machine with no home, and a home that is the
+        // whole disk, both leave every path exactly as it was.
+        assert_eq!(shorten_home("/home/someone", None), "/home/someone");
+        assert_eq!(shorten_home("/etc", Some(Path::new("/"))), "/etc");
+    }
+
+    #[test]
+    fn a_folder_is_kept_only_once_it_is_one() {
+        let dir = temp_dir("kept");
+        let inside = dir.join("repo");
+        fs::create_dir_all(&inside).expect("a folder");
+        fs::write(dir.join("notes.txt"), "one\n").expect("a file");
+
+        let place = resolve_folder(&inside.to_string_lossy()).expect("a folder");
+        assert_eq!(place.path, inside.to_string_lossy());
+        assert_eq!(place.label, "repo");
+
+        assert!(resolve_folder(&dir.join("notes.txt").to_string_lossy()).is_err());
+        assert!(resolve_folder(&dir.join("nothing").to_string_lossy()).is_err());
+        assert!(resolve_folder("  ").is_err());
+    }
+
+    #[test]
+    fn kept_folders_are_spelled_out_without_reading_them() {
+        let places = describe_folders(&[
+            "/home/someone/repo/./totex".to_string(),
+            "/nowhere/at/all".to_string(),
+            String::new(),
+        ]);
+        // The empty one names no place and drops out; the one that is not there
+        // is spelled out like any other, because nothing here asked the disk.
+        assert_eq!(places.len(), 2);
+        assert_eq!(places[0].path, "/home/someone/repo/totex");
+        assert_eq!(places[0].label, "totex");
+        assert_eq!(places[1].path, "/nowhere/at/all");
+    }
+
+    #[test]
+    fn home_is_offered_under_the_name_a_shell_calls_it() {
+        let Some(home) = home_dir() else {
+            return;
+        };
+        let roots = list_roots();
+        let offered = roots
+            .iter()
+            .find(|root| root.kind == RootKind::Home)
+            .expect("a home");
+        assert_eq!(offered.label, "~");
+        // Where it actually is stays on the row, read from the environment.
+        assert_eq!(offered.path, home.to_string_lossy());
+        assert_eq!(offered.detail.as_deref(), Some(offered.path.as_str()));
     }
 
     #[test]

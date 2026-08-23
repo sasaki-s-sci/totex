@@ -76,6 +76,17 @@
      also the halo touching the neighbours of whatever it was answering for. */
   --halo: 0 0 0 5px color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
   --halo-selected: 0 0 0 5px color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+  /* What the canvas does instead of drawing a box round something: the mark is
+     lit, in the ink everything picked out here is drawn in, with a little of
+     that ink spilled round it.
+
+     A `drop-shadow` rather than a `box-shadow`, because these are marks rather
+     than boxes — a glyph, a ring, a dot the size of a full stop — and a shadow
+     cast by the box would be a square glow round something that is not a
+     square. The spill is what makes it read as lit rather than merely tinted,
+     which colour alone could not say at 11px against a column of the same
+     mark. */
+  --lit: drop-shadow(0 0 3px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent));
 }
 
 /* ---------- the grid ---------- */
@@ -263,7 +274,7 @@
 .commit-folded {
   fill: none;
   stroke: var(--line);
-  stroke-width: 1.6;
+  stroke-width: 1.2;
   stroke-opacity: 0.5;
   stroke-dasharray: 4 5;
 }
@@ -287,10 +298,17 @@
   stroke: color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
 }
 
+/* The commit the cursor keys have walked to, while Ctrl is held: this same dot,
+   drawn again in the ink that says `here` and lit.
+
+   A ring round the whole cell was easier to follow across the canvas and said
+   the wrong thing while it did: a box drawn round a mark reads as a second kind
+   of mark, and what the walk has reached is the commit itself rather than the
+   square of grid it happens to stand in. Every other thing the walk can land on
+   is lit the same way — see `.is-picked` — so the one reading covers the lot. */
 .commit-pick {
-  fill: none;
-  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent);
-  stroke-width: 2;
+  fill: var(--mui-palette-primary-main);
+  filter: var(--lit);
 }
 
 /* The branch that is not there yet: drawn from the dot the cursor is on, out to
@@ -310,9 +328,38 @@
 .ghost circle {
   fill: none;
   stroke: currentcolor;
-  stroke-width: 1.4;
+  stroke-width: 1.1;
   stroke-dasharray: 3 3;
   stroke-linecap: round;
+}
+
+/* And what makes that branch real: the offer, standing over the dot — see
+   `BRANCH_LIFT`. Solid where the ghost below it is dotted, because this is a
+   thing that is there and the ghost is a thing that is not.
+
+   One of these per commit the window has something to say about — the one under
+   the cursor, and the one that was last picked — rather than one per commit. */
+.commit-branch {
+  color: var(--line);
+  cursor: pointer;
+}
+
+/* Canvas under the mark, so the halo it stands over does not run through it. */
+.commit-branch__disc {
+  fill: var(--mui-palette-background-default);
+}
+
+.commit-branch__mark {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.commit-branch:hover .commit-branch__mark {
+  opacity: 1;
 }
 
 /* ---------- branches ---------- */
@@ -374,6 +421,12 @@
    canvas being read for the shape of its history; see `DETAIL_ZOOM`. The ring
    itself stays: a branch is drawn at every scale. */
 .graph[data-coarse] .head__cli {
+  display: none;
+}
+
+/* For the same reason, and at the same distance: out here the mark is a couple
+   of pixels across and the commit under it is one. */
+.graph[data-coarse] .commit-branch {
   display: none;
 }
 
@@ -689,8 +742,12 @@
    While the key is down the number is the whole of what the mark has to say,
    and the glyph comes straight back when it is let go.
 
-   Set in the ink the picked ring is drawn in, because they are the same thing
-   said twice: this is where a key would land. Tabular figures so that 1 and 11
+   The mark's own ink, inherited rather than named, so the number is drawn in
+   whatever the glyph under it would have been drawn in. Every one of these in
+   the canvas's strong colour was a screenful of things all saying `this one`,
+   which is a screenful of things saying nothing; the one that is lit is the one
+   being pointed at, and it is lit because the mark carrying it is — see
+   `.cli__open.is-showing` and `.is-picked`. Tabular figures so that 1 and 11
    stand in the same place, and the mark does not shuffle as the eye runs down
    the stack. */
 .cli__jump {
@@ -699,7 +756,7 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.02em;
-  color: var(--mui-palette-primary-main);
+  color: inherit;
 }
 
 /* Which terminal the panel is holding: its own glyph, lit.
@@ -712,20 +769,14 @@
    for is which of these is the one being read; the glyph is what is being looked
    at, so the glyph is what changes.
 
-   It takes the ink everything picked out on this canvas is drawn in, and a
-   little of that ink spills round it. The colour alone said `this one`, but at
-   11px against a column of the same glyph it said it quietly; the spill is what
-   makes it read as lit rather than merely tinted, and it is the only thing out
-   here drawn that way, so there is nothing for it to be confused with.
-
-   A `drop-shadow` rather than a `box-shadow`: the mark is the terminal's own
-   outline and nothing else, and a shadow cast by the box would be a square glow
-   round a glyph that is not a square. It follows the number the mark carries
-   while Ctrl is held, which is right — that number is this same mark, and it is
-   drawn in this same ink. */
+   The canvas's one light — `--lit` — which is also what the cursor keys leave on
+   whatever they have walked to. Both mean `this one`, so they are the same
+   light rather than two, and a stack can be showing one of each without the
+   pair of them having to be told apart. It follows the number the mark carries
+   while Ctrl is held, which is right: that number is this same mark. */
 .cli__open.is-showing {
   color: var(--mui-palette-primary-main);
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent));
+  filter: var(--lit);
 }
 
 /* Ending a session is the one thing here that cannot be undone, so it is faint
@@ -860,9 +911,10 @@
   z-index: -1;
 }
 
-/* The stretch the cursor is on, and the mark it brings out, are the one thing
-   in the layer that answers back. */
-.graph__lines .edge__fold {
+/* The stretch the cursor is on, the mark it brings out, and the offer over a
+   commit are the only things in the layer that answer back. */
+.graph__lines .edge__fold,
+.graph__lines .commit-branch {
   pointer-events: auto;
 }
 
@@ -1170,12 +1222,43 @@
   text-align: right;
 }
 
-/* Where the cursor keys have walked to, while Ctrl is held. A ring around the
-   whole cell rather than around the mark in it: the cells are the grid being
-   walked, and a ring on a dot the size of a full stop is hard to follow. */
-.react-flow__node.is-picked {
-  border-radius: 6px;
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent);
+/* Where the cursor keys have walked to, while Ctrl is held: the mark itself,
+   lit.
+
+   It was a ring around the whole cell, on the reading that a cell is easier to
+   follow across the canvas than a dot the size of a full stop. What it drew was
+   a box, and a box round a mark reads as another kind of mark — a second, empty
+   thing standing where the walk had got to, next to the thing the walk had got
+   to. Lighting the mark says the same in the mark's own terms, and it is the
+   one light on this canvas: the terminal the panel is holding wears it too, and
+   both times it means `this one`.
+
+   The number a terminal carries while the key is down is lit with it, because
+   the number is that mark — see `.cli__jump`, which takes its colour from here
+   rather than naming one. `.cli__open` is named beside the mark because the
+   button inside it sets a colour of its own, which an inherited one would lose
+   to, and a folder's name is named because the name is that row's whole
+   control — there is no mark on it to light. */
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .cli__open,
+.react-flow__node.is-picked .folder__name {
+  color: var(--mui-palette-primary-main);
+}
+
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .folder__name {
+  filter: var(--lit);
+}
+
+/* A card is not a mark: there is no glyph in it to light, and the paper is what
+   it is read as. So the light goes round the outside of it — the same ink
+   spilled the same way, wider because the thing it is spilling round is, and
+   still not a border. Written on the node rather than on the card inside it, so
+   that a card's own rules further down this file are not being reached past. */
+.react-flow__node-ask.is-picked,
+.react-flow__node-report.is-picked,
+.react-flow__node-file-preview.is-picked {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 55%, transparent));
 }
 
 .react-flow__controls {

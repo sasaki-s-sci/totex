@@ -1,7 +1,7 @@
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack, Typography } from "@mui/material";
-import { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CloseMark,
@@ -43,6 +43,22 @@ const CHANGE_COLOUR: Record<Change, string> = {
   modified: "warning.main",
   deleted: "error.main",
 };
+
+/**
+ * What a row is drawn in when git was told to leave the file alone.
+ *
+ * `node_modules`, a `dist`, a log — on the disk, in the listing, and no part of
+ * what the repository is. Faint rather than a colour of its own, because that
+ * is the shape of the fact: the three above each say something became of a
+ * file, and this one says the opposite — that nothing about this one is being
+ * watched, so there is nothing for it to have become.
+ *
+ * MUI's own `text.disabled` rather than a name out of the preset, for the same
+ * reason the icons are `text.secondary`: it is the faint wash of whatever ink
+ * the scheme is written in, and stays faint in both of them without whoever
+ * chose the colours having to have an opinion about it. See src/theme/index.ts.
+ */
+const IGNORED_COLOUR = "text.disabled";
 
 /** Rows sit one step in from the folder the pane is showing. */
 const ROW_INDENT = 2;
@@ -292,10 +308,16 @@ function Level({
   const folders = rows.filter((entry) => entry.isDir).map((entry) => entry.path);
   const counts = useRepositoryCounts(folders);
 
-  // What is uncommitted here, by the name of the row it belongs to. Read for
-  // this directory alone and shared with nobody: a level draws its own rows,
-  // and a folder further down is answered for by the level showing it.
-  const changes = useDirectoryChanges(path);
+  // What git has to say about the rows here: what became of each of them, and
+  // which of them it was told to ignore. Read for this directory alone and
+  // shared with nobody: a level draws its own rows, and a folder further down
+  // is answered for by the level showing it.
+  const answer = useDirectoryChanges(path);
+  // Both of those in the shape a row is looked up in, rebuilt only when git's
+  // answer moves. A map rather than the object it arrives as, because a file
+  // called `constructor` would otherwise find something that is not a colour.
+  const changes = useMemo(() => new Map(Object.entries(answer.changed)), [answer]);
+  const ignored = useMemo(() => new Set(answer.ignored), [answer]);
 
   /** Draws the next chunk of rows, out of whatever room the frame has. */
   const drawMore = useCallback(() => {
@@ -324,7 +346,8 @@ function Level({
       // toggle to turn them back on, so they are shown like the rest. The
       // leading dot is what says a file is hidden, and it is already in the
       // name — a row drawn fainter than its neighbours says the second, weaker
-      // thing instead: that it is somehow less of a file.
+      // thing instead: that it is somehow less of a file, which is what the
+      // ignore list says about a name and being hidden does not.
       readDirectory(path, true)
         .then((next) => {
           if (cancelled) return;
@@ -377,11 +400,18 @@ function Level({
       {rows.map((entry) => {
         const open = expanded.includes(entry.path);
         // The whole of what a row says about git: a name in the colour of what
-        // became of the file behind it, and nothing at all when it is what the
-        // last commit says it is. No badge and no second column — the listing
-        // is already a list of names, and this is those names read again.
+        // became of the file behind it, a faint one where git was told to leave
+        // that file alone, and nothing at all when it is what the last commit
+        // says it is. No badge and no second column — the listing is already a
+        // list of names, and this is those names read again.
+        //
+        // A row that is both — a folder on the ignore list holding a tracked
+        // file that moved — takes the colour. What became of a file is the
+        // thing worth seeing, and being ignored is what a row says when it has
+        // nothing else to say.
         const change = changes.get(entry.name);
-        const colour = change && CHANGE_COLOUR[change];
+        const dim = answer.allIgnored || ignored.has(entry.name);
+        const colour = change ? CHANGE_COLOUR[change] : dim ? IGNORED_COLOUR : undefined;
         return (
           <Box key={entry.path}>
             <ListItemButton

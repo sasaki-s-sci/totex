@@ -1,4 +1,10 @@
-import { createTheme, type Theme } from "@mui/material/styles";
+import {
+  createTheme,
+  type Palette,
+  type Theme,
+  useColorScheme,
+  useTheme,
+} from "@mui/material/styles";
 
 import { DEFAULT_PRESET, presetById } from "./presets";
 import { type Preset, readPreset, type Scheme } from "./scheme";
@@ -8,6 +14,15 @@ export { type Preset, readPreset, SCHEME_KEYS, type Scheme } from "./scheme";
 
 /** Which of the two the window is drawn in, or the machine's own answer. */
 export type ThemeMode = "system" | "light" | "dark";
+
+/**
+ * Which of the two it came out as.
+ *
+ * `system` is a question rather than an answer, and everything downstream of it
+ * — the attribute on the document, the half of the preset in use — needs the
+ * answer. This is that: a mode with the question taken out of it.
+ */
+export type Half = "light" | "dark";
 
 /** Where the choice is kept, and what the provider is told to keep it under. */
 export const MODE_KEY = "totex.mode";
@@ -144,12 +159,42 @@ export function storedMode(): ThemeMode {
  * here is what keeps the ground the window opens on the ground it stays on.
  */
 export function applyStoredMode(): void {
-  const mode = storedMode();
-  const scheme =
-    mode === "system"
-      ? matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light"
-      : mode;
-  document.documentElement.setAttribute(SCHEME_ATTRIBUTE, scheme);
+  document.documentElement.setAttribute(SCHEME_ATTRIBUTE, schemeFor(storedMode()));
+}
+
+/** Which of the two a mode comes out as, with the machine asked if it has to be. */
+function schemeFor(mode: ThemeMode): Half {
+  if (mode !== "system") return mode;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+/** Which of the two the document is carrying, which is what the window is painted in. */
+function documentScheme(): Half {
+  return document.documentElement.getAttribute(SCHEME_ATTRIBUTE) === "dark" ? "dark" : "light";
+}
+
+/**
+ * The colours the window is being drawn in, as colours.
+ *
+ * `useTheme().palette` is not those. `cssVariables` publishes both halves as
+ * custom properties and leaves the theme object holding whichever half is the
+ * default — the switch happens in CSS, and nothing about the theme is rebuilt
+ * for it. So everything drawn by MUI or by a stylesheet follows the mode, and
+ * anything that has to hand a colour to something that is not CSS — a canvas, a
+ * terminal — reads the light one all day and never hears about the dark.
+ *
+ * This is the way across: the scheme is resolved, and the palette read off that
+ * half. Still MUI's palette, so the derived washes nobody names — `text.disabled`,
+ * `action.selected` — come with it, and every value is a colour rather than a
+ * `var()` that only a stylesheet could resolve.
+ */
+export function usePalette(): Palette {
+  const theme = useTheme();
+  const { colorScheme } = useColorScheme();
+  // Undefined for the frame before the provider has read what was stored — a
+  // frame that has already been painted in one of the two, because
+  // `applyStoredMode` wrote the answer onto the document ahead of it. Which is
+  // why that is what is read rather than the light half being assumed: the
+  // terminal built in that frame would be built white in a dark window.
+  return theme.colorSchemes[colorScheme ?? documentScheme()]?.palette ?? theme.palette;
 }

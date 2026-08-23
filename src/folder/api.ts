@@ -10,6 +10,23 @@ export interface Root {
   detail: string | null;
 }
 
+/**
+ * A folder someone typed and kept, spelled out for the row that offers it.
+ *
+ * Not a `Root`: those are what the machine has, and there is nothing to keep
+ * about them. This is the other kind — a place that exists because a person
+ * named it, which between two windows is only ever a path.
+ */
+export interface Place {
+  /** What a pane is started at: folded, and spelled as every path here is. */
+  path: string;
+  /** The folder's own name, which is what the row is read by. */
+  label: string;
+  /** The whole path with the home directory written `~`, for the line under
+   *  the name. */
+  display: string;
+}
+
 export interface FsEntry {
   name: string;
   path: string;
@@ -50,6 +67,24 @@ export const FS_CHANGED_EVENT = "fs:changed";
 
 export function listRoots(): Promise<Root[]> {
   return invoke<Root[]>("list_roots");
+}
+
+/**
+ * Settles one typed path into a folder to keep, or refuses it.
+ *
+ * `~` is expanded and `..` folded, so what can be typed is what a shell takes.
+ * A path that is a file, or nothing at all, comes back as a failure: a folder
+ * is refused where it was typed rather than kept and left to fail at the pane
+ * that could not open it.
+ */
+export function resolveFolder(path: string): Promise<Place> {
+  return invoke<Place>("resolve_folder", { path });
+}
+
+/** Spells out the folders that were kept, which are stored as paths alone.
+ *  Reads no disk, so a menu can be drawn from it every time it opens. */
+export function describeFolders(paths: string[]): Promise<Place[]> {
+  return invoke<Place[]>("describe_folders", { paths });
 }
 
 export function readDirectory(path: string, showHidden: boolean): Promise<Listing> {
@@ -93,7 +128,29 @@ export function repositoryCounts(paths: string[]): Promise<Record<string, number
 export type Change = "added" | "modified" | "deleted";
 
 /**
- * What is uncommitted in each of these directories, by the row it belongs to.
+ * What git has to say about the rows of one directory.
+ *
+ * Two things, and a row is drawn by one or the other: what became of a file is
+ * a colour, and being on the ignore list is a faint row. `node_modules`, a
+ * `dist`, a log — on the disk, in the listing, and no part of what the
+ * repository is.
+ */
+export interface Answer {
+  /** What became of each row that has moved, by the name of that row. */
+  changed: Record<string, Change>;
+  /** The rows of this directory git was told to ignore, by name. */
+  ignored: string[];
+  /**
+   * True when the directory itself is one of those, which makes every row in
+   * it one too. Nothing is listed then: there is nothing in such a directory
+   * that is not on the list, and naming what is under `node_modules` one file
+   * at a time is what this avoids.
+   */
+  allIgnored: boolean;
+}
+
+/**
+ * What git says about each of these directories, by the row it belongs to.
  *
  * Keyed by the directory asked about, then by the name of an entry in it. An
  * entry that is a folder carries what everything underneath it comes to, so a
@@ -104,8 +161,8 @@ export type Change = "added" | "modified" | "deleted";
  * All of them in one crossing, because they are asked for on a clock: see
  * `changes.ts`, which is the only caller.
  */
-export function directoryChanges(paths: string[]): Promise<Record<string, Record<string, Change>>> {
-  return invoke<Record<string, Record<string, Change>>>("directory_changes", { paths });
+export function directoryChanges(paths: string[]): Promise<Record<string, Answer>> {
+  return invoke<Record<string, Answer>>("directory_changes", { paths });
 }
 
 /**
