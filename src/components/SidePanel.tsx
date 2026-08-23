@@ -1,9 +1,7 @@
 import { Box, Paper } from "@mui/material";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { agentOf } from "../lib/agents";
 import type { Session } from "../lib/session";
-import { ChatView } from "./ChatView";
 import { CliView } from "./CliView";
 import { ResizeGrip, useResizeGrip } from "./useResizeGrip";
 import { HEADER_HEIGHT } from "./WindowControls";
@@ -120,15 +118,11 @@ export function SidePanel({ sessions, showing, onEnded }: Props) {
               visibility: session.id === showing ? "visible" : "hidden",
             }}
           >
-            {session.surface === "chat" && session.agent ? (
-              <ChatView session={session} agent={agentOf(session.agent)} />
-            ) : (
-              <CliView
-                session={session}
-                shown={session.id === showing}
-                onEnded={() => onEnded(session)}
-              />
-            )}
+            <CliView
+              session={session}
+              shown={session.id === showing}
+              onEnded={() => onEnded(session)}
+            />
           </Box>
         ))}
       </Box>

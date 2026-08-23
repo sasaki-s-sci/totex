@@ -49,7 +49,7 @@ export const GraphLines = memo(function GraphLines({
   onCommit,
 }: {
   bands: readonly Band[];
-  /** Every agent that is running, as a line from its terminal to its row. */
+  /** The terminals in the last column, each a line to the row it runs in. */
   reach: readonly Batch[];
   /**
    * The box the lines are drawn in, which is as big as everything reaches.
@@ -93,13 +93,14 @@ export const GraphLines = memo(function GraphLines({
 type Batch = { key: string; stroke: StrokeStyle; parts: GraphLine[] };
 
 /**
- * Every agent that is running, as one path per colour.
+ * The lines out of the last column, batched into as few paths as they are
+ * drawn ways.
  *
  * There is no band to draw these inside: a line from the column of terminals to
- * a row in a repository belongs to neither of them, and one terminal's lines
- * routinely end in three different bands. So they are drawn on the canvas
- * itself, where both ends of a line are already in the same coordinates —
- * a band's position and a terminal's are both the canvas's own.
+ * a row in a repository belongs to neither of them, and the rows they end in
+ * are in different bands. So they are drawn on the canvas itself, where both
+ * ends of a line are already in the same coordinates — a band's position and a
+ * terminal's are both the canvas's own.
  */
 const Reach = memo(function Reach({
   reach,
@@ -148,7 +149,14 @@ const Bands = memo(function Bands({
 function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<string, XYPosition> }) {
   const at = standing.get(band.id);
   return (
-    <g transform={`translate(${at?.x ?? band.x} ${at?.y ?? band.y})`}>
+    <g
+      // A band being pulled open is drawn as a proposal, and the whole of it at
+      // once: one class here beats a different stroke written onto each of the
+      // thousand lines underneath, and the stylesheet is where what an offer
+      // looks like on this canvas is already said.
+      className={band.provisional ? "band-lines band-lines--provisional" : "band-lines"}
+      transform={`translate(${at?.x ?? band.x} ${at?.y ?? band.y})`}
+    >
       {band.lines.strokes.map((batch) => (
         <path key={batch.key} d={pathOf(batch.parts, standing)} {...stroke(batch.stroke)} />
       ))}

@@ -239,17 +239,6 @@ impl SessionState {
     }
 }
 
-/// The folders the window currently has open, by the root each scan settled on.
-///
-/// Read by the sweep over running agents, which has no folder of its own to go
-/// on: it has to know which machines are worth looking at, and the answer is
-/// the ones somebody is working on.
-pub fn open_roots<R: tauri::Runtime>(app: &AppHandle<R>) -> Vec<String> {
-    app.try_state::<SessionState>()
-        .map(|state| state.lock().keys().cloned().collect())
-        .unwrap_or_default()
-}
-
 /// The key a folder is held under: the path its scan settled on. A folder that
 /// has since been removed can no longer be canonicalized, so the name the
 /// caller used is what it is looked up by.
@@ -289,14 +278,24 @@ pub async fn scan_workspace(
 #[tauri::command]
 pub fn close_workspace(app: AppHandle, root: Option<String>) {
     let Some(root) = root else {
-        app.state::<SessionState>().lock().clear();
-        app.state::<watch::WatchState>().clear();
+        forget_all(&app);
         return;
     };
 
     let key = key_of(&root);
     app.state::<SessionState>().lock().remove(&key);
     app.state::<watch::WatchState>().remove(&key);
+}
+
+/// Drops every folder's snapshot and stops every watch.
+///
+/// Both of those are readings of what is on disk, so this loses nothing that
+/// scanning again would not find — which is what the window does next, and the
+/// only thing it has to do. See `derived`, which is the other caller and the
+/// reason this is written apart from the command above.
+pub fn forget_all<R: tauri::Runtime>(app: &AppHandle<R>) {
+    app.state::<SessionState>().lock().clear();
+    app.state::<watch::WatchState>().clear();
 }
 
 pub(super) fn run_refresh(

@@ -12,16 +12,14 @@ import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { FolderSidebar } from "./folder/FolderSidebar";
 import { useAsks } from "./hooks/useAsks";
 import { useMarks } from "./hooks/useMarks";
-import { useRunning } from "./hooks/useRunning";
 import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import type { Ask } from "./lib/ask";
 import { FILE_DRAG_TYPE, type FilePreviewRequest } from "./lib/filePreview";
 import type { CommitFlowNode } from "./lib/graph";
 import { onDemand, warmInTurn } from "./lib/onDemand";
-import { type Session, sessionId } from "./lib/session";
+import { type Session, shellSession } from "./lib/session";
 import { mergeBranch, openWorkspace } from "./lib/workspace";
-import { SettingsProvider, useSettings } from "./settings";
 import { MODE_KEY, storedMode, theme } from "./theme";
 import type { Repository, Workspace } from "./types/git";
 
@@ -73,9 +71,7 @@ export default function App() {
       disableTransitionOnChange
     >
       <CssBaseline />
-      <SettingsProvider>
-        <Window />
-      </SettingsProvider>
+      <Window />
     </ThemeProvider>
   );
 }
@@ -97,7 +93,6 @@ function Window() {
   // What the window is doing to a branch, and what it was refused. Both are
   // drawn on the branch's own ring — see `useMarks`; nothing is written.
   const { marks, fail, hold, release } = useMarks();
-  const { settings } = useSettings();
 
   // Everything that is running, and which one the panel is showing.
   const {
@@ -113,11 +108,6 @@ function Window() {
   // terminal doing the asking. A question is a turn nobody has taken: it is
   // worth seeing from the canvas, and worth being able to answer from there.
   const { asks, answer } = useAsks();
-
-  // Every agent on the machine, this window's own included — drawn on the
-  // branch rows beside the sessions, so that the canvas answers "what is going
-  // on in this worktree" whoever started it.
-  const { running } = useRunning(true);
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
@@ -242,7 +232,7 @@ function Window() {
   const SettingsDialog = settingsPart.use(useEver(settingsOpen));
 
   /**
-   * Opens a shell or an agent in a branch.
+   * Opens a terminal in a branch.
    *
    * A branch that has no worktree yet gets one here, on the way in: a branch
    * you can see is a branch you can work in, and the directory it needs is
@@ -250,8 +240,7 @@ function Window() {
    * to distinguish a branch that has one from a branch that does not.
    */
   const openWork = useCallback(
-    ({ repository, branch, cwd, agent }: WorkRequest) => {
-      const surface = agent && settings.surface === "chat" ? "chat" : "cli";
+    ({ repository, branch, cwd }: WorkRequest) => {
       // A folder is already a directory, so there is nothing to make; only a
       // branch that has never been checked out is answered with a worktree.
       const start = cwd
@@ -261,14 +250,12 @@ function Window() {
           : Promise.reject(new Error("nowhere to open"));
 
       start
-        .then((path) =>
-          openSession({ id: sessionId(path, surface, agent), cwd: path, branch, surface, agent }),
-        )
+        .then((path) => openSession(shellSession(path, branch)))
         // Nothing to mark when there is no branch: a folder that would not open
         // is the shell saying so, in the terminal that was asked for.
         .catch(() => repository && fail(branchMark(repository.id, branch)));
     },
-    [openSession, settings.surface, fail],
+    [openSession, fail],
   );
 
   // What the last change was is not reported. The graph has already moved:
@@ -386,7 +373,6 @@ function Window() {
             workspace={drawn ?? EMPTY_WORKSPACE}
             folders={folders}
             sessions={sessions}
-            running={running.agents}
             showing={showing}
             asks={asks}
             onAnswer={answerAsk}

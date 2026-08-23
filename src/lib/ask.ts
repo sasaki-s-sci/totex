@@ -8,9 +8,14 @@
  * question rather than as a picture of one, and the graph can both show it and
  * answer it without the panel ever being opened.
  *
- * Read off the session's own screen by the Rust side — see `ask.rs` there,
- * which is where the whole of the reading lives. Everything here is the shape
- * it hands over.
+ * Read off the session's own screen by the Rust side — see `ask/mod.rs` there
+ * for the reading itself, and `ask/watch.rs` for what holds a screen per
+ * session and answers for it. Everything here is the shape it hands over.
+ *
+ * All of it is derived, which is worth knowing here too: the questions are
+ * worked out from what the sessions have said, so that side can throw the
+ * whole lot away and take it again without anything the window is holding
+ * going stale. What the window has to do about that is nothing.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -31,13 +36,16 @@ export type Choice = {
 /** One question, as it can be answered from the graph. */
 export type Ask = {
   /**
-   * Which question this is, counted through the life of the session.
+   * Which question this is, read off the question itself.
    *
    * What an answer is addressed to: a card is drawn from a reading that is
    * already a moment old, and an answer meant for "may I delete this" must
-   * never arrive at whatever the agent went on to ask instead. The number goes
-   * back with the answer and the session refuses it if the question has moved
-   * on.
+   * never arrive at whatever the agent went on to ask instead. This goes back
+   * with the answer and the session refuses it if the question has moved on.
+   *
+   * Taken from what the question says rather than from a count, so the same
+   * box is the same question whenever it is read. Nothing here does anything
+   * with it but hand it back.
    */
   seq: number;
   /** What the question is about: the tool, the command, the file. */

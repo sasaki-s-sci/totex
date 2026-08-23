@@ -13,13 +13,33 @@ import {
   UpMark,
 } from "../components/marks";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
-import { type FsEntry, type Listing, readDirectory, repositoryCounts } from "./api";
+import { type Change, type FsEntry, type Listing, readDirectory, repositoryCounts } from "./api";
+import { refreshChanges, useDirectoryChanges } from "./changes";
 import { baseName } from "./format";
 import { ROOT_ICONS } from "./roots";
 import { watchDirectory } from "./watch";
 
 /** Small enough that a column of panes still reads as one list. */
 const ICON = { minWidth: 22, color: "text.secondary" } as const;
+
+/**
+ * What a row is drawn in when its file is not what the last commit says it is.
+ *
+ * The three colours the branches on the graph carry on their rims — green for
+ * what has arrived, amber for what has been rewritten, red for what has gone —
+ * so the column and the canvas answer the same question the same way, one in
+ * names and the other in shares of a circle.
+ *
+ * A folder is drawn in what everything underneath it comes to, which is how the
+ * one colour a file has that is not on the disk any more is seen at all: a
+ * deleted file has no row, and the folder it was in turns red. A folder whose
+ * contents disagree is amber — it has been rewritten, whatever each file did.
+ */
+const CHANGE_COLOUR: Record<Change, string> = {
+  added: "success.main",
+  modified: "warning.main",
+  deleted: "error.main",
+};
 
 /** Rows sit one step in from the folder the pane is showing. */
 const ROW_INDENT = 2;
@@ -269,6 +289,11 @@ function Level({
   const folders = rows.filter((entry) => entry.isDir).map((entry) => entry.path);
   const counts = useRepositoryCounts(folders);
 
+  // What is uncommitted here, by the name of the row it belongs to. Read for
+  // this directory alone and shared with nobody: a level draws its own rows,
+  // and a folder further down is answered for by the level showing it.
+  const changes = useDirectoryChanges(path);
+
   /** Draws the next chunk of rows, out of whatever room the frame has. */
   const drawMore = useCallback(() => {
     startTransition(() => setShown((count) => count + MORE_ROWS));
@@ -318,8 +343,14 @@ function Level({
     read(true);
     // Watched for as long as this level is on screen, so a worktree removed —
     // or a file written by whatever is running in the panel — leaves the pane
-    // as soon as it leaves the disk.
-    const stop = watchDirectory(path, () => read(false));
+    // as soon as it leaves the disk. What is uncommitted moved with it, and is
+    // read again on the back of the same event rather than waiting for its own
+    // clock: a file saved in the panel is a row that turns amber as it is
+    // saved.
+    const stop = watchDirectory(path, () => {
+      read(false);
+      refreshChanges();
+    });
 
     return () => {
       cancelled = true;
@@ -342,6 +373,12 @@ function Level({
 
       {rows.map((entry) => {
         const open = expanded.includes(entry.path);
+        // The whole of what a row says about git: a name in the colour of what
+        // became of the file behind it, and nothing at all when it is what the
+        // last commit says it is. No badge and no second column — the listing
+        // is already a list of names, and this is those names read again.
+        const change = changes.get(entry.name);
+        const colour = change && CHANGE_COLOUR[change];
         return (
           <Box key={entry.path}>
             <ListItemButton
@@ -369,8 +406,12 @@ function Level({
             >
               {/* The same grey as a file's: a folder is told from a file by the
                   drawing, and a listing where one kind of row is coloured reads
-                  as a listing of that kind with the rest around it. */}
-              <ListItemIcon sx={ICON}>
+                  as a listing of that kind with the rest around it. Colour is
+                  spent on the other thing instead — the mark takes the name's
+                  colour when git has something to say about the row, so the
+                  whole row moves together and none of it moves for anything
+                  else. */}
+              <ListItemIcon sx={colour ? { ...ICON, color: colour } : ICON}>
                 {/* Open or shut, which is the whole of what the row's own
                     click does — so the icon is where that is said. */}
                 {entry.isDir ? (
@@ -384,7 +425,13 @@ function Level({
                   it, and the marks at the far end would each answer twice. */}
               <ListItemText
                 primary={entry.name}
-                slotProps={{ primary: { variant: "body2", noWrap: true } }}
+                slotProps={{
+                  primary: {
+                    variant: "body2",
+                    noWrap: true,
+                    sx: colour ? { color: colour } : undefined,
+                  },
+                }}
               />
               {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
               {/* Both offers at the right hand end, in the same order at every

@@ -1,12 +1,11 @@
 import { createContext, useContext } from "react";
 
-import type { AgentId } from "../lib/agents";
 import type { Ask } from "../lib/ask";
 import type { RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { Repository } from "../types/git";
 
-/** A branch, and what is to be opened in it. */
+/** A branch, and the terminal to be opened in it. */
 export type WorkRequest = {
   /**
    * The repository the branch is in, or null when the directory is not one —
@@ -20,8 +19,6 @@ export type WorkRequest = {
    * which is made on the way in; a folder always has one.
    */
   cwd: string | null;
-  /** null opens a plain shell. */
-  agent: AgentId | null;
 };
 
 /** A branch head that was picked, and where on screen it was. */
@@ -41,7 +38,7 @@ export type BranchPick = {
  * render would make every node look changed.
  */
 export type GraphActions = {
-  /** Open a shell or an agent in a branch, making its worktree if need be. */
+  /** Open a terminal in a branch, making its worktree if need be. */
   openWork: (request: WorkRequest) => void;
   /** A branch head was picked, at this point on screen. */
   pickBranch: (pick: BranchPick) => void;
@@ -68,6 +65,17 @@ export type GraphActions = {
   expand: (repository: string) => void;
   /** Fold it back down to its newest `shown` commits. */
   fold: (repository: string, shown: number) => void;
+  /**
+   * How deep a history a pull has reached, which is not yet how deep the
+   * repository is showing.
+   *
+   * The band is laid out at it and drawn as a proposal — dashed throughout —
+   * and the canvas stands back far enough to hold the whole of what that comes
+   * to. `null` ends the pull having asked for nothing, and puts both back.
+   */
+  reachFold: (repository: string, shown: number | null) => void;
+  /** The pull was let go: what it reached is what the repository shows. */
+  keepFold: (repository: string) => void;
   /** Put a running session in the panel, or take it back out again. */
   showSession: (session: Session) => void;
   /** End it: the process stops and it leaves the graph. */
@@ -122,6 +130,8 @@ const GraphActionsContext = createContext<GraphActions>({
   toggleFolder: () => {},
   expand: () => {},
   fold: () => {},
+  reachFold: () => {},
+  keepFold: () => {},
   showSession: () => {},
   endSession: () => {},
   answer: () => {},

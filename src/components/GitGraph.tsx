@@ -1,5 +1,6 @@
 import {
   type Edge,
+  getViewportForBounds,
   type NodeMouseHandler,
   type NodeTypes,
   ReactFlow,
@@ -36,7 +37,6 @@ import { reconcile } from "../lib/graph/reconcile";
 import { centreOf } from "../lib/graphNav";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
-import type { Agent } from "../types/running";
 import { GraphLines } from "./GraphLines";
 import { type BranchPick, GraphActionsProvider, type WorkRequest } from "./graphActions";
 import { type GraphMarks, GraphMarksProvider } from "./graphMarks";
@@ -85,6 +85,20 @@ const FIT_DELAY_MS = 80;
 const DETAIL_ZOOM = 0.3;
 /** How far past the threshold the canvas has to come back for them to return. */
 const DETAIL_GAP = 1.2;
+
+/**
+ * How far the canvas may be taken, either way.
+ *
+ * Far enough out to hold a workspace of long histories — a pull standing the
+ * canvas back to fit one runs into this and no sooner — and far enough in for a
+ * commit to be a thing rather than a dot.
+ */
+const MIN_ZOOM = 0.02;
+const MAX_ZOOM = 5;
+/** The share of the pane left round what is framed, which is `fitView`'s own. */
+const FIT_PADDING = 0.1;
+/** How long the canvas takes to come back from a pull that asked for nothing. */
+const RETURN_MS = 200;
 
 const FILE_PREVIEW_SIZE = { width: 360, height: 240 } as const;
 
@@ -164,19 +178,16 @@ type Props = {
    * is drawn from.
    */
   folders: readonly Folder[];
-  /** What this window is running, in the order it was opened. */
-  sessions: readonly Session[];
   /**
-   * Every agent the machine is running, this window's own included.
+   * What this window is running, in the order it was opened.
    *
    * A terminal is a mark in the column past its repository's branches, joined
-   * by a line drawn through to the branch it is itself driving and by a thinner
-   * dashed one to every other checkout it has an agent working in. Whose
-   * terminal it is makes no difference to that: the graph is where work is
-   * looked for, and a terminal somebody else left running is the same fact
-   * about a worktree as one opened here.
+   * by a line to the branch it is standing in. Only this window's own: a
+   * terminal somebody opened somewhere else cannot be shown here or ended from
+   * here, and a mark that answers to nothing is a list entry rather than a
+   * thing on a canvas.
    */
-  running: readonly Agent[];
+  sessions: readonly Session[];
   /** The session the panel is showing, if any. */
   showing: string | null;
   /**
@@ -214,7 +225,6 @@ export function GitGraph({
   workspace,
   folders,
   sessions,
-  running,
   showing,
   asks,
   onAnswer,
@@ -232,17 +242,24 @@ export function GitGraph({
   // The graph React Flow is currently showing, which is what the next one is
   // built against.
   const applied = useRef<GraphResult | null>(null);
-  const { visible, expand: expandDepth, fold: foldDepth } = useHistoryDepth();
+  const {
+    visible,
+    reaching,
+    expand: expandDepth,
+    fold: foldDepth,
+    reach,
+    keep,
+  } = useHistoryDepth();
   // What each worktree has uncommitted, which the branch rings are drawn from.
   const worktreeStatus = useWorktreeStatus(workspace);
   const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);
   const graph = useMemo(
     () =>
       buildCommitGraph(
-        { workspace, folders, visible, opened, sessions, running, showing, asks },
+        { workspace, folders, visible, opened, sessions, showing, asks, reaching },
         applied.current ?? undefined,
       ),
-    [workspace, folders, visible, opened, sessions, running, showing, asks],
+    [workspace, folders, visible, opened, sessions, showing, asks, reaching],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(graph.nodes);
@@ -308,6 +325,71 @@ export function GitGraph({
     [foldDepth, pin],
   );
 
+  /**
+   * Stands the canvas back far enough to hold the whole of what is drawn.
+   *
+   * Worked out from the extent the build measured rather than by asking React
+   * Flow to fit its own nodes: a fit is a pass over the store, and the store is
+   * handed this frame's nodes after this frame — waiting for that is what
+   * `FIT_DELAY_MS` is, and a pull cannot spend it eighty times. The extent is
+   * the same box the lines are given, and it is already in hand.
+   */
+  const standBack = useCallback((extent: { width: number; height: number }) => {
+    const flow = instance.current;
+    const pane = host.current?.getBoundingClientRect();
+    if (!flow || !pane || pane.width === 0 || pane.height === 0) return;
+    if (extent.width <= 0 || extent.height <= 0) return;
+    flow.setViewport(
+      getViewportForBounds(
+        { x: 0, y: 0, width: extent.width, height: extent.height },
+        pane.width,
+        pane.height,
+        MIN_ZOOM,
+        MAX_ZOOM,
+        FIT_PADDING,
+      ),
+    );
+  }, []);
+
+  /**
+   * Where the canvas was standing when the pull began.
+   *
+   * A pull let go where it started asked for nothing, and a canvas left
+   * standing back from a graph that never changed would be the one thing such a
+   * gesture had left behind. So it is put back, over a moment rather than at
+   * once: the band closing up and the canvas coming in are the same movement
+   * undone, and a jump would read as a third thing having happened.
+   */
+  const beforeReach = useRef<Viewport | null>(null);
+
+  const reachFold = useCallback(
+    (repository: string, shown: number | null) => {
+      if (shown === null) {
+        const was = beforeReach.current;
+        beforeReach.current = null;
+        reach(repository, null);
+        if (was) instance.current?.setViewport(was, { duration: RETURN_MS });
+        return;
+      }
+      // Taken on the first frame of the pull and held for the whole of it: the
+      // canvas moves on every frame after that, and what it is being put back
+      // to is where it was before any of them.
+      beforeReach.current ??= instance.current?.getViewport() ?? null;
+      reach(repository, shown);
+    },
+    [reach],
+  );
+
+  const keepFold = useCallback(
+    (repository: string) => {
+      // Nothing to put back: the canvas is standing where the pull left it, and
+      // what it is looking at is exactly what was asked for.
+      beforeReach.current = null;
+      keep(repository);
+    },
+    [keep],
+  );
+
   // Only what the last workspace change actually moved is handed over; a
   // repository that stayed put keeps the nodes React Flow already measured,
   // selected and drew. What did move is walked there rather than put there.
@@ -325,6 +407,18 @@ export function GitGraph({
       }));
       return [...merged, ...files];
     });
+
+    // A pull is under way, and the band it is in was laid out again for this
+    // very frame of it. Nothing is walked and nothing is held still: what is
+    // drawn is what the hand is asking for, the fold it is on stays at the
+    // column it has always been at, and the history runs out to the right of it
+    // — which is a band that is wider every frame. The canvas takes that by
+    // standing back far enough to hold the whole of what is now drawn.
+    if (reaching) {
+      pinned.current = null;
+      standBack(graph.extent);
+      return;
+    }
 
     // A fold or an expand: the canvas takes the whole of the move, so nothing
     // on it appears to have moved at all — the history that arrives comes in
@@ -345,7 +439,7 @@ export function GitGraph({
     }
 
     glide(from, graph.nodes);
-  }, [graph, setNodes, glide]);
+  }, [graph, setNodes, glide, reaching, standBack]);
 
   // File cards belong to the canvas, but not to a repository rebuild. Each
   // request is placed once in the current viewport and then React Flow owns its
@@ -733,7 +827,6 @@ export function GitGraph({
             repository: node.data.repository,
             branch: node.data.name,
             cwd: node.data.cwd,
-            agent: null,
           });
           return;
         case "collapse":
@@ -827,6 +920,8 @@ export function GitGraph({
       toggleFolder,
       expand,
       fold,
+      reachFold,
+      keepFold,
       showSession: onShowSession,
       endSession: onEndSession,
       answer: onAnswer,
@@ -846,6 +941,8 @@ export function GitGraph({
       toggleFolder,
       expand,
       fold,
+      reachFold,
+      keepFold,
       onShowSession,
       onEndSession,
       onAnswer,
@@ -893,8 +990,8 @@ export function GitGraph({
               // the small interactive node set stays mounted. React Flow's own
               // per-frame visibility pass cost more than moving those nodes.
               onlyRenderVisibleElements={false}
-              minZoom={0.02}
-              maxZoom={5}
+              minZoom={MIN_ZOOM}
+              maxZoom={MAX_ZOOM}
               proOptions={proOptions}
               fitView
             >

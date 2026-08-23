@@ -56,7 +56,7 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            openWork({ repository: null, branch: name, cwd: root, agent: null });
+            openWork({ repository: null, branch: name, cwd: root });
           }}
         >
           <TerminalIcon sx={{ fontSize: 11 }} />

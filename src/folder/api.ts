@@ -84,6 +84,31 @@ export function repositoryCounts(paths: string[]): Promise<Record<string, number
 }
 
 /**
+ * What became of a file, as far as a row in the column can show it.
+ *
+ * Green for what has arrived, amber for what has been rewritten, red for what
+ * has gone — the three the graph's rims are drawn in, said here one file at a
+ * time.
+ */
+export type Change = "added" | "modified" | "deleted";
+
+/**
+ * What is uncommitted in each of these directories, by the row it belongs to.
+ *
+ * Keyed by the directory asked about, then by the name of an entry in it. An
+ * entry that is a folder carries what everything underneath it comes to, so a
+ * change three levels down colours the one row in this listing that leads to
+ * it — and a directory git will not answer for, which is most of a machine, is
+ * left out rather than failing the call.
+ *
+ * All of them in one crossing, because they are asked for on a clock: see
+ * `changes.ts`, which is the only caller.
+ */
+export function directoryChanges(paths: string[]): Promise<Record<string, Record<string, Change>>> {
+  return invoke<Record<string, Record<string, Change>>>("directory_changes", { paths });
+}
+
+/**
  * Watches exactly these directories, and stops watching everything else.
  *
  * The whole set every time rather than one path at a time: the panes know what

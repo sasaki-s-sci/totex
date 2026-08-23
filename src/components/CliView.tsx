@@ -202,7 +202,7 @@ export function CliView({ session, shown, onEnded }: Props) {
       // next. Closing the session is what ends it, and that goes through the
       // graph.
     };
-  }, [session.id, session.cwd, session.agent]);
+  }, [session.id, session.cwd]);
 
   // A terminal keeps its own copy of the colours it was built with, so the
   // window being set to the other palette is something it has to be told. Told

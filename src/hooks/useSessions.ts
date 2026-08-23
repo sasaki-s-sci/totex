@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { cancelAgent } from "../lib/agentRun";
-import { endShell, startShell } from "../lib/pty";
-import type { Session } from "../lib/session";
+import { endShell, runningShells, startShell } from "../lib/pty";
+import { restored, type Session } from "../lib/session";
 
 /**
  * Everything that is running, and which one the panel is showing.
@@ -16,21 +15,42 @@ export function useSessions() {
   const [sessions, setSessions] = useState<readonly Session[]>([]);
   const [showing, setShowing] = useState<string | null>(null);
 
+  // What was already running when this window came up. A session is a process
+  // and outlives whatever is drawing it, so a window that starts with an empty
+  // list is a window that has lost sight of live shells — its own, from before
+  // it was reloaded, or ones it was never the window for. None of them is shown
+  // by this: they are put back on the graph, and the panel is left where it was.
+  useEffect(() => {
+    let alive = true;
+    runningShells()
+      .then((running) => {
+        if (!alive) return;
+        setSessions((current) => {
+          const known = new Set(current.map((session) => session.id));
+          // Anything opened while this was in flight is this window's own and
+          // is already where it belongs; what came back is older than all of it.
+          const found = restored(running).filter((session) => !known.has(session.id));
+          return found.length === 0 ? current : [...found, ...current];
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   /** Stops the process behind a session, and says when it is stopped. */
   const kill = useCallback((going: Session): Promise<unknown> => {
-    if (going.surface === "cli") {
-      return endShell(going.id).catch(() => undefined);
-    }
-    return cancelAgent(going.id).catch(() => undefined);
+    return endShell(going.id).catch(() => undefined);
   }, []);
 
   /**
    * Starts one, and shows it.
    *
    * Always another one: pressing a branch's button again gives that branch a
-   * second terminal or a second agent, not the first one back. Two of them in
-   * the same directory is the point — one running something long while the next
-   * is used for everything else — so nothing here dedupes them.
+   * second terminal, not the first one back. Two of them in the same directory
+   * is the point — one running something long while the next is used for
+   * everything else — so nothing here dedupes them.
    */
   const open = useCallback((next: Session) => {
     // Started here, with the session, and not by whatever draws it: a session
@@ -39,7 +59,7 @@ export function useSessions() {
     // else, and whether or not anybody ever looks at it. What it says in the
     // meantime is kept for whichever terminal asks. A failure has nothing to
     // say here; the terminal is where it is answered, and it asks again.
-    if (next.surface === "cli") void startShell(next).catch(() => undefined);
+    void startShell(next).catch(() => undefined);
     setSessions((current) => [...current, next]);
     setShowing(next.id);
   }, []);

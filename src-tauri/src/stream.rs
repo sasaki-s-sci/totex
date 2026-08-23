@@ -14,22 +14,10 @@
 //! a hundred. Nothing is delayed by more than a frame, which is the soonest
 //! any of it could have been seen.
 
-use serde::Serialize;
 use std::io::Read;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
-
-/// A run of output, addressed to whichever session asked for it.
-///
-/// The shape both the terminal and the agent hand to the window, so it is
-/// declared beside the pump that produces them rather than once per caller.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Chunk {
-    pub id: String,
-    pub data: String,
-}
 
 /// How long output is gathered before it is handed over. Under a frame, so
 /// nothing waits on it visibly.

@@ -1,7 +1,6 @@
 import type { Node } from "@xyflow/react";
 
 import type { Branch, Commit, Repository, Worktree } from "../../types/git";
-import type { Agent } from "../../types/running";
 import type { Session } from "../session";
 import type { AskFlowNode } from "./asking";
 
@@ -266,6 +265,16 @@ export type BranchHeadData = {
   hasRemote: boolean;
   /** The worktree this is checked out in, which a shell can be opened in. */
   cwd: string | null;
+  /**
+   * The branch is only being proposed: a pull has reached the history it
+   * stands on and the hand has not let go of it yet.
+   *
+   * Folding a stretch of history away folds away what is on it, so a pull the
+   * other way brings branches back — and until it is let go they are drawn the
+   * way this canvas draws everything that is an offer rather than a fact. See
+   * `useHistoryPull`.
+   */
+  provisional?: boolean;
 };
 
 export type RepositoryNodeData = {
@@ -338,32 +347,12 @@ export type CollapseNodeData = {
  * there is no third case.
  */
 export type CliNodeData = {
-  /** This window's own, which is the one kind that can be shown and ended. */
-  session: Session | null;
-  /**
-   * The process behind it, when there is one the sweep knows about.
-   *
-   * Set for a terminal somebody else opened and for one of this window's own
-   * that has been paired with what the sweep found; null for a session whose
-   * process has not been seen yet.
-   */
-  cli: Agent | null;
+  /** The terminal itself, which is what a press on the mark shows and ends. */
+  session: Session;
   /** The one the panel is showing, if it is this one. */
   showing: boolean;
-  /** Which of the directory's same-kind sessions it is, when there is more than one. */
+  /** Which of the directory's sessions it is, when there is more than one. */
   ordinal: number | null;
-  /** What is running in it, as a colour; a plain shell has none of its own. */
-  colour: string;
-  /**
-   * How many agents it is running that have no process of their own.
-   *
-   * The lines say where those agents are working, and two of them in the same
-   * directory are one line; this is what says there were two. A count rather
-   * than marks: a subagent is a thread of this very terminal, and the canvas
-   * growing a mark every time one starts would say the machine was filling up
-   * when what happened is that one terminal got busy.
-   */
-  carrying: number;
 };
 
 /**
@@ -557,38 +546,23 @@ export type StrokeStyle = {
   dash?: string;
 };
 
-/** What a terminal running nothing in particular is drawn in. */
-export const SHELL_COLOR = "var(--mui-palette-text-disabled)";
-
 /**
- * How an agent is drawn: a thin dashed line from the terminal running it to the
- * branch it is working in.
+ * A terminal, joined to the branch it is running in.
  *
- * Dashed because it is not history — nothing here was committed — and in the
- * colour of whatever is running, which is the one place on this canvas where a
- * colour names a thing rather than a line of development. It has to: the marks
- * at either end are a terminal and a branch, and neither of them is the agent.
- * The line is.
+ * One colour for every one of them, because they are one kind of thing: a
+ * terminal in a directory. What is being run inside it is not this canvas's
+ * to know — the window opened a shell, and what somebody types into it is
+ * theirs — so a colour that named it would be a colour naming a guess.
+ *
+ * Every line into this column is one of these: what a branch could be running
+ * and is not is said by the button on its ring, and a dashed line out to a mark
+ * holding a place open was the canvas drawing something that had not happened.
  */
-export function reachStroke(colour: string): StrokeStyle {
-  return { colour, width: 1.2, opacity: 0.5, dash: "2 4" };
-}
-
-/**
- * A terminal that really is running, joined to the branch it is driving.
- *
- * Solid, in the colour of whatever is in it — and thicker than the dashes an
- * agent of the same terminal is drawn in, so that the place somebody is sitting
- * in front of is told from the places they have work going on at a glance.
- *
- * Every line into this column is one of these now: what a branch could be
- * running and is not is said by the button on its ring, and a dashed line out
- * to a mark holding a place open was the canvas drawing something that had not
- * happened.
- */
-export function runStroke(colour: string): StrokeStyle {
-  return { colour, width: 1.4, opacity: 0.7 };
-}
+export const CLI_STROKE: StrokeStyle = {
+  colour: "var(--mui-palette-text-disabled)",
+  width: 1.4,
+  opacity: 0.7,
+};
 
 /**
  * A line the pointer can reach, and what it would do.
@@ -682,4 +656,14 @@ export type Band = {
    * and the layout they hang off is handed back untouched.
    */
   runs: BandLines["strokes"];
+  /**
+   * The whole band is what a pull is reaching for rather than what the
+   * repository is showing.
+   *
+   * Every line and mark in it is drawn dashed while that is so, which is one
+   * class on the band's own group — see `GraphLines` — rather than a different
+   * stroke on each of a thousand lines. Let go, and the band is rebuilt at the
+   * depth it reached with nothing provisional about it.
+   */
+  provisional?: boolean;
 };

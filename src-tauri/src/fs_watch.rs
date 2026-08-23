@@ -67,6 +67,13 @@ impl BrowseWatch {
         let mut guard = crate::sync::lock(&self.current);
         *guard = next;
     }
+
+    /// Stops watching altogether. The tree says what it wants watched every
+    /// time it changes, so what this costs is one round of notifications
+    /// nobody had asked about yet.
+    pub fn clear(&self) {
+        self.replace(None);
+    }
 }
 
 /// Watches exactly `paths` — the directories the tree has open — and nothing
