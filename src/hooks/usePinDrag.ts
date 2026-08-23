@@ -3,7 +3,7 @@ import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
 import { HEADER_HEIGHT } from "../components/WindowControls";
 
 /** What a card's header comes to: the least of a card that has to stay reachable. */
-const HEADER_ROW = 24;
+const HEADER_ROW = 20;
 
 /** Between the two, and at the lower of them when there is no room between. */
 function hold(value: number, least: number, most: number): number {

@@ -497,9 +497,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           }}
         >
           {data.pinnedAt ? (
-            <PushPinIcon sx={{ fontSize: 14 }} />
+            <PushPinIcon sx={{ fontSize: 12 }} />
           ) : (
-            <PushPinOutlinedIcon sx={{ fontSize: 14 }} />
+            <PushPinOutlinedIcon sx={{ fontSize: 12 }} />
           )}
         </button>
         {/* Sideways: the arrow points the two ways the card is being asked to
@@ -515,7 +515,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             fitWidth();
           }}
         >
-          <HeightIcon sx={{ fontSize: 14, transform: "rotate(90deg)" }} />
+          <HeightIcon sx={{ fontSize: 12, transform: "rotate(90deg)" }} />
         </button>
         <button
           type="button"
@@ -529,9 +529,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           }}
         >
           {data.collapsed ? (
-            <KeyboardArrowDownIcon sx={{ fontSize: 14 }} />
+            <KeyboardArrowDownIcon sx={{ fontSize: 12 }} />
           ) : (
-            <KeyboardArrowUpIcon sx={{ fontSize: 14 }} />
+            <KeyboardArrowUpIcon sx={{ fontSize: 12 }} />
           )}
         </button>
         <button
@@ -543,7 +543,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             closeFilePreview(data.requestId);
           }}
         >
-          <CloseIcon sx={{ fontSize: 14 }} />
+          <CloseIcon sx={{ fontSize: 12 }} />
         </button>
       </header>
 
