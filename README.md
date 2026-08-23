@@ -73,7 +73,7 @@ itself from.
 
 ## Updating
 
-The last mark in the settings dialog is the whole of it. A press looks at the
+The last row of the settings dialog is the whole of it. A press looks at the
 release page and takes the cheapest thing this copy is behind on.
 
 **The window's own pages first.** About a megabyte, checked against the same key
@@ -101,7 +101,8 @@ registered against it says what it is working on, and that is drawn on the
 graph beside the terminal it came from — a line, and how far through a plan it
 is — so it can be read without the terminal being opened.
 
-Two things have to be true, and they are the two marks in the settings dialog.
+Two things have to be true, and they are the two rows the settings dialog gives
+them.
 
 **The server has to be standing.** It is off until it is switched on, and what
 was switched on is remembered for the next window. Terminals opened before it
@@ -115,7 +116,7 @@ variable rather than an address:
 claude mcp add --scope user --transport http totex '${TOTEX_MCP_URL}'
 ```
 
-The second mark in the dialog runs exactly that, here and in every WSL
+The setup button in the dialog runs exactly that, here and in every WSL
 distribution it can reach. Any other agent that expands environment variables
 in its own configuration is registered the same way — a streamable HTTP server
 pointed at `${TOTEX_MCP_URL}`:

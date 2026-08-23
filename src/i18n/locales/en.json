@@ -54,26 +54,33 @@
     "open": "Open the terminal",
     "working": "is working"
   },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "mcp": "Agent reports",
+    "mcpHint": "Let the agents say what they are working on",
+    "register": "Agent setup",
+    "registerHint": "Point this machine's agent at the server",
+    "update": "Update"
+  },
   "mcp": {
-    "serve": "Let the agents say what they are doing",
-    "stop": "Stop listening",
-    "register": "Set up the agent on this machine",
-    "registering": "Setting up the agent",
-    "registered": "The agent is set up",
-    "refused": "The agent could not be set up"
+    "register": "Set up",
+    "registering": "Setting up…",
+    "registered": "Done",
+    "refused": "Failed"
   },
   "update": {
-    "check": "Check for a new version",
-    "checking": "Checking for a new version",
-    "current": "This is the newest version",
-    "fetching": "Downloading the new version",
-    "reload": "Reload the window to finish updating",
-    "restart": "Restart to finish updating",
-    "held": "There is a newer version this copy cannot install",
-    "failed": "The update did not finish"
+    "check": "Check for updates",
+    "checking": "Checking…",
+    "current": "Up to date",
+    "fetching": "Downloading…",
+    "reload": "Reload to finish",
+    "restart": "Restart to finish",
+    "held": "Update with your package manager",
+    "failed": "Failed, try again"
   },
   "theme": {
-    "system": "Follow the machine",
+    "system": "System",
     "light": "Light",
     "dark": "Dark"
   },

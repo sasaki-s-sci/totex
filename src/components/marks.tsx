@@ -302,45 +302,6 @@ export function SettingsMark() {
 }
 
 /**
- * Which of the three the window is set to: the machine's own, light, or dark.
- *
- * One mark for the three, because it is one button — the state it is in is
- * what is drawn, the way `MaximiseMark` draws which of its two moves is next.
- * A half-filled disc for the machine's own is the older mark of the three and
- * the one that says "whichever it is over there" without a word: the sun and
- * the moon are a choice, and this is the absence of one.
- */
-export function ThemeMark({ mode }: { mode: "system" | "light" | "dark" }) {
-  if (mode === "dark") {
-    return (
-      <Frame>
-        <path d="M20.5 13.4 A8.6 8.6 0 1 1 10.6 3.5 A6.9 6.9 0 0 0 20.5 13.4 Z" />
-      </Frame>
-    );
-  }
-
-  if (mode === "light") {
-    return (
-      <Frame>
-        <circle cx="12" cy="12" r="4.2" />
-        <path d="M12 2.5 V4.6 M12 19.4 V21.5 M2.5 12 H4.6 M19.4 12 H21.5" />
-        <path d="M5.22 5.22 L6.7 6.7 M17.3 17.3 L18.78 18.78 M17.3 6.7 L18.78 5.22 M5.22 18.78 L6.7 17.3" />
-      </Frame>
-    );
-  }
-
-  return (
-    <Frame>
-      <circle cx="12" cy="12" r="7.5" />
-      {/* The lit half, filled rather than outlined: the one place a mark in
-          this window is a shape and not a line, because half a disc drawn as a
-          line is a disc with a rule through it. */}
-      <path d="M12 4.5 A7.5 7.5 0 0 1 12 19.5 Z" fill="currentColor" stroke="none" />
-    </Frame>
-  );
-}
-
-/**
  * The radius the two ring marks are struck at, and the way round it.
  *
  * A circle's dash offset is counted in the length of its own outline, so the
@@ -364,15 +325,15 @@ const SPIN = {
 /**
  * Where the app is in replacing itself, as one mark on one button.
  *
- * Seven drawings, one press between them, the way `ThemeMark` and
- * `MaximiseMark` are one button each: an arrow down for the offer to look, a
+ * Seven drawings, one press between them, the way `MaximiseMark` is one button
+ * for both of its moves: an arrow down for the offer to look, a
  * ring while it is looking, a tick for nothing to do, the same ring filling as
  * the new version arrives, two arrows round a circle for the reload that
  * finishes the pages, and one arrow round a circle for the restart that
- * finishes the program. A failure is the arrow again, in red — see
- * `UpdateButton`, which is what colours it: what went wrong is not a thing this
- * window has a word for, and pressing again is the whole of what can be done
- * about it.
+ * finishes the program. A failure is the arrow again, in red — see the update
+ * section of `SettingsDialog`, which is what colours it: what went wrong is not
+ * a thing this window has a word for, and pressing again is the whole of what
+ * can be done about it.
  *
  * The seventh is the arrow struck through: a release nothing here can take any
  * more of. The two circles are told apart by how many arrows are in them, which
