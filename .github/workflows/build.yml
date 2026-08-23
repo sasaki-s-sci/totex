@@ -102,9 +102,13 @@ jobs:
             if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }'
 
       - name: Verify the tag names the version being built
-        # The version in the config is what goes into the installers' own file
-        # names, so a tag that disagrees with it ships downloads nobody can
-        # match against the release they came from.
+        # Nothing downloaded from a release carries the version in its name any
+        # more -- see how the installers are collected below -- so the tag is
+        # what says which release a file came out of, and the config is what
+        # every copy of it will say about itself once it is installed. A tag
+        # that disagrees with the config releases a version that cannot be
+        # asked for by name: `--version 0.1.5` reads the manifest under that
+        # tag and turns down what it finds there for saying something else.
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
@@ -175,19 +179,73 @@ jobs:
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
           pnpm tauri build --target ${{ matrix.target }} $sign
 
-      - name: Collect the installers
+      - name: Collect the installers under names that do not move
         # Every platform bundles into its own subdirectories under one tree, so
         # they are gathered into a single flat directory here and the two steps
         # that follow are the same on all three.
+        #
+        # They are renamed on the way, and that is what gives every one of them
+        # an address worth writing down. What tauri calls a bundle carries the
+        # version in it -- totex_0.1.5_x64-setup.exe -- so the name is a
+        # different one at every release, and `releases/latest/download/<name>`,
+        # the one URL GitHub offers that always answers with the newest
+        # release, cannot be written for a name nobody knows yet. Under a name
+        # that is the same at every release it can. That is what the two
+        # install scripts have always had, and this is the same thing for the
+        # installers somebody would rather click: one link in the README, and
+        # no release cut after it was written moves it.
+        #
+        # The name is the artifact's own, plus what the file is -- and that
+        # second half is what scripts/update-manifest.mjs matches a bundle by,
+        # so the two lists are one list written twice. Dropping the version out
+        # of a name loses nothing: the tag the download hangs under says which
+        # release it is, the installers write it into Add/Remove Programs, and
+        # the app says it in its own settings dialog.
         shell: bash
+        env:
+          NAME: ${{ matrix.artifact }}
         run: |
+          set -euo pipefail
           mkdir -p dist-release
-          find "src-tauri/target/${{ matrix.target }}/release/bundle" -type f \
-            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-               -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \
-               -o -name '*.app.tar.gz' -o -name '*.sig' \) \
-            -not -name 'rw.*' \
-            -exec cp {} dist-release/ \;
+
+          # Every bundler writes what it made into a directory of its own, and
+          # these are all of them. What is anywhere else under bundle/ is what
+          # a bundle was assembled out of rather than a bundle -- the tree an
+          # AppImage is built in holds an unpacked copy of the `.deb` beside
+          # it -- and none of that is something to publish.
+          for made in nsis msi dmg macos appimage deb rpm; do
+            for file in "src-tauri/target/${{ matrix.target }}/release/bundle/$made"/*; do
+              [ -f "$file" ] || continue
+              case "${file##*/}" in
+                # The disk image a `.dmg` is written in before it is one.
+                rw.*) continue ;;
+                *-setup.exe) is='-setup.exe' ;;
+                *.msi) is='.msi' ;;
+                *.dmg) is='.dmg' ;;
+                *.app.tar.gz) is='.app.tar.gz' ;;
+                *.AppImage) is='.AppImage' ;;
+                *.deb) is='.deb' ;;
+                *.rpm) is='.rpm' ;;
+                # A signature goes with the file it is beside, below. Anything
+                # else in here is something a bundler wanted rather than
+                # something it made -- the script that lays out a `.dmg`, the
+                # `.app` the tarball beside it was made from.
+                *) continue ;;
+              esac
+              if [ -e "dist-release/$NAME$is" ]; then
+                echo "::error::$file is the second thing here wanting to be $NAME$is"
+                exit 1
+              fi
+              cp "$file" "dist-release/$NAME$is"
+              # The signature tauri writes beside an updater artifact follows
+              # it under the new name. What it signs is the contents of the
+              # file, which is the one thing a rename leaves alone.
+              if [ -f "$file.sig" ]; then
+                cp "$file.sig" "dist-release/$NAME$is.sig"
+              fi
+            done
+          done
+
           if [ -z "$(ls -A dist-release)" ]; then
             echo "::error::the build finished without producing an installer"
             exit 1
@@ -307,19 +365,25 @@ jobs:
             ```
 
             The files below are what they download, for anybody who would
-            rather click:
+            rather click. Their names are the same at every release — no
+            version in any of them — which is what makes a link to one worth
+            keeping:
+            `https://github.com/${{ github.repository }}/releases/latest/download/totex-macos-universal.dmg`
+            is the newest release's, today and after every release still to
+            come. Swap `latest` for a tag to hold a link to this one.
 
             | Platform | Download |
             | --- | --- |
-            | Windows | `.msi`, or `-setup.exe` |
-            | macOS | `.dmg` — Intel and Apple Silicon in the one file |
-            | Linux | `.AppImage`, `.deb` or `.rpm` |
+            | Windows | `totex-windows-x86_64-setup.exe`, or the `.msi` beside it |
+            | macOS | `totex-macos-universal.dmg` — Intel and Apple Silicon in the one file |
+            | Linux | `totex-linux-x86_64.AppImage`, `.deb` or `.rpm` |
 
-            `latest.json`, `totex.app.tar.gz` and `front.tar.gz` are what an
-            installed copy updates itself from; there is nothing to download in
-            any of them. The last is the window's own pages, which every kind of
-            installed copy can take on its own — a `.deb` and an `.rpm` included,
-            where the program itself is the package manager's to bring forward.
+            `latest.json`, `totex-macos-universal.app.tar.gz` and
+            `front.tar.gz` are what an installed copy updates itself from;
+            there is nothing to download in any of them. The last is the
+            window's own pages, which every kind of installed copy can take on
+            its own — a `.deb` and an `.rpm` included, where the program itself
+            is the package manager's to bring forward.
 
             None of these are code-signed. macOS holds a downloaded app in
             quarantine until it is let out of it:

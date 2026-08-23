@@ -57,6 +57,12 @@ const FRONT = "front.tar.gz";
 /**
  * Which kind of copy each bundle replaces.
  *
+ * Matched on the end of the name, which is the half of it the build fixes:
+ * every bundle is collected under the name of the artifact it came out of and
+ * what the file is -- totex-windows-x86_64-setup.exe -- so what is written
+ * below is the second half of the names .github/workflows/build.yml gives
+ * them, and moving one without the other is a platform this stops finding.
+ *
  * Read in order, so the longer suffix comes first: every NSIS installer is
  * also an `.exe`, and only one of the two is the one being matched.
  */

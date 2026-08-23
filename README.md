@@ -35,6 +35,42 @@ curl -fsSL https://github.com/sasaki-s-sci/totex/releases/latest/download/instal
 
 `--help` / `-Help` lists the rest of what they take.
 
+**Or take the installer yourself.** Every release page carries the installers
+as well, for anybody who would rather click than paste. Not one of their names
+holds a version, which is what makes each link below one worth keeping: it is
+the newest release today and the newest release a year from now, exactly as the
+two lines above it are.
+
+| Platform | Download |
+| --- | --- |
+| Windows | [`-setup.exe`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-windows-x86_64-setup.exe), or the [`.msi`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-windows-x86_64.msi) |
+| macOS | [`.dmg`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-macos-universal.dmg) — Intel and Apple Silicon in the one file |
+| Linux | [`.AppImage`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-linux-x86_64.AppImage), [`.deb`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-linux-x86_64.deb) or [`.rpm`](https://github.com/sasaki-s-sci/totex/releases/latest/download/totex-linux-x86_64.rpm) |
+
+An older release is the same address with `latest` swapped for the tag it was
+cut under, which is what `--version` is on the scripts. Releases cut before
+these names existed carry the version in theirs instead, and their own page is
+what has them.
+
+`-setup.exe` asks two things, where the app goes and whether there is a desktop
+shortcut, and opens totex once it has done it. The `.msi` asks nothing,
+installs for every account on the machine, and wants administrator to do that.
+The `.dmg` is the drag onto Applications. An `.AppImage` is one file: make it
+executable and run it. A `.deb` or an `.rpm` is the package manager's, which is
+also who brings it forward afterwards.
+
+What is given up by clicking is the check. The scripts turn down anything not
+signed with the key totex is released with; a browser carries no such key, so a
+download is worth what the page it came from is worth. None of it is
+code-signed either, and both platforms say so before they will open one: macOS
+holds a downloaded app in quarantine until it is let out of it — `xattr -dr
+com.apple.quarantine /Applications/totex.app` — and Windows SmartScreen calls
+it an unknown publisher, which is More info, then Run anyway.
+
+`latest.json`, `totex-macos-universal.app.tar.gz` and `front.tar.gz` sit beside
+them and are not downloads at all: they are what an installed copy updates
+itself from.
+
 ## Updating
 
 The last mark in the settings dialog is the whole of it. A press looks at the
