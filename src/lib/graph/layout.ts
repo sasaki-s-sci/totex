@@ -296,7 +296,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       curve: true,
       trim: 0,
       lead: 0,
-      stroke: { colour: LINE_COLOR, width: 1.6, opacity: 0.5, dash: "4 5" },
+      stroke: { colour: LINE_COLOR, width: 1.2, opacity: 0.5, dash: "4 5" },
     });
   }
 
@@ -331,7 +331,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       lead: 0,
       stroke: {
         colour: LINE_COLOR,
-        width: 1.45,
+        width: 1.1,
         opacity: 0.72,
         // A local branch is drawn solid whether or not it has a directory yet:
         // it is a place you can work in either way, and the worktree is made on
@@ -426,7 +426,7 @@ function labelOf(name: string, from: Point, to: Point): Label {
 }
 
 /** How history itself is drawn. */
-const HISTORY_STROKE: StrokeStyle = { colour: LINE_COLOR, width: 1.6, opacity: 0.82 };
+const HISTORY_STROKE: StrokeStyle = { colour: LINE_COLOR, width: 1.2, opacity: 0.82 };
 
 /**
  * How wide a cell of the fold index is.

@@ -15,13 +15,28 @@ mod wsl;
 
 use std::sync::Arc;
 
-use fs_browse::{FileHead, Listing, Root};
+use fs_browse::{FileHead, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
 /// Windows drives and the WSL distributions this platform can reach.
 #[tauri::command(async)]
 fn list_roots() -> Vec<Root> {
     fs_browse::list_roots()
+}
+
+/// Settles one typed path into a folder to keep beside the roots, or refuses
+/// it. Off the UI thread for the same reason as the reading below: the one
+/// question it asks the disk can be a question asked over a network.
+#[tauri::command(async)]
+fn resolve_folder(path: String) -> Result<Place, String> {
+    fs_browse::resolve_folder(&path)
+}
+
+/// Spells out the folders that were kept, which are stored as paths alone.
+/// Nothing here reads a disk — see `fs_browse::describe_folders`.
+#[tauri::command(async)]
+fn describe_folders(paths: Vec<String>) -> Vec<Place> {
+    fs_browse::describe_folders(&paths)
 }
 
 /// Reads one directory. Run off the UI thread because `\\wsl.localhost\...`
@@ -94,6 +109,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_roots,
+            resolve_folder,
+            describe_folders,
             read_directory,
             read_file_head,
             write_file,

@@ -1,4 +1,4 @@
-import { Box, useTheme } from "@mui/material";
+import { Box } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -15,6 +15,7 @@ import {
   writeShell,
 } from "../lib/pty";
 import type { Session } from "../lib/session";
+import { usePalette } from "../theme";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -54,29 +55,28 @@ type Props = {
 export function CliView({ session, shown, onEnded }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const drawn = useRef<Terminal | null>(null);
-  const theme = useTheme();
+  const palette = usePalette();
   // A shell that never came up. Nothing is written about it — the panel is
   // there, the terminal in it is empty, and the edge along the top is red.
   const [failed, setFailed] = useState(false);
 
-  // The colours the rows are drawn in, which are the window's own. Held apart
-  // from the terminal because the two do not change together: the window can be
-  // set to the other palette while a terminal is running, and a terminal
-  // rebuilt to hear about it would be rebuilt without its scrollback.
+  // The colours the rows are drawn in, which are the window's own. Read through
+  // `usePalette` rather than off the theme, because a terminal is not CSS: what
+  // is handed over here is a colour, and the theme object holds the light one
+  // whichever half the window is showing.
+  //
+  // Held apart from the terminal because the two do not change together: the
+  // window can be set to the other palette while a terminal is running, and a
+  // terminal rebuilt to hear about it would be rebuilt without its scrollback.
   const colours = useMemo(
     () => ({
-      background: theme.palette.background.paper,
-      foreground: theme.palette.text.primary,
-      cursor: theme.palette.primary.main,
-      cursorAccent: theme.palette.background.paper,
-      selectionBackground: theme.palette.action.selected,
+      background: palette.background.paper,
+      foreground: palette.text.primary,
+      cursor: palette.primary.main,
+      cursorAccent: palette.background.paper,
+      selectionBackground: palette.action.selected,
     }),
-    [
-      theme.palette.background.paper,
-      theme.palette.text.primary,
-      theme.palette.primary.main,
-      theme.palette.action.selected,
-    ],
+    [palette.background.paper, palette.text.primary, palette.primary.main, palette.action.selected],
   );
 
   // Read through a ref rather than captured: the effect below builds a terminal,

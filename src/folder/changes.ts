@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-import { type Change, directoryChanges } from "./api";
+import { type Answer, type Change, directoryChanges } from "./api";
 
-export type { Change };
+export type { Answer, Change };
 
 /**
  * How often the open directories are asked again.
@@ -36,16 +36,17 @@ const SETTLE_MS = 200;
 const open = new Map<string, Set<() => void>>();
 
 /** The last answer for each open directory. Kept by identity — see `settle`. */
-const held = new Map<string, ReadonlyMap<string, Change>>();
+const held = new Map<string, Answer>();
 
-const NOTHING: ReadonlyMap<string, Change> = new Map();
+/** A directory git has not answered for, which is most of a machine. */
+const NOTHING: Answer = { changed: {}, ignored: [], allIgnored: false };
 
 let pending: ReturnType<typeof setTimeout> | null = null;
 let clock: ReturnType<typeof setInterval> | null = null;
 let reading = false;
 
-/** What became of each entry of `path`, as far as git has been asked. */
-export function changesIn(path: string): ReadonlyMap<string, Change> {
+/** What git says about the entries of `path`, as far as it has been asked. */
+export function changesIn(path: string): Answer {
   return held.get(path) ?? NOTHING;
 }
 
@@ -90,16 +91,16 @@ export function refreshChanges() {
   schedule();
 }
 
-/** What became of each entry of `path`, kept up to date while it is drawn. */
-export function useDirectoryChanges(path: string): ReadonlyMap<string, Change> {
-  const [changes, setChanges] = useState<ReadonlyMap<string, Change>>(() => changesIn(path));
+/** What git says about the entries of `path`, kept up to date while it is drawn. */
+export function useDirectoryChanges(path: string): Answer {
+  const [answer, setAnswer] = useState<Answer>(() => changesIn(path));
 
   useEffect(() => {
-    setChanges(changesIn(path));
-    return watchChanges(path, () => setChanges(changesIn(path)));
+    setAnswer(changesIn(path));
+    return watchChanges(path, () => setAnswer(changesIn(path)));
   }, [path]);
 
-  return changes;
+  return answer;
 }
 
 /** The clock, which runs only while there is something open to ask about. */
@@ -159,23 +160,36 @@ function read() {
  * keeps what it had; a directory that is in it and empty is one with nothing
  * uncommitted, which is how colours go away again.
  */
-function settle(answers: Record<string, Record<string, Change>>) {
-  for (const [path, entries] of Object.entries(answers)) {
+function settle(answers: Record<string, Answer>) {
+  for (const [path, answer] of Object.entries(answers)) {
     const bucket = open.get(path);
     // Left in the meantime: a folder that was shut while git was out.
     if (!bucket) continue;
 
-    const next = new Map(Object.entries(entries));
-    if (same(held.get(path) ?? NOTHING, next)) continue;
-    held.set(path, next);
+    if (same(held.get(path) ?? NOTHING, answer)) continue;
+    held.set(path, answer);
     for (const onChange of bucket) onChange();
   }
 }
 
-function same(left: ReadonlyMap<string, Change>, right: ReadonlyMap<string, Change>): boolean {
-  if (left.size !== right.size) return false;
-  for (const [name, change] of left) {
-    if (right.get(name) !== change) return false;
-  }
-  return true;
+function same(left: Answer, right: Answer): boolean {
+  return (
+    left.allIgnored === right.allIgnored &&
+    sameNames(left.ignored, right.ignored) &&
+    sameChanges(left.changed, right.changed)
+  );
+}
+
+/** The ignore list comes back in git's own order, which is the same every time. */
+function sameNames(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((name, at) => name === right[at]);
+}
+
+/** By the names themselves rather than the order they arrived in: this is a map
+ *  the backend built, and two maps holding the same thing can be walked in two
+ *  different orders. */
+function sameChanges(left: Record<string, Change>, right: Record<string, Change>): boolean {
+  const names = Object.keys(left);
+  if (names.length !== Object.keys(right).length) return false;
+  return names.every((name) => Object.hasOwn(right, name) && left[name] === right[name]);
 }

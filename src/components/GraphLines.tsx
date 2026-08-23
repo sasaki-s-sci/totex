@@ -82,8 +82,14 @@ export const GraphLines = memo(function GraphLines({
             another, and what they cross is not theirs to obscure. */}
         <Reach reach={reach} standing={standing} />
         <Bands bands={bands} standing={standing} />
-        <CommitEmphasis bands={bands} standing={standing} selected={selected} picked={picked} />
-        <Hover bands={bands} standing={standing} onCommit={onCommit} />
+        <CommitEmphasis
+          bands={bands}
+          standing={standing}
+          selected={selected}
+          picked={picked}
+          onCommit={onCommit}
+        />
+        <Hover bands={bands} standing={standing} selected={selected} onCommit={onCommit} />
       </svg>
     </ViewportPortal>
   );
@@ -267,11 +273,13 @@ function CommitEmphasis({
   standing,
   selected,
   picked,
+  onCommit,
 }: {
   bands: readonly Band[];
   standing: ReadonlyMap<string, XYPosition>;
   selected: string | null;
   picked: string | null;
+  onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 }) {
   if (!selected && !picked) return null;
 
@@ -291,18 +299,18 @@ function CommitEmphasis({
         const at = commitAt(mark.dot, standing);
         return (
           <g key={mark.dot.node.id} transform={`translate(${bandAt.x} ${bandAt.y})`}>
-            {mark.picked && (
-              <rect
-                className="commit-pick"
-                x={at.x - COLUMN_WIDTH / 2}
-                y={at.y - LANE_HEIGHT / 2}
-                width={COLUMN_WIDTH}
-                height={LANE_HEIGHT}
-                rx={6}
-              />
-            )}
+            {/* The dot again, in the ink that says `here`: what the walk has
+                reached is the commit, not the cell it stands in. Drawn over the
+                batch rather than in it — see `.commit-pick`. */}
+            {mark.picked && <circle className="commit-pick" cx={at.x} cy={at.y} r={DOT_SIZE / 2} />}
             {mark.selected && (
-              <circle className="commit-selection" cx={at.x} cy={at.y} r={HALO_RADIUS} />
+              <>
+                <circle className="commit-selection" cx={at.x} cy={at.y} r={HALO_RADIUS} />
+                {/* Left out on the commit that was reached rather than only on
+                    the one under the cursor: a commit walked to with the cursor
+                    keys is a commit with nothing on it to press otherwise. */}
+                <BranchOffer node={mark.dot.node} at={at} onCommit={onCommit} />
+              </>
             )}
           </g>
         );
@@ -402,6 +410,30 @@ const MARK_RADIUS = 10;
 const FOLD =
   "M -8 -4 L -4.5 0 L -8 4 M -5 -4 L -1.5 0 L -5 4 M 8 -4 L 4.5 0 L 8 4 M 5 -4 L 1.5 0 L 5 4";
 
+/**
+ * How far over a commit's dot the offer of a branch stands.
+ *
+ * Inside the lane the commit is in and clear of its own halo: a mark that
+ * reached into the row above would read as belonging to whatever is up there,
+ * and the offer belongs to the commit under it.
+ */
+const BRANCH_LIFT = 22;
+/** The disc it is drawn on, which is what there is to aim at. */
+const BRANCH_RADIUS = 9;
+/**
+ * How far from its middle the offer answers the cursor.
+ *
+ * Wider than it is drawn, and by enough to lap over the dot's own reach: the
+ * offer is out because the cursor is on the commit, and a gap between the two
+ * would take it away again on the way to it.
+ */
+const BRANCH_REACH = 12;
+/**
+ * The mark on it: history carrying on, and a branch peeling off it — the ghost
+ * below it, drawn small enough to sit on a disc.
+ */
+const BRANCH = "M -6 -3 H 6 M -1 -3 C 2 -3, 2 4, 5 4";
+
 /** What the pointer is on, which is the only thing these are ever drawn for. */
 type Under = {
   band: Band;
@@ -428,10 +460,13 @@ type Under = {
 function Hover({
   bands,
   standing,
+  selected,
   onCommit,
 }: {
   bands: readonly Band[];
   standing: ReadonlyMap<string, XYPosition>;
+  /** The commit already wearing an offer of its own, which is not drawn twice. */
+  selected: string | null;
   onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 }) {
   const { t } = useTranslation();
@@ -482,7 +517,14 @@ function Hover({
 
         const dot = band.lines.dots.get(cell);
         const dotAt = dot ? commitAt(dot, placed.current) : null;
-        const onDot = dot && dotAt && Math.hypot(dotAt.x - local.x, dotAt.y - local.y) <= DOT_REACH;
+        // The dot and the offer standing over it are one target. Aiming at the
+        // offer means leaving the dot, and a commit that let go of the cursor
+        // partway would take the offer away before it could be pressed.
+        const onDot =
+          dot &&
+          dotAt &&
+          (Math.hypot(dotAt.x - local.x, dotAt.y - local.y) <= DOT_REACH ||
+            Math.hypot(dotAt.x - local.x, dotAt.y - BRANCH_LIFT - local.y) <= BRANCH_REACH);
 
         // Only the lines in the pointer's own cell are ever measured, which is
         // a handful of them however long the history is.
@@ -571,8 +613,12 @@ function Hover({
 
     // The native click still follows the pointer pair even though its press was
     // stopped above. Keep React Flow's pane click from immediately clearing the
-    // commit selection and closing the menu that release just opened.
+    // commit selection and closing the menu that release just opened — except
+    // over the offer, which stands inside the commit's own reach and is the one
+    // thing there that answers a click of its own.
     const click = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".nopan")) return;
       if (find(event.clientX, event.clientY)?.dot) event.stopPropagation();
     };
 
@@ -610,6 +656,13 @@ function Hover({
         </g>
       )}
 
+      {/* And what makes it real, over the dot itself. The selected commit is
+          already wearing one, drawn with its halo, so it is not drawn again
+          here: two of the same mark in the same place is one too many. */}
+      {dot && dotAt && dot.node.id !== selected && (
+        <BranchOffer node={dot.node} at={dotAt} onCommit={onCommit} />
+      )}
+
       {offer && (
         // biome-ignore lint/a11y/useSemanticElements: a button here is HTML in a foreignObject, which is what left the mark empty in WebKit
         <g
@@ -638,6 +691,51 @@ function Hover({
           </g>
         </g>
       )}
+    </g>
+  );
+}
+
+/**
+ * The offer of a branch, standing over the commit it would be cut from.
+ *
+ * The one thing a commit is for, and now the one thing that says so: the mark
+ * used to be inside the menu a commit opened, which meant a press to be shown
+ * what could be done and another to do it. It is on the canvas instead, over
+ * the dot, and what the menu is left holding is the only part of cutting a
+ * branch that cannot be a mark — its name.
+ *
+ * It is `nopan` because everything else about a commit is worked out from where
+ * the cursor is rather than from what it is over: the press that walks a dot
+ * and the click that keeps the canvas from clearing the selection both stand
+ * aside for this one element, which answers for itself.
+ */
+function BranchOffer({
+  node,
+  at,
+  onCommit,
+}: {
+  node: CommitFlowNode;
+  /** The dot it stands over, in the band's own coordinates. */
+  at: Point;
+  onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a button here is HTML in a foreignObject, which is what left the fold mark empty in WebKit
+    <g
+      className="commit-branch nopan"
+      role="button"
+      aria-label={t("commit.branch")}
+      transform={`translate(${at.x} ${at.y - BRANCH_LIFT})`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onCommit(node, { x: event.clientX, y: event.clientY });
+      }}
+    >
+      {/* Canvas, so the halo under it does not run through the mark. */}
+      <circle className="commit-branch__disc" r={BRANCH_RADIUS} />
+      <path className="commit-branch__mark" d={BRANCH} />
     </g>
   );
 }

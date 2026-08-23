@@ -562,7 +562,7 @@ export type StrokeStyle = {
  */
 export const CLI_STROKE: StrokeStyle = {
   colour: "var(--mui-palette-text-disabled)",
-  width: 1.4,
+  width: 1.0,
   opacity: 0.7,
 };
 

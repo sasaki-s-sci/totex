@@ -825,6 +825,19 @@ export function GitGraph({
   const handleNodeClick: NodeMouseHandler<AppNode> = () => setSelectedCommit(null);
 
   /**
+   * Where a walk with the cursor keys arrived.
+   *
+   * A commit reached that way is picked out the same as one that was clicked,
+   * and it stays picked out after Ctrl is let go: the ring the walk wears goes
+   * with the key it is held by, and the offer standing over what it found does
+   * not. Landing anywhere else takes the emphasis off a commit, which is what
+   * clicking anywhere else does as well.
+   */
+  const land = useCallback((node: AppNode | null) => {
+    setSelectedCommit(node?.type === "commit" ? node.id : null);
+  }, []);
+
+  /**
    * Does to a node what clicking it would.
    *
    * A session goes into the panel, a branch opens a shell in it — which is what
@@ -882,7 +895,15 @@ export function GitGraph({
     [onJumpSession],
   );
 
-  const { picked, jumps } = useGraphKeys({ nodes: graph.nodes, instance, host, activate, jump });
+  const { picked, jumps } = useGraphKeys({
+    nodes: graph.nodes,
+    instance,
+    host,
+    activate,
+    jump,
+    land,
+    selected: selectedCommit,
+  });
 
   // Ctrl and a plus or a minus, for as long as there is a file card to read.
   useReadingKeys(filePreviews.length > 0);

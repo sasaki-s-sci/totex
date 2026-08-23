@@ -57,8 +57,20 @@ const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], wa
  * column to pick up from and a canvas that has read nothing.
  */
 function storedRoots(): string[] {
-  return ["/home/a/repo/sasaki-s-sci/test-for-eni"];
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(ROOTS_KEY) ?? "[]");
+    // Whatever is under the key was written by some earlier version of this
+    // window, so it is read as a claim rather than as a fact: anything that is
+    // not a list of paths is a column that cannot be restored, and an empty
+    // column is what a window opens as anyway.
+    if (Array.isArray(stored)) return stored.filter((path) => typeof path === "string");
+  } catch {
+    // A window that cannot remember where it was browsing starts with nothing
+    // open, which is the plus in the header and the folders behind it.
+  }
+  return [];
 }
+
 export default function App() {
   return (
     // The mode is read again here rather than passed in: `main` has already
