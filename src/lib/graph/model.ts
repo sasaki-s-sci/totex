@@ -260,7 +260,8 @@ export const LINE_COLOR = "var(--line)";
 export type CommitNodeData = {
   commit: Commit;
   repository: Repository;
-  lane: number;
+  /** Counted from the trunk's row, which is zero, so it can be either side of it. */
+  row: number;
   branches: Branch[];
   worktrees: Worktree[];
   /**
@@ -274,10 +275,10 @@ export type CommitNodeData = {
    * node's own dash does not already run here.
    *
    * This is the fold's dash, on the commits the fold's single line cannot
-   * reach: a lane is handed on the moment the commit holding it is drawn, so a
-   * chain cut short by the fold is followed along its own row by an unrelated
-   * one, and the two marks either side of the join have nothing drawn between
-   * them. Without this that gap reads as a line that failed to draw.
+   * reach: a row carries whatever lines of development fit along it, so a chain
+   * cut short by the fold can be followed on its own row by an unrelated one,
+   * and the two marks either side of the join have nothing drawn between them.
+   * Without this that gap reads as a line that failed to draw.
    */
   folded: boolean;
 };

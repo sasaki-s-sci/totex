@@ -111,7 +111,8 @@ export type BranchRun = {
 
 type Placed = {
   commit: Commit;
-  lane: number;
+  /** Counted from the trunk's row, which is zero, so it can be either side of it. */
+  row: number;
   branches: Branch[];
   worktrees: Worktree[];
   boundary: boolean;
@@ -194,7 +195,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // trunk, and the name then led a stretch of history that was not the one it
   // was set against.
   const opening = hidden > 0 ? undefined : placed[placed.length - 1];
-  const nameRow = opening === undefined ? row(0) : row(signedRow(opening.lane));
+  const nameRow = opening === undefined ? row(0) : row(opening.row);
 
   const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[] = [];
   const drawn = new Lines();
@@ -203,9 +204,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // Where every commit's dot ends up, which is where the lines into and out of
   // it are drawn from. A line runs mark to mark, and a mark is the middle of
   // its cell — so this is the cell's middle and not its corner.
-  const dots = placed.map((entry, position) =>
-    middleOf(columns[position], row(signedRow(entry.lane))),
-  );
+  const dots = placed.map((entry, position) => middleOf(columns[position], row(entry.row)));
   // Where every branch stands, which is where the line out of its commit ends
   // and where a terminal working in it is joined to.
   const rings = new Map<string, Point>();
@@ -222,12 +221,12 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       extent: "parent",
       position: {
         x: column * COLUMN_WIDTH,
-        y: row(signedRow(entry.lane)),
+        y: row(entry.row),
       },
       data: {
         commit: entry.commit,
         repository,
-        lane: entry.lane,
+        row: entry.row,
         branches: entry.branches,
         worktrees: entry.worktrees,
         boundary: entry.boundary,
@@ -241,13 +240,13 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     for (const parent of entry.commit.parents) {
       const parentPosition = index.get(parent);
       if (parentPosition === undefined) continue;
-      const parentLane = placed[parentPosition].lane;
+      const parentRow = placed[parentPosition].row;
 
       // A line that stays in its row is drawn straight — which is what the same
       // curve degenerates to anyway, at a fraction of the work. One that moves
       // between rows takes the S, and that is what makes a fork or a merge
       // readable at a glance.
-      const curve = entry.lane !== parentLane;
+      const curve = entry.row !== parentRow;
       const end = shortOf(dots[position], dots[parentPosition], 0, curve);
 
       drawn.add(
@@ -651,35 +650,39 @@ function place(repository: Repository, shown: number, deep: Depth) {
   const oldest = commits.length - 1;
   const placed: Placed[] = commits.map((commit, position) => ({
     commit,
-    lane: packed[position],
+    // Filled in below, once the lines the packing found have been dealt rows.
+    row: 0,
     branches: branchesAt.get(commit.id) ?? [],
     worktrees: worktreesAt.get(commit.id) ?? [],
     boundary: commit.parents.some((parent) => !known.has(parent)),
-    // A lane is handed on as soon as the commit holding it is drawn, so a chain
-    // whose parent was folded away is followed along the same row by whatever
-    // chain took the lane next — two marks a column apart with nothing between
-    // them, which reads as a line that failed to draw rather than as history
-    // put away. The dash says which it is.
+    // A row can carry more than one line of development, so a chain whose
+    // parent was folded away is followed along its own row by whatever line was
+    // drawn there next — two marks a column apart with nothing between them,
+    // which reads as a line that failed to draw rather than as history put
+    // away. The dash says which it is.
     folded:
       position !== oldest &&
       commit.parents.some((parent) => known.has(parent) && !drawn.has(parent)),
   }));
 
-  // Which row every name is drawn on. A lane number is only ever read as the
-  // row `signedRow` turns it into, so the packing's lanes are relabelled here
-  // rather than anywhere further down: after this, reading a band from the top
-  // spells its branch names out in order.
-  const { lanes, want } = rowOrder(placed, trunk?.id, remoteNames);
-  for (const entry of placed) entry.lane = lanes.get(entry.lane) ?? entry.lane;
-
   const index = new Map(placed.map((entry, position) => [entry.commit.id, position]));
+
+  // Where the history would fall if every line kept the lane the packing gave
+  // it. Nothing is drawn from this — the rows are not settled yet, and a row is
+  // half of where a commit goes — but the stretch of the picture each line
+  // takes up is, and that is what says which lines could share a row.
+  const { columns: natural } = assignColumns(placed, index, packed.lanes);
+
+  // Which row every line of development and every name is drawn on.
+  const { rows, want } = rowOrder(placed, packed, natural, trunk?.id, remoteNames);
+  for (const [position, entry] of placed.entries()) entry.row = rows[position];
 
   // A branch pointing into the history that is not shown is not shown either:
   // folding a stretch of history away means folding away what is on it — the
   // branches, their worktrees and the buttons that work in them. The collapse
   // node says how much went, and expanding brings all of it back.
   const anchored = anchorRefs(placed, trunk?.id, remoteNames, want);
-  const { columns: own, count: span } = assignColumns(placed, index);
+  const { columns: own, count: span } = assignColumns(placed, index, rows);
 
   // The name takes the first column, the collapse node the next when there is
   // one, and the history follows.
@@ -704,7 +707,6 @@ function place(repository: Repository, shown: number, deep: Depth) {
   // stack out either way from its own row, so the rows either side of it have
   // to stand clear of half of it each. `pitch` is that measured out, and it is
   // where the whole band is hung from.
-  const rows = placed.map((entry) => signedRow(entry.lane));
   const held = new Map<number, number>();
   for (const ref of refs.placements) {
     if (!ref.run || !ref.data.cwd) continue;
@@ -828,29 +830,26 @@ function visibleCount(commits: Commit[], trunk: string | undefined): number {
 }
 
 /**
- * Which row a line of development is drawn on, counted from the trunk.
+ * What one line of development takes up, as the picture sees it.
  *
- * Rows are signed, and the trunk is row zero: everything else takes the rows
- * either side of it, lane 1 the row above and lane 2 the row below, outwards
- * from there. Which line gets which row is not settled here — `rowOrder`
- * relabels the lanes so the names read down the band — and a lane number is
- * nothing but a row said the other way round.
- *
- * Working in this space rather than in lane numbers is what lets everything
- * else ask for "the row next to that one" and mean it — lane order and row
- * order are not the same, and a branch placed one lane from its commit used to
- * come out several rows away from it.
- *
- * The band is squared up at the very end, in `bandRows`.
+ * Both ends of both axes, because sharing a row is two questions rather than
+ * one. Whether the two lines are ever drawn in the same place is the columns;
+ * whether putting them on one row would shove either of them along is the
+ * positions, since `assignColumns` walks the log and hands a row its columns in
+ * that order — so two lines can only sit on one row if the older of them is
+ * also the one further to the left.
  */
-function signedRow(lane: number): number {
-  if (lane === 0) return 0;
-  const distance = Math.ceil(lane / 2);
-  return lane % 2 === 1 ? -distance : distance;
-}
+type Extent = {
+  /** Leftmost and rightmost column its commits stand in. */
+  from: number;
+  to: number;
+  /** Newest and oldest of its commits, as positions in the log. */
+  first: number;
+  last: number;
+};
 
 /**
- * Which row every name is drawn on, and the lanes relabelled to match.
+ * Which row every line of development and every name is drawn on.
  *
  * Lane packing deals its lanes out in the order the log arrives, so the row a
  * branch came out on said nothing about the branch: the same repository drawn
@@ -859,71 +858,140 @@ function signedRow(lane: number): number {
  * rows either side of the trunk are dealt out in that order — so reading a band
  * downwards reads its branches alphabetically.
  *
- * The trunk is not in the alphabet. It keeps lane zero and the middle of the
- * band, which is what every other row is counted from.
+ * The trunk is not in the alphabet. It keeps the middle of the band, which is
+ * what every other row is counted from.
  *
  * Neither is a line with no name on it — history that was merged back in, whose
- * branch is gone. Those keep the rows nearest the trunk, where the packing had
- * them and where their merges stay short, and the names take the rows that are
- * left.
+ * branch is gone. Those are not given a row of their own at all. A row of the
+ * band is a name in the order, so a nameless line holding one left a blank in
+ * the column of branch heads that read as a name that had failed to draw; and
+ * the rows it was pushing the names out of were the ones its own merges wanted
+ * to be short. So it takes the row nearest the trunk it fits on — sharing with
+ * a name whose line is nowhere near it, which is what the packing's own lanes
+ * did all along, except that now it is the nearest row rather than whichever
+ * lane happened to come free.
  */
-function rowOrder(placed: Placed[], trunk: string | undefined, remoteNames: ReadonlySet<string>) {
-  const named: { key: string; name: string; lane: number }[] = [];
-  const lanes = new Set<number>();
+function rowOrder(
+  placed: Placed[],
+  packed: { lanes: number[]; lines: number[] },
+  /** Where each commit would stand if every line kept its packing lane. */
+  natural: number[],
+  trunk: string | undefined,
+  remoteNames: ReadonlySet<string>,
+) {
+  const named: { key: string; name: string; line: number }[] = [];
+  const extents = new Map<number, Extent>();
+  /** Lines the trunk's own lane carries, which the middle of the band is held for. */
+  const central = new Set<number>();
 
-  for (const entry of placed) {
-    if (entry.lane !== 0) lanes.add(entry.lane);
+  for (const [position, entry] of placed.entries()) {
+    const line = packed.lines[position];
+    if (packed.lanes[position] === 0) central.add(line);
+
+    const column = natural[position];
+    const held = extents.get(line);
+    // The log is walked newest first, so a line's first commit is the newest of
+    // it and every later one is older; the columns are in no such order.
+    if (held === undefined) {
+      extents.set(line, { from: column, to: column, first: position, last: position });
+    } else {
+      held.from = Math.min(held.from, column);
+      held.to = Math.max(held.to, column);
+      held.last = position;
+    }
+
     if (!hasRefs(entry)) continue;
     for (const ref of refsOf(entry, trunk, remoteNames)) {
       if (ref.trunk || ref.head) continue;
-      named.push({ key: ref.key, name: ref.name, lane: entry.lane });
+      named.push({ key: ref.key, name: ref.name, line });
     }
   }
   named.sort((left, right) => byName(left.name, right.name));
 
-  const carrying = new Set(named.map((ref) => ref.lane));
-  const nameless = [...lanes]
-    .filter((lane) => !carrying.has(lane))
-    .sort((left, right) => left - right);
-
-  // A row each, for every name and every nameless line. Two branches that never
+  // A row each, for the names and for nothing else. Two branches that never
   // shared a column could have shared a row before; they cannot now, because a
   // row is what says where a name comes in the order.
-  const total = named.length + nameless.length;
-  const above = Math.ceil(total / 2);
+  const above = Math.ceil(named.length / 2);
   const rowAt = (rank: number) => (rank < above ? rank - above : rank - above + 1);
 
-  /** The row each of the packing's lanes is drawn on. */
+  /** The row each line of development is drawn on. */
   const rows = new Map<number, number>();
-  const held = new Set<number>();
-  for (const [at, lane] of nameless.entries()) {
-    const distance = Math.floor(at / 2) + 1;
-    const row = at % 2 === 0 ? -distance : distance;
-    rows.set(lane, row);
-    held.add(row);
-  }
+  /** What is already drawn on each row, which is what a nameless line goes round. */
+  const occupied = new Map<number, Extent[]>();
+  const occupy = (row: number, extent: Extent) => {
+    const held = occupied.get(row);
+    if (held) held.push(extent);
+    else occupied.set(row, [extent]);
+  };
 
   const want = new Map<string, number>();
-  let rank = 0;
-  for (const ref of named) {
-    while (held.has(rowAt(rank))) rank++;
+  for (const [rank, ref] of named.entries()) {
     const row = rowAt(rank);
-    rank++;
     want.set(ref.key, row);
     // The line a name stands on is drawn on that name's row. Where two names
     // stand on one line — a branch and the remote-tracking ref beside it — the
     // first of them in the alphabet has the line, and the other is a head of
     // its own, a row away.
-    if (ref.lane !== 0 && !rows.has(ref.lane)) rows.set(ref.lane, row);
+    if (central.has(ref.line) || rows.has(ref.line)) continue;
+    rows.set(ref.line, row);
+    // A named line runs on past its last commit, out to the head standing in
+    // the branch column — so what it holds is everything from its first commit
+    // rightwards, and only the picture to the left of it is free.
+    const extent = extents.get(ref.line) as Extent;
+    occupy(row, { ...extent, to: Number.POSITIVE_INFINITY });
   }
 
-  // Back into lane numbers, which is the only form the rest of the layout takes
-  // a row in: `signedRow` reads lane 1 as the row above the trunk, lane 2 as the
-  // one below, and so on outwards.
-  const relabelled = new Map<number, number>();
-  for (const [lane, row] of rows) relabelled.set(lane, row < 0 ? -row * 2 - 1 : row * 2);
+  // Nearest the trunk first, and in log order among themselves, so the newest
+  // piece of merged history is the one that gets the row beside the trunk.
+  const nameless = [...extents]
+    .filter(([line]) => !central.has(line) && !rows.has(line))
+    .sort(([, left], [, right]) => left.first - right.first);
+  for (const [line, extent] of nameless) {
+    const row = clearRow(occupied, extent);
+    rows.set(line, row);
+    occupy(row, extent);
+  }
 
-  return { lanes: relabelled, want };
+  return {
+    rows: placed.map((_, position) =>
+      central.has(packed.lines[position]) ? 0 : (rows.get(packed.lines[position]) ?? 0),
+    ),
+    want,
+  };
+}
+
+/**
+ * The row nearest the trunk a nameless line can be drawn on without landing on
+ * anything already there.
+ *
+ * Outwards a row at a time, above the trunk before below it, so a repository
+ * whose merges all happen well to the left of its branches draws every one of
+ * them in the row beside the trunk and the picture stays a trunk with bumps in
+ * it. There is always an answer: past the last row anything has been given, the
+ * rows are empty.
+ */
+function clearRow(occupied: ReadonlyMap<number, Extent[]>, extent: Extent): number {
+  for (let step = 1; ; step++) {
+    for (const row of [-step, step]) {
+      const held = occupied.get(row);
+      if (!held || held.every((other) => clears(extent, other))) return row;
+    }
+  }
+}
+
+/** Whether two lines on one row would keep out of each other's way. */
+function clears(extent: Extent, other: Extent): boolean {
+  const left = extent.to < other.from;
+  const right = other.to < extent.from;
+  if (!left && !right) return false;
+
+  // Which of them the log reached first, and which is drawn first: a row is
+  // filled from the left as the log is walked from the oldest end, so a line
+  // that is older has to be the one on the left or the two of them would push
+  // each other along and end up somewhere neither was measured for.
+  const older = extent.first > other.last;
+  const newer = extent.last < other.first;
+  return left ? older : newer;
 }
 
 /**
@@ -966,24 +1034,29 @@ function branchPriority(ref: Ref, fallback: string | null): number {
  * hands back a branch's commits in one run, so the branch would begin wherever
  * that run happens to fall instead of at the fork.
  *
- * A lane never has two commits in one column: `next` holds the first column
- * each lane is still free in, and no commit is placed before it. Nothing else
- * moves a commit along the axis — one column is one commit, and the gaps that
- * do appear are the history's own, a merge waiting on a branch to finish.
+ * A row never has two commits in one column: `next` holds the first column each
+ * row is still free in, and no commit is placed before it. Nothing else moves a
+ * commit along the axis — one column is one commit, and the gaps that do appear
+ * are the history's own, a merge waiting on a branch to finish.
+ *
+ * `on` is which row each commit is drawn on, passed in rather than read off the
+ * entries: this is asked once of the packing's own lanes, to measure how much
+ * of the picture each line takes up, and again of the rows those lines were
+ * then dealt.
  *
  * Nothing but commits is placed here. The branches stand in a column of their
  * own past the whole of this, so no commit has to make room for one.
  */
-function assignColumns(placed: Placed[], index: Map<string, number>) {
+function assignColumns(placed: Placed[], index: Map<string, number>, on: number[]) {
   const columns = new Array<number>(placed.length);
-  const next: number[] = [];
+  const next = new Map<number, number>();
   let count = 0;
 
   // Oldest first — the order the history arrives in, reversed — so every parent
   // that was loaded already has its column by the time its children ask for it.
   for (let position = placed.length - 1; position >= 0; position--) {
     const entry = placed[position];
-    let column = next[entry.lane] ?? 0;
+    let column = next.get(on[position]) ?? 0;
 
     for (const parent of entry.commit.parents) {
       const at = index.get(parent);
@@ -997,7 +1070,7 @@ function assignColumns(placed: Placed[], index: Map<string, number>) {
     }
 
     columns[position] = column;
-    next[entry.lane] = column + 1;
+    next.set(on[position], column + 1);
     count = Math.max(count, column + 1);
   }
 
@@ -1058,12 +1131,11 @@ function anchorRefs(
 
   for (const [position, entry] of placed.entries()) {
     if (!hasRefs(entry)) continue;
-    const line = signedRow(entry.lane);
     for (const ref of refsOf(entry, trunk, remoteNames)) {
       // The trunk is not in the alphabet and keeps its own row; every other
       // name has one of its own, which for the name a line is drawn under is
       // that line's row.
-      anchored.push({ ref, from: position, home: want.get(ref.key) ?? line });
+      anchored.push({ ref, from: position, home: want.get(ref.key) ?? entry.row });
     }
   }
 
@@ -1225,18 +1297,45 @@ function hasRefs(entry: Placed): boolean {
  * a branch.
  *
  * What this settles is which commits belong to one line of development, not
- * where that line is drawn: the numbers it deals out are relabelled by
- * `rowOrder` before anything reads a row out of them.
+ * where that line is drawn: `rowOrder` deals the rows out, and nothing between
+ * here and there reads a lane as a row.
+ *
+ * A lane is not a line, which is why both come back. Lanes are handed on the
+ * moment the commit holding one is drawn, so over the length of a history one
+ * lane carries a run of unrelated lines one after another — a topic branch, and
+ * then whatever was cut next. `lines` numbers those runs instead, so that a
+ * stretch of merged-away history is not taken for the branch that inherited its
+ * lane and drawn wherever that branch's name happened to fall.
  */
 function assignLanes(commits: Commit[], drawn: Set<string>, trunk: string | undefined) {
   const reserved: (string | null)[] = trunk !== undefined && drawn.has(trunk) ? [trunk] : [];
   const lanes: number[] = [];
+  const lines: number[] = [];
+
+  /** The line each lane is carrying at the moment, and how many there have been. */
+  const carrying: number[] = [];
+  let opened = 0;
+  // Lane zero is held for the trunk before a single commit is read, so the line
+  // standing in it is open before the walk starts too.
+  if (reserved.length > 0) carrying[0] = opened++;
 
   const firstFree = () => {
     const free = reserved.indexOf(null);
     if (free !== -1) return free;
     reserved.push(null);
     return reserved.length - 1;
+  };
+
+  /**
+   * A lane for a line that starts here rather than one carrying on.
+   *
+   * Which is the whole of the difference between a lane and a line: the lane is
+   * only free space, and taking it opens something new in it.
+   */
+  const claim = () => {
+    const lane = firstFree();
+    carrying[lane] = opened++;
+    return lane;
   };
 
   const waiting: number[] = [];
@@ -1249,12 +1348,13 @@ function assignLanes(commits: Commit[], drawn: Set<string>, trunk: string | unde
       if (reserved[lane] === commit.id) waiting.push(lane);
     }
 
-    const lane = waiting.length > 0 ? waiting[0] : firstFree();
+    const lane = waiting.length > 0 ? waiting[0] : claim();
     // Several children can converge here; all but one of their lanes end.
     for (const other of waiting) reserved[other] = null;
     reserved[lane] = null;
 
     lanes.push(lane);
+    lines.push(carrying[lane]);
 
     for (const [parentIndex, parent] of commit.parents.entries()) {
       if (!drawn.has(parent)) continue;
@@ -1268,10 +1368,9 @@ function assignLanes(commits: Commit[], drawn: Set<string>, trunk: string | unde
         continue;
       }
       if (reserved.includes(parent)) continue;
-      const target = firstFree();
-      reserved[target] = parent;
+      reserved[claim()] = parent;
     }
   }
 
-  return lanes;
+  return { lanes, lines };
 }
