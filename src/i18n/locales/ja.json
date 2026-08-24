@@ -67,7 +67,7 @@
     "mcpHint": "エージェントの作業内容をグラフに表示する",
     "register": "エージェントの設定",
     "registerHint": "このマシンのエージェントに接続先を書き込む",
-    "update": "更新"
+    "update": "更新先"
   },
   "mcp": {
     "register": "設定する",
@@ -76,14 +76,20 @@
     "refused": "失敗しました"
   },
   "update": {
-    "check": "更新を確認",
-    "checking": "確認中…",
-    "current": "最新です",
+    "take": "取得",
+    "taking": "取得中…",
     "fetching": "ダウンロード中…",
+    "current": "最新です",
     "reload": "再読み込みして完了",
     "restart": "再起動して完了",
+    "inProgram": "本体と一緒に入ります",
     "held": "パッケージ管理から更新",
-    "failed": "失敗、やり直す"
+    "failed": "失敗、やり直す",
+    "newest": "最新リリース",
+    "pages": "画面",
+    "program": "本体",
+    "drawn": "表示中 {{version}}",
+    "running": "実行中 {{version}}"
   },
   "theme": {
     "system": "システム",

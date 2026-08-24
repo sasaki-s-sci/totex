@@ -1,67 +1,110 @@
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useSyncExternalStore } from "react";
 
 /**
- * Where the app is in replacing itself.
- *
- * One walk, not a set of choices: nothing is known until it is asked, the ask
- * either finds a newer release or does not, and what it finds is taken
- * immediately rather than offered a second time. So there is no state for "one
- * is available" — pressing the mark is asking for it, and the answer to that is
- * either the newest already being here or a download that has started.
+ * Where one half of the app is in being replaced.
  *
  * A release comes in two halves and they are not taken together. The pages the
  * window is drawn out of are a small download and a reload; the program under
  * them is a large one and a restart that ends every terminal in the window. So
- * the first press takes the pages and stops at `swapped`, and the press after
- * that — on a window already showing the new ones — goes on to the program and
- * stops at `ready`. Which of the two a press ends in is the backend's to say:
- * see `src-tauri/src/front/take.rs`.
+ * there are two rows, each with its own walk from the offer to the ending, and
+ * neither is done because the other was.
+ *
+ * `rest` is the offer to take whichever release the pull-down is on. What a
+ * press ends in is the backend's to say: `swapped` for pages that are unpacked
+ * and pointed at, `ready` for a program that is installed, `current` where that
+ * release is what is already here, and `held` where this half cannot bring it —
+ * pages the program has to bring, or a program a package manager owns.
  *
  * `ready` is only ever reached on macOS and Linux. The Windows installers are
  * run over the top of a closed app, so installing there ends this process and
  * the installer opens the new one: the window goes away and comes back, and
  * nothing is left waiting for a press.
- *
- * `held` is the end of the walk for a `.deb` or an `.rpm`: the pages are as new
- * as the release page has, and the program under them belongs to a package
- * manager, which is who brings it forward.
  */
-export type UpdateStage =
-  | "unknown"
-  | "checking"
-  | "current"
-  | "fetching"
-  | "ready"
-  | "swapped"
-  | "held"
-  | "failed";
+export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 
-export type UpdateState = {
-  /** Whether this copy is one a release can do anything for; null until asked. */
-  supported: boolean | null;
+/** Which half of a release a row is about. */
+export type Half = "front" | "whole";
+
+/** What this copy can be replaced with, and what it is at now. */
+export type Standing = {
+  /** Whether the pages can be replaced on their own. */
+  front: boolean;
+  /** Whether the program can replace itself. */
+  whole: boolean;
+  /** The version of the program running. */
+  running: string;
+  /** The version of the pages the window is drawn out of. */
+  drawn: string;
+};
+
+/**
+ * What the last press on one row did, and which release it did it about.
+ *
+ * The version is held with the stage because the two only mean anything
+ * together: a row that says "reload to finish" is saying it about the release
+ * it took, and moving the pull-down to another one leaves that offer standing
+ * for a release nobody is looking at any more. So a row is read against what
+ * the pull-down is on now — see [`stageOf`] — and a press for a different
+ * version is the offer again rather than the ending of the last one.
+ */
+type Press = {
   stage: UpdateStage;
   /** How much of the download has arrived, 0..1, or null while it is untold. */
   progress: number | null;
+  /** The version it is about, or null where none was named. */
+  version: string | null;
 };
+
+export type UpdateState = {
+  /** What can be replaced here; null until the backend has been asked. */
+  standing: Standing | null;
+  /** The releases there are, newest first, as the last poll found them. */
+  versions: string[];
+  /** The one taken off the list by hand, if any. */
+  picked: string | null;
+  front: Press;
+  whole: Press;
+};
+
+const RESTING: Press = { stage: "rest", progress: null, version: null };
 
 /**
  * Held for the window rather than for the dialog.
  *
- * The settings dialog unmounts when it closes, and an update that has been
+ * The settings dialog unmounts when it closes, and a release that has been
  * downloaded is waiting for a restart that may be minutes away — closing the
  * dialog in between must not forget that, or the next press downloads the same
- * release again. It is the same store `onDemand` keeps its parts in, for the
- * same reason.
+ * release again. The list of versions is here for the same reason from the
+ * other end: it is filled by a poll that runs whether the dialog is open or
+ * not, so that a pull-down is full when it is opened rather than after. It is
+ * the same store `onDemand` keeps its parts in.
  */
-let state: UpdateState = { supported: null, stage: "unknown", progress: null };
+let state: UpdateState = {
+  standing: null,
+  versions: [],
+  picked: null,
+  front: RESTING,
+  whole: RESTING,
+};
+
 const waiting = new Set<() => void>();
 
 function settle(change: Partial<UpdateState>): void {
   state = { ...state, ...change };
   for (const wake of waiting) wake();
+}
+
+/**
+ * The same, for one of the two rows.
+ *
+ * Written out rather than keyed by the name, because a key that is a name held
+ * in a variable is a key the type of the store cannot be checked against.
+ */
+function settleHalf(half: Half, change: Partial<Press>): void {
+  const press = { ...state[half], ...change };
+  settle(half === "front" ? { front: press } : { whole: press });
 }
 
 const listen = (wake: () => void) => {
@@ -77,21 +120,102 @@ export function useUpdate(): UpdateState {
   return useSyncExternalStore(listen, read, read);
 }
 
+/** Which release both rows are pointed at: the one picked, or the newest. */
+export function wanted(at: UpdateState): string | null {
+  return at.picked ?? at.versions[0] ?? null;
+}
+
 /**
- * Asks the backend whether this copy is one a release page can do anything for.
+ * How one row reads, which is its own stage only while the two are about the
+ * same release.
  *
- * Asked once for the life of the window: it is a fact about how the app was
- * installed, which does not change while it is running. A copy that says no
- * draws no mark — see `update.rs` for which those are.
+ * A press made before the list of versions had arrived was a press for whatever
+ * the release page said was newest, and the top of the list is what that turned
+ * out to be — so it goes on reading as the same release when the list lands,
+ * and stops only when somebody takes another one off the list by hand.
  */
-export function askSupported(): void {
-  if (state.supported !== null) return;
-  invoke<boolean>("update_supported").then(
-    (yes) => settle({ supported: yes }),
-    // A backend that will not answer is a window with no update mark, which is
+export function stageOf(at: UpdateState, half: Half): UpdateStage {
+  const press = at[half];
+  const same = press.version === null ? at.picked === null : press.version === wanted(at);
+  return same ? press.stage : "rest";
+}
+
+/** Takes a release off the pull-down, and leaves it there. */
+export function pick(version: string): void {
+  settle({ picked: version });
+}
+
+/**
+ * Asks the backend what can be replaced here and what it is at.
+ *
+ * Asked once for the life of the window: which halves can be replaced is a
+ * fact about how the app was installed, and neither version moves without a
+ * reload or a restart. A copy that can have neither draws no update rows — see
+ * `update.rs` for which those are.
+ */
+let asking: Promise<Standing> | null = null;
+
+export function askStanding(): Promise<Standing> {
+  asking ??= invoke<Standing>("update_standing").then(
+    (standing) => {
+      settle({ standing });
+      return standing;
+    },
+    // A backend that will not answer is a window with no update rows, which is
     // the same thing an old copy of the app shows.
-    () => settle({ supported: false }),
+    () => {
+      const none: Standing = { front: false, whole: false, running: "", drawn: "" };
+      settle({ standing: none });
+      return none;
+    },
   );
+  return asking;
+}
+
+/** How long the list of versions is left before it is asked for again. */
+const EVERY = 30 * 60_000;
+
+/**
+ * Keeps the pull-down filled, from the moment the window opens.
+ *
+ * The one thing here that happens without a press. A list has to be full before
+ * it is opened rather than after, and the release page is somebody else's
+ * server: asking for it at the moment the pull-down is clicked would be a
+ * pull-down that is empty for as long as that server takes. So it is asked for
+ * on a slow loop instead — twice an hour, which is nothing beside a rate limit
+ * and is far more often than releases are cut.
+ *
+ * Nothing is asked at all where nothing could be taken. A copy nobody installed
+ * has no rows to fill a list for, and phoning a release page on its behalf
+ * would be the window doing something on the person's network for no reason.
+ *
+ * An ask that fails leaves the list as it was: a version already offered is one
+ * the release page had a moment ago, and a rate limit is not a reason to empty
+ * a pull-down somebody is reading.
+ */
+export function watchVersions(): () => void {
+  let alive = true;
+  let again: ReturnType<typeof setTimeout> | undefined;
+
+  const round = () => {
+    invoke<string[]>("update_versions")
+      .then((versions) => {
+        if (alive && versions.length > 0) settle({ versions });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) again = setTimeout(round, EVERY);
+      });
+  };
+
+  void askStanding().then((standing) => {
+    if (alive && (standing.front || standing.whole)) round();
+  });
+
+  return () => {
+    alive = false;
+    clearTimeout(again);
+  };
 }
 
 /**
@@ -108,36 +232,30 @@ export function confirmFront(): void {
   invoke("confirm_front").catch(() => undefined);
 }
 
-/** What the backend did about the release it found. */
-type Found = "front" | "whole" | "held" | "current";
-
-/** How long the endpoint is given to answer, in milliseconds. */
-const CHECK_TIMEOUT = 20_000;
+/** What the backend did about the release the row was pointed at. */
+type Took = "taken" | "current" | "held";
 
 /**
- * How long the backend is given to say what it did about the release.
+ * How long a press on the pages row is given to be answered, in milliseconds.
  *
- * Longer than the check, because it is two reads of somebody else's server and
- * a directory unpacked between them, and the backend already holds each of the
- * two to thirty seconds of its own — see `PATIENCE` in `front/take.rs`. So
- * nothing this bound stops is a slow release page; what it stops is a press
- * that is never answered at all, which is the one thing the mark cannot draw:
- * it turns while this is out, and it is not pressable while it turns.
+ * Longer than reading a release page, because it is two reads of somebody
+ * else's server and a directory unpacked between them, and the backend already
+ * holds each of the two to thirty seconds of its own — see `PATIENCE` in
+ * `release.rs`. So nothing this bound stops is a slow release page; what it
+ * stops is a press that is never answered at all, which is the one thing a row
+ * cannot draw: the mark turns while this is out, and it is not pressable while
+ * it turns.
  */
-const TAKE_TIMEOUT = 90_000;
+const FRONT_TIMEOUT = 90_000;
 
 /**
- * How long the whole of a release is given to arrive, in milliseconds.
- *
- * Said here rather than left to the check, because the plugin would otherwise
- * say it once for both: the handle `check` hands back carries the timeout the
- * check was made with, and the download made from that handle is one request
- * held to it — twenty seconds for an installer of eighty megabytes, which is a
- * download that ends in red on every line anybody has. So the two are bounded
- * apart, each by what it actually is: a page of JSON that should come back
- * inside a breath, and a program that is worth waiting a while for.
+ * The same for the program row, which is a download of eighty megabytes rather
+ * than one of about a megabyte. It is the backend's own bound and a while over
+ * — see `FETCHING` in `update.rs` — because this is only here to catch a press
+ * nothing ever answers, and the thing it must not catch is a download somebody
+ * on a slow line is still receiving.
  */
-const FETCH_TIMEOUT = 15 * 60_000;
+const WHOLE_TIMEOUT = 20 * 60_000;
 
 /**
  * The same promise, given an end.
@@ -155,83 +273,57 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+/** Which ending each half's rows reach when the release is actually taken. */
+const ENDING = { front: "swapped", whole: "ready" } as const;
+
 /**
- * The whole of what the mark does, up to the reload or the restart.
+ * The whole of what one row does, up to the reload or the restart.
  *
- * Looking and taking are one press because they are one intention: a window
- * that has just been told a newer version exists has nothing else to do with
- * that. What is not one press is the ending — this app holds terminals with
- * agents running in them, and reaching the point where they are interrupted is
- * nobody's business but the person's who started them.
+ * The ending is not part of the press. This app holds terminals with agents
+ * running in them, and reaching the point where they are interrupted is
+ * nobody's business but the person's who started them — so a press brings the
+ * release, and the press after it is what finishes.
  */
-export async function takeUpdate(): Promise<void> {
-  if (state.stage === "checking" || state.stage === "fetching") return;
-  settle({ stage: "checking", progress: null });
+export async function take(half: Half): Promise<void> {
+  if (state[half].stage === "taking") return;
+  const version = wanted(state);
+  settleHalf(half, { stage: "taking", progress: null, version });
 
-  // The one ask that both halves are decided by. It reads the release page,
-  // and if the pages of it are the part this copy can have, it has taken them
-  // by the time it answers: a front is about a megabyte, which is nothing to
-  // draw a second ring for.
-  let found: Found;
   try {
-    found = await within(invoke<Found>("take_front"), TAKE_TIMEOUT);
-  } catch {
-    settle({ stage: "failed", progress: null });
-    return;
-  }
-  if (found !== "whole") {
-    const reached = { front: "swapped", held: "held", current: "current" } as const;
-    settle({ stage: reached[found], progress: null });
-    return;
-  }
-
-  let update: Update | null = null;
-  try {
-    // Bounded, so that an endpoint that accepts the connection and then says
-    // nothing leaves a mark that has stopped rather than one still turning.
-    // This bounds the reading of the release page and nothing else: what is
-    // downloaded off the back of it is held to `FETCH_TIMEOUT` where it is
-    // asked for, because the two are not the same wait.
-    update = await check({ timeout: CHECK_TIMEOUT });
-    if (!update) {
-      settle({ stage: "current", progress: null });
-      return;
-    }
-
-    let length = 0;
-    let taken = 0;
-    settle({ stage: "fetching", progress: null });
-    await update.downloadAndInstall(
-      (event) => {
-        switch (event.event) {
-          case "Started":
-            length = event.data.contentLength ?? 0;
-            taken = 0;
-            break;
-          case "Progress":
-            taken += event.data.chunkLength;
-            // A server that did not say how long the file is leaves the ring
-            // turning instead of filling, which is the honest drawing of it.
-            if (length > 0) settle({ progress: Math.min(1, taken / length) });
-            break;
-          case "Finished":
-            settle({ progress: 1 });
-            break;
-        }
-      },
-      { timeout: FETCH_TIMEOUT },
-    );
-    settle({ stage: "ready", progress: null });
+    const took = half === "front" ? await takeFront(version) : await takeWhole(version);
+    settleHalf(half, {
+      stage: took === "taken" ? ENDING[half] : took,
+      progress: null,
+    });
   } catch {
     // Nothing is said about which of the several things went wrong — no
-    // release, no network, a signature that did not verify. The mark goes red,
-    // and pressing it again is what tries the whole of it again.
-    settle({ stage: "failed", progress: null });
-  } finally {
-    // The handle is the backend's copy of the release metadata, and by here it
-    // has either been installed or been given up on.
-    await update?.close().catch(() => undefined);
+    // release under that tag, no network, a signature that did not verify. The
+    // mark goes red, and pressing it again is what tries the whole of it again.
+    settleHalf(half, { stage: "failed", progress: null });
   }
+}
+
+/** The pages: one ask, which has taken them by the time it answers. */
+function takeFront(version: string | null): Promise<Took> {
+  return within(invoke<Took>("take_front", { version }), FRONT_TIMEOUT);
+}
+
+/**
+ * The program: one ask, with the download reporting itself as it arrives.
+ *
+ * The channel is the one thing a row cannot work out for itself. An installer
+ * is large enough that a ring which only turns says nothing about whether
+ * anything is happening, so the backend says how much has arrived and the ring
+ * fills with it.
+ */
+function takeWhole(version: string | null): Promise<Took> {
+  const coming = new Channel<{ taken: number; length: number | null }>();
+  coming.onmessage = ({ taken, length }) => {
+    // A server that did not say how long the file is leaves the ring turning
+    // instead of filling, which is the honest drawing of it.
+    if (length) settleHalf("whole", { progress: Math.min(1, taken / length) });
+  };
+  return within(invoke<Took>("take_whole", { version, coming }), WHOLE_TIMEOUT);
 }
 
 /**
@@ -254,5 +346,5 @@ export function reload(): void {
  * hand is the same ending.
  */
 export function restart(): void {
-  relaunch().catch(() => settle({ stage: "failed", progress: null }));
+  relaunch().catch(() => settleHalf("whole", { stage: "failed", progress: null }));
 }
