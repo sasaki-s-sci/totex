@@ -147,13 +147,43 @@
   pointer-events: all;
 }
 
-/* ---------- a folder, and the repositories folded into it ---------- */
+/* ---------- a folder, and the repositories under it ---------- */
 
-/* A folder is one line whatever is in it: its name, a mark per repository that
-   is folded away, and the one button a directory answers to. What is opened out
-   is a band underneath and has left this row. */
+/* A folder is one line whatever is in it: its name, its own mark, and the one
+   button a directory answers to. What it holds stands underneath, a repository
+   to a row, each of them joined back to that mark. */
 .folder {
   position: relative;
+}
+
+/* The folder's name, set against the mark that leads its row rather than
+   against the history a repository's name leads: what follows a folder's name
+   is its own button, and what the name belongs to is the mark before it. */
+.folder__label {
+  justify-content: flex-start;
+  padding-right: 0;
+  padding-left: 6px;
+}
+
+/* The folder itself: where the lines out to its repositories leave from, and
+   the one thing on this canvas the hand can move. Everything under a folder
+   travels with it, so this is the whole column's handle — which is what the
+   cursor says, and the only thing that says it. */
+.folder__grip {
+  position: absolute;
+  top: 0;
+  display: flex;
+  width: 22px;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--mark);
+  cursor: grab;
+  pointer-events: all;
+}
+
+.folder__grip:active {
+  cursor: grabbing;
 }
 
 /* The name is the control. Set in the same cell a repository's name takes and
@@ -189,18 +219,23 @@
   pointer-events: all;
 }
 
-/* The name, then the ring: the order a band is read in, with the ring on the
-   right because that is the side every line arrives from. The whole cell is the
-   button — a ring on its own is a small thing to aim at, and the name beside it
-   is what the eye was going for anyway. */
+/* The name, then the ring: the order a band is read in, and the two ends of the
+   row are the two things that arrive at it. The folder's own line comes in from
+   the left and stops at the name, which is where a band's name is too; whatever
+   is running in the repository stands past the ring on the right, which is
+   where a band's terminals are. So the rows read across the same way whether a
+   repository is folded away or opened out.
+
+   The whole cell is the button — a ring on its own is a small thing to aim at,
+   and the name beside it is what the eye was going for anyway. */
 .repo-mark__row {
   display: flex;
   width: 100%;
   height: 100%;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 6px;
-  padding: 0 8px 0 0;
+  padding: 0 8px 0 6px;
   border: none;
   background: none;
   color: var(--mui-palette-text-secondary);

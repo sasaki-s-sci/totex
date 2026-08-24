@@ -168,9 +168,9 @@ export function DisclosureMark({ on }: { on: boolean }) {
  * that says it: the front panel comes down and the folder is standing open,
  * which is the same thing the rows appearing underneath it say.
  */
-export function FolderMark({ on }: { on: boolean }) {
+export function FolderMark({ on, size = ROW_SIZE }: { on: boolean; size?: number }) {
   return (
-    <Frame size={ROW_SIZE}>
+    <Frame size={size}>
       {on ? (
         <>
           <path d="M2.5 18.5 V5.5 H8.5 L10.5 8 H19.5 V11" />

@@ -54,28 +54,26 @@ import {
  * it down to make room for itself, and that is a shape rather than a filling.
  *
  * The band's own position on the canvas is not settled here either — that is
- * the packing's business, in `build` — so everything below is relative to it,
- * and a repository that has not changed can be moved without any of it being
+ * its folder's column, in `build` — so everything below is relative to it, and
+ * a repository that has not changed can be moved without any of it being
  * redone.
  */
 
 /**
  * One repository, drawn. The commits are positioned inside the band rather than
- * on the canvas, so the packing can move the band without touching any of them.
+ * on the canvas, so the column can move the band without touching any of them.
  */
 export type PreparedRepository = {
   repository: Repository;
-  /** The band's own node data and box, which is also what the packing moves. */
+  /**
+   * The band's own node data and box, which is also what the column moves.
+   *
+   * The label inside it is where the repository's name is, which is where the
+   * line down from its folder lands: a band is joined to what holds it at its
+   * name, the way a folded repository's row is.
+   */
   data: RepositoryNodeData;
   style: { width: number; height: number };
-  /**
-   * How far down the band its trunk row sits.
-   *
-   * A band is as tall as its branches make it, and the trunk is in the middle
-   * of it — so two bands beside one another are only level with each other if
-   * the packing lines this up rather than their top edges.
-   */
-  trunk: number;
   nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[];
   /** Every line the band draws, already batched by how it is drawn. */
   lines: BandLines;
@@ -364,7 +362,6 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       label: { x: 0, y: trunkRow, width: NAME_COLUMN * COLUMN_WIDTH, height: LANE_HEIGHT },
     },
     style: { width, height },
-    trunk: trunkRow,
     nodes,
     lines: drawn.done(),
     runs,
@@ -689,10 +686,10 @@ function place(repository: Repository, shown: number, deep: Depth) {
   }
   // The band is as tall as what is in it and no taller. It used to be padded to
   // the same reach either side of the trunk, so that the trunk came out in the
-  // middle of every repository — but the packing already lays bands level with
-  // one another by their trunk rows rather than by their top edges, so the
-  // padding bought nothing and cost a blank half-band above any repository
-  // whose lowest branch was running several terminals.
+  // middle of every repository — but the bands go down a column one under the
+  // next now, with nothing beside them to be level with, so the padding bought
+  // nothing and cost a blank half-band above any repository whose lowest branch
+  // was running several terminals.
   const above = -top;
   // Where the terminals stand, which is what the band has to be wide enough to
   // hold whether or not anything is standing there: the room is part of the

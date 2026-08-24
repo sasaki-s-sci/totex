@@ -33,7 +33,8 @@ import { useGraphActions } from "./graphActions";
  * repository comes to about a dozen elements however long its history is.
  *
  * The band's own lines are worked out once and held in its own coordinates, so
- * the packing moving a repository is a different `translate` on the same paths.
+ * a repository moving — its folder carried across the canvas, a repository above
+ * it opening out — is a different `translate` on the same paths.
  *
  * Nothing here takes the pointer. What a line offers is drawn only while the
  * cursor is on it, by `Hover`, which finds the line by arithmetic rather than
@@ -49,7 +50,10 @@ export const GraphLines = memo(function GraphLines({
   onCommit,
 }: {
   bands: readonly Band[];
-  /** The terminals in the last column, each a line to the row it runs in. */
+  /**
+   * The lines that belong to no band: what each folder holds, and what is
+   * running in the rows a folder draws.
+   */
   reach: readonly Batch[];
   /**
    * The box the lines are drawn in, which is as big as everything reaches.
@@ -99,14 +103,13 @@ export const GraphLines = memo(function GraphLines({
 type Batch = { key: string; stroke: StrokeStyle; parts: GraphLine[] };
 
 /**
- * The lines out of the last column, batched into as few paths as they are
- * drawn ways.
+ * The lines a folder draws, batched into as few paths as they are drawn ways.
  *
- * There is no band to draw these inside: a line from the column of terminals to
- * a row in a repository belongs to neither of them, and the rows they end in
- * are in different bands. So they are drawn on the canvas itself, where both
- * ends of a line are already in the same coordinates — a band's position and a
- * terminal's are both the canvas's own.
+ * There is no band to draw these inside: a line from a folder's mark to the
+ * band of a repository opened out of it belongs to neither of them, and the
+ * marks and terminals down a folder's column stand on the canvas in their own
+ * right. So they are drawn on the canvas itself, where every end of every one
+ * of them is already in the same coordinates.
  */
 const Reach = memo(function Reach({
   reach,
@@ -148,9 +151,9 @@ const Bands = memo(function Bands({
 /**
  * One repository's lines, in the band's own coordinates.
  *
- * The band itself is moved by the transform, so the packing sliding a
- * repository along the row is a different `translate` on the same paths rather
- * than a repository worked out afresh.
+ * The band itself is moved by the transform, so a repository sliding down its
+ * folder's column is a different `translate` on the same paths rather than a
+ * repository worked out afresh.
  */
 function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<string, XYPosition> }) {
   const at = standing.get(band.id);

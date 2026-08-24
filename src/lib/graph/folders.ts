@@ -3,36 +3,68 @@ import {
   CELL_STYLE,
   COLUMN_WIDTH,
   type Draw,
-  FOLDER_INSET,
+  FOLDER_MARK,
   type FolderFlowNode,
   type FolderNodeData,
-  inBand,
   LANE_HEIGHT,
-  MIN_BAND_WIDTH,
   NAME_COLUMN,
-  REPO_MARK_RING,
   REPO_MARK_WIDTH,
   type RepoMarkFlowNode,
 } from "./model";
 
 /**
- * A folder drawn as one line: its name, the repositories in it that are folded
- * away, and the button that opens a terminal in the folder itself.
+ * A folder drawn as the head of a column: its name, its own mark, and a line
+ * out of that mark to every repository it holds.
  *
- * The whole point is that it stays one line however many repositories are in
- * it. A folder is where work that spans several of them is done — the reason
- * for opening one on the graph at all — and a dozen histories laid out at once
- * is a canvas nobody can find anything on. So a repository is a mark until it
- * is asked for, and what is asked for is a band underneath.
+ * A folder is where work that spans several repositories is done — the reason
+ * for putting one on the graph at all — and what the canvas has to say about it
+ * is which repositories are in it and what is going on in each. So it is drawn
+ * as one thing: a row, and under it a repository per row, every one of them
+ * joined back to the folder's own mark. Reading the group is reading down a
+ * column, and there is never a repository to be found somewhere other than
+ * under the folder it came through.
+ *
+ * A repository in that column is either folded into a single mark or opened out
+ * into a band of its own history, and it stands in the same place either way.
+ * That is what makes folding cheap: what is drawn changes and nothing moves
+ * sideways, and everything running in the repository stays in the column it was
+ * already in.
  *
  * The row is a place as well as a heading. Its own directory is somewhere a
- * terminal can be opened, and every worktree of every folded repository lands
- * on that repository's mark — so folding a repository away never loses what is
- * running in it, it only moves where the line ends.
+ * terminal can be opened, and the folder's mark is what the whole group is
+ * dragged by — see `Group`.
  */
 
-/** How wide the row's own button is, which is what the band has to hold. */
+/** How wide the row's own button is, which is what the row has to hold. */
 const TOOLS_WIDTH = 40;
+
+/**
+ * Where the folder's own mark stands: at the head of its row, before the name.
+ *
+ * The order the folder column in the sidebar reads in — the mark, then what it
+ * is called — and here it earns that twice over. Every line down to a
+ * repository leaves from this mark, and the repositories are set in by a whole
+ * column, so leaving from the left of the name gives those lines the room to be
+ * a fan rather than a single stroke down the edge of the rows.
+ */
+export const FOLDER_MARK_X = 0;
+/** The name, in what is left of the column the mark leads. */
+const LABEL_X = FOLDER_MARK_X + FOLDER_MARK;
+/**
+ * Where the row's own button stands: at the column the repositories under it
+ * begin at, so the row ends where their names do.
+ */
+const TOOLS_X = NAME_COLUMN * COLUMN_WIDTH;
+/** How wide the row is: what it holds, and nothing beyond it. */
+export const FOLDER_ROW_WIDTH = TOOLS_X + TOOLS_WIDTH;
+
+/**
+ * The class on the folder's mark, which is what the row is dragged by.
+ *
+ * Named here rather than in the stylesheet's own words because it is a
+ * contract: React Flow is told the selector, and the row draws the element.
+ */
+export const GRIP = "folder__grip";
 
 /**
  * The row's node id.
@@ -41,7 +73,7 @@ const TOOLS_WIDTH = 40;
  * folder opened directly on a repository would otherwise be handed to React
  * Flow as one node under two meanings.
  */
-function folderId(root: string): string {
+export function folderId(root: string): string {
   return `folder${root}`;
 }
 
@@ -62,93 +94,98 @@ export function isOpen(
 }
 
 /**
- * The folder's row, at the top of its own group.
+ * The folder's own row, at the head of its column.
  *
- * `at` is where the group starts on the canvas; the marks are placed inside the
- * row and move with it. Everything the row can be aimed at — where a line into
- * the folder lands, and where a line into each folded repository lands — is
- * written into `draw` here, because this is the only place that knows where the
- * marks ended up.
+ * `at` is where the group stands on the canvas, which is this row's own
+ * position: everything else in the group is placed against it, and moving the
+ * folder is moving this node and taking the rest with it.
  */
 export function folderRow(
   root: string,
   name: string,
-  /** The repositories in it that are folded away, in the folder's own order. */
-  folded: readonly Repository[],
   /** Whether every repository in it is opened out, which the name toggles. */
   open: boolean,
   at: { x: number; y: number },
   draw: Draw,
-): { nodes: (FolderFlowNode | RepoMarkFlowNode)[]; width: number } {
-  const tools = FOLDER_INSET + folded.length * REPO_MARK_WIDTH;
-  const width = Math.max(MIN_BAND_WIDTH, tools + TOOLS_WIDTH);
+): FolderFlowNode {
   const data: FolderNodeData = {
     root,
     name,
-    label: { x: 0, y: 0, width: NAME_COLUMN * COLUMN_WIDTH, height: LANE_HEIGHT },
+    label: { x: LABEL_X, y: 0, width: TOOLS_X - LABEL_X, height: LANE_HEIGHT },
     open,
-    tools,
+    mark: FOLDER_MARK_X,
+    tools: TOOLS_X,
   };
 
   const id = folderId(root);
-  // The folder itself is a directory, so a terminal working in it has a place
-  // on the canvas: the end of its own row, the way a worktree's line lands past
-  // the end of its branch.
-  draw.rows.set(root, inBand(id, tools, LANE_HEIGHT / 2));
-
   const held = draw.before.get(id);
-  const node: FolderFlowNode =
+  if (
     held?.type === "folder" &&
     held.position.x === at.x &&
     held.position.y === at.y &&
-    held.style?.width === width &&
     same(held.data, data)
-      ? held
-      : {
-          id,
-          type: "folder",
-          position: { x: at.x, y: at.y },
-          data,
-          draggable: false,
-          selectable: false,
-          // A row is a backdrop like a band; what can be pressed on it takes
-          // the pointer back for itself.
-          style: { width, height: LANE_HEIGHT, pointerEvents: "none" },
-        };
-
-  const nodes: (FolderFlowNode | RepoMarkFlowNode)[] = [node];
-  for (const [index, repository] of folded.entries()) {
-    const x = FOLDER_INSET + index * REPO_MARK_WIDTH;
-    nodes.push(markNode(id, repository, x, draw));
-    // Everything in there arrives at the mark: the repository's own checkout,
-    // and every worktree cut from it. Its history is not on the canvas, so this
-    // is the whole of where it is.
-    const socket = inBand(id, x + REPO_MARK_WIDTH - REPO_MARK_RING, LANE_HEIGHT / 2);
-    draw.rows.set(repository.path, socket);
-    for (const worktree of repository.worktrees) draw.rows.set(worktree.path, socket);
+  ) {
+    return held;
   }
 
-  return { nodes, width };
+  return {
+    id,
+    type: "folder",
+    position: { x: at.x, y: at.y },
+    data,
+    // The one node on the canvas the hand can move. What it is grabbed by is
+    // the folder's own mark rather than the whole row: the name beside it opens
+    // and shuts the group, and a name that also carried the group away would be
+    // a button nobody could press without meaning to.
+    draggable: true,
+    dragHandle: `.${GRIP}`,
+    selectable: false,
+    // A row is a backdrop like a band; what can be pressed on it takes the
+    // pointer back for itself.
+    style: { width: FOLDER_ROW_WIDTH, height: LANE_HEIGHT, pointerEvents: "none" },
+  };
 }
 
-/** One folded repository, handed back unchanged where it can be. */
-function markNode(band: string, repository: Repository, x: number, draw: Draw): RepoMarkFlowNode {
-  const id = `${band}mark${repository.id}`;
+/**
+ * One folded repository: a row of its own, holding its name and the ring that
+ * stands for everything behind it.
+ *
+ * Placed on the canvas rather than inside the folder's row, because a group is
+ * a column of rows that are all placed the same way — the band of an opened
+ * repository is a node of the canvas's, and a folded one has to be able to
+ * stand exactly where it stood.
+ */
+export function repoMark(
+  band: string,
+  repository: Repository,
+  at: { x: number; y: number },
+  draw: Draw,
+): RepoMarkFlowNode {
+  const id = markId(band, repository);
   const held = draw.before.get(id);
-  if (held?.type === "repo-mark" && held.data.repository === repository && held.position.x === x) {
+  if (
+    held?.type === "repo-mark" &&
+    held.data.repository === repository &&
+    held.position.x === at.x &&
+    held.position.y === at.y
+  ) {
     return held;
   }
 
   return {
     id,
     type: "repo-mark",
-    parentId: band,
-    position: { x, y: 0 },
+    position: { x: at.x, y: at.y },
     data: { repository },
     style: { ...CELL_STYLE, width: REPO_MARK_WIDTH },
     draggable: false,
     selectable: false,
   };
+}
+
+/** What one folded repository's mark is called, on its folder's own row. */
+export function markId(band: string, repository: Repository): string {
+  return `${band}mark${repository.id}`;
 }
 
 /** Whether the row would be drawn exactly as it already is. */

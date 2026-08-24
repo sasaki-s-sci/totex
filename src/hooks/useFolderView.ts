@@ -38,7 +38,7 @@ export function useFolderView(folders: readonly Folder[]) {
    * The folder's name: opens the lot, or folds the lot away.
    *
    * Folding wins only when there is nothing left to open — a folder with one
-   * band showing and five marks beside it is a folder somebody is part way
+   * band showing and five rows still folded is a folder somebody is part way
    * through opening, and the press they make next is the rest of it.
    */
   const toggleFolder = useCallback((root: string) => {
