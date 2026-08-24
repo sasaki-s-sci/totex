@@ -3,6 +3,7 @@ import {
   getViewportForBounds,
   type NodeMouseHandler,
   type NodeTypes,
+  type OnNodeDrag,
   ReactFlow,
   type ReactFlowInstance,
   useNodesState,
@@ -13,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readFileHead, writeFile } from "../folder/api";
 import { baseName } from "../folder/format";
 import { useBranchDrag } from "../hooks/useBranchDrag";
+import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
 import { useGraphKeys } from "../hooks/useGraphKeys";
 import { useHistoryDepth } from "../hooks/useHistoryDepth";
@@ -277,13 +279,16 @@ export function GitGraph({
   // What each worktree has uncommitted, which the branch rings are drawn from.
   const worktreeStatus = useWorktreeStatus(workspace);
   const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);
+  // Where each folder has been carried to, which is the one thing about this
+  // canvas that was decided by hand rather than laid out.
+  const { places, placeFolder } = useFolderPlaces();
   const graph = useMemo(
     () =>
       buildCommitGraph(
-        { workspace, folders, visible, opened, sessions, showing, asks, reports, reaching },
+        { workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places },
         applied.current ?? undefined,
       ),
-    [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching],
+    [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(graph.nodes);
@@ -962,6 +967,77 @@ export function GitGraph({
   );
 
   /**
+   * The group in hand, and where everything in it was standing when it was
+   * picked up.
+   *
+   * A folder is one node and a group is everything under it, so the row moving
+   * is only the start of the move: the marks, the bands and whatever is running
+   * in any of them are all standing on the canvas in their own right and have
+   * to be carried with it. Each of them is put at where it started plus how far
+   * the row has come, rather than nudged by each frame's own delta — a hundred
+   * frames of nudging is a hundred roundings, and the group would arrive
+   * slightly out of shape.
+   */
+  const carried = useRef<{
+    root: string;
+    from: XYPosition;
+    members: Map<string, XYPosition>;
+  } | null>(null);
+
+  const takeGroup: OnNodeDrag<AppNode> = useCallback(
+    (_event, node) => {
+      if (node.type !== "folder") return;
+      const group = graph.groups.get(node.data.root);
+      if (!group) return;
+      const wanted = new Set(group.members);
+      const members = new Map<string, XYPosition>();
+      for (const held of standing.current) {
+        if (wanted.has(held.id)) members.set(held.id, held.position);
+      }
+      carried.current = { root: node.data.root, from: node.position, members };
+    },
+    [graph.groups],
+  );
+
+  const carryGroup: OnNodeDrag<AppNode> = useCallback(
+    (_event, node) => {
+      const held = carried.current;
+      if (!held || node.type !== "folder") return;
+      const dx = node.position.x - held.from.x;
+      const dy = node.position.y - held.from.y;
+      setNodes((current) =>
+        current.map((one) => {
+          const was = held.members.get(one.id);
+          return was ? { ...one, position: { x: was.x + dx, y: was.y + dy } } : one;
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  /**
+   * Where the group was let go, as how far it has come from its own slot.
+   *
+   * Held to the top left corner of the canvas, because the lines are drawn in
+   * one box that starts there: a group carried above it would keep its marks
+   * and lose everything joining them.
+   */
+  const dropGroup: OnNodeDrag<AppNode> = useCallback(
+    (_event, node) => {
+      const held = carried.current;
+      carried.current = null;
+      if (!held || node.type !== "folder") return;
+      const group = graph.groups.get(held.root);
+      if (!group) return;
+      placeFolder(held.root, {
+        x: Math.max(0, node.position.x) - group.at.x,
+        y: Math.max(0, node.position.y) - group.at.y,
+      });
+    },
+    [graph.groups, placeFolder],
+  );
+
+  /**
    * Stable, so that handing it down does not make every node look changed.
    *
    * Every one of these has to keep its identity across a rebuild for that to
@@ -1048,6 +1124,9 @@ export function GitGraph({
                 }}
                 onMove={handleMove}
                 onNodeClick={handleNodeClick}
+                onNodeDragStart={takeGroup}
+                onNodeDrag={carryGroup}
+                onNodeDragStop={dropGroup}
                 onPaneClick={() => setSelectedCommit(null)}
                 nodesConnectable={false}
                 nodesDraggable

@@ -123,6 +123,34 @@ export function stackReach(marks: number): number {
   return ((marks - 1) * CLI_STEP) / 2;
 }
 /**
+ * How far a row outside a band reaches from its own line, either way.
+ *
+ * A lane, or its stack where that is deeper. What the group is measured by at
+ * its two ends — the row under the folder, and the last row of the column —
+ * where there is no neighbour to share the room with.
+ */
+export function rowReach(marks: number): number {
+  return Math.max(LANE_HEIGHT / 2, stackReach(marks) + CLI_STEP / 2);
+}
+/**
+ * How far apart the lines of two neighbouring rows stand, given what each of
+ * them is running.
+ *
+ * The same sum a band spaces its branches by — see `spacing` in the layout —
+ * because it is the same shape: a stack is centred on its row's own line, so
+ * the room it takes is split between the row above and the row below, and the
+ * gap between two rows is a sum over both of their stacks. A lane holds a row
+ * and one terminal without any of that showing, which is what `CLI_CLEAR` says
+ * a lane has spare, so nothing moves until something is running two at once.
+ */
+export function rowPitch(above: number, below: number): number {
+  return Math.max(LANE_HEIGHT, reachOf(above) + reachOf(below) + CLI_CLEAR);
+}
+/** How far a row's stack reaches past its own line, for a row that has one. */
+function reachOf(marks: number): number {
+  return marks > 1 ? stackReach(marks) : 0;
+}
+/**
  * How much room is left between the last mark of one branch's stack and the
  * first mark of the next branch's.
  *
@@ -158,39 +186,46 @@ export const MIN_BAND_WIDTH = 240;
  * start of the history rather than as a caption over it.
  */
 export const NAME_COLUMN = 1;
-export const REPO_GAP_X = 56;
 export const REPO_GAP_Y = 40;
 /**
  * How far a folder's repositories are set in from the folder itself.
  *
- * A whole cell, so a repository's own name column begins where the folder's
- * marks do: the eye runs down the same edge whether a repository is folded into
- * one mark on the folder's row or opened out into a band under it.
+ * A whole cell, so that the folder's own mark stands clear to the left of
+ * everything it holds and the line out to each of them has somewhere to run.
+ * The eye runs down one edge: every repository in a folder begins at this
+ * column, whether it is folded into a single mark or opened out into a band.
  */
 export const FOLDER_INSET = NAME_COLUMN * COLUMN_WIDTH;
 /**
- * One repository folded into a single mark, in the row of the folder it is in.
+ * The square the folder's own mark answers in, at the head of its row.
  *
- * A cell of the grid apiece, the way a commit takes one: the mark is a ring and
- * the rest of the cell is the repository's name, which is the whole of what a
- * folded repository says. Anything narrower would be a row of rings nobody
- * could tell apart, and anything wider would put the fourth repository off the
- * side of the canvas.
+ * The one thing on the row that is the folder itself: the lines out to the
+ * repositories leave it, and it is what the whole group is dragged by. Small
+ * enough to sit inside a row of the grid, large enough to be aimed at.
+ */
+export const FOLDER_MARK = 22;
+/**
+ * One repository folded into a single mark, on a row of its own.
+ *
+ * A cell of the grid, the way a commit takes one: the name, and then the ring
+ * that stands for the whole of the history behind it. A folded repository is a
+ * row like an opened one — the folder's line arrives at its name from the left,
+ * and whatever is running in it stands past its ring on the right — so the two
+ * read down the same column and folding one changes what is drawn rather than
+ * where anything is.
  */
 export const REPO_MARK_WIDTH = COLUMN_WIDTH;
 /**
  * How far the ring on a folded repository sits from the right edge of its cell.
  *
- * On the right, with the name set against it, so that the mark reads the way a
- * band does — the name, then the thing itself — and so that the lines from the
- * column, which all arrive from the right, end on the ring rather than crossing
- * the name to get to it.
+ * On the right, with the name set at the left of the cell where the folder's
+ * own line arrives: the row is read the way a band is — the name, then the
+ * thing itself, then what is running in it — and a repository folded away keeps
+ * its terminals in the same column of the row that an opened one does.
  */
 export const REPO_MARK_RING = 14;
-/** How far a folder's group is set below the row that heads it. */
+/** How far a folder's repositories are set below the row that heads them. */
 export const FOLDER_GAP_Y = 16;
-/** Width-to-height ratio the packed canvas aims for. */
-export const TARGET_ASPECT = 1.9;
 /**
  * How much history a repository shows before it is asked to show more.
  *
@@ -285,16 +320,17 @@ export type RepositoryNodeData = {
 };
 
 /**
- * A folder that was put on the graph: the row above the repositories in it.
+ * A folder that was put on the graph: the row that heads the repositories in
+ * it.
  *
  * A folder is not a repository and is drawn as one line rather than as a band
- * of history — its name, then the repositories it holds that are folded into a
- * mark each, then the one button a directory answers to. What is opened out
- * stands underneath as a band of its own, and leaves the row.
+ * of history — its name, its own mark, and the one button a directory answers
+ * to. What it holds stands underneath, a repository to a row, each joined back
+ * to that mark.
  *
  * The row is also a place: a terminal opened here runs in the folder itself,
- * which is where work that spans the repositories happens, and the lines from
- * anything already running in there land on this row.
+ * which is where work that spans the repositories happens, and anything already
+ * running in there stands beside this row.
  */
 export type FolderNodeData = {
   /** The directory itself, which is what a terminal here opens in. */
@@ -309,18 +345,25 @@ export type FolderNodeData = {
    * opens the lot, and one that is fully open folds the lot away.
    */
   open: boolean;
+  /**
+   * Band-relative left edge of the folder's own mark.
+   *
+   * The one thing on the row that is the folder itself: every line out to a
+   * repository leaves it, and it is what the hand takes the group by.
+   */
+  mark: number;
   /** Band-relative left edge of the row's own button. */
   tools: number;
 };
 
 /**
- * One repository folded into a single mark, on its folder's row.
+ * One repository folded into a single mark, on its own row under its folder.
  *
  * The simplification is the point: a folder of a dozen repositories is a dozen
- * marks and one line of canvas, and pressing one opens that repository's
- * history out underneath. Until then the mark is where everything about that
- * repository arrives — the lines from whatever is working in any of its
- * worktrees end here rather than nowhere.
+ * rows of one line each, and pressing one opens that repository's history out
+ * in place. Until then the ring is the whole of the repository — everything
+ * working in any of its worktrees stands beside that ring, so folding a
+ * repository away never loses what is running in it.
  */
 export type RepoMarkData = {
   repository: Repository;
@@ -371,18 +414,15 @@ export const STACK_STYLE = {
 } as const;
 
 /**
- * What the canvas is being built against, and what building it leaves behind.
+ * What the canvas is being built against.
  *
- * The column of terminals is drawn last and joined to everything else, so the
- * places a line can land in have to be collected as the bands go down and read
- * once at the end. That is what `rows` is; `before` is only what did not have
- * to be rebuilt at all.
+ * Nothing is collected across the build any more: every terminal stands beside
+ * the row it is running in, and a row knows where its own marks go — so this is
+ * only what did not have to be rebuilt at all.
  */
 export type Draw = {
   /** The graph this one replaces, which is what did not have to be rebuilt. */
   before: ReadonlyMap<string, AppNode>;
-  /** Where a line into a directory lands, by that directory. */
-  rows: Map<string, LineEnd>;
 };
 
 /**
@@ -567,6 +607,25 @@ export const CLI_STROKE: StrokeStyle = {
 };
 
 /**
+ * A folder, joined to each of the repositories it holds.
+ *
+ * The one line on the canvas that says what is inside what rather than what
+ * came from what, and the reason a folder is drawn at all: a directory holding
+ * a dozen repositories is a dozen of these leaving one mark, and the group is
+ * read as one thing because they all start in the same place.
+ *
+ * Faint, and in the canvas's own ink. Containment is the quietest fact on the
+ * graph — it does not change, and nothing is done about it — so these lines are
+ * the ground the rest of the group is read against rather than anything to be
+ * followed.
+ */
+export const FOLDER_STROKE: StrokeStyle = {
+  colour: LINE_COLOR,
+  width: 1.0,
+  opacity: 0.45,
+};
+
+/**
  * A line the pointer can reach, and what it would do.
  *
  * Only history carries this: a stretch of line is the offer to fold away
@@ -613,18 +672,28 @@ export type GraphResult = {
   /** The bands, in the order they are drawn, each with its lines. */
   bands: Band[];
   /**
-   * Every agent that is running, as a line from the terminal running it to the
-   * branch it is working in.
+   * Every line that is not one repository's own: what a folder holds, and what
+   * is running in the rows a folder draws.
    *
-   * Drawn on the canvas rather than inside a band, because these are the one
-   * kind of line that crosses from one repository to another — which is the
-   * whole point of drawing them. What is running is not a fact any single
-   * branch can hold: one terminal can have work going on in three of them.
+   * Drawn on the canvas rather than inside a band, because both ends of these
+   * are the canvas's — a folder's mark and the band of a repository opened out
+   * of it are two things standing on it, and neither is inside the other.
    *
    * Batched by colour, the way a band batches its own lines: a canvas with a
-   * score of agents on it is a handful of paths.
+   * score of these on it is a handful of paths.
    */
   reach: { key: string; stroke: StrokeStyle; parts: GraphLine[] }[];
+  /**
+   * The folder groups, by the directory each was opened on.
+   *
+   * What the canvas is arranged in and what it is moved in: a group is a folder
+   * and everything under it, so dragging the folder's own mark takes the whole
+   * of it. `at` is where the group would stand if nobody had moved it, which is
+   * what a drag is measured against; `members` is everything standing in it
+   * that is not inside something else already listed — a band carries its own
+   * commits, so only the band itself is here.
+   */
+  groups: ReadonlyMap<string, Group>;
   /**
    * How far what is drawn reaches, which is the box the lines are given.
    *
@@ -636,10 +705,32 @@ export type GraphResult = {
 };
 
 /**
+ * One folder and everything laid out under it, as the canvas holds it.
+ *
+ * A folder is the unit somebody put on the graph, so it is the unit the canvas
+ * is arranged in and the unit it is rearranged in: the row, the repositories in
+ * it — folded into a mark or opened into a band — and whatever is running in
+ * any of them all move together, because they are one thing.
+ */
+export type Group = {
+  /** The folder's own node, which is the one thing here that is dragged. */
+  node: string;
+  /** Where the group is laid out, before anything was moved by hand. */
+  at: { x: number; y: number };
+  /**
+   * Everything else that travels with it, by node id.
+   *
+   * Only what stands on the canvas in its own right: a band's commits are
+   * placed inside the band and follow it without being named here.
+   */
+  members: readonly string[];
+};
+
+/**
  * A repository's band: where it sits on the canvas, and what is drawn in it.
  *
  * The lines are held in the band's own coordinates and the band is moved by a
- * transform, so packing the canvas again moves a repository without a single
+ * transform, so laying the canvas out again moves a repository without a single
  * line being worked out afresh.
  */
 export type Band = {
