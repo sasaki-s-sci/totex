@@ -2,7 +2,7 @@
   "name": "totex",
   "version": "0.1.7",
   "private": true,
-  "frontContract": 2,
+  "frontContract": 3,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +17,6 @@
     "@mui/material": "^9.3.1",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-process": "^2.3.1",
-    "@tauri-apps/plugin-updater": "^2.10.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "0.19.0",
     "@xterm/xterm": "^6.0.0",

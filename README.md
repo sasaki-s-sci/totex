@@ -91,21 +91,28 @@ itself from.
 
 ## Updating
 
-The last row of the settings dialog is the whole of it. A press looks at the
-release page and takes the cheapest thing this copy is behind on.
+The last three rows of the settings dialog are the whole of it: which release,
+and then each of the two halves that release comes in. The releases are listed
+in a pull-down, which the window keeps filled on a slow loop from the moment it
+opens, so it is full when it is opened rather than after.
 
-**The window's own pages first.** About a megabyte, checked against the same key
-the installers are signed with, and it ends in a reload. The program underneath
-is untouched, so every terminal it is holding stays open and is redrawn from its
+**The window's own pages.** About a megabyte, checked against the same key the
+installers are signed with, and it ends in a reload. The program underneath is
+untouched, so every terminal it is holding stays open and is redrawn from its
 own backlog as the window comes back.
 
-**The program on the press after that.** That is the installer, and it ends in a
-restart — which ends every terminal with it. It is a second press because it is
-a different cost, and nobody should pay it by having pressed once.
+**The program.** That is the installer, and it ends in a restart — which ends
+every terminal with it. It is a row of its own because it is a different cost,
+and nobody should pay it by having pressed the other one.
 
-A `.deb` or an `.rpm` is never offered the second half: those files belong to the
+A `.deb` or an `.rpm` is never offered the second: those files belong to the
 package manager, which is who brings them forward. It is offered the first, so
 the window can be current while the program waits for the next `apt upgrade`.
+
+The pages only ever go forward — pages older than the program are pages the next
+start throws away, so the row says so rather than downloading them. Going back is
+the program's row, which takes whichever release is named whether it is newer or
+older than the one running, and brings that release's own pages with it.
 
 Pages that cannot draw a window are dropped on the next start of the app, so one
 restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the

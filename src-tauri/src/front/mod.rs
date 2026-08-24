@@ -20,14 +20,22 @@
 //! ## Which front a window opens on
 //!
 //! One rule: a taken front is served only while it is newer than the one built
-//! into the binary, and only after a window has finished drawing itself out of
-//! it once.
+//! into the binary and no further ahead of it than the two agreed on, and only
+//! after a window has finished drawing itself out of it once.
 //!
 //! The first half is what makes it safe to leave lying about. A copy that
 //! replaces itself the whole way, or one a package manager brings forward,
 //! arrives carrying its own newer pages — and the taken ones, older now, are
 //! deleted rather than left standing in front of them. Nothing has to remember
 //! to clean up after a version; being overtaken is what deletes it.
+//!
+//! The agreement is the same half read from the other side. A front is checked
+//! against the program it is being taken onto, and the program underneath it
+//! can move afterwards: a version can be named, so the next program to start
+//! here can be an older one, with an older agreement. So what a front needs is
+//! written down beside it and read again by whichever run is about to serve it
+//! — and taking a program says so outright, which is what leaves the release
+//! that was asked for standing on its own. See [`Serving::drop_front`].
 //!
 //! The second is the way back out. A front that cannot draw the window cannot
 //! draw the mark that would replace it either, so it is not allowed to be what
@@ -79,6 +87,19 @@ const BUILT_IN: &str = "TOTEX_BUILT_IN_FRONT";
 struct Taken {
     /// The release the front came out of.
     version: String,
+    /// The agreement those pages were built against, which the program they
+    /// are served by has to be at least at. Written down rather than checked
+    /// once at the moment of taking, because the program underneath can move
+    /// afterwards: taking an older release replaces it with one whose
+    /// agreement is older too, and pages the run before this one was allowed
+    /// to serve are not therefore pages this one is.
+    ///
+    /// Absent from a file written before this was, which is a front no run
+    /// that reads this will serve anyway -- see [`keep`], where a front has to
+    /// be newer than the binary, and a binary carrying this is newer than any
+    /// front taken without it.
+    #[serde(default)]
+    needs: u32,
     /// Whether a window has ever finished drawing itself out of it.
     confirmed: bool,
 }
@@ -91,6 +112,8 @@ const TAKEN: &str = "taken.json";
 struct Unpacked {
     dir: PathBuf,
     version: Version,
+    /// The agreement it was built against -- see [`Taken::needs`].
+    needs: u32,
 }
 
 /// What answers for a file the front being served has not got.
@@ -137,7 +160,9 @@ impl Serving {
     /// Settles what this run is drawn out of, and clears away everything else.
     pub fn prepare(identifier: &str, built: Version) -> Self {
         let home = dirs::data_dir().map(|dir| dir.join(identifier).join("front"));
-        let at = home.as_deref().and_then(|home| keep(home, &built));
+        let at = home
+            .as_deref()
+            .and_then(|home| keep(home, &built, take::contract()));
         Self {
             home,
             built,
@@ -163,10 +188,49 @@ impl Serving {
         self.held().at
     }
 
+    /// Whether this machine has anywhere to keep a front at all. Where it has
+    /// not, the pages it was installed with are the only ones it can draw.
+    pub(crate) fn keeps(&self) -> bool {
+        self.home.is_some()
+    }
+
+    /// The version of the program, which is the version of the pages built
+    /// into it.
+    pub(crate) fn built(&self) -> &Version {
+        &self.built
+    }
+
     /// What the window is being drawn out of, as a version.
-    fn version(&self) -> Version {
+    pub(crate) fn version(&self) -> Version {
         self.at()
             .map_or_else(|| self.built.clone(), |at| at.version)
+    }
+
+    /// Says that the front on disk is not to be opened on again.
+    ///
+    /// Told when the program itself is being replaced. Whatever release that
+    /// program comes out of carries its own pages, and they are the ones that
+    /// release means -- a front taken over the top of the old program is not
+    /// part of what was asked for, and after a step backwards it can be newer
+    /// than the program that would be serving it.
+    ///
+    /// Written rather than deleted, and written unconfirmed, which is the same
+    /// thing [`keep`] already throws a front away for. The window on the screen
+    /// is still being drawn out of that directory and goes on asking it for
+    /// pieces until the moment it closes; it is only the next start this has to
+    /// reach, and by then the directory is one nothing is pointed at.
+    pub(crate) fn drop_front(&self) {
+        let (Some(home), Some(unpacked)) = (self.home.clone(), self.at()) else {
+            return;
+        };
+        let dropped = Taken {
+            version: unpacked.version.to_string(),
+            needs: unpacked.needs,
+            confirmed: false,
+        };
+        if let Ok(bytes) = serde_json::to_vec(&dropped) {
+            let _ = fs::write(home.join(TAKEN), bytes);
+        }
     }
 
     /// Hands the next window to be loaded a front that has just arrived, and
@@ -193,19 +257,31 @@ impl Serving {
 /// Reads what was taken last time and decides whether a window opens on it.
 ///
 /// Anything that is not the answer is deleted rather than left. A front this
-/// run will not serve is one no later run will serve either: it is either older
-/// than the binary, which only goes one way, or it is one that has had its
-/// chance to draw a window and did not take it.
-fn keep(home: &Path, built: &Version) -> Option<Unpacked> {
+/// run will not serve is one no later run will serve either: it is older than
+/// the binary, or it needs more of the binary than this one has, or it is one
+/// that has had its chance to draw a window and did not take it.
+///
+/// `contract` is what this program answers to, and the reason it is asked here
+/// rather than only at the moment of taking: a front is checked against the
+/// program it was taken onto, and the program can be replaced with an older one
+/// afterwards. Whichever run is about to serve a front is the one that has to
+/// agree with it.
+fn keep(home: &Path, built: &Version, contract: u32) -> Option<Unpacked> {
     let unpacked = fs::read(home.join(TAKEN))
         .ok()
         .and_then(|bytes| serde_json::from_slice::<Taken>(&bytes).ok())
         .filter(|taken| taken.confirmed)
-        .and_then(|taken| Version::parse(&taken.version).ok())
-        .filter(|version| version > built)
-        .map(|version| Unpacked {
+        .filter(|taken| taken.needs <= contract)
+        .and_then(|taken| {
+            Version::parse(&taken.version)
+                .ok()
+                .map(|version| (version, taken.needs))
+        })
+        .filter(|(version, _)| version > built)
+        .map(|(version, needs)| Unpacked {
             dir: home.join(version.to_string()),
             version,
+            needs,
         })
         .filter(|unpacked| unpacked.dir.is_dir())
         .filter(|_| std::env::var_os(BUILT_IN).is_none());

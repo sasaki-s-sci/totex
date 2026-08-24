@@ -20,7 +20,7 @@ import { FILE_DRAG_TYPE, type FilePreviewRequest } from "./lib/filePreview";
 import type { CommitFlowNode } from "./lib/graph";
 import { onDemand, warmInTurn } from "./lib/onDemand";
 import { type Session, shellSession } from "./lib/session";
-import { confirmFront } from "./lib/update";
+import { confirmFront, watchVersions } from "./lib/update";
 import { fetchBranch, mergeBranch, openWorkspace } from "./lib/workspace";
 import { MODE_KEY, storedMode, theme } from "./theme";
 import type { Repository, Workspace } from "./types/git";
@@ -264,6 +264,13 @@ function Window() {
   // this is the first moment the whole of the window exists, and said out of
   // every window because none of them knows which front it was drawn from.
   useEffect(confirmFront, []);
+
+  // Which releases there are, kept up to date from here on. The settings dialog
+  // offers them in a pull-down, and a list that is only asked for when that
+  // pull-down is opened is a list that is empty at the moment somebody looks at
+  // it — so it is asked for on a slow loop instead, and only on a copy that
+  // could do something with the answer. See `watchVersions`.
+  useEffect(watchVersions, []);
 
   // The menus the graph can open are fetched in the idle moments after the
   // window opens, so the first click does not have to wait for their chunks.
