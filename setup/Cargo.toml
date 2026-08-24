@@ -1,0 +1,48 @@
+[package]
+name = "totex-setup"
+# Not the app's version. This is the installer's own, and it moves when the
+# installer does -- which is hardly ever, because nothing in here names a
+# release. See the workflow that publishes it.
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[[bin]]
+name = "totex-setup"
+path = "src/main.rs"
+
+[dependencies]
+# The same check the app makes of an update and the same one both install
+# scripts make of a download, made here without a tool having to be on the
+# machine first: `minisign` and an openssl new enough to know BLAKE2b are what
+# scripts/install.ps1 hunts for, and a person who came here to click is not
+# somebody to send away to install a verifier.
+minisign-verify = "0.2.5"
+serde_json = "1.0.151"
+# Windows' own. Everything this does -- the window, the download, the handing
+# over -- is something the machine already has, which is what keeps a file
+# nobody re-downloads from carrying a TLS stack that ages.
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Networking_WinHttp",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+embed-resource = "3.0.5"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

@@ -52,6 +52,21 @@ cut under, which is what `--version` is on the scripts. Releases cut before
 these names existed carry the version in theirs instead, and their own page is
 what has them.
 
+**Windows, with the version asked for and nothing typed.** There is one more
+installer, and it is on no release page because it holds no release: it is a
+window that asks which totex to put on the machine — the newest, or any version
+by name — and then does what `install.ps1` does. It reads the release page,
+downloads what that version shipped, checks it against the key totex is
+released with, and hands over to the pages the `-setup.exe` has always shown.
+
+[`totex-setup.exe`](https://github.com/sasaki-s-sci/totex/releases/download/setup/totex-setup.exe)
+
+That address holds still for a different reason than the ones above it. Those
+are whatever the newest release comes to be; this is not a release of totex at
+all. It is published on a cycle of its own, under a tag of its own, so it moves
+when the installer moves rather than when the app does — which is what makes
+the copy downloaded today the one to keep.
+
 `-setup.exe` asks two things, where the app goes and whether there is a desktop
 shortcut, and opens totex once it has done it. The `.msi` asks nothing,
 installs for every account on the machine, and wants administrator to do that.
@@ -59,13 +74,16 @@ The `.dmg` is the drag onto Applications. An `.AppImage` is one file: make it
 executable and run it. A `.deb` or an `.rpm` is the package manager's, which is
 also who brings it forward afterwards.
 
-What is given up by clicking is the check. The scripts turn down anything not
-signed with the key totex is released with; a browser carries no such key, so a
-download is worth what the page it came from is worth. None of it is
-code-signed either, and both platforms say so before they will open one: macOS
-holds a downloaded app in quarantine until it is let out of it — `xattr -dr
-com.apple.quarantine /Applications/totex.app` — and Windows SmartScreen calls
-it an unknown publisher, which is More info, then Run anyway.
+What is given up by clicking a file off a release page is the check. The
+scripts turn down anything not signed with the key totex is released with; a
+browser carries no such key, so a download is worth what the page it came from
+is worth. `totex-setup.exe` is the exception, and the reason it exists: it
+carries the key and makes the same check, without a verifier having to be
+installed first to make it. None of them are code-signed, and both platforms
+say so before they will open one: macOS holds a downloaded app in quarantine
+until it is let out of it — `xattr -dr com.apple.quarantine
+/Applications/totex.app` — and Windows SmartScreen calls it an unknown
+publisher, which is More info, then Run anyway.
 
 `latest.json`, `totex-macos-universal.app.tar.gz` and `front.tar.gz` sit beside
 them and are not downloads at all: they are what an installed copy updates

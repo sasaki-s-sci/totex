@@ -1,0 +1,163 @@
+name: Setup
+
+# The installer somebody downloads once and keeps, built and published on a
+# cycle of its own.
+#
+# Nothing under setup/ names a version of totex -- what it installs is decided
+# by the release page it reads when the button is pressed -- so a release of the
+# app is not a reason to publish it, and a change to the directory is. That is
+# the whole reason it is not built by .github/workflows/build.yml beside the
+# bundles: those are the app, cut per tag, and this is one file that outlives
+# every one of them.
+
+on:
+  push:
+    branches: [main]
+    paths: ["setup/**", ".github/workflows/setup.yml"]
+  pull_request:
+    paths: ["setup/**", ".github/workflows/setup.yml"]
+  # Publishing is asked for rather than arrived at: a change here is worth
+  # building on the way in and worth handing to people only when somebody says
+  # so.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Attach what is built to the `setup` release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: setup-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Keep in sync with the `rust` pin in mise.toml -- the first step enforces
+  # this, exactly as the app's build does.
+  RUST_VERSION: "1.95.0"
+
+jobs:
+  build:
+    name: Build
+    # The resources -- the icon, the manifest that keeps Windows from offering
+    # to elevate a file called setup, the version in its properties -- are
+    # compiled by a Windows tool, and a build without them is one to look at
+    # rather than one to publish.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify the Rust pin matches mise.toml
+        shell: bash
+        run: |
+          pinned=$(sed -n 's/^rust *= *{ *version *= *"\([^"]*\)".*/\1/p' mise.toml)
+          if [ "$pinned" != "$RUST_VERSION" ]; then
+            echo "::error file=mise.toml::mise.toml pins rust $pinned but this workflow uses $RUST_VERSION"
+            exit 1
+          fi
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: setup
+
+      - name: Check it the way the rest of the repository is checked
+        run: |
+          cargo fmt --manifest-path setup/Cargo.toml --all -- --check
+          cargo clippy --manifest-path setup/Cargo.toml --all-targets -- -D warnings
+
+      - name: Test what a release page says and whether to believe it
+        # The window is not what these are about: what a manifest names, what a
+        # tag is allowed to disagree about, and what a signature has to be are
+        # the parts of this that a person cannot see going wrong.
+        run: cargo test --manifest-path setup/Cargo.toml
+
+      - name: Build it
+        run: cargo build --manifest-path setup/Cargo.toml --release --target x86_64-pc-windows-msvc
+
+      - name: Verify the resources went in
+        # A resource script that did not compile is a build with no icon, no
+        # version and -- the one that matters -- no manifest, which is an
+        # installer Windows offers to elevate on the strength of its name.
+        # None of that fails a build on its own, so it is failed here. The
+        # version block is the half of it that can be read back.
+        shell: pwsh
+        run: |
+          $exe = Get-Item setup/target/x86_64-pc-windows-msvc/release/totex-setup.exe
+          if ($exe.VersionInfo.FileDescription -ne 'Installs totex') {
+              Write-Error "the resource script did not go in: $($exe.VersionInfo.FileDescription)"
+              exit 1
+          }
+          $exe.VersionInfo | Format-List
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: totex-setup
+          path: setup/target/x86_64-pc-windows-msvc/release/totex-setup.exe
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: totex-setup
+          path: dist-setup
+
+      - name: Point the tag at what was built
+        # `setup` is a label rather than a version: there is one of these at a
+        # time, under one address, and moving the tag is what keeps that
+        # address answering with a file somebody can find the source of. The
+        # app's own tags are never touched by this.
+        run: |
+          git tag -f setup "$GITHUB_SHA"
+          git push -f origin refs/tags/setup
+
+      - name: Publish it
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: setup
+          name: The installer
+          files: dist-setup/totex-setup.exe
+          fail_on_unmatched_files: true
+          # Marked as a pre-release so that it can never become what
+          # `releases/latest/download/...` answers with. Every address in the
+          # README that says `latest` is the app's newest release, and an
+          # installer published between two of them must not step in front of
+          # one. It is also what keeps this out of the list of versions the
+          # installer itself offers.
+          prerelease: true
+          make_latest: "false"
+          body: |
+            The installer, which is not a release of totex and does not hold
+            one. It asks which version to install and installs it, so the file
+            below is the one to keep: it installs whatever is newest today, and
+            whatever is newest a year from now.
+
+            ```
+            https://github.com/${{ github.repository }}/releases/download/setup/totex-setup.exe
+            ```
+
+            It checks what it downloads against the key totex is released with,
+            the same check `install.ps1` makes and the same one the app makes
+            of an update — with nothing to install first to do it.
+
+            It is not code-signed. Windows SmartScreen will say "unknown
+            publisher": More info, then Run anyway.

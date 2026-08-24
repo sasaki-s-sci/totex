@@ -3,6 +3,13 @@ version: "3"
 vars:
   # The Rust crate lives under src-tauri/, every cargo task is driven from the root.
   CARGO: --manifest-path src-tauri/Cargo.toml
+  # The standalone installer is a second crate, released on a cycle of its own.
+  # It is built for Windows from wherever it is built, since Windows is the only
+  # place it runs; off Windows that wants `rustup target add` first, and the
+  # icon and manifest are left out because the tool that compiles them is not
+  # there. See setup/build.rs.
+  SETUP: --manifest-path setup/Cargo.toml
+  SETUP_TARGET: x86_64-pc-windows-msvc
 
 tasks:
   default:
@@ -81,6 +88,20 @@ tasks:
       # `task icon` cannot make either: one is a BMP, and the other has to be
       # legible on the white of a file list, which the app's white mark is not.
       - node scripts/installer-art.mjs
+
+  setup:build:
+    desc: Build the standalone installer, which installs any released totex
+    cmds:
+      - cargo build {{.SETUP}} --release --target {{.SETUP_TARGET}}
+
+  setup:check:
+    desc: Format-check and lint the standalone installer
+    # Not part of `task check`: that runs on any machine, and this wants a
+    # target that is only there for the asking. The workflow in
+    # .github/workflows/setup.yml runs it on every change to setup/.
+    cmds:
+      - cargo fmt {{.SETUP}} --all -- --check
+      - cargo clippy {{.SETUP}} --all-targets --target {{.SETUP_TARGET}} -- -D warnings
 
   typecheck:
     desc: Type-check the frontend
