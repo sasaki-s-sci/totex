@@ -252,8 +252,9 @@ export const DEFAULT_VISIBLE_COMMITS = 3;
  * still names are the ones that name a thing rather than a position: what is
  * running somewhere, and what is going on in a checkout.
  *
- * The stylesheet holds this value too, because the ghost of a branch and the
- * fold on a line are drawn by CSS rather than from a layout.
+ * The stylesheet holds this value too, because the marks the cursor brings out
+ * — the offer on a commit, the fold on a line — are drawn by CSS rather than
+ * from a layout.
  */
 export const LINE_COLOR = "var(--line)";
 

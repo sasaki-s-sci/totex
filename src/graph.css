@@ -348,31 +348,11 @@
   filter: var(--lit);
 }
 
-/* The branch that is not there yet: drawn from the dot the cursor is on, out to
-   where its head would go.
-
-   One of these on the canvas rather than one per commit, drawn where the cursor
-   says: there is nothing to hide until there is something to show, and a
-   thousand hidden previews were a sixth of everything the engine was holding.
-   It never takes the pointer, so moving towards it cannot chase it away. */
-.ghost {
-  color: var(--line);
-  pointer-events: none;
-  opacity: 0.55;
-}
-
-.ghost path,
-.ghost circle {
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 1.1;
-  stroke-dasharray: 3 3;
-  stroke-linecap: round;
-}
-
-/* And what makes that branch real: the offer, standing over the dot — see
-   `BRANCH_LIFT`. Solid where the ghost below it is dotted, because this is a
-   thing that is there and the ghost is a thing that is not.
+/* What a commit is for: the offer of a branch, standing over the dot — see
+   `BRANCH_LIFT`. The one mark a commit under the cursor puts on the canvas. The
+   branch itself used to be drawn along with it, dotted, out to where its head
+   would go; it said no more than the offer already does, and it said it over the
+   history the cursor was reading.
 
    One of these per commit the window has something to say about — the one under
    the cursor, and the one that was last picked — rather than one per commit. */

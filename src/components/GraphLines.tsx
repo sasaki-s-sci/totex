@@ -432,8 +432,8 @@ const BRANCH_RADIUS = 9;
  */
 const BRANCH_REACH = 12;
 /**
- * The mark on it: history carrying on, and a branch peeling off it — the ghost
- * below it, drawn small enough to sit on a disc.
+ * The mark on it: history carrying on, and a branch peeling off it, drawn small
+ * enough to sit on a disc.
  */
 const BRANCH = "M -6 -3 H 6 M -1 -3 C 2 -3, 2 4, 5 4";
 
@@ -645,21 +645,15 @@ function Hover({
 
   return (
     <g transform={`translate(${bandAt.x} ${bandAt.y})`}>
-      {/* The branch that is not there yet, drawn where it would go: out of the
-          dot and down to the row a branch cut here would take. Dotted because
-          it is not there yet, and never takes the pointer — clicking the commit
-          is what makes it real. */}
+      {/* The commit the cursor is on, wearing the halo everything on this canvas
+          wears while it is live under the pointer. The branch a press here would
+          cut used to be drawn with it, dotted, out to where its head would go —
+          a preview of a thing nobody had asked for, laid over the history the
+          cursor was reading. The offer standing over the dot says as much, and
+          it is the mark that answers. */}
       {dotAt && <circle className="commit-hover" cx={dotAt.x} cy={dotAt.y} r={HALO_RADIUS} />}
-      {dotAt && (
-        <g className="ghost" transform={`translate(${dotAt.x} ${dotAt.y})`}>
-          <path
-            d={`M 7 0 C ${STEP.x * 0.55} 0, ${STEP.x * 0.55} ${STEP.y}, ${STEP.x - 8} ${STEP.y}`}
-          />
-          <circle cx={STEP.x} cy={STEP.y} r="8" />
-        </g>
-      )}
 
-      {/* And what makes it real, over the dot itself. The selected commit is
+      {/* The offer of a branch, over the dot itself. The selected commit is
           already wearing one, drawn with its halo, so it is not drawn again
           here: two of the same mark in the same place is one too many. */}
       {dot && dotAt && dot.node.id !== selected && (
