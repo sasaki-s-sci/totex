@@ -123,8 +123,10 @@
   background: transparent;
 }
 
-/* The name sits in the cell before the first commit, on the same line, and is
-   set against it so the eye runs straight from the name into the history. */
+/* The name sits in the cell before the mark the band opens with — the first
+   commit drawn, or the fold where the history carries on past it — level with
+   that mark and set against it, so the eye runs straight from the name into the
+   history. */
 .band__name {
   position: absolute;
   display: flex;

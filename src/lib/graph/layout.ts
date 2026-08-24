@@ -179,11 +179,22 @@ export function commitNodeId(repository: Repository, sha: string): string {
 
 /** Every node and line one repository contributes, relative to its band. */
 function layout(repository: Repository, shown: number, deep: Depth): PreparedRepository {
-  const { placed, index, columns, refs, hidden, trunkRow, row, width, height } = place(
+  const { placed, index, columns, refs, hidden, row, width, height } = place(
     repository,
     shown,
     deep,
   );
+
+  // The mark the band opens with, which is what the name is set beside: the
+  // fold where there is history behind it, and the oldest commit drawn where
+  // there is not. Both stand in the column straight after the name's.
+  //
+  // The fold keeps the trunk's own row, so a name hung off the trunk was level
+  // with it either way — until the history ran out on a line other than the
+  // trunk, and the name then led a stretch of history that was not the one it
+  // was set against.
+  const opening = hidden > 0 ? undefined : placed[placed.length - 1];
+  const nameRow = opening === undefined ? row(0) : row(signedRow(opening.lane));
 
   const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[] = [];
   const drawn = new Lines();
@@ -359,7 +370,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     repository,
     data: {
       repository,
-      label: { x: 0, y: trunkRow, width: NAME_COLUMN * COLUMN_WIDTH, height: LANE_HEIGHT },
+      label: { x: 0, y: nameRow, width: NAME_COLUMN * COLUMN_WIDTH, height: LANE_HEIGHT },
     },
     style: { width, height },
     nodes,
@@ -702,8 +713,6 @@ function place(repository: Repository, shown: number, deep: Depth) {
     columns,
     refs: refs.placements,
     hidden,
-    /** How far down the band the trunk row sits, which everything is hung off. */
-    trunkRow: above,
     /** Band-relative top of the cell a row's marks are drawn in. */
     row: (at: number) => above + pitch(at),
     width: Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2),

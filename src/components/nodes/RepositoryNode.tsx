@@ -13,9 +13,10 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   return (
     <div className="band">
       {/* The name and the one mark that answers for the repository itself, in
-          the cell before the first commit and on the same line — one more step
-          of the same grid, so it reads as where the repository starts rather
-          than as a caption over it. */}
+          the cell before the mark the band opens with and level with it — the
+          first commit drawn, or the fold where there is history behind it — one
+          more step of the same grid, so it reads as where the repository starts
+          rather than as a caption over it. */}
       <div
         className="band__name"
         style={{ left: label.x, top: label.y, width: label.width, height: label.height }}

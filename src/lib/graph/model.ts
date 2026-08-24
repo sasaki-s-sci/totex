@@ -181,9 +181,10 @@ export const CELL_STYLE = {
 /** Enough for the repository's own name, however short its history is. */
 export const MIN_BAND_WIDTH = 240;
 /**
- * The repository's name takes the column before its first commit, on the line
- * the repository is on: another cell in the same grid, so the name reads as the
- * start of the history rather than as a caption over it.
+ * The repository's name takes the column before the mark its band opens with —
+ * the first commit drawn, or the fold standing in for the history behind it —
+ * and is set on that mark's own line: another cell in the same grid, so the
+ * name reads as the start of the history rather than as a caption over it.
  */
 export const NAME_COLUMN = 1;
 export const REPO_GAP_Y = 40;
@@ -315,7 +316,7 @@ export type BranchHeadData = {
 
 export type RepositoryNodeData = {
   repository: Repository;
-  /** Band-relative box of the name's cell, which leads the trunk row. */
+  /** Band-relative box of the name's cell, which leads the row the band opens on. */
   label: { x: number; y: number; width: number; height: number };
 };
 
