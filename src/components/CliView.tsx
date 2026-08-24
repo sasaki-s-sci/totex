@@ -139,6 +139,14 @@ export function CliView({ session, shown, onEnded }: Props) {
       // that a question worth several lines can be typed in the terminal the
       // same way it is typed anywhere else.
       if (plain && event.shiftKey && !event.ctrlKey && event.key === "Enter") {
+        // Refused twice, because xterm reads the key twice: what it is told to
+        // leave alone at the press it picks up again as the character, where a
+        // Return with nothing but Shift held is a Return like any other and
+        // goes down the wire as one — on top of the one written here, which is
+        // the send this was meant to avoid. Ctrl used to be what kept it out
+        // of there. Refusing the press outright is what keeps it out now: a
+        // press nobody let through never becomes a character.
+        event.preventDefault();
         void writeShell(session.id, ANOTHER_LINE).catch(() => undefined);
         return false;
       }
