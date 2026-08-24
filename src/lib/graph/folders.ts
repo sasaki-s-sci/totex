@@ -1,6 +1,8 @@
 import type { Repository } from "../../types/git";
 import {
   CELL_STYLE,
+  CHIP_STEP,
+  CLI_STEP,
   COLUMN_WIDTH,
   type Draw,
   FOLDER_MARK,
@@ -10,6 +12,7 @@ import {
   NAME_COLUMN,
   REPO_MARK_WIDTH,
   type RepoMarkFlowNode,
+  SESSION_WIDTH,
 } from "./model";
 
 /**
@@ -186,6 +189,89 @@ export function repoMark(
 /** What one folded repository's mark is called, on its folder's own row. */
 export function markId(band: string, repository: Repository): string {
   return `${band}mark${repository.id}`;
+}
+
+/**
+ * Where one terminal stands on the ring, and where its line leaves the row.
+ *
+ * Both in the row's own coordinates, so the ring is worked out once from the
+ * shape of the row and then put wherever the row happens to stand.
+ */
+export type RingSpot = {
+  /** The corner of the terminal's own box, which is what a node is placed by. */
+  x: number;
+  y: number;
+  /** The point on the row's edge the line to it comes out of. */
+  socket: { x: number; y: number };
+};
+
+/** The ring, and the box everything on it comes to. */
+export type Ring = {
+  spots: readonly RingSpot[];
+  /** The box the row and its ring take together, in the row's coordinates. */
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+/** How many terminals one turn of the ring holds before the next one out. */
+const RING_SLOTS = 8;
+/** How far the first ring clears the row by, and how far apart two rings are. */
+const RING_STEP = CHIP_STEP;
+
+/**
+ * A folder's own terminals, set round the row rather than stacked beside it.
+ *
+ * For the folder that holds no repository at all. There is nothing under such a
+ * row and nothing beside it — the column that would push the canvas about is
+ * empty — so what is running in it is the only thing the folder has to show,
+ * and the room around the row is all its own. They are put on a ring from three
+ * o'clock, clockwise: the first stands exactly where the stack used to start,
+ * past the end of the row, and every one after it grows round the folder rather
+ * than down away from it.
+ *
+ * Eight to a turn, at a fixed angle apiece rather than the circle split by how
+ * many there are. A terminal opening is a terminal arriving, and one that
+ * re-spaced every mark already standing would move the thing somebody was
+ * reaching for. The ninth starts the next ring out, a `RING_STEP` further.
+ *
+ * The ring is an ellipse rather than a circle because the row is: it clears the
+ * end of a long row on one axis and the height of it on the other, so the marks
+ * hug what they belong to instead of standing off at the width of the name.
+ */
+export function ringAround(count: number): Ring {
+  const cx = FOLDER_ROW_WIDTH / 2;
+  const cy = LANE_HEIGHT / 2;
+
+  const spots: RingSpot[] = [];
+  const box = { left: 0, top: 0, right: FOLDER_ROW_WIDTH, bottom: LANE_HEIGHT };
+
+  for (let slot = 0; slot < count; slot++) {
+    const turn = Math.floor(slot / RING_SLOTS) + 1;
+    const angle = ((slot % RING_SLOTS) * 2 * Math.PI) / RING_SLOTS;
+    // Down the page is where y grows, so an angle that grows runs clockwise —
+    // which is what makes three o'clock the start rather than the end.
+    const along = Math.cos(angle);
+    const down = Math.sin(angle);
+
+    const x = Math.round(cx + (cx + RING_STEP * turn) * along - SESSION_WIDTH / 2);
+    const y = Math.round(cy + (cy + RING_STEP * turn) * down - CLI_STEP / 2);
+
+    // Where the ray out to it crosses the row's own edge, which is where its
+    // line starts: a line that left the middle would be drawn across the name
+    // to reach anything standing on the far side of it.
+    const edge = Math.min(Math.abs(cx / along), Math.abs(cy / down));
+
+    spots.push({ x, y, socket: { x: cx + edge * along, y: cy + edge * down } });
+
+    box.left = Math.min(box.left, x);
+    box.top = Math.min(box.top, y);
+    box.right = Math.max(box.right, x + SESSION_WIDTH);
+    box.bottom = Math.max(box.bottom, y + CLI_STEP);
+  }
+
+  return { spots, ...box };
 }
 
 /** Whether the row would be drawn exactly as it already is. */

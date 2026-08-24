@@ -1032,7 +1032,9 @@ export function GitGraph({
    *
    * Held to the top left corner of the canvas, because the lines are drawn in
    * one box that starts there: a group carried above it would keep its marks
-   * and lose everything joining them.
+   * and lose everything joining them. Held to the group's own corner rather
+   * than the canvas's — a folder with its terminals set round it carries marks
+   * above and to the left of the row, and the corner is where they run out.
    */
   const dropGroup: OnNodeDrag<AppNode> = useCallback(
     (_event, node) => {
@@ -1042,8 +1044,8 @@ export function GitGraph({
       const group = graph.groups.get(held.root);
       if (!group) return;
       placeFolder(held.root, {
-        x: Math.max(0, node.position.x) - group.at.x,
-        y: Math.max(0, node.position.y) - group.at.y,
+        x: Math.max(group.least.x, node.position.x) - group.at.x,
+        y: Math.max(group.least.y, node.position.y) - group.at.y,
       });
     },
     [graph.groups, placeFolder],
