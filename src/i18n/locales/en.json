@@ -26,7 +26,8 @@
   },
   "branch": {
     "head": "{{name}}",
-    "head_remote": "{{name}} (has a remote)"
+    "head_remote": "{{name}} (has a remote)",
+    "fetch": "Fetch {{branch}} from {{remote}}"
   },
   "graph": {
     "fold": "Fold",

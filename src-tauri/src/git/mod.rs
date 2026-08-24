@@ -19,6 +19,9 @@ mod delta;
 mod discover;
 mod inspect;
 mod model;
+// Public so `generate_handler!` can name its command the same way it names
+// the other modules' commands.
+pub mod remote;
 #[cfg(test)]
 mod tests;
 pub mod workspace;

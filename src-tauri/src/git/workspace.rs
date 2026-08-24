@@ -121,7 +121,7 @@ const DIRTY: &str = "dirty";
 /// Every refusal here is a word the window matches on, never one it shows.
 /// What is drawn instead is the mark that was pressed, in red — see the graph's
 /// menus, which withhold whatever they can work out beforehand.
-fn validate_branch(dir: &Path, branch: &str) -> Result<(), String> {
+pub(super) fn validate_branch(dir: &Path, branch: &str) -> Result<(), String> {
     cmd::run(dir, &["check-ref-format", "--branch", branch])
         .map(|_| ())
         .map_err(|_| "bad-branch-name".to_string())

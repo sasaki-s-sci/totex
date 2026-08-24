@@ -10,32 +10,67 @@ import type { ReportFlowNode } from "./reporting";
  * is drawn in, and what each kind of node carries.
  *
  * Nothing here reads a repository or decides where anything goes — that is
- * `layout` for one repository and `build` for the canvas they share. This is
- * only what both of them mean by a cell, a lane and a node.
+ * `history` and `branches` for what one repository holds, `layout` for the band
+ * it is drawn in, and `build` for the canvas they all share. This is only what
+ * each of them means by a cell, a row and a node.
  */
 
 /**
- * History runs left to right: a commit sits one column past the last of its
- * parents, so the oldest commit owns the leftmost column, the newest the
- * rightmost, and a branch grows out of the commit it was cut from. Small on
- * purpose — the whole tree should fit on the canvas.
+ * One cell of the grid the named things are drawn on: a repository's name, a
+ * branch head, a folder's row, a repository folded into a single mark.
+ *
+ * Wide, because what stands in a cell is words as often as it is a mark, and a
+ * name has to be read. The history is not drawn on this grid — it is dots and
+ * the lines between them, and it packs into half of it; see `COMMIT_STEP`.
  */
 export const COLUMN_WIDTH = 132;
 /**
- * Vertical distance between two parallel lines of development, and the height
- * of one cell.
+ * Vertical distance between two rows of that grid, and the height of one cell.
  *
- * Tighter than the horizontal step: history runs along the x axis and needs the
- * room, while a row only has to be told apart from the one above it. Every row a
+ * Tighter than the horizontal step: a row only has to be told apart from the one
+ * above it, while a name set along a line needs room to be read in. Every row a
  * branch takes costs this much band, so keeping it down is what stops a
  * repository with a handful of branches from being mostly white space.
  */
 export const LANE_HEIGHT = 64;
+/**
+ * The grid the history itself is drawn on: half a cell each way.
+ *
+ * History runs left to right — a commit sits one column past the last of its
+ * parents, so the oldest owns the leftmost column and a branch grows out of the
+ * very commit it was cut from — and down the page a row per line of
+ * development. None of it is words: a commit is a dot and a piece of history is
+ * a line, so it packs into half the step a name needs, and the shape of a
+ * repository is that much more of it at a glance.
+ */
+export const COMMIT_STEP = { x: COLUMN_WIDTH / 2, y: LANE_HEIGHT / 2 };
 export const DOT_SIZE = 14;
-/** One step of the grid, for anything drawn to the scale of the layout. */
+/** One step of the row grid, for anything drawn to the scale of the layout. */
 export const STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT };
 /** A branch head, drawn a touch larger than a commit — it is the handle. */
 export const HEAD_SIZE = 16;
+/**
+ * How far under a branch's own ring the remote end of the same branch stands.
+ *
+ * The two ends share a row — one branch, one row — so what tells them apart is
+ * this drop rather than a row each. Downwards because it is the one side of a
+ * head that is free: the terminal a branch offers stands straight above, the
+ * line in from the history arrives level with the ring, and the lines out to
+ * what is running leave level the other way. Small enough that the pair reads
+ * as one thing, and small enough that the dropped ring stays inside its row's
+ * own cell, so a branch having a remote costs the band no height.
+ */
+export const PAIR_DROP = 20;
+/**
+ * The ring drawn round a head whose remote end stands on the same commit.
+ *
+ * A second ring rather than a second head: there is one commit, so there is one
+ * place to stand, and the pair is at rest. It is what a fetch is asked for by,
+ * so it has to be wide enough of the ring inside it to be aimed at — and the
+ * head's own ring is drawn over it, so what is left to aim at is the gap
+ * between the two.
+ */
+export const PAIR_RING = 28;
 /**
  * How far short of a hollow mark a line has to stop.
  *
@@ -69,9 +104,9 @@ export const CLI_MARK = 16;
 /**
  * How far apart the marks hanging off a branch stand.
  *
- * Half a cell: history needs a column wide enough to carry a name along every
- * line in it, and nothing out here carries one — what hangs off a branch is
- * whatever is running in it, marks the size of a chip.
+ * Half a cell, which is a column of the history: nothing out here is words —
+ * what hangs off a branch is whatever is running in it, marks the size of a
+ * chip — so it is spaced the way the marks of the history are.
  *
  * It was a third of a cell, which stood the stack close enough to its branch
  * that the line between them read as a join rather than as a run out to a
@@ -94,16 +129,6 @@ export const CHIP_STEP = 66;
  */
 export const CLI_STEP = 34;
 /**
- * Where a branch's stack of terminals is measured from, from the top of that
- * branch's row.
- *
- * Half the difference between a lane and a step, so the middle of the stack
- * comes out level with the branch itself rather than with the top edge of its
- * row. The stack is then hung on the branch's own line, half of it above and
- * half below — see `stackReach`.
- */
-export const STACK_TOP = (LANE_HEIGHT - CLI_STEP) / 2;
-/**
  * How far a stack of this many marks reaches past its branch's own line, either
  * way.
  *
@@ -116,8 +141,9 @@ export const STACK_TOP = (LANE_HEIGHT - CLI_STEP) / 2;
  * here holding a place open.
  *
  * The room this asks for is therefore split between the row above and the row
- * below, which is why the layout needs the depth of both to space two rows —
- * see `spacing` in the layout.
+ * below, which is why spacing two rows needs the depth of both — see
+ * `rowPitch`, which is the sum a band's branch column and a folder's own column
+ * are both spaced by.
  */
 export function stackReach(marks: number): number {
   return ((marks - 1) * CLI_STEP) / 2;
@@ -125,9 +151,9 @@ export function stackReach(marks: number): number {
 /**
  * How far a row outside a band reaches from its own line, either way.
  *
- * A lane, or its stack where that is deeper. What the group is measured by at
- * its two ends — the row under the folder, and the last row of the column —
- * where there is no neighbour to share the room with.
+ * A lane, or its stack where that is deeper. What a column is measured by at
+ * its two ends — the first row and the last, of a folder's own column or of the
+ * branches down a band — where there is no neighbour to share the room with.
  */
 export function rowReach(marks: number): number {
   return Math.max(LANE_HEIGHT / 2, stackReach(marks) + CLI_STEP / 2);
@@ -136,8 +162,8 @@ export function rowReach(marks: number): number {
  * How far apart the lines of two neighbouring rows stand, given what each of
  * them is running.
  *
- * The same sum a band spaces its branches by — see `spacing` in the layout —
- * because it is the same shape: a stack is centred on its row's own line, so
+ * A band's branches and a folder's repositories are spaced by this same sum,
+ * because they are the same shape: a stack is centred on its row's own line, so
  * the room it takes is split between the row above and the row below, and the
  * gap between two rows is a sum over both of their stacks. A lane holds a row
  * and one terminal without any of that showing, which is what `CLI_CLEAR` says
@@ -176,6 +202,19 @@ export const CLI_CLEAR = LANE_HEIGHT - CLI_STEP;
 export const CELL_STYLE = {
   width: COLUMN_WIDTH,
   height: LANE_HEIGHT,
+  pointerEvents: "none",
+} as const;
+/**
+ * One commit's cell, which is a cell of the history's own grid: half of the
+ * above each way.
+ *
+ * Shared and pointerless for the same reasons — there is one of these per
+ * commit and the canvas holds thousands of them, and what answers the cursor is
+ * the dot in the middle rather than the room around it.
+ */
+export const COMMIT_CELL = {
+  width: COMMIT_STEP.x,
+  height: COMMIT_STEP.y,
   pointerEvents: "none",
 } as const;
 /** Enough for the repository's own name, however short its history is. */
@@ -261,7 +300,6 @@ export const LINE_COLOR = "var(--line)";
 export type CommitNodeData = {
   commit: Commit;
   repository: Repository;
-  lane: number;
   branches: Branch[];
   worktrees: Worktree[];
   /**
@@ -275,15 +313,41 @@ export type CommitNodeData = {
    * node's own dash does not already run here.
    *
    * This is the fold's dash, on the commits the fold's single line cannot
-   * reach: a lane is handed on the moment the commit holding it is drawn, so a
-   * chain cut short by the fold is followed along its own row by an unrelated
-   * one, and the two marks either side of the join have nothing drawn between
-   * them. Without this that gap reads as a line that failed to draw.
+   * reach: a row carries whatever lines of development fit along it, so a chain
+   * cut short by the fold can be followed on its own row by an unrelated one,
+   * and the two marks either side of the join have nothing drawn between them.
+   * Without this that gap reads as a line that failed to draw.
    */
   folded: boolean;
 };
 
 export type RefKind = "local" | "remote" | "worktree";
+
+/**
+ * What a head can ask a remote for.
+ *
+ * A branch on this machine and the same name on a remote are two refs, and git
+ * keeps them apart. They are one branch to whoever works in it, so the window
+ * pairs them by name — the same guess git itself makes the first time you check
+ * a remote branch out, and the one a person makes reading the column. What the
+ * pairing buys is a row the two ends share, and this: the end that stands on
+ * the remote is a place the rest of the branch can be asked for from.
+ */
+export type Fetch = {
+  /** The remote to ask. */
+  remote: string;
+  /** The name that remote knows the branch by. */
+  branch: string;
+  /**
+   * The local end's worktree, or null where the branch has none here.
+   *
+   * A fetch writes refs and objects and touches no file, so it is safe at any
+   * time — but it is offered only over a codebase with nothing uncommitted in
+   * it, because reaching for what the remote has is something done between
+   * pieces of work rather than in the middle of one.
+   */
+  work: string | null;
+};
 
 /**
  * Where a branch is: the head the line cut at a commit runs out to.
@@ -301,6 +365,13 @@ export type BranchHeadData = {
   name: string;
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
+  /**
+   * The remote end of this branch stands on the same commit, so this one head
+   * says both: the ring drawn round it is the other end.
+   */
+  together: boolean;
+  /** What this head can ask a remote for, and null where nothing can be asked. */
+  fetch: Fetch | null;
   /** The worktree this is checked out in, which a shell can be opened in. */
   cwd: string | null;
   /**
@@ -539,12 +610,20 @@ export type LineEnd = {
 /**
  * The end of a line that sits on a cell's own mark.
  *
- * Every node the graph draws but a session takes a whole cell, and its mark is
- * in the middle of it — so a line into one ends half a cell along and half a
- * cell down from wherever that node is standing.
+ * A branch head, a folded repository, a folder's row: each takes a whole cell
+ * and its mark is in the middle of it, so a line into one ends half a cell
+ * along and half a cell down from wherever that node is standing.
  */
 export function onCell(node: string): LineEnd {
   return { node, dx: COLUMN_WIDTH / 2, dy: LANE_HEIGHT / 2 };
+}
+
+/**
+ * And the end of one that sits on a commit's mark, which is the same thing on
+ * the history's own grid.
+ */
+export function onCommit(node: string): LineEnd {
+  return { node, dx: COMMIT_STEP.x / 2, dy: COMMIT_STEP.y / 2 };
 }
 
 /**
@@ -719,6 +798,16 @@ export type Group = {
   node: string;
   /** Where the group is laid out, before anything was moved by hand. */
   at: { x: number; y: number };
+  /**
+   * The nearest the folder's own node can be put to the corner of the canvas.
+   *
+   * Nothing in a group is usually above or to the left of the row that heads
+   * it, and this is then the corner itself. A folder whose terminals are set
+   * round it has marks on both those sides, and the lines are drawn in one box
+   * that starts at the corner: a group carried past this would keep its marks
+   * and lose what joins them.
+   */
+  least: { x: number; y: number };
   /**
    * Everything else that travels with it, by node id.
    *

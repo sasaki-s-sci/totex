@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   type AppNode,
   type Band,
-  COLUMN_WIDTH,
+  COMMIT_STEP,
   type CommitFlowNode,
   circlesOf,
   DOT_SIZE,
@@ -12,7 +12,6 @@ import {
   type FoldTarget,
   foldCell,
   type GraphLine,
-  LANE_HEIGHT,
   type LineEnd,
   type Point,
   STEP,
@@ -249,11 +248,11 @@ function CommitDots({
 /** Where a commit is standing inside its repository band. */
 function commitAt(dot: CommitDot, standing: ReadonlyMap<string, XYPosition>): Point {
   const at = standing.get(dot.node.id);
-  return at ? { x: at.x + COLUMN_WIDTH / 2, y: at.y + LANE_HEIGHT / 2 } : dot.at;
+  return at ? { x: at.x + COMMIT_STEP.x / 2, y: at.y + COMMIT_STEP.y / 2 } : dot.at;
 }
 
 /** How far back a boundary commit's stub reaches: history that is not there. */
-const BOUNDARY_STUB = COLUMN_WIDTH * 0.3;
+const BOUNDARY_STUB = COMMIT_STEP.x * 0.3;
 /**
  * How far back the stub on a commit whose parent is only folded away reaches.
  *
@@ -261,7 +260,7 @@ const BOUNDARY_STUB = COLUMN_WIDTH * 0.3;
  * gap it stands in is a whole column, and a stub that only just left the dot
  * would read as a line that gave up rather than as one that was put away.
  */
-const FOLDED_STUB = COLUMN_WIDTH * 0.45;
+const FOLDED_STUB = COMMIT_STEP.x * 0.45;
 
 /** The short line showing that history continues past a commit's own mark. */
 function stubsOf(points: readonly Point[], reach: number): string {
@@ -388,10 +387,10 @@ const HOVER_SCREEN = 22;
 /**
  * The most of the graph that stretch may cover, however far out the canvas is.
  *
- * Under a lane, so the stretch belongs to one row: two rows both answering at
- * once would leave the mark that appears looking arbitrary.
+ * Under a row of the history, so the stretch belongs to one row: two rows both
+ * answering at once would leave the mark that appears looking arbitrary.
  */
-const HOVER_LIMIT = LANE_HEIGHT * 0.6;
+const HOVER_LIMIT = COMMIT_STEP.y * 0.6;
 /** How near the pointer has to be to a dot to be on that commit. */
 const DOT_REACH = 13;
 /**
@@ -416,11 +415,11 @@ const FOLD =
 /**
  * How far over a commit's dot the offer of a branch stands.
  *
- * Inside the lane the commit is in and clear of its own halo: a mark that
+ * Inside the row the commit is in and clear of its own halo: a mark that
  * reached into the row above would read as belonging to whatever is up there,
  * and the offer belongs to the commit under it.
  */
-const BRANCH_LIFT = 22;
+const BRANCH_LIFT = COMMIT_STEP.y / 2;
 /** The disc it is drawn on, which is what there is to aim at. */
 const BRANCH_RADIUS = 9;
 /**

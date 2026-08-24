@@ -42,7 +42,12 @@ import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
 import { CliJumpsProvider } from "./cliJumps";
 import { GraphLines } from "./GraphLines";
-import { type BranchPick, GraphActionsProvider, type WorkRequest } from "./graphActions";
+import {
+  type BranchPick,
+  type FetchRequest,
+  GraphActionsProvider,
+  type WorkRequest,
+} from "./graphActions";
 import { type GraphMarks, GraphMarksProvider } from "./graphMarks";
 import { AskNode } from "./nodes/AskNode";
 import { BranchHeadNode } from "./nodes/BranchHeadNode";
@@ -168,7 +173,7 @@ function retainLineNodes(nodes: readonly AppNode[], held: readonly AppNode[]): r
   return nodes.filter((node) => node.type !== "file-preview");
 }
 
-export type { BranchPick };
+export type { BranchPick, FetchRequest };
 
 export type MergeRequest = {
   repository: Repository;
@@ -239,6 +244,8 @@ type Props = {
   /** The × beside a repository's name: it leaves the canvas. */
   onCloseRepository: (repository: Repository) => void;
   onMerge: (request: MergeRequest) => void;
+  /** A branch's remote end was pulled: ask that remote for the rest of it. */
+  onFetch: (request: FetchRequest) => void;
   onShowSession: (session: Session) => void;
   /**
    * A terminal was reached by its number — Ctrl, and the number the mark wears
@@ -271,6 +278,7 @@ export function GitGraph({
   onPickBranch,
   onCloseRepository,
   onMerge,
+  onFetch,
   onShowSession,
   onJumpSession,
   onEndSession,
@@ -947,7 +955,12 @@ export function GitGraph({
         if (
           node.type !== "head" ||
           node.data.repository.id !== repository.id ||
-          node.data.name === source
+          node.data.name === source ||
+          // Nothing can be merged into a branch that is somewhere else: git
+          // merges into a checked-out branch, and a remote-tracking ref is
+          // neither. The head is drawn and pressable; it is simply never a
+          // place a drag can land.
+          node.data.kind === "remote"
         ) {
           continue;
         }
@@ -1032,7 +1045,9 @@ export function GitGraph({
    *
    * Held to the top left corner of the canvas, because the lines are drawn in
    * one box that starts there: a group carried above it would keep its marks
-   * and lose everything joining them.
+   * and lose everything joining them. Held to the group's own corner rather
+   * than the canvas's — a folder with its terminals set round it carries marks
+   * above and to the left of the row, and the corner is where they run out.
    */
   const dropGroup: OnNodeDrag<AppNode> = useCallback(
     (_event, node) => {
@@ -1042,8 +1057,8 @@ export function GitGraph({
       const group = graph.groups.get(held.root);
       if (!group) return;
       placeFolder(held.root, {
-        x: Math.max(0, node.position.x) - group.at.x,
-        y: Math.max(0, node.position.y) - group.at.y,
+        x: Math.max(group.least.x, node.position.x) - group.at.x,
+        y: Math.max(group.least.y, node.position.y) - group.at.y,
       });
     },
     [graph.groups, placeFolder],
@@ -1062,6 +1077,7 @@ export function GitGraph({
       openWork: onOpenWork,
       pickBranch: onPickBranch,
       dragBranch,
+      fetchBranch: onFetch,
       closeRepository: onCloseRepository,
       openRepository,
       foldRepository,
@@ -1088,6 +1104,7 @@ export function GitGraph({
       onOpenWork,
       onPickBranch,
       dragBranch,
+      onFetch,
       onCloseRepository,
       openRepository,
       foldRepository,

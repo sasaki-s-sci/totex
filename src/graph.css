@@ -411,6 +411,82 @@
   box-shadow: var(--clearance), var(--halo);
 }
 
+/* The other end of a branch, where both ends stand on one commit: a ring
+   outside the head's own, dashed like everything else on this canvas that is
+   somewhere else.
+
+   Under the head rather than beside it, because there is one commit and so one
+   place to stand — and because the head has to keep the whole of itself: the
+   press that opens what can be done with the branch, and the drag that merges
+   it. What this leaves to take hold of is the gap between the two rings, and a
+   pull is a movement rather than an aim, so a gap is enough of a handle. A pair
+   whose ends have parted is not drawn here at all: that one has a head of its
+   own, hanging under this row, and the pull is on that.
+
+   Faint until it can be used. What makes it usable is the codebase being at
+   rest — see `atRest` — so the ring coming up is the branch saying it has
+   nothing in hand, which is exactly when reaching for the remote is the next
+   thing anybody would do. */
+.head__pair {
+  padding: 0;
+  color: var(--mark);
+  border: 1px dashed currentcolor;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 0.4;
+  /* Grows outwards with the pull, from the same centre the head is on. The
+     translate is `mark--centred`'s own and has to be carried, or the ring would
+     leave the middle of the cell the moment a scale was written over it. */
+  transform: translate(-50%, -50%) scale(calc(1 + var(--reach, 0) * 0.22));
+  transition:
+    transform 160ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.head__pair.is-asking {
+  opacity: 0.7;
+}
+
+.head:hover .head__pair.is-asking {
+  opacity: 1;
+}
+
+/* A ring the remote can be asked through says so before it is pressed. There is
+   no hold to arm this one — the fold at the other end of the band has one,
+   because a press there already means "all of it" — so the cursor is the whole
+   of the notice, and it is only worth giving where a pull would do something. */
+.head__ring.is-asking,
+.head__pair.is-asking {
+  cursor: ew-resize;
+}
+
+/* Being pulled. The halo is what everything on this canvas wears when it is
+   live under the cursor, and the ring follows the hand out: the transition is
+   dropped for the length of the pull so that what is drawn is where the hand
+   is, and put back for the way home when it is let go short. */
+.head__ring.is-pulling,
+.head__pair.is-pulling {
+  box-shadow: var(--clearance), var(--halo);
+  transition: none;
+}
+
+.head__ring.is-pulling {
+  transform: translate(-50%, -50%) scale(calc(1 + var(--reach, 0) * 0.4));
+}
+
+/* Far enough: let go here and the remote is asked. Said in the halo the canvas
+   keeps for something picked rather than something found, because that is the
+   difference — the pull has stopped being a movement and become an answer. */
+.head__ring.is-reached,
+.head__pair.is-reached {
+  box-shadow: var(--clearance), var(--halo-selected);
+}
+
+.head__pair.is-reached {
+  border-style: solid;
+  opacity: 1;
+}
+
 /* The terminal a branch could have, straight above its ring: press it and a
    mark for the terminal it opened appears in the column past the branch.
 

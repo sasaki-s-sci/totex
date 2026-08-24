@@ -70,6 +70,18 @@ export function worktreeStatuses(paths: string[]): Promise<Record<string, Worktr
   return invoke("workspace_statuses", { paths });
 }
 
+/**
+ * Brings one branch down from one remote.
+ *
+ * `branch` is the name the remote knows it by — `main`, not `origin/main` —
+ * because that is what is being asked for and the remote is named beside it.
+ * Nothing in any working tree moves: a fetch writes refs and objects, so the
+ * only thing that changes is where the remote end of the branch is drawn.
+ */
+export function fetchBranch(repoId: string, remote: string, branch: string): Promise<void> {
+  return invoke("fetch_branch", { repoId, remote, branch });
+}
+
 /** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });
