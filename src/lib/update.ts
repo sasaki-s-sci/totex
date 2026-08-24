@@ -115,6 +115,47 @@ type Found = "front" | "whole" | "held" | "current";
 const CHECK_TIMEOUT = 20_000;
 
 /**
+ * How long the backend is given to say what it did about the release.
+ *
+ * Longer than the check, because it is two reads of somebody else's server and
+ * a directory unpacked between them, and the backend already holds each of the
+ * two to thirty seconds of its own — see `PATIENCE` in `front/take.rs`. So
+ * nothing this bound stops is a slow release page; what it stops is a press
+ * that is never answered at all, which is the one thing the mark cannot draw:
+ * it turns while this is out, and it is not pressable while it turns.
+ */
+const TAKE_TIMEOUT = 90_000;
+
+/**
+ * How long the whole of a release is given to arrive, in milliseconds.
+ *
+ * Said here rather than left to the check, because the plugin would otherwise
+ * say it once for both: the handle `check` hands back carries the timeout the
+ * check was made with, and the download made from that handle is one request
+ * held to it — twenty seconds for an installer of eighty megabytes, which is a
+ * download that ends in red on every line anybody has. So the two are bounded
+ * apart, each by what it actually is: a page of JSON that should come back
+ * inside a breath, and a program that is worth waiting a while for.
+ */
+const FETCH_TIMEOUT = 15 * 60_000;
+
+/**
+ * The same promise, given an end.
+ *
+ * A mark that turns is a mark that is waiting on something, and everything it
+ * waits on here is somebody else's machine. Where that machine answers late
+ * the answer is still taken; where it never answers, this is what turns the
+ * ring into a red mark that can be pressed again, instead of one that turns
+ * for as long as the window is open.
+ */
+function within<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const bell = setTimeout(() => reject(new Error("nothing answered in time")), ms);
+    work.then(resolve, reject).finally(() => clearTimeout(bell));
+  });
+}
+
+/**
  * The whole of what the mark does, up to the reload or the restart.
  *
  * Looking and taking are one press because they are one intention: a window
@@ -133,7 +174,7 @@ export async function takeUpdate(): Promise<void> {
   // draw a second ring for.
   let found: Found;
   try {
-    found = await invoke<Found>("take_front");
+    found = await within(invoke<Found>("take_front"), TAKE_TIMEOUT);
   } catch {
     settle({ stage: "failed", progress: null });
     return;
@@ -148,6 +189,9 @@ export async function takeUpdate(): Promise<void> {
   try {
     // Bounded, so that an endpoint that accepts the connection and then says
     // nothing leaves a mark that has stopped rather than one still turning.
+    // This bounds the reading of the release page and nothing else: what is
+    // downloaded off the back of it is held to `FETCH_TIMEOUT` where it is
+    // asked for, because the two are not the same wait.
     update = await check({ timeout: CHECK_TIMEOUT });
     if (!update) {
       settle({ stage: "current", progress: null });
@@ -157,23 +201,26 @@ export async function takeUpdate(): Promise<void> {
     let length = 0;
     let taken = 0;
     settle({ stage: "fetching", progress: null });
-    await update.downloadAndInstall((event) => {
-      switch (event.event) {
-        case "Started":
-          length = event.data.contentLength ?? 0;
-          taken = 0;
-          break;
-        case "Progress":
-          taken += event.data.chunkLength;
-          // A server that did not say how long the file is leaves the ring
-          // turning instead of filling, which is the honest drawing of it.
-          if (length > 0) settle({ progress: Math.min(1, taken / length) });
-          break;
-        case "Finished":
-          settle({ progress: 1 });
-          break;
-      }
-    });
+    await update.downloadAndInstall(
+      (event) => {
+        switch (event.event) {
+          case "Started":
+            length = event.data.contentLength ?? 0;
+            taken = 0;
+            break;
+          case "Progress":
+            taken += event.data.chunkLength;
+            // A server that did not say how long the file is leaves the ring
+            // turning instead of filling, which is the honest drawing of it.
+            if (length > 0) settle({ progress: Math.min(1, taken / length) });
+            break;
+          case "Finished":
+            settle({ progress: 1 });
+            break;
+        }
+      },
+      { timeout: FETCH_TIMEOUT },
+    );
     settle({ stage: "ready", progress: null });
   } catch {
     // Nothing is said about which of the several things went wrong — no
