@@ -20,7 +20,9 @@ import {
   folderRow,
   isOpen,
   markId,
+  type Ring,
   repoMark,
+  ringAround,
 } from "./folders";
 import { type PreparedRepository, prepare } from "./layout";
 import {
@@ -281,7 +283,15 @@ export function buildCommitGraph(
     nodes.push(...group.nodes);
     bands.push(...group.bands);
     links.push(...group.links);
-    groups.set(folder.root, { node: folderId(folder.root), at, members: group.members });
+    groups.set(folder.root, {
+      node: folderId(folder.root),
+      // Where the row itself was laid out, which is the slot plus whatever room
+      // its own ring asked for in front of it: what a drop is measured against
+      // has to be where the thing dropped was standing.
+      at: { x: at.x + group.inset.x, y: at.y + group.inset.y },
+      least: group.inset,
+      members: group.members,
+    });
 
     right = Math.max(right, group.right);
     bottom = Math.max(bottom, group.bottom);
@@ -307,6 +317,15 @@ type LaidGroup = {
   links: GraphLine[];
   /** Everything that travels with the folder — see `Group`. */
   members: string[];
+  /**
+   * How far into its own slot the folder row had to be set.
+   *
+   * Nothing but a ring puts anything above or to the left of the row, and the
+   * lines are drawn in one box that starts at the corner of the canvas: a mark
+   * at nine o'clock would be off the edge of it. So the row is set in by
+   * whatever its ring reaches back past it, and the group is read from there.
+   */
+  inset: { x: number; y: number };
   /** How far what is drawn for it reaches, cards and all. */
   right: number;
   bottom: number;
@@ -358,23 +377,9 @@ function folderGroup(
   draw: Draw,
 ): LaidGroup {
   const { folder, held, opened, open, showing, asks, reports, reaching } = input;
-  const drawn: LaidGroup = {
-    nodes: [],
-    bands: [],
-    links: [],
-    members: [],
-    right: at.x + FOLDER_ROW_WIDTH,
-    bottom: at.y + LANE_HEIGHT,
-    height: LANE_HEIGHT,
-  };
 
   const id = folderId(folder.root);
   const shown = held.filter((entry) => isOpen(opened, entry.repository.id, held.length));
-  drawn.nodes.push(folderRow(folder.root, folder.name, shown.length === held.length, at, draw));
-
-  // Where every line the folder draws leaves from: its own mark, which is the
-  // one thing on the row that is the folder itself.
-  const from = inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2);
 
   // What is running in the folder itself. Only what no repository in it answers
   // for: a folder opened straight onto a repository is one directory with two
@@ -386,6 +391,46 @@ function folderGroup(
     for (const worktree of entry.repository.worktrees) inside.add(worktree.path);
   }
   const running = inside.has(folder.root) ? [] : take(open, claimed, [folder.root]);
+
+  /**
+   * The ring, for a folder that holds no repository at all.
+   *
+   * Such a folder is a row and nothing else: there is no column under it and no
+   * band beside it, and until something is opened in it the canvas has drawn a
+   * name and stopped. So what is running in it is set round the row from three
+   * o'clock rather than stacked off the end of it — the room is there, and a
+   * folder somebody works in directly reads as the thing its terminals are on
+   * rather than as a heading with a list beside it.
+   *
+   * A folder that does hold repositories is laid out exactly as it was: the
+   * column is what says which repository is which, and a ring drawn round the
+   * head of it would be drawn straight through it.
+   */
+  const ring = held.length === 0 ? ringAround(running.length) : null;
+  /** How far the ring reaches back past the row, which is the room for it. */
+  const inset = {
+    x: ring ? Math.max(0, -ring.left) : 0,
+    y: ring ? Math.max(0, -ring.top) : 0,
+  };
+  /** Where the row itself stands, which everything in the group is placed by. */
+  const head = { x: at.x + inset.x, y: at.y + inset.y };
+
+  const drawn: LaidGroup = {
+    nodes: [],
+    bands: [],
+    links: [],
+    members: [],
+    inset,
+    right: head.x + FOLDER_ROW_WIDTH,
+    bottom: head.y + LANE_HEIGHT,
+    height: LANE_HEIGHT,
+  };
+
+  drawn.nodes.push(folderRow(folder.root, folder.name, shown.length === held.length, head, draw));
+
+  // Where every line the folder draws leaves from: its own mark, which is the
+  // one thing on the row that is the folder itself.
+  const from = inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2);
 
   // And what is running in each of them, claimed in the order the rows are read
   // down the column. A band takes the terminals of every branch it draws and
@@ -413,31 +458,36 @@ function folderGroup(
    */
   let floor = Number.NEGATIVE_INFINITY;
 
-  const beside = rowStack(
-    running,
-    {
-      open,
-      // Past the last of the row's buttons rather than on any of them: the row
-      // is the place, and there is no mark on it that is the directory.
-      socket: inBand(id, FOLDER_ROW_WIDTH, LANE_HEIGHT / 2),
-      lead: REACH_TRIM,
-      at: { x: at.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2, y: at.y + LANE_HEIGHT / 2 },
-      showing,
-      asks,
-      reports,
-      floor,
-    },
-    draw,
-  );
+  const beside = ring
+    ? rowRing(running, { open, node: id, ring, at: head, showing, asks, reports, floor }, draw)
+    : rowStack(
+        running,
+        {
+          open,
+          // Past the last of the row's buttons rather than on any of them: the
+          // row is the place, and there is no mark on it that is the directory.
+          socket: inBand(id, FOLDER_ROW_WIDTH, LANE_HEIGHT / 2),
+          lead: REACH_TRIM,
+          at: {
+            x: head.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2,
+            y: head.y + LANE_HEIGHT / 2,
+          },
+          showing,
+          asks,
+          reports,
+          floor,
+        },
+        draw,
+      );
   merge(beside, drawn);
   floor = beside.floor;
 
-  const x = at.x + FOLDER_INSET;
+  const x = head.x + FOLDER_INSET;
   /** How far down the group reaches so far, which is what the next row clears. */
-  let cursor = at.y + LANE_HEIGHT / 2 + rowReach(running.length);
+  let cursor = ring ? head.y + ring.bottom : head.y + LANE_HEIGHT / 2 + rowReach(running.length);
   /** The line of the row above and what it is running, while there is one. */
   let above: { line: number; marks: number } | null = {
-    line: at.y + LANE_HEIGHT / 2,
+    line: head.y + LANE_HEIGHT / 2,
     marks: running.length,
   };
   /** Whether the next row is the first under the folder's own row. */
@@ -706,6 +756,102 @@ function rowStack(
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
     drawn.right = Math.max(drawn.right, x + ASK_WIDTH);
+    drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
+  }
+
+  return drawn;
+}
+
+/**
+ * The same terminals, set round the folder's own row instead of beside it.
+ *
+ * For the folder that holds no repository: see `ring` in `folderGroup`. The
+ * places are the ring's — from three o'clock, clockwise — and what is done at
+ * each of them is what the stack does at each of its own, so a terminal reads
+ * and behaves exactly as it does anywhere else on the canvas. Only where it
+ * stands has changed.
+ *
+ * Each line comes out of the row's edge on the way to its own mark rather than
+ * out of one end of it, which is what keeps a line to something at nine o'clock
+ * from being drawn across the name it belongs to.
+ *
+ * The cards, on the other hand, keep their column: they are set past the whole
+ * ring rather than beside the mark that raised them, because a card is wider
+ * than the row itself and one hung off a mark at eleven o'clock would be a card
+ * over the folder. Past the ring is where the first one stands either way — a
+ * ring of one reaches exactly as far as the stack it replaced.
+ */
+function rowRing(
+  standing: readonly Session[],
+  where: {
+    open: ReadonlyMap<string, Session[]>;
+    /** The folder's own node, which is the row every line here leaves. */
+    node: string;
+    ring: Ring;
+    /** The row's own corner, which the ring is measured from. */
+    at: { x: number; y: number };
+    showing: string | null;
+    asks: ReadonlyMap<string, Ask>;
+    reports: ReadonlyMap<string, Report>;
+    floor: number;
+  },
+  draw: Draw,
+): RowStack {
+  const { open, node, ring, at, showing, asks, reports } = where;
+  const drawn: RowStack = {
+    nodes: [],
+    lines: [],
+    marks: standing.length,
+    right: at.x + ring.right,
+    bottom: at.y + ring.bottom,
+    floor: where.floor,
+  };
+
+  /** The one column the cards stand in, clear of everything on the ring. */
+  const column = at.x + ring.right + ASK_GAP;
+
+  for (const [slot, session] of standing.entries()) {
+    const spot = ring.spots[slot];
+    if (!spot) continue;
+
+    const id = `session${session.id}`;
+    const x = at.x + spot.x;
+    const y = at.y + spot.y;
+
+    drawn.nodes.push(
+      cliNode(
+        id,
+        {
+          session,
+          showing: session.id === showing,
+          ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
+        },
+        null,
+        x,
+        y,
+        draw,
+      ),
+    );
+
+    drawn.lines.push({
+      id: `${id}run`,
+      from: inBand(node, spot.socket.x, spot.socket.y),
+      to: onStack(id),
+      curve: true,
+      // Half the glyph it arrives at, so the line stops beside the terminal
+      // rather than being drawn across it.
+      trim: CLI_MARK / 2,
+      lead: REACH_TRIM,
+      stroke: CLI_STROKE,
+    });
+
+    const card = besideMark(session, asks, reports, id, null, column, y, drawn.floor, draw);
+    if (!card) continue;
+
+    drawn.floor = card.at + card.height + ASK_STACK_GAP;
+    drawn.nodes.push(card.node);
+    drawn.lines.push(card.line);
+    drawn.right = Math.max(drawn.right, column + ASK_WIDTH);
     drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
   }
 

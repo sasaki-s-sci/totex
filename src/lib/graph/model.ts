@@ -719,6 +719,16 @@ export type Group = {
   /** Where the group is laid out, before anything was moved by hand. */
   at: { x: number; y: number };
   /**
+   * The nearest the folder's own node can be put to the corner of the canvas.
+   *
+   * Nothing in a group is usually above or to the left of the row that heads
+   * it, and this is then the corner itself. A folder whose terminals are set
+   * round it has marks on both those sides, and the lines are drawn in one box
+   * that starts at the corner: a group carried past this would keep its marks
+   * and lose what joins them.
+   */
+  least: { x: number; y: number };
+  /**
    * Everything else that travels with it, by node id.
    *
    * Only what stands on the canvas in its own right: a band's commits are
