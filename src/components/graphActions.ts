@@ -96,6 +96,26 @@ export type GraphActions = {
    * moved on refuses it.
    */
   reply: (session: Session, ask: Ask, text: string) => void;
+  /**
+   * Walk the agent's own mark to one of the answers and stop there.
+   *
+   * The first of the three that do not end the question. Nothing is settled by
+   * it: the agent redraws with its mark somewhere else, and the card follows
+   * that reading rather than anything the press assumed.
+   */
+  point: (session: Session, ask: Ask, key: string) => void;
+  /** Pick one of the answers up, or put it down, on a list that takes several. */
+  pick: (session: Session, ask: Ask, key: string) => void;
+  /** Write at the answer the mark is standing in, without ending the question. */
+  compose: (session: Session, ask: Ask, text: string) => void;
+  /**
+   * Take the question where it stands, with the return that ends it.
+   *
+   * What answers the two kinds no key answers: a list the answers are picked up
+   * from, where every key is a picking up, and a list whose mark is standing in
+   * a row being written at, where a key would be a letter.
+   */
+  take: (session: Session, ask: Ask) => void;
   /** Take one file card off the canvas. */
   closeFilePreview: (requestId: number) => void;
   /**
@@ -144,6 +164,10 @@ const GraphActionsContext = createContext<GraphActions>({
   endSession: () => {},
   answer: () => {},
   reply: () => {},
+  point: () => {},
+  pick: () => {},
+  compose: () => {},
+  take: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},

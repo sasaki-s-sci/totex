@@ -73,6 +73,23 @@ pub struct Ask {
     /// How this one is taken, which is the one thing about a question that
     /// cannot be worked out from what it says.
     pub taking: Taking,
+    /// Whether several of the answers may be taken before the question is.
+    ///
+    /// A list that takes one answer is over the moment one is pressed; a list
+    /// that takes several is not, and the window has to draw the difference —
+    /// a row that is pressed to be taken, or a box that is pressed to be
+    /// filled in with a return under the lot of them. Read off the drawing: an
+    /// agent that lets several be taken draws a box beside every answer,
+    /// because it has to show which of them are being held.
+    pub picking: bool,
+    /// Whether the answer the mark is standing on is one to be written at.
+    ///
+    /// The lists that carry a place to type on one of their own rows — the
+    /// "and tell it what to do instead" every one of them offers. Nothing in
+    /// the words says which row that is; the caret does. It stands on the row
+    /// while that row is the one being written at, and nowhere in the list
+    /// otherwise.
+    pub writing: bool,
     /// The answers offered, or none at all when the answer is to be written.
     pub choices: Vec<Choice>,
 }
@@ -127,6 +144,14 @@ pub struct Choice {
     /// Where the agent's own cursor is, so the card can show it rather than
     /// invent a selection of its own.
     pub selected: bool,
+    /// Whether the agent is holding this one as taken.
+    ///
+    /// Not the mark, and the whole reason both are carried: the mark is where
+    /// the walk has got to, and this is what has been picked up on the way. A
+    /// list that takes one answer has at most one of these and draws it as a
+    /// tick after the answer; a list that takes several draws a box beside
+    /// each and fills in the ones it is holding.
+    pub picked: bool,
 }
 
 /// A question as it was read, before it has a name to be answered by.
@@ -135,6 +160,8 @@ pub struct Reading {
     pub detail: Vec<String>,
     pub question: String,
     pub taking: Taking,
+    pub picking: bool,
+    pub writing: bool,
     pub choices: Vec<Choice>,
 }
 
@@ -157,6 +184,13 @@ impl Reading {
         self.detail.hash(&mut hasher);
         self.question.hash(&mut hasher);
         self.taking.hash(&mut hasher);
+        // And whether it takes several answers, for the same reason as how it
+        // is taken: a list to be picked from and a list to be answered are not
+        // the same question. What is left out is everything that moves while
+        // the question stands — the mark, what has been picked up, the row
+        // being written at — because moving any of that is still the same
+        // question being asked.
+        self.picking.hash(&mut hasher);
         for choice in &self.choices {
             choice.key.hash(&mut hasher);
             choice.label.hash(&mut hasher);
@@ -173,6 +207,8 @@ impl Ask {
             detail: reading.detail,
             question: reading.question,
             taking: reading.taking,
+            picking: reading.picking,
+            writing: reading.writing,
             choices: reading.choices,
         }
     }
@@ -192,12 +228,38 @@ const DETAIL_LIMIT: usize = 6;
 /// then as likely to be the conversation as anything to do with it.
 const BOX_LIMIT: usize = 16;
 
-/// How many lines an agent may set under its box and still be asking.
+/// How many lines an agent may set under a piece of its own drawing and still
+/// be asking.
 ///
-/// The shortcuts — `esc to cancel`, and its like. Two, because that is what the
-/// three of them put there; a third line under a box is something that has been
-/// drawn since, and something drawn since means the question has been answered.
+/// The shortcuts — `esc to cancel`, and its like. Two, because that is what
+/// they all put there; a third line means something has been drawn since, and
+/// something drawn since means the question has been answered. Counted from
+/// the last line of drawing rather than from the answers, because an agent
+/// that draws its question in more than one piece sets its shortcuts under the
+/// last of them.
 const HINT_LINES: usize = 2;
+
+/// How much of a question's own drawing may stand under the answers before
+/// any of it has been closed off.
+///
+/// The agents that set a pane beside the list — what an answer would come to,
+/// a note to be written on it — put the foot of that pane and a line or two of
+/// what is in it under the last answer, because the pane is taller than the
+/// list. It is the question's own drawing rather than something drawn since,
+/// which is the difference that matters. Only a question that is drawn in
+/// something is allowed any of it: a numbered list standing in the open with a
+/// line under it is a list somebody wrote, exactly as it was before.
+const PANEL_LINES: usize = 2;
+
+/// How much of its own drawing an agent may put across a list without the list
+/// stopping being one.
+///
+/// A rule between two runs of answers, and the blank line on either side of
+/// it. Both runs are the list — what is under the rule can be pressed at the
+/// terminal exactly as what is over it can — and an agent that separates the
+/// answers it thought of from the one it always offers has drawn a line, not
+/// ended a list.
+const BREAK_LINES: usize = 3;
 
 /// The characters an agent marks its own selection with.
 const MARKERS: [char; 6] = ['❯', '>', '▶', '›', '»', '●'];
@@ -217,6 +279,19 @@ const TOPS: [char; 5] = ['╭', '┌', '╔', '┏', '╒'];
 const BOTTOMS: [char; 5] = ['╰', '└', '╚', '┗', '╘'];
 /// What a rule is drawn with, wherever one is drawn.
 const RULES: [char; 6] = ['─', '═', '━', '┄', '┈', '-'];
+/// What an agent draws beside an answer it is holding, and beside one it is
+/// not.
+///
+/// A list that takes several answers has to show which of them are being held,
+/// and they all show it the same way: a box or a circle beside every answer,
+/// filled in on the ones taken. The box is also what says the list takes
+/// several at all — a list that takes one has nothing to show until it is
+/// over.
+const TAKEN: [char; 4] = ['☑', '☒', '◉', '⦿'];
+const UNTAKEN: [char; 3] = ['☐', '◯', '○'];
+/// And the tick an agent sets after the one answer it is holding, for the
+/// lists that hold one.
+const TICKS: [char; 3] = ['✔', '✓', '√'];
 /// What is being asked for when nothing should be drawn on a card.
 ///
 /// A password is an elicitation like any other and the one thing this will not
@@ -275,9 +350,29 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
     let column = key_column(inner[end])?;
     let runs = |line: &str| !blank(line) && !is_edge(line) && indent(line) > column;
 
+    // Upwards to the head of the list, over anything the agent drew across its
+    // own list on the way — see `BREAK_LINES`.
     let mut start = end;
-    while start > 0 && (choice_of(inner[start - 1]).is_some() || runs(inner[start - 1])) {
-        start -= 1;
+    loop {
+        let mut above = start;
+        let mut crossed = 0;
+        while above > 0
+            && crossed < BREAK_LINES
+            && (blank(inner[above - 1]) || is_rule(inner[above - 1]))
+        {
+            above -= 1;
+            crossed += 1;
+        }
+        if above == 0 {
+            break;
+        }
+        // The rest of an answer runs on directly under it and is never on the
+        // far side of a break.
+        if choice_of(inner[above - 1]).is_some() || (crossed == 0 && runs(inner[above - 1])) {
+            start = above - 1;
+            continue;
+        }
+        break;
     }
     // The last answer runs on the same way as the ones above it.
     let mut foot = end;
@@ -290,9 +385,15 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
     // answer, or the tail of a longer list whose head has scrolled away.
     let mut choices: Vec<Choice> = Vec::new();
     let mut counted: Option<Key> = None;
+    let mut picking = false;
     for line in &inner[start..=foot] {
+        // The agent's own drawing, which is neither an answer nor the rest of
+        // one.
+        if blank(line) || is_edge(line) {
+            continue;
+        }
         match choice_of(line) {
-            Some((key, label, selected)) => {
+            Some((key, marked)) => {
                 let due = match counted {
                     Some(last) => last.after() == Some(key),
                     None => key.opens(),
@@ -301,10 +402,14 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
                     return None;
                 }
                 counted = Some(key);
+                // A box beside any of them is a box beside all of them, and
+                // says the list is one to pick from rather than to answer.
+                picking |= marked.boxed;
                 choices.push(Choice {
                     key: key.printed(),
-                    label,
-                    selected,
+                    label: marked.label,
+                    selected: marked.selected,
+                    picked: marked.picked,
                 });
             }
             // The rest of the answer above it, which is one answer with the
@@ -312,22 +417,22 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
             None => match choices.last_mut() {
                 Some(choice) => {
                     choice.label.push(' ');
-                    choice.label.push_str(line.trim());
+                    choice.label.push_str(beside(line));
                 }
                 None => return None,
             },
         }
     }
 
-    let (detail, question, framed) = asked_above(&inner[..start]);
+    let (detail, question, framing) = asked_above(&inner[..start]);
     // One answer is a question when the box says it is one — an agent that
     // offers a single way on has still stopped and asked — and is nothing at
     // all when it is a line at the foot of somebody's answer that happens to
     // begin with a number.
-    if choices.len() < 2 && !framed {
+    if choices.len() < 2 && framing != Framing::Boxed {
         return None;
     }
-    if !last_thing(inner, foot, framed, standing) {
+    if !last_thing(inner, foot, framing, standing) {
         return None;
     }
 
@@ -335,6 +440,12 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
         detail,
         question,
         taking: Taking::Key,
+        picking,
+        // The caret standing on one of the answers is the agent saying that
+        // answer is a place to type. There is nowhere else in a list for it to
+        // be: a list nobody is typing into has it put away, or under the whole
+        // thing where the next line would go.
+        writing: standing.shown && (start..=foot).contains(&standing.row),
         choices,
     })
 }
@@ -363,20 +474,26 @@ fn marked(inner: &[&str], standing: &Standing) -> Option<Reading> {
     }
 
     let mut choices: Vec<Choice> = Vec::new();
+    let mut picking = false;
     for line in &inner[start..=foot] {
         match item_at(line, column) {
-            Some((label, selected)) => choices.push(Choice {
-                // Where it stands, because the agent gave it nothing else to be
-                // called by. Nothing is typed at the session to say it: the
-                // walk is counted from the mark when the press comes.
-                key: (choices.len() + 1).to_string(),
-                label,
-                selected,
-            }),
+            Some(marked) => {
+                picking |= marked.boxed;
+                choices.push(Choice {
+                    // Where it stands, because the agent gave it nothing else
+                    // to be called by. Nothing is typed at the session to say
+                    // it: the walk is counted from the mark when the press
+                    // comes.
+                    key: (choices.len() + 1).to_string(),
+                    label: marked.label,
+                    selected: marked.selected,
+                    picked: marked.picked,
+                });
+            }
             None => match choices.last_mut() {
                 Some(choice) => {
                     choice.label.push(' ');
-                    choice.label.push_str(line.trim());
+                    choice.label.push_str(beside(line));
                 }
                 None => return None,
             },
@@ -401,8 +518,8 @@ fn marked(inner: &[&str], standing: &Standing) -> Option<Reading> {
         return None;
     }
 
-    let (detail, question, framed) = asked_above(&inner[..start]);
-    if !last_thing(inner, foot, framed, standing) {
+    let (detail, question, framing) = asked_above(&inner[..start]);
+    if !last_thing(inner, foot, framing, standing) {
         return None;
     }
 
@@ -410,6 +527,10 @@ fn marked(inner: &[&str], standing: &Standing) -> Option<Reading> {
         detail,
         question,
         taking: Taking::Walk,
+        picking,
+        // A list with the caret in it was turned down above: that is somebody's
+        // half-written message, not a list to be walked.
+        writing: false,
         choices,
     })
 }
@@ -433,6 +554,8 @@ fn confirmed(inner: &[&str], standing: &Standing) -> Option<Reading> {
         detail,
         question: line.trim().to_string(),
         taking: Taking::Line,
+        picking: false,
+        writing: false,
         choices,
     })
 }
@@ -482,6 +605,10 @@ fn written(inner: &[&str], standing: &Standing) -> Option<Reading> {
         detail,
         question,
         taking: Taking::Words,
+        picking: false,
+        // The whole question is a place to write. `writing` is about one row of
+        // a list being one, which this has none of.
+        writing: false,
         choices: Vec::new(),
     })
 }
@@ -506,10 +633,28 @@ fn at_the_caret<'a>(inner: &[&'a str], standing: &Standing) -> Option<&'a str> {
         .then_some(*line)
 }
 
+/// What a question is drawn in, as far as the lines above it say.
+///
+/// Three answers rather than two, because the agents draw in three ways and the
+/// middle one had nowhere to be said before. A box is a box. A rule and no
+/// border is what an agent draws when it puts its whole answer on the screen
+/// again every time rather than printing it — the question set between two
+/// rules, with its own furniture under the second — and it is as much a thing
+/// to be drawn in as a box is, even though there is nothing above the question
+/// to be read as what it is about. And a question with neither is standing in
+/// the open, which is the one that has to be held to being the last thing on
+/// the screen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Framing {
+    Boxed,
+    Ruled,
+    Bare,
+}
+
 /// What is above a list, in the order the box says it: the question on the
 /// nearest line with anything on it, then whatever was set above that, and
-/// whether any of it was in a box at all.
-fn asked_above(above: &[&str]) -> (Vec<String>, String, bool) {
+/// what the whole of it is drawn in.
+fn asked_above(above: &[&str]) -> (Vec<String>, String, Framing) {
     let mut at = above.len();
     while at > 0 && blank(above[at - 1]) {
         at -= 1;
@@ -523,8 +668,8 @@ fn asked_above(above: &[&str]) -> (Vec<String>, String, bool) {
         }
         _ => String::new(),
     };
-    let (detail, framed) = detail_above(above, at);
-    (detail, question, framed)
+    let (detail, framing) = detail_above(above, at);
+    (detail, question, framing)
 }
 
 /// What the box says above its question, in the order it says it, and whether
@@ -534,17 +679,25 @@ fn asked_above(above: &[&str]) -> (Vec<String>, String, bool) {
 /// question with no border above it within reach is left with no detail at all.
 /// The lines above an unboxed prompt are the conversation, and the conversation
 /// is not what is being asked about.
-fn detail_above(above: &[&str], question: usize) -> (Vec<String>, bool) {
+fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
     let floor = question.saturating_sub(BOX_LIMIT);
     let mut detail = Vec::new();
-    let mut framed = false;
+    let mut framing = Framing::Bare;
     let mut walk = question;
 
     while walk > floor {
         walk -= 1;
         let line = above[walk];
         if is_edge(line) {
-            framed = is_top(line);
+            // The foot of a box above the question is the box somebody else's
+            // question was in, which is nothing this one is drawn in.
+            framing = if is_top(line) {
+                Framing::Boxed
+            } else if is_rule(line) {
+                Framing::Ruled
+            } else {
+                Framing::Bare
+            };
             break;
         }
         if blank(line) {
@@ -554,16 +707,16 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, bool) {
         if detail.len() >= DETAIL_LIMIT {
             // Whether the box goes on above this is no longer worth walking
             // for: what is kept is already more than the card can draw.
-            framed = true;
+            framing = Framing::Boxed;
             break;
         }
     }
 
-    if !framed {
-        return (Vec::new(), false);
+    if framing != Framing::Boxed {
+        return (Vec::new(), framing);
     }
     detail.reverse();
-    (detail, true)
+    (detail, framing)
 }
 
 /// Whether what was found is the question being asked, rather than the wreckage
@@ -584,12 +737,25 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, bool) {
 /// instead is that the question be in a box of its own and that the caret have
 /// been taken away: a program that wants a keypress hides the caret, and a
 /// program showing you where to type is not stopped on a question.
-fn last_thing(inner: &[&str], foot: usize, framed: bool, standing: &Standing) -> bool {
+///
+/// Between the two is the agent that draws the whole of its output over again
+/// on the screen that scrolls — no box round the question, a rule over it and
+/// a rule under it, and under that its own shortcuts and whatever else it
+/// keeps down there. What is under such a question is its own drawing, and it
+/// is read that way: a line drawn across closes off everything above it and
+/// hands back the line or two of shortcuts that may follow, because an agent
+/// that draws its question in more than one piece sets its shortcuts under the
+/// last piece rather than the first. What is not forgiven is what was never
+/// drawing — a paragraph, another box, another list — and a question standing
+/// in the open is held to what it was held to before, which is nothing under
+/// it at all.
+fn last_thing(inner: &[&str], foot: usize, framing: Framing, standing: &Standing) -> bool {
     if standing.alt {
-        return framed && !standing.shown;
+        return framing == Framing::Boxed && !standing.shown;
     }
 
     let mut closed = false;
+    let mut drawing = PANEL_LINES;
     let mut spare = HINT_LINES;
     for line in &inner[foot + 1..] {
         if blank(line) {
@@ -600,14 +766,28 @@ fn last_thing(inner: &[&str], foot: usize, framed: bool, standing: &Standing) ->
         if is_top(line) || choice_of(line).is_some() {
             return false;
         }
-        if is_bottom(line) && !closed {
+        // A line of drawing: the foot of the box the question is in, the foot
+        // of a pane set beside it, the rule under a question that was never
+        // boxed at all.
+        if is_edge(line) {
             closed = true;
+            spare = HINT_LINES;
             continue;
         }
-        if !closed || spare == 0 {
-            return false;
+        if closed {
+            if spare == 0 {
+                return false;
+            }
+            spare -= 1;
+        } else {
+            // Still inside the drawing — what a pane beside the list says on
+            // the rows below the last answer — which only a question that is
+            // drawn in something may have any of.
+            if framing == Framing::Bare || drawing == 0 {
+                return false;
+            }
+            drawing -= 1;
         }
-        spare -= 1;
     }
     true
 }
@@ -648,15 +828,100 @@ impl Key {
     }
 }
 
-/// One line of a keyed list, if that is what it is: which key, what it says,
-/// and whether the agent's own cursor is on it.
-fn choice_of(line: &str) -> Option<(Key, String, bool)> {
-    let (key, selected, rest) = keyed_line(line)?;
-    let label = rest.trim();
+/// What one line of a list says about the answer on it, beyond which one it is.
+struct Marked {
+    label: String,
+    /// Where the agent's own mark stands.
+    selected: bool,
+    /// Whether the agent is holding this one as taken.
+    picked: bool,
+    /// Whether a box was drawn beside it, which is what says the list takes
+    /// several answers rather than one.
+    boxed: bool,
+}
+
+/// The answer on a line, with everything drawn round it taken off.
+fn answer_on(text: &str, selected: bool) -> Option<Marked> {
+    let (boxed, filled, rest) = match box_mark(text) {
+        Some((filled, rest)) => (true, filled, rest),
+        None => (false, false, text),
+    };
+    let (ticked, label) = tick_after(beside(rest));
     if label.is_empty() {
         return None;
     }
-    Some((key, label.to_string(), selected))
+    Some(Marked {
+        label: label.to_string(),
+        selected,
+        picked: filled || ticked,
+        boxed,
+    })
+}
+
+/// The box an agent drew beside an answer, if it drew one: whether it is
+/// filled in, and what is left of the line after it.
+fn box_mark(text: &str) -> Option<(bool, &str)> {
+    if let Some(rest) = text.strip_prefix(TAKEN.as_slice()) {
+        return Some((true, rest.trim_start()));
+    }
+    if let Some(rest) = text.strip_prefix(UNTAKEN.as_slice()) {
+        return Some((false, rest.trim_start()));
+    }
+    // The same box in the characters a terminal has always had.
+    for (open, shut) in [('[', ']'), ('(', ')')] {
+        let Some(rest) = text.strip_prefix(open) else {
+            continue;
+        };
+        let mut inside = rest.chars();
+        let held = inside.next()?;
+        if inside.next() != Some(shut) {
+            return None;
+        }
+        let filled = match held {
+            ' ' => false,
+            'x' | 'X' | '*' => true,
+            letter if TICKS.contains(&letter) => true,
+            // Anything else in brackets is a word in brackets.
+            _ => return None,
+        };
+        return Some((filled, inside.as_str().trim_start()));
+    }
+    None
+}
+
+/// The tick an agent set after the answer it is holding, taken off it.
+fn tick_after(label: &str) -> (bool, &str) {
+    let text = label.trim_end();
+    match text.strip_suffix(TICKS.as_slice()) {
+        // With a space in front of it, so that an answer ending in a tick of
+        // its own is left as it was written.
+        Some(rest) if rest.ends_with(' ') => (true, rest.trim_end()),
+        _ => (false, text),
+    }
+}
+
+/// What is left of an answer when the pane drawn beside it is taken off.
+///
+/// An agent that sets a pane of its own to the right of the list writes both
+/// on the same row, and the row is what is read — so an answer would come away
+/// with the side of that pane, and whatever the pane says on that line, stuck
+/// to the end of it. A pane is drawing rather than words, and where the
+/// drawing begins is where the answer ended.
+fn beside(label: &str) -> &str {
+    let drawn = |letter: char| {
+        SIDES.contains(&letter) || TOPS.contains(&letter) || BOTTOMS.contains(&letter)
+    };
+    match label.char_indices().find(|(_, letter)| drawn(*letter)) {
+        Some((at, _)) => label[..at].trim(),
+        None => label.trim(),
+    }
+}
+
+/// One line of a keyed list, if that is what it is: which key, and what the
+/// line says about the answer beside it.
+fn choice_of(line: &str) -> Option<(Key, Marked)> {
+    let (key, selected, rest) = keyed_line(line)?;
+    Some((key, answer_on(rest.trim(), selected)?))
 }
 
 /// Where in a line its key stands, for a line that has one.
@@ -739,17 +1004,24 @@ fn marked_at(line: &str) -> Option<usize> {
 }
 
 /// One line of an unkeyed list, if it is one of a run standing at a column.
-fn item_at(line: &str, column: usize) -> Option<(String, bool)> {
+fn item_at(line: &str, column: usize) -> Option<Marked> {
     if blank(line) || is_edge(line) || keyed_line(line).is_some() {
         return None;
     }
     let words = line.trim_start();
     match words.chars().next() {
         Some(first) if MARKERS.contains(&first) => {
-            let label = words[first.len_utf8()..].trim();
-            (marked_at(line)? == column && !label.is_empty()).then(|| (label.to_string(), true))
+            if marked_at(line)? != column {
+                return None;
+            }
+            answer_on(words[first.len_utf8()..].trim(), true)
         }
-        _ => (indent(line) == column).then(|| (words.trim_end().to_string(), false)),
+        _ => {
+            if indent(line) != column {
+                return None;
+            }
+            answer_on(words.trim_end(), false)
+        }
     }
 }
 
@@ -805,6 +1077,9 @@ fn yes_or_no(line: &str) -> Option<Vec<Choice>> {
                 // bracketed letter is not something to read.
                 label: if said.starts_with('y') { "Yes" } else { "No" }.to_string(),
                 selected: capitals == 1 && printed.starts_with(char::is_uppercase),
+                // Two answers on one line: there is nothing to be holding, and
+                // pressing either of them is the end of the question.
+                picked: false,
             })
             .collect(),
     )
@@ -908,6 +1183,18 @@ fn is_bottom(line: &str) -> bool {
         .chars()
         .next()
         .is_some_and(|first| BOTTOMS.contains(&first))
+}
+
+/// A rule: a line drawn the width of what it is under, and neither the top of
+/// a box nor the foot of one.
+///
+/// What an agent draws instead of a box when it draws the whole of its output
+/// over again rather than printing it — the question set between two of these,
+/// with its own furniture under the second. A rule closes a question off the
+/// way the foot of a box does, because it is the same thing said in one line
+/// instead of three.
+fn is_rule(line: &str) -> bool {
+    is_edge(line) && !is_top(line) && !is_bottom(line)
 }
 
 /// A border or a rule: drawing rather than anything anybody wrote.
@@ -1808,6 +2095,190 @@ mod tests {
         // And a list that begins in the middle of itself is still no list.
         let middle = ["Which one?\r\n", "❯ c) keep it\r\n", "  d) drop it\r\n"].concat();
         assert!(read(&screen_of(&middle)).is_none());
+    }
+
+    /// A question drawn between two rules instead of in a box.
+    ///
+    /// What an agent that puts the whole of its output on the screen again
+    /// every time draws: a rule, the question, the answers, and under them the
+    /// rest of its own drawing — a line to chat on, another rule, the
+    /// shortcuts. Nothing about it is a box, and the answers are not the last
+    /// thing on the screen, which is the shape that was being turned down
+    /// before this. It matters because that is what the questions with several
+    /// parts are drawn in: only the last screen of one, the one asking whether
+    /// to send, has nothing under its answers — so the only card that ever
+    /// stood was the one at the end.
+    #[test]
+    fn a_question_between_two_rules_is_a_question() {
+        let rule = "\u{2500}".repeat(52);
+        let text = [
+            "\r\n",
+            &format!("{rule}\r\n"),
+            "\u{2190}  Q1  \u{2714} Submit  \u{2192}\r\n",
+            "Which approach do you want?\r\n",
+            "\r\n",
+            "\u{276f} 1. Rewrite the reader\r\n",
+            "  2. Patch the check\r\n",
+            "  3. Other\r\n",
+            "\r\n",
+            &format!("{rule}\r\n"),
+            "  4. Chat about this\r\n",
+            "\r\n",
+            "  enter select \u{b7} tab switch questions \u{b7} escape cancel\r\n",
+        ]
+        .concat();
+
+        let found = read(&screen_of(&text)).expect("a question between two rules");
+        assert_eq!(found.question, "Which approach do you want?");
+        assert_eq!(found.taking, Taking::Key);
+        // The answer under the rule is one of the answers: it is pressed at the
+        // terminal exactly as the three above it are, and the rule between them
+        // is a line drawn, not a list ended.
+        assert_eq!(
+            found
+                .choices
+                .iter()
+                .map(|choice| choice.label.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                "Rewrite the reader",
+                "Patch the check",
+                "Other",
+                "Chat about this",
+            ]
+        );
+        assert!(found.choices[0].selected);
+        // Nothing above the question is what it is about: there is no box to
+        // have set anything in.
+        assert!(found.detail.is_empty());
+    }
+
+    /// The same question with a pane of its own beside the answers.
+    ///
+    /// The answers are down the left and what an answer would come to is drawn
+    /// in a box to the right of them, on the same rows — so an answer read off
+    /// a row comes away with the side of that box stuck to it, and what stands
+    /// under the last answer is the foot of that box and whatever the agent
+    /// wrote below it.
+    #[test]
+    fn a_pane_beside_the_answers_is_not_part_of_them() {
+        let rule = "\u{2500}".repeat(52);
+        let text = [
+            "\r\n",
+            &format!("{rule}\r\n"),
+            "\u{2190}  Q1  \u{2714} Submit  \u{2192}\r\n",
+            "Which approach do you want?\r\n",
+            "\r\n",
+            "\u{276f} 1. Rewrite the reader   \u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n",
+            "  2. Patch the check      \u{2502} none \u{2502}\r\n",
+            "  3. Other                \u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n",
+            "\r\n",
+            "                          Notes: press n\r\n",
+            "\r\n",
+            &format!("{rule}\r\n"),
+            "  Chat about this\r\n",
+            "\r\n",
+            "  enter select \u{b7} escape cancel\r\n",
+        ]
+        .concat();
+
+        let found = read(&screen_of(&text)).expect("a question with a pane beside it");
+        assert_eq!(found.question, "Which approach do you want?");
+        assert_eq!(
+            found
+                .choices
+                .iter()
+                .map(|choice| choice.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Rewrite the reader", "Patch the check", "Other"],
+        );
+    }
+
+    /// A list that takes several answers, which says so by drawing a box beside
+    /// each of them.
+    #[test]
+    fn a_list_with_boxes_beside_it_is_one_to_pick_from() {
+        let text = [
+            "\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n",
+            "\u{2502} Which of these?          \u{2502}\r\n",
+            "\u{2502} \u{276f} 1. \u{2612} the first one   \u{2502}\r\n",
+            "\u{2502}   2. \u{2610} the second one  \u{2502}\r\n",
+            "\u{2502}   3. \u{2612} the third one   \u{2502}\r\n",
+            "\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n",
+        ]
+        .concat();
+
+        let found = read(&screen_of(&text)).expect("a list to pick from");
+        assert!(found.picking);
+        assert_eq!(found.choices[0].label, "the first one");
+        assert_eq!(
+            found
+                .choices
+                .iter()
+                .map(|choice| choice.picked)
+                .collect::<Vec<_>>(),
+            vec![true, false, true]
+        );
+
+        // The same thing in the characters a terminal has always had.
+        let plain = text.replace('\u{2612}', "[x]").replace('\u{2610}', "[ ]");
+        let found = read(&screen_of(&plain)).expect("a list to pick from");
+        assert!(found.picking);
+        assert_eq!(found.choices[1].label, "the second one");
+        assert!(!found.choices[1].picked);
+    }
+
+    /// A list that holds one answer marks it with a tick after the words, and
+    /// is not a list to pick from.
+    #[test]
+    fn a_tick_after_an_answer_is_the_one_being_held() {
+        let text = [
+            "\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n",
+            "\u{2502} Which one?               \u{2502}\r\n",
+            "\u{2502} \u{276f} 1. keep it \u{2714}         \u{2502}\r\n",
+            "\u{2502}   2. drop it             \u{2502}\r\n",
+            "\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n",
+        ]
+        .concat();
+
+        let found = read(&screen_of(&text)).expect("a question");
+        assert!(
+            !found.picking,
+            "one answer held is not several to pick from"
+        );
+        assert_eq!(found.choices[0].label, "keep it");
+        assert!(found.choices[0].picked);
+        assert!(!found.choices[1].picked);
+    }
+
+    /// The answer with the caret standing in it is the one to be written at.
+    ///
+    /// Every agent offers one — "and tell it what to do instead" — and nothing
+    /// in the words says which answer it is. The caret does: it stands on that
+    /// row while that row is the one being typed into, and nowhere in the list
+    /// otherwise.
+    #[test]
+    fn the_answer_the_caret_stands_in_is_one_to_write_at() {
+        let text = [
+            "\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n",
+            "\u{2502} Do you want to proceed?          \u{2502}\r\n",
+            "\u{2502}   1. Yes                         \u{2502}\r\n",
+            "\u{2502}   2. Yes, and don't ask again    \u{2502}\r\n",
+            "\u{2502} \u{276f} 3. No, and tell it instead    \u{2502}\r\n",
+            "\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n",
+        ]
+        .concat();
+
+        let standing = read(&screen_of(&text)).expect("a question");
+        assert!(!standing.writing, "the caret is under the box");
+
+        // The caret put back into the third answer, which is what an agent does
+        // with the one of them that is a place to type.
+        let mut screen = screen_of(&text);
+        screen.feed("\u{1b}[5;32H");
+        let found = read(&screen).expect("a question");
+        assert!(found.writing);
+        assert!(found.choices[2].selected);
     }
 
     /// Erasing, scrolling and the cursor being sent about: what a screen is for.

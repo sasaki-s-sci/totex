@@ -47,6 +47,15 @@ export type Choice = {
   label: string;
   /** Where the agent's own cursor is standing. */
   selected: boolean;
+  /**
+   * Whether the agent is holding this one as taken.
+   *
+   * Not the same as the mark, which is where the walk has got to: this is what
+   * has been picked up on the way. A list that takes one answer has at most one
+   * and draws it as a tick; a list that takes several draws a box beside each
+   * and fills in the ones it is holding.
+   */
+  picked: boolean;
 };
 
 /** One question, as it can be answered from the graph. */
@@ -69,6 +78,24 @@ export type Ask = {
   question: string;
   /** How it is answered, which is what the card draws under the question. */
   taking: Taking;
+  /**
+   * Whether several of the answers may be taken before the question is.
+   *
+   * What the card draws the difference of: a row that is pressed to be taken,
+   * or a box that is pressed to be filled in with one return under the lot of
+   * them. On a list like this every key is a picking up rather than an answer,
+   * so the answer is `take` — see there.
+   */
+  picking: boolean;
+  /**
+   * Whether the answer the mark is standing on is a place to type.
+   *
+   * The "and tell it what to do instead" every agent offers. While it is true
+   * the card carries a place to write beside the list, what is written goes by
+   * `compose`, and the question is taken by `take` rather than by pressing a
+   * key — a key would be a letter typed into what has been written.
+   */
+  writing: boolean;
   /** The answers offered, or none at all when the answer is to be written. */
   choices: Choice[];
 };
@@ -109,6 +136,52 @@ export function answerAsk(id: string, seq: number, key: string): Promise<void> {
  */
 export function replyAsk(id: string, seq: number, text: string): Promise<void> {
   return invoke("pty_reply", { id, seq, text });
+}
+
+/**
+ * Walks the agent's own mark to one of the answers and leaves it there.
+ *
+ * The first of the three acts that do not end the question, and the reason
+ * they are here at all: each of them is a keystroke somebody would otherwise
+ * have gone to the terminal to send, and going to the terminal to move a
+ * selection is going to the terminal. Nothing is put away — the agent redraws
+ * with its mark somewhere else, and the card follows that reading.
+ */
+export function pointAsk(id: string, seq: number, key: string): Promise<void> {
+  return invoke("pty_point", { id, seq, key });
+}
+
+/**
+ * Picks one of the answers up, or puts it down again.
+ *
+ * Only for a list that takes several — see `picking`. The question stands: the
+ * answers go on being picked up and put down until `takeAsk` sends the return.
+ */
+export function pickAsk(id: string, seq: number, key: string): Promise<void> {
+  return invoke("pty_pick", { id, seq, key });
+}
+
+/**
+ * Writes at the answer the mark is standing in, without ending the question.
+ *
+ * The other half of `replyAsk`: that one is for a question that is nothing but
+ * a place to write, and this is for the place to write that is one row of a
+ * list. No return goes with it, because the return is the answer and the answer
+ * is a separate press.
+ */
+export function composeAsk(id: string, seq: number, text: string): Promise<void> {
+  return invoke("pty_compose", { id, seq, text });
+}
+
+/**
+ * Ends the question where it stands, by sending the return that takes it.
+ *
+ * What answers the two kinds of question a key would not: a list the answers
+ * are picked up from, and a list whose mark is standing in a row being written
+ * at. Both are taken at the terminal by pressing return and nothing else.
+ */
+export function takeAsk(id: string, seq: number): Promise<void> {
+  return invoke("pty_take", { id, seq });
 }
 
 export function onAsking(next: (asking: Asking) => void): Promise<UnlistenFn> {
