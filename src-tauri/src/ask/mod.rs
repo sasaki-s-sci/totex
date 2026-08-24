@@ -278,7 +278,17 @@ const TOPS: [char; 5] = ['╭', '┌', '╔', '┏', '╒'];
 /// it.
 const BOTTOMS: [char; 5] = ['╰', '└', '╚', '┗', '╘'];
 /// What a rule is drawn with, wherever one is drawn.
-const RULES: [char; 6] = ['─', '═', '━', '┄', '┈', '-'];
+const RULES: [char; 4] = ['─', '═', '━', '-'];
+/// And what a rule drawn inside a question is dashed with.
+///
+/// Drawing, exactly as a solid rule is — neither is ever an answer — and the
+/// difference is what it is a line round. An agent that sets a diff or a pane
+/// into the middle of what it is asking about draws the lines across that
+/// dashed and the line over the whole question solid, so the dashes are inside
+/// the question and the rule is its edge. What follows is that a walk up to
+/// what a question is about crosses the dashes and stops at the rule: the
+/// file, the command and the tool are on the far side of them.
+const DASHES: [char; 6] = ['╌', '╍', '┄', '┅', '┈', '┉'];
 /// What an agent draws beside an answer it is holding, and beside one it is
 /// not.
 ///
@@ -441,11 +451,7 @@ fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
         question,
         taking: Taking::Key,
         picking,
-        // The caret standing on one of the answers is the agent saying that
-        // answer is a place to type. There is nowhere else in a list for it to
-        // be: a list nobody is typing into has it put away, or under the whole
-        // thing where the next line would go.
-        writing: standing.shown && (start..=foot).contains(&standing.row),
+        writing: written_at(standing, start..=foot, column),
         choices,
     })
 }
@@ -633,6 +639,27 @@ fn at_the_caret<'a>(inner: &[&'a str], standing: &Standing) -> Option<&'a str> {
         .then_some(*line)
 }
 
+/// Whether the answer the mark is standing on is one to be written at.
+///
+/// The lists that carry a place to type on one of their own rows — the "and
+/// tell it what to do instead", the "or type something else" every one of them
+/// offers. Nothing in the words says which row that is, and the row is not the
+/// one the mark is on either: an agent walking a list keeps its own cursor on
+/// whatever row it is standing on, whether or not there is anything to type
+/// there.
+///
+/// Where along the row it stands is what says it. A cursor that is only being
+/// kept up with the walk is put at the head of the row, out in front of the
+/// key; a row that is being typed into has it in among the words, where the
+/// next letter would go. So the question asked here is not whether the caret is
+/// in the list but whether it is past the key — which is true of every agent
+/// that offers such a row, and true whether or not the caret is being drawn.
+/// Some hide it and go on moving it; what is hidden is still where the typing
+/// would land.
+fn written_at(standing: &Standing, rows: std::ops::RangeInclusive<usize>, key: usize) -> bool {
+    rows.contains(&standing.row) && standing.col > key
+}
+
 /// What a question is drawn in, as far as the lines above it say.
 ///
 /// Three answers rather than two, because the agents draw in three ways and the
@@ -672,22 +699,35 @@ fn asked_above(above: &[&str]) -> (Vec<String>, String, Framing) {
     (detail, question, framing)
 }
 
-/// What the box says above its question, in the order it says it, and whether
-/// there was a box.
+/// What is set above a question, in the order it says it, and what the whole of
+/// it is drawn in.
 ///
-/// Only ever what is inside the box: the walk stops at the top border, and a
-/// question with no border above it within reach is left with no detail at all.
-/// The lines above an unboxed prompt are the conversation, and the conversation
-/// is not what is being asked about.
+/// Only ever what is inside the question's own drawing: the walk stops at the
+/// edge it finds — the top of a box, the rule an unboxed question is set
+/// under — and a question with neither within reach is left with no detail at
+/// all. The lines above a question that is drawn in nothing are the
+/// conversation, and the conversation is not what is being asked about.
+///
+/// What the walk does not stop at is a dashed line, because a dashed line is
+/// one an agent drew inside what it is asking about — over a diff, under a
+/// pane — and the tool and the file are on the far side of it. Nor does it
+/// stop at having enough to keep: what is above a question decides what the
+/// question is drawn in, so the walk goes on looking for the edge even after
+/// the card has more than it can draw.
 fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
     let floor = question.saturating_sub(BOX_LIMIT);
     let mut detail = Vec::new();
     let mut framing = Framing::Bare;
+    let mut dashed = false;
     let mut walk = question;
 
     while walk > floor {
         walk -= 1;
         let line = above[walk];
+        if is_dashed(line) {
+            dashed = true;
+            continue;
+        }
         if is_edge(line) {
             // The foot of a box above the question is the box somebody else's
             // question was in, which is nothing this one is drawn in.
@@ -703,16 +743,20 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
         if blank(line) {
             continue;
         }
-        detail.push(line.trim().to_string());
-        if detail.len() >= DETAIL_LIMIT {
-            // Whether the box goes on above this is no longer worth walking
-            // for: what is kept is already more than the card can draw.
-            framing = Framing::Boxed;
-            break;
+        if detail.len() < DETAIL_LIMIT {
+            detail.push(line.trim().to_string());
         }
     }
 
-    if framing != Framing::Boxed {
+    // A walk that ran out of reach before it found the edge, having crossed a
+    // dashed line to get there, was inside something the whole way: what is
+    // over the question is a diff or a pane the agent drew round what it is
+    // asking about, and a question that far down one of those has an edge —
+    // it is simply further up than anything here is worth walking for.
+    if framing == Framing::Bare && dashed {
+        framing = Framing::Ruled;
+    }
+    if framing == Framing::Bare {
         return (Vec::new(), framing);
     }
     detail.reverse();
@@ -728,15 +772,23 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
 /// writing, and the box it was answered in stays up the screen for as long as
 /// the scrollback holds it — so what tells the live question from that one is
 /// not the box, it is what is under it. Room is left for the line or two of
-/// shortcuts an agent sets below its box, and for nothing else.
+/// shortcuts an agent sets below its box, and for nothing else — a line or two
+/// in all, however many pieces the question was drawn in, because an agent
+/// that has been answered is an agent with something to say.
 ///
-/// A full-screen program has no such thing. It draws the whole screen every
-/// time it draws anything, so there is no wreckage to tell apart — but it also
-/// keeps its own composer at the foot of the screen, under everything, and
-/// nothing would ever be the last thing there. What is asked of one of those
-/// instead is that the question be in a box of its own and that the caret have
-/// been taken away: a program that wants a keypress hides the caret, and a
-/// program showing you where to type is not stopped on a question.
+/// A full-screen program is held to the same thing first. It draws the whole
+/// screen every frame, so there is no wreckage to tell apart, and the ones that
+/// take the composer down while they are asking put nothing under the question
+/// either — which is the ordinary shape and reads as the ordinary shape.
+///
+/// What is left is the program that keeps its composer at the foot of the
+/// screen under everything, where nothing it draws is ever the last thing.
+/// Only that one is asked for something else: that the question be in a box of
+/// its own and that the caret have been taken away — a program that wants a
+/// keypress hides the caret, and a program showing you where to type is not
+/// stopped on a question. It is the narrower test and it is second, because it
+/// is the one that would also take an answered box still standing on a screen
+/// its program goes on writing under.
 ///
 /// Between the two is the agent that draws the whole of its output over again
 /// on the screen that scrolls — no box round the question, a rule over it and
@@ -750,10 +802,14 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
 /// in the open is held to what it was held to before, which is nothing under
 /// it at all.
 fn last_thing(inner: &[&str], foot: usize, framing: Framing, standing: &Standing) -> bool {
-    if standing.alt {
-        return framing == Framing::Boxed && !standing.shown;
+    if nothing_since(inner, foot, framing) {
+        return true;
     }
+    standing.alt && framing == Framing::Boxed && !standing.shown
+}
 
+/// Whether what is under a question is the question's own drawing and no more.
+fn nothing_since(inner: &[&str], foot: usize, framing: Framing) -> bool {
     let mut closed = false;
     let mut drawing = PANEL_LINES;
     let mut spare = HINT_LINES;
@@ -766,12 +822,17 @@ fn last_thing(inner: &[&str], foot: usize, framing: Framing, standing: &Standing
         if is_top(line) || choice_of(line).is_some() {
             return false;
         }
+        // And a place to type below it: the agent has its composer back, which
+        // it only has when it is not waiting on an answer. The question under
+        // one of those is the one that has just been answered.
+        if typed_at(line.trim()) {
+            return false;
+        }
         // A line of drawing: the foot of the box the question is in, the foot
         // of a pane set beside it, the rule under a question that was never
         // boxed at all.
         if is_edge(line) {
             closed = true;
-            spare = HINT_LINES;
             continue;
         }
         if closed {
@@ -1207,7 +1268,16 @@ fn is_edge(line: &str) -> bool {
         || is_bottom(line)
         || line
             .chars()
-            .all(|letter| RULES.contains(&letter) || letter == ' ')
+            .all(|letter| RULES.contains(&letter) || DASHES.contains(&letter) || letter == ' ')
+}
+
+/// A rule drawn dashed, which is a line inside a question rather than round it.
+fn is_dashed(line: &str) -> bool {
+    let line = line.trim();
+    !line.is_empty()
+        && line
+            .chars()
+            .all(|letter| DASHES.contains(&letter) || letter == ' ')
 }
 
 /// What a reading needs to know about a screen besides the words on it.
@@ -1219,6 +1289,14 @@ fn is_edge(line: &str) -> bool {
 struct Standing {
     /// Which row the caret is standing on.
     row: usize,
+    /// And how far along that row.
+    ///
+    /// What tells a caret that is being typed at from one that is merely
+    /// parked. A program drawing a list puts its cursor on the row it is
+    /// standing on whether or not there is anything to type there, and puts it
+    /// at the head of that row; a row that is being written at has it in among
+    /// the words, where the next letter would go.
+    col: usize,
     /// Whether nothing is drawn between it and the end of that row.
     clear: bool,
     /// Whether the caret is being drawn at all.
@@ -1345,6 +1423,7 @@ impl Screen {
 
         Standing {
             row: self.row,
+            col: self.col,
             clear,
             shown: self.shown,
             alt: self.alt,
@@ -2148,9 +2227,10 @@ mod tests {
             ]
         );
         assert!(found.choices[0].selected);
-        // Nothing above the question is what it is about: there is no box to
-        // have set anything in.
-        assert!(found.detail.is_empty());
+        // And what stands between the rule and the question is what the
+        // question is about, exactly as the head of a box is: the rule is the
+        // edge of the drawing, so the line under it is inside it.
+        assert_eq!(found.detail, vec!["←  Q1  ✔ Submit  →".to_string()]);
     }
 
     /// The same question with a pane of its own beside the answers.
@@ -2192,6 +2272,170 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["Rewrite the reader", "Patch the check", "Other"],
         );
+    }
+
+    /// What a full-screen agent draws on the screen it owns, with the composer
+    /// taken down while it waits.
+    ///
+    /// Read off Claude Code, which is the shape of nearly every question this
+    /// window is ever shown: the alternate screen, no box anywhere, a rule over
+    /// the question, the answers with what each of them comes to set under it,
+    /// another rule across the list, and under the lot of it one line of
+    /// shortcuts. The caret is put away and left standing on the row the agent
+    /// is on, which is the drawing this reading has to tell from a composer
+    /// waiting to be typed at.
+    ///
+    /// `on` is which answer the mark is against, and `caret` where the cursor
+    /// was left, in rows and columns from the top left.
+    fn ruled_question(on: usize, caret: (usize, usize)) -> String {
+        let rule = "\u{2500}".repeat(58);
+        let answers = [
+            ("Rewrite the reader", "Start from the screen again"),
+            ("Patch the check", "Leave the shape alone"),
+            ("Hold it as it is", "Nothing changes today"),
+        ];
+        let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+        drawn.push_str("\u{25cf} Right, here we go.\r\n");
+        drawn.push_str(&format!("{rule}\r\n"));
+        drawn.push_str(" \u{2610} Approach\r\n\r\n");
+        drawn.push_str("Which approach should we take for the reader?\r\n\r\n");
+        for (at, (answer, under)) in answers.iter().enumerate() {
+            let mark = if at == on { '\u{276f}' } else { ' ' };
+            drawn.push_str(&format!("{mark} {}. {answer}\r\n", at + 1));
+            drawn.push_str(&format!("     {under}\r\n"));
+        }
+        // The row that is a place to type rather than a thing to press, drawn
+        // as one more answer with what it is for written in it.
+        let mark = if on == 3 { '\u{276f}' } else { ' ' };
+        drawn.push_str(&format!("{mark} 4. Type something.\r\n"));
+        drawn.push_str(&format!("{rule}\r\n"));
+        let mark = if on == 4 { '\u{276f}' } else { ' ' };
+        drawn.push_str(&format!("{mark} 5. Chat about this\r\n\r\n"));
+        drawn.push_str(
+            "Enter to select \u{b7} \u{2191}/\u{2193} to navigate \u{b7} Esc to cancel\r\n",
+        );
+        let (row, col) = caret;
+        drawn.push_str(&format!("\u{1b}[{};{}H", row + 1, col + 1));
+        drawn
+    }
+
+    #[test]
+    fn a_question_a_full_screen_agent_drew_in_place_of_its_composer_is_a_question() {
+        let found = read(&screen_of(&ruled_question(0, (6, 0)))).expect("the rules are a question");
+
+        assert_eq!(
+            found.question,
+            "Which approach should we take for the reader?"
+        );
+        assert_eq!(found.taking, Taking::Key);
+        // Every row of the list is an answer, the place to type and the way out
+        // of the question included: each of them is pressed at the terminal by
+        // the key the agent printed beside it.
+        assert_eq!(
+            found
+                .choices
+                .iter()
+                .map(|choice| (choice.key.as_str(), choice.label.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("1", "Rewrite the reader Start from the screen again"),
+                ("2", "Patch the check Leave the shape alone"),
+                ("3", "Hold it as it is Nothing changes today"),
+                ("4", "Type something."),
+                ("5", "Chat about this"),
+            ]
+        );
+        assert!(found.choices[0].selected);
+        // What the question is about is the line between the rule and the
+        // question, and the transcript above the rule is not.
+        assert_eq!(found.detail, vec!["☐ Approach".to_string()]);
+        // The caret is standing on the answer the mark is on, at the head of
+        // it, because that is where a program keeps a cursor it is not typing
+        // with. Nothing is being written at.
+        assert!(!found.writing);
+    }
+
+    /// The one row of such a list that is a place to type, told by where the
+    /// caret is standing along it.
+    #[test]
+    fn the_caret_in_among_the_words_is_a_row_being_written_at() {
+        // Walked down to the row that takes words, where the caret goes to the
+        // front of what would be typed rather than to the front of the row.
+        let found = read(&screen_of(&ruled_question(3, (12, 5)))).expect("still a question");
+        assert!(found.writing);
+        assert!(found.choices[3].selected);
+
+        // And the same walk onto the answer under the rule, which is a thing to
+        // press: the caret goes back to the head of the row.
+        let found = read(&screen_of(&ruled_question(4, (14, 0)))).expect("still a question");
+        assert!(!found.writing);
+        assert!(found.choices[4].selected);
+    }
+
+    /// A permission prompt from the same agent: the tool and the file over a
+    /// dashed rule, what it would come to under it, and the question below
+    /// that.
+    #[test]
+    fn a_diff_between_dashed_rules_is_what_the_question_is_about() {
+        let rule = "\u{2500}".repeat(58);
+        let dashes = "\u{254c}".repeat(58);
+        let text = [
+            "\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H",
+            "\u{25cf} Write(notes.txt)\r\n\r\n",
+            &format!("{rule}\r\n"),
+            " Create file\r\n",
+            " notes.txt\r\n",
+            &format!("{dashes}\r\n"),
+            "  1 one\r\n",
+            "  2 two\r\n",
+            "  3 three\r\n",
+            &format!("{dashes}\r\n"),
+            " Do you want to create notes.txt?\r\n",
+            " \u{276f} 1. Yes\r\n",
+            "   2. Yes, and switch to accept edits for this session\r\n",
+            "   3. No\r\n",
+            "\r\n",
+            " Esc to cancel \u{b7} Tab to amend\r\n",
+        ]
+        .concat();
+
+        let found = read(&screen_of(&text)).expect("the prompt is a question");
+        assert_eq!(found.question, "Do you want to create notes.txt?");
+        assert_eq!(found.choices.len(), 3);
+        // The dashes are drawing inside the question rather than the edge of
+        // it, so what is above them is still what the question is about.
+        assert_eq!(
+            found.detail,
+            vec![
+                "Create file".to_string(),
+                "notes.txt".to_string(),
+                "1 one".to_string(),
+                "2 two".to_string(),
+                "3 three".to_string(),
+            ]
+        );
+
+        // The same prompt over a diff longer than the walk up to the rule is
+        // worth taking: the dashed line above the question says the question is
+        // drawn in something, wherever the top of it has got to.
+        let long = text.replace(
+            "  2 two\r\n",
+            &(1..14)
+                .map(|line| format!("  {line} more\r\n"))
+                .collect::<String>(),
+        );
+        let found = read(&screen_of(&long)).expect("still a question");
+        assert_eq!(found.question, "Do you want to create notes.txt?");
+        assert_eq!(found.choices.len(), 3);
+
+        // Answered, and the agent goes on writing under it with its composer
+        // back: the same drawing is then the wreckage of a question rather than
+        // one being asked, and the composer under it is what says so.
+        let mut screen = screen_of(&text);
+        screen.feed("\u{25cf} Wrote notes.txt\r\n\r\n");
+        screen.feed(&format!("{rule}\r\n\u{276f} \r\n{rule}\r\n"));
+        screen.feed("  \u{23f8} manual mode on \u{b7} ? for shortcuts\r\n");
+        assert!(read(&screen).is_none());
     }
 
     /// A list that takes several answers, which says so by drawing a box beside
