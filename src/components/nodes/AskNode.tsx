@@ -57,10 +57,11 @@ import { useGraphActions } from "../graphActions";
  * in, words in a row — which is what is then shown. A card that drew what it
  * had asked for would be a card saying something the terminal had not done.
  *
- * The words in it are already cut to width by the layout. Nothing is measured
- * here: the canvas needs the height of this card before it can place it, and a
- * card that decided its own size would be one the graph had to be rebuilt for
- * after it had been drawn.
+ * The words in it are already broken to width by the layout, and the width is
+ * the question's own — as wide as its longest line wanted, within what a card
+ * may be. Nothing is measured here: the canvas needs the size of this card
+ * before it can place it, and a card that decided its own would be one the
+ * graph had to be rebuilt for after it had been drawn.
  */
 export function AskNode({ data }: NodeProps<AskFlowNode>) {
   const { t } = useTranslation();

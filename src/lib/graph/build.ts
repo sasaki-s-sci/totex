@@ -755,7 +755,7 @@ function rowStack(
     drawn.floor = card.at + card.height + ASK_STACK_GAP;
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
-    drawn.right = Math.max(drawn.right, x + ASK_WIDTH);
+    drawn.right = Math.max(drawn.right, x + card.width);
     drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
   }
 
@@ -851,7 +851,7 @@ function rowRing(
     drawn.floor = card.at + card.height + ASK_STACK_GAP;
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
-    drawn.right = Math.max(drawn.right, column + ASK_WIDTH);
+    drawn.right = Math.max(drawn.right, column + card.width);
     drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
   }
 
@@ -1015,7 +1015,7 @@ function bandColumn(
       drawn.lines.push(beside.line);
 
       drawn.bottom = Math.max(drawn.bottom, beside.at + beside.height);
-      drawn.right = Math.max(drawn.right, x + ASK_WIDTH);
+      drawn.right = Math.max(drawn.right, x + beside.width);
     }
   }
 
@@ -1076,7 +1076,7 @@ function askNode(
     ...(band === null ? null : { parentId: band }),
     position: { x, y },
     data,
-    style: { width: ASK_WIDTH, height: data.card.height },
+    style: { width: data.card.width, height: data.card.height },
     zIndex: ASK_Z,
     draggable: false,
     selectable: false,
@@ -1110,7 +1110,7 @@ function besideMark(
   y: number,
   floor: number,
   draw: Draw,
-): { node: AppNode; line: GraphLine; at: number; height: number } | null {
+): { node: AppNode; line: GraphLine; at: number; width: number; height: number } | null {
   /** Beside its own terminal, or under whatever was drawn last. */
   const place = (height: number) => Math.max(y + CLI_STEP / 2 - height / 2, floor);
 
@@ -1123,6 +1123,7 @@ function besideMark(
       node: askNode(id, { session, ask: asking, card }, band, x, at, draw),
       line: cardLine(id, mark, card.height),
       at,
+      width: card.width,
       height: card.height,
     };
   }
@@ -1137,6 +1138,7 @@ function besideMark(
     node: reportNode(id, { session, report: said, card }, band, x, at, draw),
     line: cardLine(id, mark, card.height),
     at,
+    width: ASK_WIDTH,
     height: card.height,
   };
 }
