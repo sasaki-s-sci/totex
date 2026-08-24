@@ -38,7 +38,16 @@
   },
   "worktree": {
     "terminal": "Terminal",
-    "deleteBranch": "Delete the local branch"
+    "deleteBranch": "Delete the branch and its worktree",
+    "deleteTitle": "Delete {{branch}}?",
+    "deleteBranchLine": "The branch goes, and commits no other branch holds go with it. This window cannot bring them back.",
+    "deleteWorktreeLine": "Its worktree goes too.",
+    "deleteDirtyLine_one": "So does the {{count}} uncommitted file left in there.",
+    "deleteDirtyLine_other": "So do the {{count}} uncommitted files left in there.",
+    "deleteRemoteLine": "What is on the remote is left alone.",
+    "deleteCancel": "Cancel",
+    "deleteConfirm": "Delete",
+    "deleteFailed": "Could not delete"
   },
   "cli": {
     "shell": "Shell",

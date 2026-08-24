@@ -10,8 +10,9 @@ import { Box, CircularProgress, Divider, Stack } from "@mui/material";
  *
  * What is left to say is said by the marks themselves. A mark that is faded is
  * one that cannot be pressed — the window works out beforehand what git would
- * refuse and simply does not offer it. A mark that has been armed, or that was
- * refused after all, is red. A mark that is working spins in its own place.
+ * refuse and simply does not offer it. A mark that was refused after all is
+ * red. A mark that is working spins in its own place. Nothing here is armed:
+ * the one press that ends something puts its question in words instead.
  */
 export function Palette({ children }: { children: React.ReactNode }) {
   return (
@@ -31,7 +32,6 @@ export function PaletteButton({
   disabled,
   busy,
   failed,
-  danger,
   onClick,
   children,
 }: {
@@ -41,12 +41,9 @@ export function PaletteButton({
   busy?: boolean;
   /** Refused by git after it was pressed — the only failure left to show. */
   failed?: boolean;
-  /** Armed, and red until it is pressed again or the menu is left. */
-  danger?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
-  const red = failed || danger;
   return (
     <Box
       component="button"
@@ -64,12 +61,12 @@ export function PaletteButton({
         border: "none",
         borderRadius: 1,
         background: "none",
-        color: red ? "error.main" : "text.secondary",
+        color: failed ? "error.main" : "text.secondary",
         cursor: "pointer",
         transition: "background-color 90ms ease-out, color 90ms ease-out",
         "&:hover, &:focus-visible": {
           bgcolor: "action.hover",
-          color: red ? "error.main" : "text.primary",
+          color: failed ? "error.main" : "text.primary",
         },
         // Not offered rather than offered and refused: this is where every
         // sentence about why something could not be done used to go.

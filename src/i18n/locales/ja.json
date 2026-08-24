@@ -38,7 +38,16 @@
   },
   "worktree": {
     "terminal": "ターミナル",
-    "deleteBranch": "ローカルブランチを削除"
+    "deleteBranch": "ブランチをワークツリーごと削除",
+    "deleteTitle": "{{branch}} を削除しますか？",
+    "deleteBranchLine": "ブランチが消えます。他のブランチが持っていないコミットも一緒に消え、このウィンドウからは戻せません。",
+    "deleteWorktreeLine": "ワークツリーも一緒に消えます。",
+    "deleteDirtyLine_one": "そこに残っている未コミットの変更 {{count}} 件も消えます。",
+    "deleteDirtyLine_other": "そこに残っている未コミットの変更 {{count}} 件も消えます。",
+    "deleteRemoteLine": "リモートにあるものはそのままです。",
+    "deleteCancel": "キャンセル",
+    "deleteConfirm": "削除",
+    "deleteFailed": "削除できませんでした"
   },
   "cli": {
     "shell": "シェル",
