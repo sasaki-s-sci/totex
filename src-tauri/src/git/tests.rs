@@ -747,3 +747,66 @@ fn a_folder_is_marked_with_how_many_repositories_it_holds() {
         "a walk that gave up says what it saw"
     );
 }
+
+/// A fetch, end to end, against a remote that is another directory.
+///
+/// The point of the test is the ref: `git fetch <remote> <branch>` names one
+/// branch, and what the graph draws is the remote-tracking ref that call
+/// updates on its way past. Nothing here needs a server — a bare repository on
+/// a path is a remote like any other, and it is the only kind a test can have.
+#[test]
+fn fetch_brings_one_branch_down() {
+    let temp = TempDir::new("fetch");
+    let root = temp.path();
+
+    let bare = root.join("origin.git");
+    git(root, &["init", "--bare", "-b", "main", "origin.git"]);
+
+    let here = root.join("here");
+    std::fs::create_dir_all(&here).expect("create here");
+    git(&here, &["init", "-b", "main"]);
+    commit(&here, "one.txt", "1");
+    let bare_path = bare.to_str().expect("utf-8");
+    git(&here, &["remote", "add", "origin", bare_path]);
+    git(&here, &["push", "-u", "origin", "main"]);
+
+    // Somebody else moves the branch on, which is the whole situation a fetch
+    // is for: this checkout cannot know about it until it asks.
+    let there = root.join("there");
+    git(root, &["clone", bare_path, "there"]);
+    commit(&there, "two.txt", "2");
+    git(&there, &["push", "origin", "main"]);
+    let moved = git(&there, &["rev-parse", "HEAD"]).trim().to_string();
+
+    let tracking = |dir: &Path| {
+        git(dir, &["rev-parse", "refs/remotes/origin/main"])
+            .trim()
+            .to_string()
+    };
+    assert_ne!(
+        tracking(&here),
+        moved,
+        "the remote moved and nothing has asked about it yet"
+    );
+
+    super::remote::fetch_at(&here, "origin", "main").expect("fetch");
+
+    assert_eq!(
+        tracking(&here),
+        moved,
+        "fetching one branch by name updates its remote-tracking ref"
+    );
+    assert_eq!(
+        git(&here, &["rev-parse", "refs/heads/main"]).trim(),
+        git(&here, &["rev-parse", "HEAD"]).trim(),
+        "a fetch writes refs and objects, and leaves the branch where it was"
+    );
+
+    // A remote this repository does not have is a URL git would go looking for,
+    // so it is turned down before git is asked at all.
+    assert_eq!(
+        super::remote::fetch_at(&here, "elsewhere", "main"),
+        Err("no-such-remote".to_string())
+    );
+    assert!(super::remote::fetch_at(&here, "origin", "bad..name").is_err());
+}

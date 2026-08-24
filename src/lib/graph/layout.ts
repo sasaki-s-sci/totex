@@ -12,6 +12,7 @@ import {
   type CollapseFlowNode,
   type CommitFlowNode,
   DEFAULT_VISIBLE_COMMITS,
+  type Fetch,
   type FoldTarget,
   type GraphLine,
   LANE_HEIGHT,
@@ -20,6 +21,7 @@ import {
   MIN_BAND_WIDTH,
   NAME_COLUMN,
   onCell,
+  PAIR_DROP,
   type RepositoryNodeData,
   RING_TRIM,
   SESSION_WIDTH,
@@ -209,7 +211,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // and where a terminal working in it is joined to.
   const rings = new Map<string, Point>();
   for (const ref of refs) {
-    rings.set(ref.id, middleOf(ref.column, row(ref.row)));
+    rings.set(ref.id, middleOf(ref.column, row(ref.row) + ref.drop));
   }
 
   for (const [position, entry] of placed.entries()) {
@@ -317,7 +319,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       type: "head",
       parentId: repository.id,
       extent: "parent",
-      position: { x: ref.column * COLUMN_WIDTH, y: row(ref.row) },
+      position: { x: ref.column * COLUMN_WIDTH, y: row(ref.row) + ref.drop },
       data: ref.data,
       style: CELL_STYLE,
       draggable: false,
@@ -621,11 +623,7 @@ function trunkOf(repository: Repository): Branch | undefined {
 /** Sorts the history into lanes and columns, and measures the band it needs. */
 function place(repository: Repository, shown: number, deep: Depth) {
   const branchesAt = groupBy(repository.branches, (branch) => branch.commit);
-  const remoteNames = new Set(
-    repository.branches
-      .filter((branch) => branch.kind === "remote")
-      .map((branch) => branch.logicalName),
-  );
+  const pairs = pairsOf(repository);
   // A worktree with no head is bucketed under a key no commit can have, which
   // is the same as leaving it out.
   const worktreesAt = groupBy(repository.worktrees, (worktree) => worktree.head ?? "");
@@ -674,14 +672,14 @@ function place(repository: Repository, shown: number, deep: Depth) {
   const { columns: natural } = assignColumns(placed, index, packed.lanes);
 
   // Which row every line of development and every name is drawn on.
-  const { rows, want } = rowOrder(placed, packed, natural, trunk?.id, remoteNames);
+  const { rows, want } = rowOrder(placed, packed, natural, trunk?.id, pairs);
   for (const [position, entry] of placed.entries()) entry.row = rows[position];
 
   // A branch pointing into the history that is not shown is not shown either:
   // folding a stretch of history away means folding away what is on it — the
   // branches, their worktrees and the buttons that work in them. The collapse
   // node says how much went, and expanding brings all of it back.
-  const anchored = anchorRefs(placed, trunk?.id, remoteNames, want);
+  const anchored = anchorRefs(placed, trunk?.id, pairs, want);
   const { columns: own, count: span } = assignColumns(placed, index, rows);
 
   // The name takes the first column, the collapse node the next when there is
@@ -870,6 +868,10 @@ type Extent = {
  * a name whose line is nowhere near it, which is what the packing's own lanes
  * did all along, except that now it is the nearest row rather than whichever
  * lane happened to come free.
+ *
+ * The two ends of one branch are one name in the order and share one row. What
+ * they are asked for under is the `group` rather than the name, so that `main`
+ * and `origin/main` sort as the one branch a person reads them as.
  */
 function rowOrder(
   placed: Placed[],
@@ -877,9 +879,9 @@ function rowOrder(
   /** Where each commit would stand if every line kept its packing lane. */
   natural: number[],
   trunk: string | undefined,
-  remoteNames: ReadonlySet<string>,
+  pairs: ReadonlyMap<string, Pairing>,
 ) {
-  const named: { key: string; name: string; line: number }[] = [];
+  const named: { key: string; group: string; line: number; alongside: boolean }[] = [];
   const extents = new Map<number, Extent>();
   /** Lines the trunk's own lane carries, which the middle of the band is held for. */
   const central = new Set<number>();
@@ -901,17 +903,33 @@ function rowOrder(
     }
 
     if (!hasRefs(entry)) continue;
-    for (const ref of refsOf(entry, trunk, remoteNames)) {
+    for (const ref of refsOf(entry, trunk, pairs)) {
       if (ref.trunk || ref.head) continue;
-      named.push({ key: ref.key, name: ref.name, line });
+      named.push({ key: ref.key, group: ref.group, line, alongside: ref.alongside });
     }
   }
-  named.sort((left, right) => byName(left.name, right.name));
+  named.sort((left, right) => byName(left.group, right.group));
 
   // A row each, for the names and for nothing else. Two branches that never
   // shared a column could have shared a row before; they cannot now, because a
   // row is what says where a name comes in the order.
-  const above = Math.ceil(named.length / 2);
+  //
+  // Except for the two ends of one branch, which share theirs: `main` and
+  // `origin/main` are one branch and read as one row, the remote end hanging
+  // under the local one. They share it only while they stand on one line of
+  // development — two ends that have genuinely parted are two lines, and a row
+  // cannot draw both. Which is why the sharing is asked of the line rather than
+  // of the pair: two ends that are one line of development are one line here
+  // too, so the row the first of them is given is the row the other comes to.
+  const seated = new Set(central);
+  let wanted = 0;
+  for (const ref of named) {
+    if (ref.alongside && seated.has(ref.line)) continue;
+    seated.add(ref.line);
+    wanted++;
+  }
+
+  const above = Math.ceil(wanted / 2);
   const rowAt = (rank: number) => (rank < above ? rank - above : rank - above + 1);
 
   /** The row each line of development is drawn on. */
@@ -925,13 +943,20 @@ function rowOrder(
   };
 
   const want = new Map<string, number>();
-  for (const [rank, ref] of named.entries()) {
-    const row = rowAt(rank);
+  let rank = 0;
+  for (const ref of named) {
+    // The other end of a branch already drawn, along the same line of
+    // development: it comes to that line's row rather than taking one of its
+    // own, and `placeRefs` drops it clear of the head already standing there.
+    // The trunk is the one line that never asks for a row, so the remote end of
+    // it finds the middle of the band this same way.
+    const shared = central.has(ref.line) ? 0 : rows.get(ref.line);
+    const row = ref.alongside && shared !== undefined ? shared : rowAt(rank++);
     want.set(ref.key, row);
     // The line a name stands on is drawn on that name's row. Where two names
-    // stand on one line — a branch and the remote-tracking ref beside it — the
-    // first of them in the alphabet has the line, and the other is a head of
-    // its own, a row away.
+    // stand on one line — a branch and a remote-tracking ref of some other
+    // name — the first of them in the alphabet has the line, and the other is a
+    // head of its own, a row away.
     if (central.has(ref.line) || rows.has(ref.line)) continue;
     rows.set(ref.line, row);
     // A named line runs on past its last commit, out to the head standing in
@@ -1088,6 +1113,14 @@ type RefPlacement = {
   row: number;
   /** What this branch is to the repository, set after its name; see `noteOf`. */
   note: string | null;
+  /**
+   * How far under its row's own line this head stands.
+   *
+   * Zero for every head that has a row to itself. The remote end of a branch
+   * shares its local end's row and hangs this far under it, which is what makes
+   * the pair read as one branch drawn twice rather than as two branches.
+   */
+  drop: number;
   /** Where a terminal working in this branch stands; null where none can. */
   run: RunPlacement | null;
 };
@@ -1099,6 +1132,128 @@ type RunPlacement = {
 
 /** A branch or worktree name, and what can be done where it points. */
 type Ref = ReturnType<typeof refsOf>[number];
+
+/** The other end of one branch, and what both ends need to know about it. */
+type Pairing = {
+  /** The branch at the other end. */
+  other: Branch;
+  /** The remote that end stands on. */
+  remote: string;
+  /** Both ends stand on one commit, which is a branch at rest. */
+  together: boolean;
+  /**
+   * One end is behind the other along a single line of development, rather than
+   * the two having parted and grown their own commits.
+   *
+   * What it settles is whether the pair can share a row. Two ends of one line
+   * are one line however far apart they have got — the row draws it straight,
+   * with a head at each of the two commits — while two ends that have diverged
+   * are two lines of development, and a row cannot draw both without laying one
+   * over the other.
+   */
+  line: boolean;
+  /** The local end's worktree, whichever end is asking. */
+  work: string | null;
+};
+
+/**
+ * Which branches are two ends of one branch.
+ *
+ * Paired by name, which is the guess git itself makes: `git switch foo` with no
+ * local `foo` and exactly one remote carrying that name checks the remote one
+ * out and writes the pairing into the config. The difference is that git writes
+ * it down once and reads its own note ever after, while this is read afresh
+ * from the names every time — so a branch nobody has pushed yet still pairs
+ * with the one somebody else pushed under that name, which is the pair a person
+ * reading the column would see.
+ *
+ * Where one name is on several remotes the branch's own upstream settles it,
+ * and where there is no upstream the first remote the repository lists does —
+ * which is the order git resolves an ambiguous checkout in.
+ */
+function pairsOf(repository: Repository): Map<string, Pairing> {
+  const parents = new Map(repository.commits.map((commit) => [commit.id, commit.parents]));
+  const order = new Map(repository.remotes.map((remote, at) => [remote.name, at]));
+  const rank = (branch: Branch) => order.get(branch.remote ?? "") ?? order.size;
+  const ends = groupBy(
+    repository.branches.filter((branch) => branch.kind === "remote"),
+    (branch) => branch.logicalName,
+  );
+  const paths = new Map(repository.worktrees.map((worktree) => [worktree.id, worktree.path]));
+
+  const pairs = new Map<string, Pairing>();
+  for (const local of repository.branches) {
+    if (local.kind !== "local") continue;
+    const candidates = ends.get(local.logicalName);
+    if (candidates === undefined) continue;
+
+    const remote =
+      candidates.find((end) => end.refName === local.upstream) ??
+      candidates.reduce((best, end) => (rank(end) < rank(best) ? end : best));
+    // A remote-tracking ref under no remote this repository has is a ref
+    // somebody left behind, not an end of anything.
+    const on = remote.remote;
+    if (on === null) continue;
+
+    const work =
+      local.checkedOutIn.map((id) => paths.get(id)).find((path) => path !== undefined) ?? null;
+    const together = remote.commit === local.commit;
+    const line =
+      together ||
+      reaches(remote.commit, local.commit, parents) ||
+      reaches(local.commit, remote.commit, parents);
+
+    pairs.set(local.id, { other: remote, remote: on, together, line, work });
+    pairs.set(remote.id, { other: local, remote: on, together, line, work });
+  }
+
+  return pairs;
+}
+
+/**
+ * Whether one commit can be walked back to from another.
+ *
+ * Only along the history the repository handed over: a walk that runs off the
+ * end of what is held answers no, which puts the pair on a row each. That is
+ * the safe way round — a row shared by two lines that turn out to have parted
+ * draws one over the other, while a row each merely says less than it could.
+ */
+function reaches(
+  from: string,
+  to: string,
+  parents: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  const seen = new Set([from]);
+  const walk = [from];
+  while (walk.length > 0) {
+    const at = walk.pop() as string;
+    for (const parent of parents.get(at) ?? []) {
+      if (parent === to) return true;
+      if (seen.has(parent)) continue;
+      seen.add(parent);
+      walk.push(parent);
+    }
+  }
+  return false;
+}
+
+/**
+ * What a head can ask a remote for.
+ *
+ * The end standing on the remote is the one that asks, because that is the end
+ * a fetch moves. Where the two ends are on one commit there is no remote head
+ * to ask with — one ring stands for both — so the local head asks instead.
+ */
+function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
+  if (branch.kind === "remote") {
+    return branch.remote === null
+      ? null
+      : { remote: branch.remote, branch: branch.logicalName, work: pair?.work ?? null };
+  }
+  return pair?.together === true
+    ? { remote: pair.remote, branch: branch.logicalName, work: pair.work }
+    : null;
+}
 
 /** A branch head and the commit it points at, before rows are settled. */
 type Anchored = {
@@ -1124,14 +1279,14 @@ type Anchored = {
 function anchorRefs(
   placed: Placed[],
   trunk: string | undefined,
-  remoteNames: ReadonlySet<string>,
+  pairs: ReadonlyMap<string, Pairing>,
   want: ReadonlyMap<string, number>,
 ): Anchored[] {
   const anchored: Anchored[] = [];
 
   for (const [position, entry] of placed.entries()) {
     if (!hasRefs(entry)) continue;
-    for (const ref of refsOf(entry, trunk, remoteNames)) {
+    for (const ref of refsOf(entry, trunk, pairs)) {
       // The trunk is not in the alphabet and keeps its own row; every other
       // name has one of its own, which for the name a line is drawn under is
       // that line's row.
@@ -1166,6 +1321,8 @@ function placeRefs(anchored: Anchored[], repository: Repository, column: number,
 
   // One column, so a row is either free or it is not.
   const taken = new Set<number>();
+  /** What every ref asked for, so a pair can tell whether it got one row. */
+  const homes = new Map(anchored.map((entry) => [entry.ref.key, entry.home]));
 
   const ordered = [...anchored].sort(
     (left, right) =>
@@ -1182,8 +1339,17 @@ function placeRefs(anchored: Anchored[], repository: Repository, column: number,
   let bottom = 0;
 
   for (const entry of ordered) {
-    const row = freeRow(taken, entry.home);
-    taken.add(row);
+    // The remote end of a branch that came to its local end's row: it does not
+    // hold the row, it hangs under whatever does. Only a pair `rowOrder` put on
+    // one row is dropped — two ends that diverged onto different lines were
+    // given a row each, and each of them stands on its own.
+    const under =
+      entry.ref.kind === "remote" &&
+      entry.ref.partner !== null &&
+      homes.get(entry.ref.partner) === entry.home;
+
+    const row = under ? entry.home : freeRow(taken, entry.home);
+    if (!under) taken.add(row);
 
     const id = `${repository.id}ref${entry.ref.key}`;
 
@@ -1199,12 +1365,15 @@ function placeRefs(anchored: Anchored[], repository: Repository, column: number,
         kind: entry.ref.kind,
         name: entry.ref.name,
         hasRemote: entry.ref.hasRemote,
+        together: entry.ref.together,
+        fetch: entry.ref.fetch,
         cwd: entry.ref.cwd,
       },
       from: entry.from,
       column,
       row,
       note: noteOf(entry.ref, repository.defaultBranch),
+      drop: under ? PAIR_DROP : 0,
       run,
     });
 
@@ -1238,28 +1407,49 @@ function freeRow(taken: ReadonlySet<number>, home: number): number {
  * identifies it and the folder name is left off. Only a worktree with no branch
  * of its own — a detached one — is named after itself.
  */
-function refsOf(entry: Placed, trunk: string | undefined, remoteNames: ReadonlySet<string>) {
+function refsOf(entry: Placed, trunk: string | undefined, pairs: ReadonlyMap<string, Pairing>) {
   const named = new Set<string>();
 
-  const branches = entry.branches.map((branch) => {
+  const branches = entry.branches.flatMap((branch) => {
     const checkout = entry.worktrees.find((worktree) => branch.checkedOutIn.includes(worktree.id));
     for (const worktree of entry.worktrees) {
       if (branch.checkedOutIn.includes(worktree.id)) named.add(worktree.id);
     }
-    return {
-      key: branch.id,
-      name: branch.name,
-      /** How the backend spells it, which is what `defaultBranch` names. */
-      refName: branch.refName,
-      kind: branch.kind === "remote" ? ("remote" as const) : ("local" as const),
-      // A local branch and its remote-tracking counterpart are separate refs,
-      // but the local ring still says when the branch also exists elsewhere.
-      hasRemote: branch.kind === "remote" || remoteNames.has(branch.logicalName),
-      trunk: branch.id === trunk,
-      head: branch.isHead,
-      cwd: checkout?.path ?? null,
-      commit: branch.commit,
-    };
+
+    const pair = pairs.get(branch.id);
+    const remote = branch.kind === "remote";
+    // Two ends on one commit is one place to stand, so the remote end is not a
+    // head of its own: it is the ring drawn round the local one, and that head
+    // draws it. See `together`.
+    if (remote && pair?.together) return [];
+
+    return [
+      {
+        key: branch.id,
+        name: branch.name,
+        /** How the backend spells it, which is what `defaultBranch` names. */
+        refName: branch.refName,
+        kind: remote ? ("remote" as const) : ("local" as const),
+        /**
+         * What the row is asked for under: one branch asks once, whichever of
+         * its ends is doing the asking.
+         */
+        group: pair ? branch.logicalName : branch.name,
+        /** The other end of this branch, so the two can be laid out as one. */
+        partner: pair?.other.id ?? null,
+        /** Whether that end is close enough to this one to share its row. */
+        alongside: pair?.line === true,
+        // A local branch and its remote-tracking counterpart are separate refs,
+        // but the local ring still says when the branch also exists elsewhere.
+        hasRemote: remote || pair !== undefined,
+        together: !remote && pair?.together === true,
+        fetch: fetchOf(branch, pair),
+        trunk: branch.id === trunk,
+        head: branch.isHead,
+        cwd: checkout?.path ?? null,
+        commit: branch.commit,
+      },
+    ];
   });
 
   const detached = entry.worktrees
@@ -1269,7 +1459,12 @@ function refsOf(entry: Placed, trunk: string | undefined, remoteNames: ReadonlyS
       name: worktree.name,
       refName: null,
       kind: "worktree" as const,
+      group: worktree.name,
+      partner: null,
+      alongside: false,
       hasRemote: false,
+      together: false,
+      fetch: null,
       trunk: false,
       head: false,
       cwd: worktree.path,

@@ -131,6 +131,7 @@ pub fn run() {
             git::workspace::workspace_status,
             git::workspace::workspace_statuses,
             git::workspace::merge_branch,
+            git::remote::fetch_branch,
             git::workspace::revert_commit,
             git::workspace::cherry_pick_commit,
             git::workspace::undo_commit,

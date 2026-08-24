@@ -37,6 +37,28 @@ export const STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT };
 /** A branch head, drawn a touch larger than a commit — it is the handle. */
 export const HEAD_SIZE = 16;
 /**
+ * How far under a branch's own ring the remote end of the same branch stands.
+ *
+ * The two ends share a row — one branch, one row — so what tells them apart is
+ * this drop rather than a row each. Downwards because it is the one side of a
+ * head that is free: the terminal a branch offers stands straight above, the
+ * line in from the history arrives level with the ring, and the lines out to
+ * what is running leave level the other way. Small enough that the pair reads
+ * as one thing, and small enough that the dropped ring stays inside its row's
+ * own cell, so a branch having a remote costs the band no height.
+ */
+export const PAIR_DROP = 20;
+/**
+ * The ring drawn round a head whose remote end stands on the same commit.
+ *
+ * A second ring rather than a second head: there is one commit, so there is one
+ * place to stand, and the pair is at rest. It is what a fetch is asked for by,
+ * so it has to be wide enough of the ring inside it to be aimed at — and the
+ * head's own ring is drawn over it, so what is left to aim at is the gap
+ * between the two.
+ */
+export const PAIR_RING = 28;
+/**
  * How far short of a hollow mark a line has to stop.
  *
  * A head and the offer of a branch are rings with the canvas showing through
@@ -286,6 +308,32 @@ export type CommitNodeData = {
 export type RefKind = "local" | "remote" | "worktree";
 
 /**
+ * What a head can ask a remote for.
+ *
+ * A branch on this machine and the same name on a remote are two refs, and git
+ * keeps them apart. They are one branch to whoever works in it, so the window
+ * pairs them by name — the same guess git itself makes the first time you check
+ * a remote branch out, and the one a person makes reading the column. What the
+ * pairing buys is a row the two ends share, and this: the end that stands on
+ * the remote is a place the rest of the branch can be asked for from.
+ */
+export type Fetch = {
+  /** The remote to ask. */
+  remote: string;
+  /** The name that remote knows the branch by. */
+  branch: string;
+  /**
+   * The local end's worktree, or null where the branch has none here.
+   *
+   * A fetch writes refs and objects and touches no file, so it is safe at any
+   * time — but it is offered only over a codebase with nothing uncommitted in
+   * it, because reaching for what the remote has is something done between
+   * pieces of work rather than in the middle of one.
+   */
+  work: string | null;
+};
+
+/**
  * Where a branch is: the head the line cut at a commit runs out to.
  *
  * A branch that was cut and never committed to still has one, which is the
@@ -301,6 +349,13 @@ export type BranchHeadData = {
   name: string;
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
+  /**
+   * The remote end of this branch stands on the same commit, so this one head
+   * says both: the ring drawn round it is the other end.
+   */
+  together: boolean;
+  /** What this head can ask a remote for, and null where nothing can be asked. */
+  fetch: Fetch | null;
   /** The worktree this is checked out in, which a shell can be opened in. */
   cwd: string | null;
   /**
