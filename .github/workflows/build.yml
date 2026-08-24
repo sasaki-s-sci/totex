@@ -71,14 +71,16 @@ jobs:
           fi
 
       - name: Verify the installers carry the app's own key
-        # scripts/install.sh and scripts/install.ps1 turn down a download that
-        # is not signed by the key written into them, and the app turns down an
-        # update that is not signed by the one in its config. It is the same
-        # key: an installer that would accept something the app would not is a
-        # way onto a machine that nobody checked. There is nowhere a shell
-        # script, a PowerShell script and a JSON config can all read one string
-        # from, so it is written three times, and this is what keeps the three
-        # the same string.
+        # The three installers turn down a download that is not signed by the
+        # key written into them, and the app turns down an update that is not
+        # signed by the one in its config. It is the same key: an installer
+        # that would accept something the app would not is a way onto a machine
+        # that nobody checked. There is nowhere a shell script, a PowerShell
+        # script, a Rust program and a JSON config can all read one string
+        # from, so it is written four times, and this is what keeps the four
+        # the same string. setup/ is built by a workflow of its own, on a cycle
+        # of its own, and is checked here anyway: this is the job that runs on
+        # every push, so this is where the key cannot quietly drift apart.
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -87,9 +89,9 @@ jobs:
             echo "::error file=src-tauri/tauri.conf.json::there is no updater key in here"
             exit 1
           fi
-          for script in scripts/install.sh scripts/install.ps1; do
-            grep -qF "$declared" "$script" || {
-              echo "::error file=$script::this does not carry the key in src-tauri/tauri.conf.json"
+          for carrier in scripts/install.sh scripts/install.ps1 setup/src/release.rs; do
+            grep -qF "$declared" "$carrier" || {
+              echo "::error file=$carrier::this does not carry the key in src-tauri/tauri.conf.json"
               exit 1
             }
           done
@@ -377,6 +379,12 @@ jobs:
             | Windows | `totex-windows-x86_64-setup.exe`, or the `.msi` beside it |
             | macOS | `totex-macos-universal.dmg` — Intel and Apple Silicon in the one file |
             | Linux | `totex-linux-x86_64.AppImage`, `.deb` or `.rpm` |
+
+            Windows has one more, which is on no release page because it
+            holds no release: `totex-setup.exe` is a window that asks which
+            version to install and installs it, checked against the same key.
+            It is published on its own cycle, and its address never changes:
+            `https://github.com/${{ github.repository }}/releases/download/setup/totex-setup.exe`
 
             `latest.json`, `totex-macos-universal.app.tar.gz` and
             `front.tar.gz` are what an installed copy updates itself from;
