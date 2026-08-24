@@ -30,6 +30,15 @@ import "@xterm/xterm/css/xterm.css";
  */
 const ANOTHER_LINE = "\x1b\r";
 
+/**
+ * The four keys the window walks itself with, which it takes from the shell.
+ *
+ * Held with Ctrl they go from terminal to terminal, and with Shift as well they
+ * walk the canvas the terminals are standing on — so wherever they are typed,
+ * they are about leaving here rather than about anything in here.
+ */
+const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
 type Props = {
   session: Session;
   /** Whether this is the one the panel is showing. */
@@ -124,10 +133,10 @@ export function CliView({ session, shown, onEnded }: Props) {
     let live = true;
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
 
-    // The two keystrokes that mean something in here they do not mean to a
-    // shell. Both are taken before xterm reads them; everything else — the
-    // copy, the interrupt, the word the cursor jumps over — is the terminal's
-    // own and is left alone.
+    // The keystrokes that mean something in here they do not mean to a shell.
+    // Every one of them is taken before xterm reads it; everything else — the
+    // copy, the interrupt, the line the cursor is walked along — is the
+    // terminal's own and is left alone.
     terminal.attachCustomKeyEventHandler((event) => {
       if (event.type !== "keydown") return true;
       // Alt and the window key are nobody's business here: whatever they are
@@ -159,6 +168,12 @@ export function CliView({ session, shown, onEnded }: Props) {
       // Refusing here is all it takes; the key carries on to the window.
       const digit = event.key.length === 1 && event.key >= "0" && event.key <= "9";
       if (plain && event.ctrlKey && !event.shiftKey && digit) return false;
+
+      // Ctrl and an arrow, which is the other way out: the terminals with Ctrl
+      // alone, the canvas behind them with Shift held as well. What the shell
+      // gives up for it is the word its cursor used to jump over — a key worth
+      // less, in a window whose terminals are the places being moved between.
+      if (plain && event.ctrlKey && ARROWS.has(event.key)) return false;
 
       return true;
     });
