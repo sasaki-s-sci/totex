@@ -262,16 +262,174 @@ pub fn pty_asking<R: Runtime>(app: AppHandle<R>) -> Vec<Asking> {
 fn typing(ask: &Ask, key: &str) -> Option<String> {
     let at = ask.choices.iter().position(|choice| choice.key == key)?;
     Some(match ask.taking {
-        Taking::Key => ask.choices[at].key.clone(),
+        // A key typed at a list whose mark is standing in a row that is being
+        // written at is a letter going into what has been written, not an
+        // answer. Such a list is answered the way a list with no keys is:
+        // walked to, and taken with a return.
+        Taking::Key => match ask.writing.then(|| walking(ask, at)).flatten() {
+            Some(walk) => format!("{walk}\r"),
+            None => ask.choices[at].key.clone(),
+        },
         Taking::Line => format!("{}\r", ask.choices[at].key),
-        Taking::Walk => {
-            let here = ask.choices.iter().position(|choice| choice.selected)?;
-            let step = if at > here { "\u{1b}[B" } else { "\u{1b}[A" };
-            format!("{}\r", step.repeat(at.abs_diff(here)))
-        }
+        Taking::Walk => format!("{}\r", walking(ask, at)?),
         // Words are written rather than pressed, and go by `pty_reply`.
         Taking::Words => return None,
     })
+}
+
+/// The arrow keys that carry the agent's own mark from where it is standing to
+/// one of the answers, and nothing else.
+///
+/// How far to walk is a fact about the screen at the moment of the press — not
+/// about the reading a card was drawn from, which by then is old enough for the
+/// mark to have been walked in the terminal since — so it is counted here,
+/// against what the session holds now.
+///
+/// `None` when the agent is not standing anywhere, which is the one case there
+/// is nothing to count from.
+fn walking(ask: &Ask, at: usize) -> Option<String> {
+    let here = ask.choices.iter().position(|choice| choice.selected)?;
+    let step = if at > here { "\u{1b}[B" } else { "\u{1b}[A" };
+    Some(step.repeat(at.abs_diff(here)))
+}
+
+/// The question a session is asking, if it is still the one being answered.
+///
+/// What every act on a question is held to: a card is drawn from a reading
+/// that is already a moment old, and nothing meant for "may I delete this" may
+/// arrive at whatever the agent went on to ask instead.
+fn standing<'a>(
+    watching: &'a HashMap<String, Watcher>,
+    id: &str,
+    seq: u64,
+) -> Result<&'a Ask, String> {
+    let watcher = watching.get(id).ok_or("no-session")?;
+    let asking = watcher.asking().ok_or("asking-nothing")?;
+    if asking.seq != seq {
+        return Err("asking-something-else".to_string());
+    }
+    Ok(asking)
+}
+
+/// Walks the agent's own mark to one of the answers and leaves it there.
+///
+/// The first of the three that do not end the question, and the reason they
+/// exist: every one of these is a keystroke somebody would otherwise have had
+/// to go to the terminal to send, and going to the terminal to move a
+/// selection is going to the terminal. Nothing is put away and nothing is
+/// said — the agent redraws with its mark somewhere else, that reading comes
+/// back through the ordinary way, and the card follows it.
+#[tauri::command]
+pub fn pty_point<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    seq: u64,
+    key: String,
+) -> Result<(), String> {
+    let typed = {
+        let state = app.state::<AskState>();
+        let watching = state.lock();
+        let asking = standing(&watching, &id, seq)?;
+        let at = asking
+            .choices
+            .iter()
+            .position(|choice| choice.key == key)
+            .ok_or("no-answer")?;
+        walking(asking, at).ok_or("nowhere-to-walk")?
+    };
+
+    pty::pty_write(app, id, typed)
+}
+
+/// Walks to one of the answers and presses the space that picks it up.
+///
+/// For the lists that take several answers rather than one — see `picking`,
+/// which is what says a list is one of those. The space is what every one of
+/// them takes, and the question is not over: the answers go on being picked up
+/// and put down until a return is sent, which is `pty_answer`'s.
+#[tauri::command]
+pub fn pty_pick<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    seq: u64,
+    key: String,
+) -> Result<(), String> {
+    let typed = {
+        let state = app.state::<AskState>();
+        let watching = state.lock();
+        let asking = standing(&watching, &id, seq)?;
+        if !asking.picking {
+            return Err("asking-for-one".to_string());
+        }
+        let at = asking
+            .choices
+            .iter()
+            .position(|choice| choice.key == key)
+            .ok_or("no-answer")?;
+        format!("{} ", walking(asking, at).ok_or("nowhere-to-walk")?)
+    };
+
+    pty::pty_write(app, id, typed)
+}
+
+/// Writes at the answer the mark is standing in, without ending the question.
+///
+/// The other half of `pty_reply`: that one is for a question that is nothing
+/// but a place to write, and this is for the place to write that is one row of
+/// a list — the "and tell it what to do instead" every agent offers. What is
+/// typed goes and no return goes with it, because the return is the answer and
+/// the answer is a separate press.
+///
+/// Only what can be typed goes, for the same reason as in `pty_reply`: what is
+/// written into a field on a canvas is as often pasted as typed, and a return
+/// in the middle of it would answer the question half way through.
+#[tauri::command]
+pub fn pty_compose<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    seq: u64,
+    text: String,
+) -> Result<(), String> {
+    {
+        let state = app.state::<AskState>();
+        let watching = state.lock();
+        let asking = standing(&watching, &id, seq)?;
+        if !asking.writing {
+            return Err("nowhere-to-write".to_string());
+        }
+    }
+
+    let said: String = text.chars().filter(|letter| !letter.is_control()).collect();
+    pty::pty_write(app, id, said)
+}
+
+/// Ends the question where it stands, by sending the return that takes it.
+///
+/// For the two kinds of question a key does not answer. A list several answers
+/// are picked up from: every key there is a picking up and only the return is
+/// the answer. And a list whose mark is standing in a row that is being written
+/// at: a key there is a letter typed into what has been written. Both are taken
+/// at the terminal by pressing return and nothing else, which is what this
+/// sends.
+#[tauri::command]
+pub fn pty_take<R: Runtime>(app: AppHandle<R>, id: String, seq: u64) -> Result<(), String> {
+    {
+        let state = app.state::<AskState>();
+        let mut watching = state.lock();
+        standing(&watching, &id, seq)?;
+        // Put away as the return goes, for the same reason an answer is: the
+        // moment between a press and the agent's next frame is exactly how long
+        // a question that has been taken must not still be standing on the
+        // graph.
+        if let Some(watcher) = watching.get_mut(&id) {
+            watcher.answered(seq);
+        }
+    }
+
+    pty::pty_write(app.clone(), id.clone(), "\r".to_string())?;
+
+    let _ = app.emit(ASK_EVENT, Asking { id, ask: None });
+    Ok(())
 }
 
 /// Answers the question a session is asking, by typing what takes that answer.
@@ -578,6 +736,108 @@ mod tests {
             .expect("and it is still being asked");
         assert_eq!(moved.seq, ask.seq, "the answer is still the same answer");
         assert_eq!(typing(&moved, "1").as_deref(), Some("\u{1b}[A\u{1b}[A\r"));
+    }
+
+    /// A keyed list is answered by its key, unless a key would be a letter.
+    ///
+    /// The one place the two readings meet: an agent that puts a line to type
+    /// on one of its own rows is still drawing a keyed list, and the key beside
+    /// every answer goes on being what would take it — right up until the mark
+    /// is standing in the row that is typed into, when the same key is a
+    /// character in what is being written. The answer then is what it is at the
+    /// terminal: walk to the row and press return.
+    #[test]
+    fn a_key_is_not_an_answer_at_a_list_being_written_at() {
+        let boxed = |caret: &str| {
+            [
+                "\u{1b}[?25l\u{1b}[2J\u{1b}[H",
+                "\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n",
+                "\u{2502} Proceed?                 \u{2502}\r\n",
+                "\u{2502}   1. Yes                 \u{2502}\r\n",
+                "\u{2502} \u{276f} 2. No, and say why    \u{2502}\r\n",
+                "\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n",
+                caret,
+            ]
+            .concat()
+        };
+
+        let mut watcher = Watcher::new(24, 40);
+        let ask = feed(&mut watcher, &boxed(""))
+            .expect("the question is news")
+            .expect("and it is being asked");
+        assert!(!ask.writing, "the caret is put away");
+        assert_eq!(typing(&ask, "1").as_deref(), Some("1"));
+
+        // The caret shown, standing in the answer that is a place to type.
+        let writing = feed(&mut watcher, &boxed("\u{1b}[4;24H\u{1b}[?25h"))
+            .expect("the caret moved into the list")
+            .expect("and it is still being asked");
+        assert_eq!(writing.seq, ask.seq, "still the same question");
+        assert!(writing.writing);
+        assert_eq!(typing(&writing, "1").as_deref(), Some("\u{1b}[A\r"));
+        assert_eq!(typing(&writing, "2").as_deref(), Some("\r"));
+    }
+
+    /// A list several answers may be taken from, and the picking up of them.
+    ///
+    /// Both marks are carried, and only one of them names the question. The
+    /// mark says where the walk has got to and the box says what has been
+    /// picked up on the way — and a list that takes several is answered in as
+    /// many presses as there are answers, every one of which would otherwise
+    /// be a press at a question that had just stopped existing.
+    #[test]
+    fn picking_an_answer_up_leaves_the_question_the_one_it_was() {
+        let picking = |held: [bool; 3]| {
+            let answers = ["the reader", "the check", "the tests"];
+            let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+            drawn.push_str("\u{256d}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256e}\r\n");
+            drawn.push_str("\u{2502} Which of these?      \u{2502}\r\n");
+            for (at, answer) in answers.iter().enumerate() {
+                let mark = if at == 0 { '\u{276f}' } else { ' ' };
+                let box_mark = if held[at] { '\u{2612}' } else { '\u{2610}' };
+                drawn.push_str(&format!(
+                    "\u{2502} {mark} {n}. {box_mark} {answer:<10} \u{2502}\r\n",
+                    n = at + 1
+                ));
+            }
+            drawn.push_str("\u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256f}\r\n");
+            drawn
+        };
+
+        let mut watcher = Watcher::new(24, 40);
+        let ask = feed(&mut watcher, &picking([false, false, false]))
+            .expect("the question is news")
+            .expect("and it is being asked");
+        assert!(ask.picking);
+        assert_eq!(ask.choices[0].label, "the reader");
+        assert!(!ask.choices[0].picked);
+
+        let held = feed(&mut watcher, &picking([false, true, false]))
+            .expect("one was picked up")
+            .expect("and it is still being asked");
+        assert_eq!(held.seq, ask.seq, "the question is still the same question");
+        assert!(held.choices[1].picked);
+        assert!(!held.choices[0].picked);
+    }
+
+    /// Moving the mark is the walk an answer takes, with the return left off.
+    ///
+    /// Which is the whole of the difference between the three of them: pointing
+    /// walks, picking walks and presses a space, and answering walks and
+    /// presses a return. None of it is worked out on the card — how far to walk
+    /// is a fact about the screen at the moment of the press.
+    #[test]
+    fn a_mark_is_walked_without_the_return_that_would_answer() {
+        let mut watcher = Watcher::new(24, 40);
+        let ask = feed(&mut watcher, &walking_box(1))
+            .expect("the question is news")
+            .expect("and it is being asked");
+
+        assert_eq!(walking(&ask, 0).as_deref(), Some("\u{1b}[A"));
+        assert_eq!(walking(&ask, 1).as_deref(), Some(""));
+        assert_eq!(walking(&ask, 2).as_deref(), Some("\u{1b}[B"));
+        // And the answer is that walk with the return on the end of it.
+        assert_eq!(typing(&ask, "3").as_deref(), Some("\u{1b}[B\r"));
     }
 
     /// A question that wants words, the whole way through.

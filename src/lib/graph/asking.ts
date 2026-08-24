@@ -55,6 +55,17 @@ const CHOICE_GAP = 4;
  * paragraph — the terminal it was asked in is.
  */
 const FIELD_LINE = 24;
+/**
+ * The row under a list that is worked rather than simply answered.
+ *
+ * Two of them are: a list several answers are picked up from, which is not over
+ * when one is pressed, and a list whose mark is standing in a row that is being
+ * written at, where a key would be a letter rather than an answer. Both carry
+ * the same row under the answers — the place to write, where there is one, and
+ * the return that ends the question — and it is the height of a field because
+ * that is what is in it.
+ */
+const WORK_LINE = FIELD_LINE;
 /** The line round the card, and the one round each of its answers. */
 const BORDER = 2;
 
@@ -88,6 +99,8 @@ export type CardChoice = {
   key: string;
   lines: string[];
   selected: boolean;
+  /** Whether the agent is holding this one, on a list that takes several. */
+  picked: boolean;
 };
 
 /** A question, measured and cut to the card it is drawn in. */
@@ -121,6 +134,7 @@ export function askCard(ask: Ask): AskCard {
     key: choice.key,
     lines: clamp(wrap(choice.label, CHOICE_CELLS), CHOICE_WRAP),
     selected: choice.selected,
+    picked: choice.picked,
   }));
 
   // The border is the card's as much as its padding is — see the stylesheet,
@@ -137,6 +151,8 @@ export function askCard(ask: Ask): AskCard {
       height += choice.lines.length * CHOICE_LINE + CHOICE_PAD + BORDER;
     }
     height += Math.max(0, choices.length - 1) * CHOICE_GAP;
+    // And the row that ends a list which pressing an answer does not end.
+    if (ask.picking || ask.writing) height += SPLIT + WORK_LINE;
   }
 
   return { detail, question, choices, height };

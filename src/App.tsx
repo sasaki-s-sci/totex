@@ -122,7 +122,7 @@ function Window() {
   // What any of them has stopped to ask, which the graph draws beside the
   // terminal doing the asking. A question is a turn nobody has taken: it is
   // worth seeing from the canvas, and worth being able to answer from there.
-  const { asks, answer, reply } = useAsks();
+  const { asks, answer, reply, point, pick, compose, take } = useAsks();
 
   // And what any of them says it is working on, which is the other half of what
   // the graph can show about a running agent. Nothing is waiting on this one —
@@ -155,6 +155,27 @@ function Window() {
     (session: Session, ask: Ask, text: string) => reply(session.id, ask, text),
     [reply],
   );
+
+  // And the four that work the question rather than end it. Three of them
+  // leave it standing — the mark moved, an answer picked up, words written at
+  // the row the mark is in — and the fourth is the return that ends the kinds
+  // of question no key ends.
+  const pointAtAsk = useCallback(
+    (session: Session, ask: Ask, key: string) => point(session.id, ask, key),
+    [point],
+  );
+
+  const pickInAsk = useCallback(
+    (session: Session, ask: Ask, key: string) => pick(session.id, ask, key),
+    [pick],
+  );
+
+  const composeAtAsk = useCallback(
+    (session: Session, ask: Ask, text: string) => compose(session.id, ask, text),
+    [compose],
+  );
+
+  const takeAsking = useCallback((session: Session, ask: Ask) => take(session.id, ask), [take]);
 
   const closeFilePreview = useCallback((requestId: number) => {
     setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
@@ -411,6 +432,10 @@ function Window() {
             reports={reports}
             onAnswer={answerAsk}
             onReply={replyToAsk}
+            onPoint={pointAtAsk}
+            onPick={pickInAsk}
+            onCompose={composeAtAsk}
+            onTake={takeAsking}
             marks={marks}
             onSelect={pickCommit}
             onOpenWork={openWork}

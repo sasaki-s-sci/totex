@@ -49,7 +49,11 @@
     "asking": "is asking",
     "open": "Open the terminal",
     "write": "Type an answer",
-    "send": "Send"
+    "send": "Send",
+    "point": "Move the selection",
+    "pick": "Take this one too",
+    "compose": "Write at this answer",
+    "take": "Answer"
   },
   "report": {
     "open": "Open the terminal",

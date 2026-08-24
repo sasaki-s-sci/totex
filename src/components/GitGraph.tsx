@@ -217,6 +217,14 @@ type Props = {
   onAnswer: (session: Session, ask: Ask, key: string) => void;
   /** Or, for a question with nothing to press, something was written at it. */
   onReply: (session: Session, ask: Ask, text: string) => void;
+  /** The agent's own mark was walked to one of the answers, and stopped there. */
+  onPoint: (session: Session, ask: Ask, key: string) => void;
+  /** One of the answers was picked up, on a list that takes several. */
+  onPick: (session: Session, ask: Ask, key: string) => void;
+  /** Words were written at the answer the mark is standing in. */
+  onCompose: (session: Session, ask: Ask, text: string) => void;
+  /** The question was taken where it stands, by the return that ends it. */
+  onTake: (session: Session, ask: Ask) => void;
   /**
    * The branches the window is working on, and the ones it was refused.
    *
@@ -253,6 +261,10 @@ export function GitGraph({
   reports,
   onAnswer,
   onReply,
+  onPoint,
+  onPick,
+  onCompose,
+  onTake,
   marks,
   onSelect,
   onOpenWork,
@@ -1062,6 +1074,10 @@ export function GitGraph({
       endSession: onEndSession,
       answer: onAnswer,
       reply: onReply,
+      point: onPoint,
+      pick: onPick,
+      compose: onCompose,
+      take: onTake,
       closeFilePreview: onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,
@@ -1084,6 +1100,10 @@ export function GitGraph({
       onEndSession,
       onAnswer,
       onReply,
+      onPoint,
+      onPick,
+      onCompose,
+      onTake,
       onCloseFilePreview,
       saveFilePreview,
       collapseFilePreview,

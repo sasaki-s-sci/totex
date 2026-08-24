@@ -1,7 +1,17 @@
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { type Ask, answerAsk, askingNow, onAsking, replyAsk } from "../lib/ask";
+import {
+  type Ask,
+  answerAsk,
+  askingNow,
+  composeAsk,
+  onAsking,
+  pickAsk,
+  pointAsk,
+  replyAsk,
+  takeAsk,
+} from "../lib/ask";
 import { EXIT_EVENT } from "../lib/pty";
 
 /** Nothing is being asked, which is the ordinary state of the machine. */
@@ -133,5 +143,46 @@ export function useAsks() {
     [settle],
   );
 
-  return { asks, answer, reply };
+  /**
+   * Moves the agent's own mark, picks an answer up, or writes at the row the
+   * mark is standing in.
+   *
+   * The three that leave the question standing, which is the whole of what
+   * separates them from the two above: nothing is settled and nothing is taken
+   * off the graph. What comes back is the agent's next drawing of the same
+   * question, through the same event as every other drawing of it — the mark
+   * somewhere else, or a box filled in, or a row with words in it now — and
+   * the card follows that rather than anything guessed at here. A card that
+   * drew what it had asked for would be a card saying something the terminal
+   * had not done yet.
+   */
+  const point = useCallback((id: string, ask: Ask, key: string) => {
+    void pointAsk(id, ask.seq, key).catch(() => undefined);
+  }, []);
+
+  const pick = useCallback((id: string, ask: Ask, key: string) => {
+    void pickAsk(id, ask.seq, key).catch(() => undefined);
+  }, []);
+
+  const compose = useCallback((id: string, ask: Ask, text: string) => {
+    void composeAsk(id, ask.seq, text).catch(() => undefined);
+  }, []);
+
+  /**
+   * Takes the question where it stands, and takes the card with it.
+   *
+   * The end of the two kinds of question a key does not answer — see `takeAsk`
+   * — and settled here for the same reason an answer is: the moment between a
+   * press and the agent's next frame is exactly how long a question that has
+   * been taken must not still be standing on the graph.
+   */
+  const take = useCallback(
+    (id: string, ask: Ask) => {
+      settle(id, null);
+      void takeAsk(id, ask.seq).catch(() => undefined);
+    },
+    [settle],
+  );
+
+  return { asks, answer, reply, point, pick, compose, take };
 }
