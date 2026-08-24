@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 import type { Ask } from "../lib/ask";
 import type { Fetch, RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
+import type { WorktreeStatus } from "../lib/workspace";
 import type { Repository } from "../types/git";
 
 /** A branch, and the terminal to be opened in it. */
@@ -35,6 +36,14 @@ export type BranchPick = {
   branch: string;
   kind: RefKind;
   cwd: string | null;
+  /**
+   * What is uncommitted where it is checked out, carried along rather than
+   * asked for again: the head drew its rim from this a moment before the press,
+   * and the one thing the menu does with it is name what a deletion would take.
+   * Undefined for a branch with no worktree, and for one git has not answered
+   * for yet — neither is the same as a worktree with nothing in it.
+   */
+  status?: WorktreeStatus;
   at: { x: number; y: number };
 };
 

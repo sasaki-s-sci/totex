@@ -131,7 +131,6 @@ pub fn run() {
             git::workspace::open_workspace,
             git::workspace::remove_workspace,
             git::workspace::delete_branch,
-            git::workspace::workspace_status,
             git::workspace::workspace_statuses,
             git::workspace::merge_branch,
             git::remote::fetch_branch,

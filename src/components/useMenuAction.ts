@@ -9,8 +9,9 @@ import { useCallback, useState } from "react";
  * Nothing is written. What the window can tell beforehand would be refused is
  * not offered at all, so what reaches here is only what git itself turned down.
  *
- * A destructive item is armed by its first press and run by its second, so the
- * arm is reset alongside the rest.
+ * What a destructive press costs is asked about in words before it is run —
+ * see the box in `WorktreeMenu` — and that question is not this hook's to hold:
+ * it outlives the menu it was asked from, and this is reset when the menu is.
  *
  * Both of the graph's menus work this way, which is the reason this is not
  * written in either of them.
@@ -20,8 +21,6 @@ export function useMenuAction(onClose: () => void) {
   const [busy, setBusy] = useState<string | null>(null);
   /** Which item was refused, by the same label. */
   const [failed, setFailed] = useState<string | null>(null);
-  /** Whether a destructive item has been armed by a first press. */
-  const [confirming, setConfirming] = useState(false);
 
   const run = useCallback(
     async (label: string, action: () => Promise<unknown>) => {
@@ -33,7 +32,6 @@ export function useMenuAction(onClose: () => void) {
       } catch {
         setFailed(label);
         setBusy(null);
-        setConfirming(false);
       }
     },
     [onClose],
@@ -43,8 +41,7 @@ export function useMenuAction(onClose: () => void) {
   const reset = useCallback(() => {
     setBusy(null);
     setFailed(null);
-    setConfirming(false);
   }, []);
 
-  return { busy, failed, confirming, setConfirming, run, reset };
+  return { busy, failed, run, reset };
 }

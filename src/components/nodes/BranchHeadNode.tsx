@@ -173,6 +173,10 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
                   branch: name,
                   kind,
                   cwd,
+                  // Handed over rather than looked up again on the other side:
+                  // the ring above was drawn from it, so the menu and the mark
+                  // that opened it are answering about the same moment.
+                  status,
                   at: { x: event.clientX, y: event.clientY },
                 });
               }

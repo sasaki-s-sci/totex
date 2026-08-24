@@ -51,17 +51,17 @@ export function removeWorkspace(repoId: string, path: string, force: boolean): P
   return invoke("remove_workspace", { repoId, path, force });
 }
 
-/** Deletes a local branch, and its clean linked worktree when it has one. */
+/**
+ * Deletes a local branch and everything standing on it: its linked worktree,
+ * and whatever was left uncommitted in there. A branch nothing has merged goes
+ * the same way. The remote-tracking branch is left alone.
+ */
 export function deleteBranch(repoId: string, branch: string): Promise<void> {
   return invoke("delete_branch", { repoId, branch });
 }
 
-export function workspaceStatus(path: string): Promise<WorktreeStatus> {
-  return invoke("workspace_status", { path });
-}
-
 /**
- * The same for many worktrees, in one crossing.
+ * What is uncommitted in each of many worktrees, in one crossing.
  *
  * Keyed by the path asked about. A directory git would not answer for is absent
  * rather than an error: the graph draws a ring for it either way.

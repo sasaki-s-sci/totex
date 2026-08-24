@@ -364,9 +364,12 @@ pub async fn remove_workspace(
     })
 }
 
-/// Deletes only a local branch. A clean linked worktree holding it is removed
-/// first; Git itself refuses the main worktree and branches that are not fully
-/// merged into their upstream (or HEAD when no upstream is configured).
+/// Deletes a local branch and everything standing on it.
+///
+/// The branch goes whether or not it was merged, and its linked worktree goes
+/// with it along with whatever was left uncommitted in there. Git itself still
+/// refuses the repository's main worktree, so a branch checked out there is
+/// left wholly intact. The remote-tracking ref is not touched.
 #[tauri::command]
 pub async fn delete_branch(app: AppHandle, repo_id: String, branch: String) -> Result<(), String> {
     off_thread!({
@@ -381,35 +384,22 @@ fn delete_branch_at(repo: &Path, branch: &str) -> Result<(), String> {
     validate_branch(repo, branch)?;
     branch_tip(repo, branch)?;
 
-    // Check the same condition as `git branch --delete` before taking a linked
-    // worktree away. A branch that Git will refuse must be left wholly intact.
-    let ref_name = format!("refs/heads/{branch}");
-    let upstream = cmd::run(repo, &["for-each-ref", "--format=%(upstream)", &ref_name])?;
-    let target = match upstream.trim() {
-        "" => "HEAD",
-        configured => configured,
-    };
-    cmd::run(repo, &["merge-base", "--is-ancestor", &ref_name, target])
-        .map_err(|_| "not-merged".to_string())?;
-
     if let Some(path) = worktree_for(repo, branch)? {
-        let target = Path::new(&path);
-        ensure_clean(target)?;
         // `worktree remove` deliberately refuses the repository's main
-        // worktree. In that case the branch remains checked out and untouched.
+        // worktree. In that case the branch remains checked out and untouched,
+        // and the delete below is never reached.
         cmd::run(repo, &["worktree", "remove", "--force", &path])?;
     }
 
-    cmd::run(repo, &["branch", "--delete", "--", branch]).map(|_| ())
+    // `--force`, because what this button says is that the branch goes: a
+    // branch nothing has merged is the ordinary case for a line of work being
+    // thrown away, and being told `not-merged` by a press that was already
+    // confirmed once is an answer to a question nobody asked.
+    cmd::run(repo, &["branch", "--delete", "--force", "--", branch]).map(|_| ())
 }
 
-/// What is uncommitted in a worktree, as counts.
-#[tauri::command]
-pub async fn workspace_status(path: String) -> Result<WorktreeStatus, String> {
-    off_thread!({ read_status(Path::new(&path)).ok_or_else(|| "no-status".to_string()) })
-}
-
-/// The same, for every worktree the window is drawing, in one crossing.
+/// What is uncommitted in every worktree the window is drawing, as counts, in
+/// one crossing.
 ///
 /// One call rather than one per directory: the window asks about all of them on
 /// a clock, and each answer costs gits of its own — so asking one at a time paid
@@ -643,7 +633,7 @@ mod tests {
         git(repo, &["rev-parse", branch]).trim().to_string()
     }
 
-    /// `workspace_status` without the command wrapper around it.
+    /// What is uncommitted in a directory, as the three counts.
     fn count(dir: &Path) -> (u32, u32, u32) {
         let status = read_status(dir).expect("status");
         (status.added, status.deleted, status.modified)
@@ -821,27 +811,25 @@ mod tests {
     }
 
     #[test]
-    fn deleting_a_branch_refuses_a_dirty_linked_worktree() {
-        let temp = TempDir::new("keep-dirty-branch");
+    fn deleting_a_branch_takes_a_dirty_linked_worktree_with_it() {
+        let temp = TempDir::new("delete-dirty-branch");
         let repo = repository(&temp, &["one.txt"]);
         let side = temp.path().join("side");
         git(
             &repo,
             &["worktree", "add", "-b", "topic", &side.to_string_lossy()],
         );
-        std::fs::write(side.join("uncommitted.txt"), "keep me").expect("write dirty file");
+        std::fs::write(side.join("uncommitted.txt"), "throw me away").expect("write dirty file");
 
-        assert_eq!(
-            delete_branch_at(&repo, "topic").expect_err("dirty refusal"),
-            DIRTY
-        );
-        assert!(side.exists(), "the dirty worktree was removed");
-        assert!(cmd::try_run(&repo, &["rev-parse", "--verify", "refs/heads/topic"]).is_some());
+        delete_branch_at(&repo, "topic").expect("delete branch and dirty worktree");
+
+        assert!(!side.exists(), "the dirty worktree was left behind");
+        assert!(cmd::try_run(&repo, &["rev-parse", "--verify", "refs/heads/topic"]).is_none());
     }
 
     #[test]
-    fn deleting_an_unmerged_branch_leaves_its_worktree_in_place() {
-        let temp = TempDir::new("keep-unmerged-branch");
+    fn deleting_an_unmerged_branch_takes_it_all_the_same() {
+        let temp = TempDir::new("delete-unmerged-branch");
         let repo = repository(&temp, &["one.txt"]);
         let side = temp.path().join("side");
         git(
@@ -850,12 +838,13 @@ mod tests {
         );
         commit(&side, "two.txt", "two");
 
-        assert_eq!(
-            delete_branch_at(&repo, "topic").expect_err("unmerged refusal"),
-            "not-merged"
+        delete_branch_at(&repo, "topic").expect("delete an unmerged branch");
+
+        assert!(
+            !side.exists(),
+            "the unmerged branch's worktree was left behind"
         );
-        assert!(side.exists(), "the unmerged branch's worktree was removed");
-        assert!(cmd::try_run(&repo, &["rev-parse", "--verify", "refs/heads/topic"]).is_some());
+        assert!(cmd::try_run(&repo, &["rev-parse", "--verify", "refs/heads/topic"]).is_none());
     }
 
     #[test]
