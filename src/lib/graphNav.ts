@@ -117,3 +117,19 @@ export function jumpable(nodes: readonly AppNode[]): Pickable[] {
   const stacks = nodes.filter((node) => node.type === "cli" || node.type === "repository");
   return pickables(stacks).sort((one, other) => one.y - other.y || one.x - other.x);
 }
+
+/**
+ * The commits on the canvas.
+ *
+ * What Ctrl and Shift and an arrow walks through, and the one thing it walks
+ * through: the history is what is being read out here, and a walk along it that
+ * stopped at every ring and card standing beside it would be a walk through the
+ * furniture rather than through the history.
+ *
+ * The bands come along for the same reason they do in `jumpable`: a commit is
+ * positioned against the repository it belongs to, and `pickables` is where that
+ * offset is worked out.
+ */
+export function history(nodes: readonly AppNode[]): Pickable[] {
+  return pickables(nodes.filter((node) => node.type === "commit" || node.type === "repository"));
+}
