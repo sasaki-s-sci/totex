@@ -295,7 +295,7 @@ export function GitGraph({
     fold: foldDepth,
     reach,
     keep,
-  } = useHistoryDepth();
+  } = useHistoryDepth(workspace.repositories);
   // What each worktree has uncommitted, which the branch rings are drawn from.
   const worktreeStatus = useWorktreeStatus(workspace);
   const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);

@@ -1,7 +1,7 @@
 import type { Repository } from "../../types/git";
 import { placeBranches } from "./branches";
 import { type Point, shortOf } from "./geometry";
-import { commitNodeId, defaultShown, placeHistory } from "./history";
+import { commitNodeId, depthOf, placeHistory } from "./history";
 import { Lines, labelOf } from "./lines";
 import {
   type BandLines,
@@ -150,10 +150,7 @@ export function prepare(
   want: number | undefined,
   deep: Depth,
 ): PreparedRepository {
-  // Settled here rather than inside the layout, so the cache is keyed by the
-  // history that was actually drawn: asking for more than there is, or for the
-  // default, must not count as a different graph.
-  const shown = Math.max(1, Math.min(repository.commits.length, want ?? defaultShown(repository)));
+  const shown = depthOf(repository, want);
   // What of that map this repository is actually affected by, as one string, so
   // that terminals opening and closing somewhere else on the canvas are not a
   // reason to lay this one out again.
