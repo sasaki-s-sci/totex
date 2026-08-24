@@ -4,7 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CommitTarget } from "./components/CommitMenu";
-import type { BranchPick, MergeRequest } from "./components/GitGraph";
+import type { BranchPick, FetchRequest, MergeRequest } from "./components/GitGraph";
 import type { WorkRequest } from "./components/graphActions";
 import { branchMark } from "./components/graphMarks";
 import { HEADER_HEIGHT, WindowControls } from "./components/WindowControls";
@@ -21,7 +21,7 @@ import type { CommitFlowNode } from "./lib/graph";
 import { onDemand, warmInTurn } from "./lib/onDemand";
 import { type Session, shellSession } from "./lib/session";
 import { confirmFront } from "./lib/update";
-import { mergeBranch, openWorkspace } from "./lib/workspace";
+import { fetchBranch, mergeBranch, openWorkspace } from "./lib/workspace";
 import { MODE_KEY, storedMode, theme } from "./theme";
 import type { Repository, Workspace } from "./types/git";
 
@@ -339,6 +339,24 @@ function Window() {
     [fail, hold, release],
   );
 
+  const fetch = useCallback(
+    ({ repository, branch, fetch }: FetchRequest) => {
+      // The head the pull was made on is the one that waits: on a branch at
+      // rest that is the ring the pair share, and on one whose ends have parted
+      // it is the remote end hanging under the local one. Either way it is the
+      // mark the hand was on, which is where an answer is looked for.
+      const key = branchMark(repository.id, branch);
+      hold(key);
+      fetchBranch(repository.id, fetch.remote, fetch.branch)
+        .then(() => release(key))
+        .catch(() => {
+          release(key);
+          fail(key);
+        });
+    },
+    [fail, hold, release],
+  );
+
   /** Something the whole window depends on is not answering. */
   const stalled = gitMissing || failed;
 
@@ -442,6 +460,7 @@ function Window() {
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}
             onCloseRepository={closeRepository}
             onMerge={merge}
+            onFetch={fetch}
             onShowSession={showSession}
             onJumpSession={jumpSession}
             onEndSession={endSession}

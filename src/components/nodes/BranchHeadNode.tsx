@@ -1,12 +1,13 @@
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { type BranchHeadFlowNode, HEAD_SIZE } from "../../lib/graph";
+import { useFetchPull } from "../../hooks/useFetchPull";
+import { type BranchHeadFlowNode, HEAD_SIZE, PAIR_RING } from "../../lib/graph";
 import { dirtyCount, type WorktreeStatus } from "../../lib/workspace";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
 import { CliMark } from "../marks";
-import { useWorktreeStatuses } from "../worktreeStatus";
+import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 
 /**
  * Where a branch is, and the state of the codebase standing there.
@@ -63,17 +64,48 @@ import { useWorktreeStatuses } from "../worktreeStatus";
  * column of heads carries a column of these. A remote branch has no button —
  * it is somewhere else, and nothing can be opened in it.
  *
- * That a branch is also on a remote is not drawn. It stood as a cloud on the
- * ring's left shoulder, and it was the one mark here that said something the
- * window could do nothing about: every other thing on a head is a state this
- * window changes or a button it answers. It is still said to anything reading
- * the window aloud, where a mark cannot be seen at all.
+ * That a branch is also on a remote used to go undrawn. It had stood as a cloud
+ * on the ring's left shoulder, and it was the one mark here that said something
+ * the window could do nothing about — every other thing on a head is a state
+ * this window changes or a button it answers. It is drawn again now, and as a
+ * button: the two ends of one branch share a row, and where they stand on one
+ * commit the remote end is the ring round this one. Pull that ring outwards and
+ * the remote is asked for whatever it has that this machine has not.
+ *
+ * Which end carries the pull is only ever a question of which end is there. A
+ * branch whose ends have parted has a head each — this one and, hanging under
+ * it, the remote's — and the pull is on that one, where the asking belongs. A
+ * branch at rest has one head, so this is it.
  */
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
-  const { name, kind, hasRemote, cwd, repository, provisional } = data;
-  const { openWork, pickBranch, dragBranch } = useGraphActions();
-  const status = useWorktreeStatuses().get(cwd ?? "");
+  const { name, kind, hasRemote, together, fetch, cwd, repository, provisional } = data;
+  const { openWork, pickBranch, dragBranch, fetchBranch } = useGraphActions();
+  const statuses = useWorktreeStatuses();
+  const status = statuses.get(cwd ?? "");
+
+  // A fetch is offered over a codebase at rest, and the codebase is the local
+  // end's whichever end is being asked. Nothing about the fetch itself needs
+  // it — refs and objects are all it writes — but reaching for what a remote
+  // has is something done between pieces of work rather than inside one.
+  const live = fetch !== null && atRest(statuses, fetch.work);
+  // What a pull on the ring carrying it would ask for, said for anything
+  // reading the window aloud — where the ring itself cannot be seen at all.
+  const asking = fetch && t("branch.fetch", { remote: fetch.remote, branch: fetch.branch });
+  const pull = useFetchPull({
+    live,
+    onFetch: () => {
+      if (fetch) fetchBranch({ repository, branch: name, fetch });
+    },
+    onOpen: (event) =>
+      pickBranch({
+        repository,
+        branch: name,
+        kind,
+        cwd,
+        at: { x: event.clientX, y: event.clientY },
+      }),
+  });
 
   const dirty = cwd !== null && status !== undefined && dirtyCount(status) > 0;
   const state = !cwd ? "is-unopened" : dirty ? "is-dirty" : null;
@@ -95,23 +127,56 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
       data-repository={repository.id}
       data-branch={name}
     >
+      {/* The other end of this branch, standing on the same commit as this one:
+          a ring outside the head's own rather than a head of its own, because
+          one commit is one place to stand. It is drawn before the head so the
+          head is drawn over it — what is left of this to take hold of is the
+          gap between the two, which is the whole of what a pull needs. */}
+      {together && (
+        <button
+          type="button"
+          ref={pull.handle}
+          className={`mark mark--centred nopan head__pair${live ? " is-asking" : ""}`}
+          style={{ width: PAIR_RING, height: PAIR_RING }}
+          aria-label={asking ?? name}
+          onPointerDown={pull.onPointerDown}
+          onClick={pull.onClick}
+        />
+      )}
+
       {/* Whatever follows the branch along its row runs out to the right. */}
       <button
         type="button"
-        className={`mark mark--centred nopan head__ring${state ? ` ${state}` : ""}${doing}`}
+        // The head of a branch that is somewhere else is the pull itself: there
+        // is nothing here to drag onto another branch, because git merges what
+        // is checked out and a remote-tracking ref never is.
+        ref={kind === "remote" ? pull.handle : undefined}
+        className={`mark mark--centred nopan head__ring${state ? ` ${state}` : ""}${doing}${
+          kind === "remote" && live ? " is-asking" : ""
+        }`}
         style={{ width: HEAD_SIZE, height: HEAD_SIZE }}
-        aria-label={t("branch.head", { name, context: hasRemote ? "remote" : "" })}
-        onPointerDown={(event) => dragBranch(repository, name, event)}
-        onClick={(event) => {
-          event.stopPropagation();
-          pickBranch({
-            repository,
-            branch: name,
-            kind,
-            cwd,
-            at: { x: event.clientX, y: event.clientY },
-          });
-        }}
+        aria-label={
+          kind === "remote" && asking
+            ? asking
+            : t("branch.head", { name, context: hasRemote ? "remote" : "" })
+        }
+        onPointerDown={
+          kind === "remote" ? pull.onPointerDown : (event) => dragBranch(repository, name, event)
+        }
+        onClick={
+          kind === "remote"
+            ? pull.onClick
+            : (event) => {
+                event.stopPropagation();
+                pickBranch({
+                  repository,
+                  branch: name,
+                  kind,
+                  cwd,
+                  at: { x: event.clientX, y: event.clientY },
+                });
+              }
+        }
       >
         {ink && (
           <svg
@@ -145,6 +210,20 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
       )}
     </div>
   );
+}
+
+/**
+ * Whether the codebase a fetch belongs to has nothing uncommitted in it.
+ *
+ * A branch with no worktree has nothing that could be in the middle of
+ * anything, and neither has one nobody has read a status for yet — that reading
+ * is on a clock and arrives a moment later, and a ring that started out refusing
+ * and then agreed would read as the window changing its mind.
+ */
+function atRest(statuses: WorktreeStatuses, work: string | null): boolean {
+  if (work === null) return true;
+  const status = statuses.get(work);
+  return status === undefined || dirtyCount(status) === 0;
 }
 
 /** The line the ring is drawn on: the width of the button's border, and the

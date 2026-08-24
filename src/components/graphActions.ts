@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 
 import type { Ask } from "../lib/ask";
-import type { RefKind } from "../lib/graph";
+import type { Fetch, RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { Repository } from "../types/git";
 
@@ -19,6 +19,14 @@ export type WorkRequest = {
    * which is made on the way in; a folder always has one.
    */
   cwd: string | null;
+};
+
+/** A branch to be asked of its remote, and the head the asking was done on. */
+export type FetchRequest = {
+  repository: Repository;
+  /** The head the pull was made on, which is the mark that waits for the answer. */
+  branch: string;
+  fetch: Fetch;
 };
 
 /** A branch head that was picked, and where on screen it was. */
@@ -44,6 +52,11 @@ export type GraphActions = {
   pickBranch: (pick: BranchPick) => void;
   /** A branch head is being dragged towards another, to merge into it. */
   dragBranch: (repository: Repository, branch: string, event: React.PointerEvent) => void;
+  /**
+   * The remote end of a branch was pulled outwards: go and ask that remote for
+   * whatever it has of the branch that this machine has not.
+   */
+  fetchBranch: (request: FetchRequest) => void;
   /**
    * Take a repository off the canvas.
    *
@@ -152,6 +165,7 @@ const GraphActionsContext = createContext<GraphActions>({
   openWork: () => {},
   pickBranch: () => {},
   dragBranch: () => {},
+  fetchBranch: () => {},
   closeRepository: () => {},
   openRepository: () => {},
   foldRepository: () => {},

@@ -26,7 +26,8 @@
   },
   "branch": {
     "head": "{{name}}",
-    "head_remote": "{{name}}（リモートあり）"
+    "head_remote": "{{name}}（リモートあり）",
+    "fetch": "{{remote}} から {{branch}} を取得"
   },
   "graph": {
     "fold": "折り畳む",
