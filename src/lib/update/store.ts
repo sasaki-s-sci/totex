@@ -98,8 +98,14 @@ export function stageOf(at: UpdateState, layer: Layer): Press["stage"] {
  */
 export async function pick(layer: Layer, cycle: Cycle, version: string | null): Promise<void> {
   const rung = rungOf(state, layer);
-  if (rung && rung.cycle !== cycle) await invoke("update_follow", { layer, cycle });
-  await invoke("update_pick", { layer, version });
+  try {
+    if (rung && rung.cycle !== cycle) await invoke("update_follow", { layer, cycle });
+    await invoke("update_pick", { layer, version });
+  } catch {
+    // A backend that will not remember what a row was left on is one where
+    // the rows are read back as they were. Nothing else here is worth saying:
+    // this is a preference, and the window is about to ask what it is anyway.
+  }
   await askStanding(true);
 }
 
