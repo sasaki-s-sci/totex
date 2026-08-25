@@ -1,0 +1,134 @@
+/**
+ * What is running: a terminal, and the marks that say so.
+ */
+
+/* One terminal. The same mark for all of them: a terminal this window opened
+   and one the sweep found somebody else running were two shapes in two places,
+   and they are one shape in one place now — the stack standing on the branch
+   each of them is working in, half of it above that branch's line and half
+   below. What a branch could be running and is not is not here at all: that is
+   the button on the branch's own ring.
+
+   The mark is the glyph and nothing else. There was a square round it, and the
+   square was doing the reading: a column of boxes reads as a list of labels
+   rather than as one kind of thing in one place, and taking the outline away
+   left the terminal itself, which is what the box was ever a container for.
+   Nothing here is drawn on paper either — the marks sit on the canvas, and the
+   lines are held off them by the clearance every mark on this grid carries.
+
+   What hangs off the glyph is what the glyph cannot say: the count on one side,
+   the mark that ends it on the other, and what it is doing underneath. All
+   three are placed against the glyph rather than laid out beside it, so the
+   glyph stays on the stack's own centre line whether or not this particular
+   terminal has any of them. Which one the panel is holding hangs off nothing:
+   it is said by the glyph itself — see `.cli__open.is-showing`. */
+.cli__row {
+  display: flex;
+  /* `CLI_MARK` in the layout, which is what a line into one of these stops
+     short of: the glyph with a little clearance round it, and no more, because
+     there is no longer any paper to hide a line that came too far. */
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The terminal itself. Every one of them is this window's own, so every one of
+   them answers to a press: the mark is the way into the panel.
+
+   One colour for all of them, and it is the same one their lines are drawn in.
+   What is being run inside a terminal is not this canvas's to know — the window
+   opened a shell, and what somebody types into it is theirs — so a colour that
+   named it would be a colour naming a guess. The one below is the single
+   exception, and it names nothing about the shell: it is the window saying
+   which of these it is holding open. */
+.cli__open {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mui-palette-text-disabled);
+  cursor: pointer;
+  transition:
+    color var(--reveal),
+    filter var(--reveal);
+}
+
+/* The number this terminal answers to while Ctrl is held, drawn where its glyph
+   was.
+
+   In place of the glyph rather than beside it: a stack is one mark drawn over
+   and over, and hanging a badge off each of them put a second column of small
+   things down the canvas — which is the reading the stack was made to avoid.
+   While the key is down the number is the whole of what the mark has to say,
+   and the glyph comes straight back when it is let go.
+
+   The mark's own ink, inherited rather than named, so the number is drawn in
+   whatever the glyph under it would have been drawn in. Every one of these in
+   the canvas's strong colour was a screenful of things all saying `this one`,
+   which is a screenful of things saying nothing; the one that is lit is the one
+   being pointed at, and it is lit because the mark carrying it is — see
+   `.cli__open.is-showing` and `.is-picked`. Tabular figures so that 1 and 11
+   stand in the same place, and the mark does not shuffle as the eye runs down
+   the stack. */
+.cli__jump {
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: inherit;
+}
+
+/* Which terminal the panel is holding: its own glyph, lit.
+
+   The panel stands beside the canvas and says which session it is showing; what
+   it cannot say is where out here that session is standing, and a stack is one
+   glyph drawn over and over. So the answer is on the mark — and it is the mark,
+   rather than a dot on the corner of it. A dot was a second small thing to find
+   beside a small thing, on a canvas where what the eye is running down the stack
+   for is which of these is the one being read; the glyph is what is being looked
+   at, so the glyph is what changes.
+
+   The canvas's one light — `--lit` — which is also what the cursor keys leave on
+   whatever they have walked to. Both mean `this one`, so they are the same
+   light rather than two, and a stack can be showing one of each without the
+   pair of them having to be told apart. It follows the number the mark carries
+   while Ctrl is held, which is right: that number is this same mark. */
+.cli__open.is-showing {
+  color: var(--mui-palette-primary-main);
+  filter: var(--lit);
+}
+
+/* Ending a session is the one thing here that cannot be undone, so it is faint
+   until the cursor is on the mark — but its room is always held, out to the
+   side of the glyph, so a stack does not shuffle as the pointer runs down it. */
+.cli__end {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  /* Nothing but the mark is drawn here, so the mark's own colour is the whole
+     of what comes and goes — and a colour that moves, unlike an opacity, is not
+     run by the compositor. */
+  color: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: color var(--reveal);
+}
+
+.cli:hover .cli__end,
+.cli__end:focus-visible {
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
+}
+
+/* Against the hovered mark as well, which is the only way to reach it, so that
+   this outranks the rule above rather than being overruled by it. */
+.cli:hover .cli__end:hover {
+  color: var(--mui-palette-error-main);
+}

@@ -6,20 +6,11 @@ import type { Session } from "../session";
 /**
  * The card a question is drawn in, and the room it takes on the canvas.
  *
- * A question is the one thing on this canvas that is words rather than a mark.
- * Everything else here — a commit, a branch, a terminal — says what it is by
- * being a shape in a place, and a question cannot: what is being asked is the
- * whole of it, and it has to be read. So it is the one card the graph grows of
- * its own accord, and it is the same card every time, in the same place beside
- * the terminal it belongs to, with the answers in the same row at the foot of
- * it. Whatever the agent is asking about, the shape of being asked is constant,
- * which is what makes it recognisable from across a canvas.
- *
- * The words are cut to length here rather than where they are drawn, the way a
- * branch's name is: how tall the card is has to be known before it is placed —
- * the canvas is measured from it, and two questions in one branch have to be
- * stacked clear of each other — and a box laid out from text it has not
- * measured is a box that either clips what it says or leaves a hole under it.
+ * A question is the one thing here that is words rather than a mark, so it is
+ * the one card the graph grows of its own accord — the same card every time, in
+ * the same place beside its terminal, with the answers in the same row at the
+ * foot of it. The words are cut to length here rather than where they are
+ * drawn, because how tall the card is has to be known before it is placed.
  */
 
 /** How wide a card is. Wide enough for a command, narrow enough beside a band. */
@@ -28,14 +19,8 @@ export const ASK_WIDTH = 264;
 export const ASK_GAP = 30;
 /** How far apart two cards stand when one branch is asked twice at once. */
 export const ASK_STACK_GAP = 10;
-/**
- * The layer a card stands on.
- *
- * Over the band it belongs to and over anything drawn beside it: a question is
- * a turn nobody has taken, and it is worth more than whatever it is standing
- * over for as long as it is up. Under a file somebody pinned, which is the one
- * thing on this canvas that was put there by hand.
- */
+/** The layer a card stands on: over the band it belongs to, because a question
+ *  is a turn nobody has taken, and under a file somebody pinned. */
 export const ASK_Z = 1_000;
 
 /** The card's own inset, and the parts it is built from, in canvas units. */
@@ -47,49 +32,25 @@ const QUESTION_LINE = 15;
 const CHOICE_LINE = 14;
 const CHOICE_PAD = 8;
 const CHOICE_GAP = 4;
-/**
- * The row a written answer is typed into.
- *
- * One row and no more. A question that wants words wants a branch name or a
- * sentence saying what to do instead, and a card is not the place to write a
- * paragraph — the terminal it was asked in is.
- */
+/** The row a written answer is typed into. One row and no more: a card is not
+ *  the place to write a paragraph — the terminal it was asked in is. */
 const FIELD_LINE = 24;
-/**
- * The row under a list that is worked rather than simply answered.
- *
- * Two of them are: a list several answers are picked up from, which is not over
- * when one is pressed, and a list whose mark is standing in a row that is being
- * written at, where a key would be a letter rather than an answer. Both carry
- * the same row under the answers — the place to write, where there is one, and
- * the return that ends the question — and it is the height of a field because
- * that is what is in it.
- */
+/** The row under a list that is worked rather than simply answered: one several
+ *  answers are picked up from, and one whose mark stands in a row being written
+ *  at. Both carry a place to write and the return that ends the question. */
 const WORK_LINE = FIELD_LINE;
 /** The line round the card, and the one round each of its answers. */
 const BORDER = 2;
 
-/**
- * How many columns of each kind of text a card holds.
- *
- * Columns rather than pixels because that is what the text is: what a card
- * shows came off a terminal, where a character is a cell and a Japanese
- * character is two of them. The numbers are the card's inner width divided by
- * how wide a character is drawn at each size — see the stylesheet, which is
- * where the sizes themselves are.
- */
+/** How many columns of each kind of text a card holds. Columns rather than
+ *  pixels because what a card shows came off a terminal, where a character is a
+ *  cell and a Japanese character is two of them. */
 const DETAIL_CELLS = 38;
 const QUESTION_CELLS = 36;
 const CHOICE_CELLS = 32;
 
-/**
- * How much of each part is drawn.
- *
- * A card is a question, not a document: what is being asked about is a tool and
- * its argument, and an agent that hands over a screenful of it is handing over
- * a screenful of something the terminal is still the place to read. What is cut
- * is said to have been cut.
- */
+/** How much of each part is drawn. A card is a question, not a document, and
+ *  what is cut is said to have been cut. */
 const DETAIL_LINES = 4;
 const QUESTION_LINES = 3;
 const CHOICE_WRAP = 2;
@@ -166,17 +127,9 @@ export function clamp(lines: string[], most: number): string[] {
   return kept;
 }
 
-/**
- * One line of text broken to a width, in columns rather than characters.
- *
- * Broken at the spaces where there are any, and through the middle of a word
- * where there are none — which is most of what a card shows, because a path and
- * a command are one word each and both of them are longer than the card.
- *
- * Shared with the other card a terminal can have standing beside it — see
- * `reporting`. The two are the same card in two states, and text measured two
- * different ways would be the one thing that gave that away.
- */
+/** One line of text broken to a width, in columns rather than characters: at
+ *  the spaces where there are any, and through a word where there are none.
+ *  Shared with `reporting`, which is the same card in another state. */
 export function wrap(text: string, width: number): string[] {
   const trimmed = text.trim();
   if (trimmed === "") return [];
@@ -234,13 +187,9 @@ function cellsOf(text: string): number {
   return cells;
 }
 
-/**
- * Whether a character is drawn two columns wide.
- *
- * The same ranges the Rust side reads the screen with — see `wide` in `ask.rs`.
- * They have to agree: one counts the columns a box was drawn in and the other
- * counts the columns a card has room for, and the text is the same text.
- */
+/** Whether a character is drawn two columns wide. The same ranges the Rust side
+ *  reads the screen with — see `wide` in `ask/screen/grid.rs` — because the two
+ *  count the same text. */
 function wide(letter: string): boolean {
   const code = letter.codePointAt(0) ?? 0;
   return (

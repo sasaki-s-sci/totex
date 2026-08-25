@@ -1,0 +1,174 @@
+/**
+ * What is in the card: the reading, clipped rather than scrolled.
+ */
+
+/* Clipped, not scrolled. A box with more in it than fits and a bar to reach the
+   rest of it is a scroller, and a scroller is a layer of its own — which would
+   draw the whole canvas at one scale and stretch it to the zoom, as the head of
+   this file has it. `clip` rather than `hidden`, because a hidden box is still
+   a scroller to the engine: it can be scrolled from script, and it is composited
+   for it. What is in the box is moved by `FilePreviewNode` instead. */
+.file-preview__body {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: clip;
+}
+
+/* How far the reading has been moved, and how much of it is being shown. There
+   is no scrollbar to say either now, and a card that can be moved with nothing
+   to say so reads as a card that is showing the whole file. Drawn only while
+   there is somewhere to move: the rails are given a length of zero otherwise. */
+.file-preview__reach {
+  position: absolute;
+  z-index: 2;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mui-palette-text-disabled) 70%, transparent);
+  pointer-events: none;
+}
+
+.file-preview__reach--y {
+  top: 0;
+  right: 2px;
+  width: 3px;
+}
+
+.file-preview__reach--x {
+  bottom: 2px;
+  left: 0;
+  height: 3px;
+}
+
+.file-preview__code {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+/* The size is the card's to say — Ctrl and a plus or a minus moves it, and
+   `useReadingSize` holds where it has got to. The fallback here is what a
+   reading was always drawn at, and what it is drawn at again if it is ever
+   rendered outside a card. */
+.file-preview__gutter,
+.file-preview__text {
+  margin: 0;
+  padding: 10px 0;
+  font:
+    var(--reading-size, 11px) / 1.55 ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* The numbers stay where they are while the reading is moved sideways: a line
+   is being counted from its own end, and a gutter that has slid off the left
+   leaves nothing to count against. It is given the move back rather than being
+   made sticky, because nothing here is scrolling for sticky to hold against. */
+.file-preview__gutter {
+  z-index: 1;
+  flex: none;
+  padding-right: 8px;
+  padding-left: 10px;
+  border-right: 1px solid var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+  text-align: right;
+  user-select: none;
+}
+
+.file-preview__text {
+  /* Grown into whatever the card has left over, so that the whole of the box
+     under the reading answers to a click rather than only the lines
+     themselves. Never shrunk: a long line is what the card is moved across. */
+  flex: 1 0 auto;
+  padding-right: 14px;
+  padding-left: 10px;
+}
+
+/* A reading that can be typed into. React Flow says `user-select: none` on
+   every node it draws, and an editable box that cannot be selected cannot be
+   worked in either — this is where the reading takes it back. No focus ring:
+   the caret says which card is being typed into, and a ring around the reading
+   would be a second box drawn inside the card. */
+.file-preview__text.is-editable {
+  cursor: text;
+  outline: none;
+  user-select: text;
+}
+
+.file-preview__message {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--mui-palette-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-preview__message.is-error {
+  color: var(--mui-palette-error-main);
+}
+
+.file-preview__footer {
+  flex: none;
+  padding: 4px 10px;
+  border-top: 1px solid var(--mui-palette-divider);
+  text-align: right;
+}
+
+/* Where the cursor keys have walked to, while Ctrl is held: the mark itself,
+   lit.
+
+   It was a ring around the whole cell, on the reading that a cell is easier to
+   follow across the canvas than a dot the size of a full stop. What it drew was
+   a box, and a box round a mark reads as another kind of mark — a second, empty
+   thing standing where the walk had got to, next to the thing the walk had got
+   to. Lighting the mark says the same in the mark's own terms, and it is the
+   one light on this canvas: the terminal the panel is holding wears it too, and
+   both times it means `this one`.
+
+   The number a terminal carries while the key is down is lit with it, because
+   the number is that mark — see `.cli__jump`, which takes its colour from here
+   rather than naming one. `.cli__open` is named beside the mark because the
+   button inside it sets a colour of its own, which an inherited one would lose
+   to, and a folder's name is named because the name is that row's whole
+   control — there is no mark on it to light. */
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .cli__open,
+.react-flow__node.is-picked .folder__name {
+  color: var(--mui-palette-primary-main);
+}
+
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .folder__name {
+  filter: var(--lit);
+}
+
+/* A card is not a mark: there is no glyph in it to light, and the paper is what
+   it is read as. So the light goes round the outside of it — the same ink
+   spilled the same way, wider because the thing it is spilling round is, and
+   still not a border. Written on the node rather than on the card inside it, so
+   that a card's own rules further down this file are not being reached past. */
+.react-flow__node-ask.is-picked,
+.react-flow__node-report.is-picked,
+.react-flow__node-file-preview.is-picked {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 55%, transparent));
+}
+
+.react-flow__controls {
+  box-shadow: var(--mui-shadows-3);
+}
+
+.react-flow__controls-button {
+  border-bottom-color: var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  fill: var(--mui-palette-text-primary);
+}

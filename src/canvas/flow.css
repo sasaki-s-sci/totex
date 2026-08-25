@@ -1,0 +1,34 @@
+/**
+ * What React Flow draws for itself.
+ */
+
+.graph .react-flow__node {
+  cursor: default;
+}
+
+/* What a pan costs is not the drawing. It is the engine working out, on every
+   frame, what the cursor is over now and which layer everything belongs to — a
+   thousand cells is a thousand subtrees to walk for the first and a thousand
+   boxes to sort for the second, and neither has anything to do with the pixels
+   having moved.
+
+   Containment is the promise that lets the walk stop at the cell: what a cell
+   draws stays inside its own box, so a hit test that misses the box can skip
+   what is in it rather than walk it. Everything that hangs outside its own cell
+   is asked for the layout half only; the rules under this one name them.
+
+   Measured on this machine, 24 repositories / 1,130 nodes at 6x throttle, three
+   drags apiece: 36.8ms/frame to 32.6, p95 78-86ms to 54-61, and the hit test it
+   spends that on 1,120ms to 350ms. See `scratch/bench/ablate.mjs`, which turns
+   it back off. */
+.graph .react-flow__node {
+  contain: layout paint;
+}
+
+/* And the fold's count while it is being pulled: it stretches out to the left
+   across whatever cells are beside it, and the paint half would cut it off at
+   its own. There is one of these per repository against a cell per commit, so
+   what this gives up is a rounding error on what the rule above buys. */
+.graph .react-flow__node-collapse {
+  contain: layout;
+}

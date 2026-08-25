@@ -1,0 +1,101 @@
+/**
+ * Commits: a filled dot, and what may be offered over one.
+ */
+
+/* A commit: a filled dot, because a commit is settled — a branch head beside it
+   is the same mark left hollow, which is the working copy still open. The whole
+   history is one path; see `CommitDots`.
+
+   The stroke is the canvas's own colour rather than paint: it is the clearance
+   every mark on this grid carries, so a line passing behind a dot stops short of
+   it instead of touching. */
+.commit-dots {
+  fill: var(--mark);
+  stroke: var(--mui-palette-background-default);
+  stroke-width: 6;
+}
+
+/* At least one parent is outside the history the repository handed over, so the
+   line really does end here: a stub off the back of the dot, saying it carries
+   on somewhere the graph was never given. Faint — it is the absence of history
+   rather than history. */
+.commit-boundaries {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 2;
+  stroke-opacity: 0.4;
+}
+
+/* History that is only folded away, on the commits the collapse node's single
+   dash cannot reach. The collapse node's very ink, so that a stub in the middle
+   of a row and the line running out of the fold read as the same thing. */
+.commit-folded {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1.2;
+  stroke-opacity: 0.5;
+  stroke-dasharray: 4 5;
+}
+
+/* Hover and selection are the exceptional one-at-a-time marks, drawn over the
+   batch only while they have something to say. */
+.commit-hover,
+.commit-selection {
+  fill: none;
+  /* The band a branch head wears, on the mark a commit is: the circle it is
+     laid along stands outside the dot's own clearance — see `HALO_RADIUS` —
+     so the two read as one halo rather than as a ring and a collar. */
+  stroke-width: 2;
+}
+
+.commit-hover {
+  stroke: color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
+}
+
+.commit-selection {
+  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+}
+
+/* The commit the cursor keys have walked to, while Ctrl is held: this same dot,
+   drawn again in the ink that says `here` and lit.
+
+   A ring round the whole cell was easier to follow across the canvas and said
+   the wrong thing while it did: a box drawn round a mark reads as a second kind
+   of mark, and what the walk has reached is the commit itself rather than the
+   square of grid it happens to stand in. Every other thing the walk can land on
+   is lit the same way — see `.is-picked` — so the one reading covers the lot. */
+.commit-pick {
+  fill: var(--mui-palette-primary-main);
+  filter: var(--lit);
+}
+
+/* What a commit is for: the offer of a branch, standing over the dot — see
+   `BRANCH_LIFT`. The one mark a commit under the cursor puts on the canvas. The
+   branch itself used to be drawn along with it, dotted, out to where its head
+   would go; it said no more than the offer already does, and it said it over the
+   history the cursor was reading.
+
+   One of these per commit the window has something to say about — the one under
+   the cursor, and the one that was last picked — rather than one per commit. */
+.commit-branch {
+  color: var(--line);
+  cursor: pointer;
+}
+
+/* Canvas under the mark, so the halo it stands over does not run through it. */
+.commit-branch__disc {
+  fill: var(--mui-palette-background-default);
+}
+
+.commit-branch__mark {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.commit-branch:hover .commit-branch__mark {
+  opacity: 1;
+}

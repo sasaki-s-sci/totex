@@ -1,0 +1,34 @@
+//! Filesystem browsing primitives shared by the folder picker window and the
+//! folder tree of the main window.
+//!
+//! Paths cross the IPC boundary as plain strings so that Windows locations
+//! (`C:\Users\...`, `\\wsl.localhost\Ubuntu\home\...`) and WSL locations
+//! (`/home/...`, `/mnt/c/...`) both survive the round trip untouched.
+//!
+//! A path that names a WSL distribution is not read through the share Windows
+//! publishes it under — it is read inside the distribution, by [`crate::host`].
+//! The share is bytes over a network filesystem, which is slow enough to be felt
+//! in a listing; reaching in is the same reading the distribution's own tools
+//! would get.
+
+pub mod model;
+mod path;
+mod read;
+mod roots;
+
+#[cfg(test)]
+mod tests;
+
+pub use model::{FileHead, Listing, Place, Root};
+pub use path::{describe_folders, home_dir, resolve_folder};
+pub use read::{read_directory, read_file_head, write_file};
+pub use roots::list_roots;
+
+/// The picker and the tree are interactive views, so oversized directories are
+/// cut short instead of shipping a million rows to the webview.
+const MAX_ENTRIES: usize = 5_000;
+
+/// How much of a file a card on the canvas is given. A card is the top of a
+/// file, not a document view, and reading a gigabyte off a network share to draw
+/// twenty lines of it is what this number prevents.
+const MAX_FILE_HEAD: u64 = 64 * 1024;

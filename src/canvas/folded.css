@@ -1,0 +1,121 @@
+/**
+ * The history that is folded away.
+ */
+
+/* Standing where the rest of the history would be, at the left end of the row:
+   the count that is behind the fold, and the way to bring it back. Styled as
+   the branch's buttons are, because it is the same kind of thing — something
+   the graph is opened to do, out where it can be seen rather than found. */
+.collapse__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Wider than what is written in it. The pill is a handle before it is a
+     reading — it is taken hold of and run either way, and a badge sized to two
+     digits is a target the width of two digits. The room also keeps the pill the
+     same shape as a count goes from one digit to four, so a graph of a dozen
+     repositories reads as a column of one thing rather than of several. */
+  min-width: 56px;
+  height: 16px;
+  padding: 0 6px;
+  /* Faint at rest in colour rather than in opacity; see `.tools__button`. */
+  border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 75%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--mui-palette-background-paper) 75%, transparent);
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  /* The count is a handle as well as a reading, and a handle that is being
+     dragged must not take the text under it with it. */
+  user-select: none;
+  transition:
+    color var(--reveal),
+    border-color var(--reveal),
+    background-color var(--reveal);
+}
+
+/* The arrows are the mark; the pill round them is chrome, and stays faint. */
+.collapse__arrows {
+  color: var(--mark);
+}
+
+.collapse__more:hover,
+.collapse__more:focus-visible {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+}
+
+/* Held long enough to become a handle. The halo is what everything else on this
+   canvas wears when it is live under the cursor, and the cursor itself changes
+   shape — between them they say that the press has taken, which a border that
+   hover had already brought up could not.
+
+   Nothing about the pill moves while it is held. It used to stretch out to the
+   left with the hand; the band behind it is laid out at the depth the hand has
+   reached now, and the fold is the one point that whole band is growing away
+   from — so this is the one mark on the canvas that has to stay put. See
+   `useHistoryPull`. */
+.collapse__more.is-pulling {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--halo);
+  color: var(--mui-palette-text-secondary);
+  cursor: ew-resize;
+}
+
+/* A band that is only being reached for: the depth a pull has got to, laid out
+   where it would land and drawn as a proposal rather than as a fact. Dashed
+   throughout, which is how everything on this canvas that is an offer is drawn,
+   and set back, so that a graph still under the hand can never be read as one
+   that has settled. Let go, and the band is built again with none of this on
+   it: the dashes close up into the history's own lines, and that is what the
+   repository is showing.
+
+   One class on the band's own group rather than a stroke written onto each of
+   the lines under it. A repository's history is a thousand pieces of a dozen
+   paths, and which of them is a proposal is a fact about the repository and not
+   about any one line. Presentation attributes lose to a stylesheet, which is
+   what lets these override the strokes the build wrote. */
+.band-lines--provisional path {
+  stroke-dasharray: 4 5;
+  stroke-opacity: 0.5;
+}
+
+/* A commit that is not there yet: the same dashed ring a branch that has not
+   been cut is drawn as, which is what that stroke means everywhere here. The
+   solid dot with a ring of canvas colour round it is what a commit looks like
+   once it is one. */
+.band-lines--provisional .commit-dots {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1.4;
+  stroke-opacity: 0.6;
+  stroke-dasharray: 3 3;
+}
+
+/* And the branch rings the curves run to, which are nodes rather than lines and
+   so have to be told separately; see `provisional` in `build`. The ink cut into
+   a ring — the shares of what is uncommitted, the dashes of a branch with no
+   worktree — is a reading of a worktree, and a branch that is only proposed has
+   nothing to read: the ring is left as the plain dashed circle it would be.
+
+   Nothing in it answers the pointer either. What can be done to a branch is a
+   question about a branch that is there, and this one is a proposal the hand is
+   still holding. */
+.head.is-provisional {
+  pointer-events: none;
+}
+
+.head.is-provisional .head__ring {
+  border-style: dashed;
+  box-shadow: var(--clearance);
+  opacity: 0.7;
+}
+
+.head.is-provisional .head__ring__ink,
+.head.is-provisional .head__cli {
+  display: none;
+}

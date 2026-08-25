@@ -6,24 +6,12 @@ import type { BranchHeadData, Fetch } from "./model";
 /**
  * The branch half of a band: a column of names, read downwards.
  *
- * Every branch stands in the one column, whatever commit it was cut from, and
- * the line back to that commit is what says where the branch actually is —
- * which is what a branch is: a name on a commit. So a repository's branches are
- * one thing to read rather than a dozen names to be found among its commits.
- *
- * The rows are dealt in the alphabet's order from the top, one after another
- * with nothing skipped: reading the column is reading the repository's branches
- * in order, and a gap in it would be a name that had failed to draw. Nothing
- * about the history moves a name — where the line to it has to reach is the
- * line's business, and a line is drawn as an S so that it can reach.
- *
- * The two ends of one branch are one name and share one row: `main` and
- * `origin/main` are one branch to whoever works in it, so the remote end hangs
- * a little under the local one rather than taking a row of its own.
- *
- * Rows are counted rather than measured. How far apart two of them stand
- * depends on what is running in each, which is not history and not this file's
- * business — see `layout`.
+ * Every branch stands in the one column whatever commit it was cut from, and
+ * the line back to that commit says where it actually is. The rows are dealt in
+ * the alphabet's order with nothing skipped, so a gap would be a name that
+ * failed to draw. The two ends of one branch share one row — `main` and
+ * `origin/main` are one branch to whoever works in it. Rows are counted rather
+ * than measured: how far apart two stand is `layout`'s business.
  */
 
 /** A branch head, and the row of the column it was dealt. */
@@ -92,14 +80,9 @@ export function placeBranches(
   return { refs, rows: taken.size };
 }
 
-/**
- * Where two names come in the column: the alphabet, and the local end of a
- * branch before the remote one.
- *
- * Both ends ask for the same row, so which of them is asked first is what
- * settles which stands on the row and which hangs under it. The local end is
- * the one somebody works in, so it takes the line.
- */
+/** Where two names come in the column: the alphabet, and the local end before
+ *  the remote one — both ask for the same row, and the local end is the one
+ *  somebody works in, so it takes the line. */
 function inOrder(left: Ref, right: Ref): number {
   return (
     byName(left.group, right.group) ||
@@ -117,21 +100,13 @@ function byName(left: string, right: string): number {
 }
 
 /**
- * What a branch is to the repository, set after its name in brackets.
+ * What a branch is to the repository, set after its name in brackets: the one it
+ * is standing on, and the one it treats as its default. Nearly every branch is
+ * neither and is left as its name alone, because a bracket on everything is a
+ * bracket on nothing. A branch that is both reads as one bracket saying both.
  *
- * Two of them are worth saying, and both are things a name cannot say for
- * itself: the branch the repository is standing on, and the one it treats as
- * its default — where a pull request lands, and what a new branch is cut from.
- * A branch that is neither, which is nearly all of them, is left as its name
- * alone; the brackets are what makes the two that matter stand out of a column
- * of names, so putting one on everything would be putting one on nothing.
- *
- * A branch can be both, and usually is — the repository is standing on its
- * default. That reads as one bracket saying both rather than two, because two
- * brackets on one name reads as two separate remarks about it.
- *
- * `fallback` is the default as git itself reports it: a full ref name, so it
- * matches the branch's `refName` rather than the shortened name that is drawn.
+ * `fallback` is the default as git reports it — a full ref name, so it matches
+ * `refName` rather than the shortened name that is drawn.
  */
 function noteOf(ref: Ref, fallback: string | null): string | null {
   const notes: string[] = [];
@@ -156,19 +131,10 @@ type Pairing = {
 };
 
 /**
- * Which branches are two ends of one branch.
- *
- * Paired by name, which is the guess git itself makes: `git switch foo` with no
- * local `foo` and exactly one remote carrying that name checks the remote one
- * out and writes the pairing into the config. The difference is that git writes
- * it down once and reads its own note ever after, while this is read afresh
- * from the names every time — so a branch nobody has pushed yet still pairs
- * with the one somebody else pushed under that name, which is the pair a person
- * reading the column would see.
- *
- * Where one name is on several remotes the branch's own upstream settles it,
- * and where there is no upstream the first remote the repository lists does —
- * which is the order git resolves an ambiguous checkout in.
+ * Which branches are two ends of one branch, paired by name — the same guess
+ * `git switch` makes, except read afresh every time rather than written into the
+ * config once. Where one name is on several remotes the branch's own upstream
+ * settles it, and failing that the first remote the repository lists.
  */
 function pairsOf(repository: Repository): Map<string, Pairing> {
   const order = new Map(repository.remotes.map((remote, at) => [remote.name, at]));
@@ -204,13 +170,9 @@ function pairsOf(repository: Repository): Map<string, Pairing> {
   return pairs;
 }
 
-/**
- * What a head can ask a remote for.
- *
- * The end standing on the remote is the one that asks, because that is the end
- * a fetch moves. Where the two ends are on one commit there is no remote head
- * to ask with — one ring stands for both — so the local head asks instead.
- */
+/** What a head can ask a remote for. The end standing on the remote asks,
+ *  because that is the end a fetch moves; where both ends are on one commit
+ *  there is only one ring, so the local head asks instead. */
 function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
   if (branch.kind === "remote") {
     return branch.remote === null
@@ -222,13 +184,8 @@ function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
     : null;
 }
 
-/**
- * The names pointing at one commit.
- *
- * A branch is checked out in at most one worktree, so the branch name already
- * identifies it and the folder name is left off. Only a worktree with no branch
- * of its own — a detached one — is named after itself.
- */
+/** The names pointing at one commit. A branch is checked out in at most one
+ *  worktree, so only a detached one is named after itself. */
 function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
   const named = new Set<string>();
 

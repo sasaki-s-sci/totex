@@ -16,15 +16,8 @@ const DIRECTIONS: Record<string, { x: number; y: number }> = {
 const MARGIN = 72;
 const PAN_MS = 180;
 
-/**
- * How long a number stays open to a second digit.
- *
- * Past ten terminals a number is two keys, and the second one has to arrive
- * while the first still means something — otherwise a 1 typed a minute ago
- * would turn a later 2 into the twelfth terminal. Long enough to be typed
- * rather than raced, short enough that two separate jumps in one hold of Ctrl
- * are two jumps.
- */
+/** How long a number stays open to a second digit: long enough to be typed
+ *  rather than raced, short enough that two jumps in one hold are two jumps. */
 const RUN_MS = 700;
 
 type Options = {
@@ -35,50 +28,25 @@ type Options = {
   activate: (node: AppNode) => void;
   /** Go to a terminal the walk reached or a number named: it goes in the panel. */
   jump: (node: AppNode) => void;
-  /**
-   * What the walk has arrived at, which is not the same as what it is holding.
-   *
-   * The ring goes when Ctrl does, and a commit is not a node the canvas keeps
-   * anything about — so the one lasting thing a walk does is said here, and the
-   * window keeps it.
-   */
+  /** What the walk has arrived at, which the window keeps: the ring itself goes
+   *  when Ctrl does. */
   land: (node: AppNode | null) => void;
-  /**
-   * What the window has already picked out, which is where a walk carries on
-   * from when it has not walked yet.
-   *
-   * A commit clicked with the mouse is where the eye is, and a first arrow that
-   * left it for the top corner of the canvas would be a walk starting over
-   * rather than a walk carrying on.
-   */
+  /** What the window has already picked out, which is where a walk that has not
+   *  walked yet carries on from: a clicked commit is where the eye is. */
   selected: string | null;
 };
 
 /**
- * Walking the window with the cursor keys while Ctrl is held: the terminals on
- * their own, and — with Shift held as well — the canvas they are standing on.
+ * Walking the window with the cursor keys while Ctrl is held.
  *
- * Ctrl and an arrow steps from terminal to terminal, and Ctrl and a number goes
- * straight to the one wearing it. Both leave the panel holding what they
- * reached, so the two of them are one way of getting about rather than a walk
- * and a jump apiece — and the arrows answer from inside a terminal for the same
- * reason the numbers already did: leaving one is what they are for.
+ * Ctrl and an arrow steps from terminal to terminal and Ctrl and a number goes
+ * straight to the one wearing it; both leave the panel holding what they
+ * reached. Ctrl and Shift and an arrow is the other walk, along the history —
+ * nothing is opened out there, and Return is what opens it.
  *
- * Ctrl and Shift and an arrow is the other walk, and it is a walk along the
- * history: commit to commit, past everything else standing on the canvas.
- * Nothing is opened by being reached out there — what the walk finds is picked
- * out where it stands, and Return is what opens it.
- *
- * Held rather than toggled: the graph is a canvas, and the arrows belong to it
- * only for as long as something says so. Let go and the pick goes with it, so
- * there is no mode to be left in and nothing to press to get out. The numbers
- * come and go with it for the same reason — they are drawn while they can be
- * used, and never a moment longer.
- *
- * The pick is written straight onto the node's own element rather than fed back
- * through the graph. Every node would otherwise be rebuilt to move a ring from
- * one of them to another — the graph is thousands of them, and none of the rest
- * changed.
+ * Held rather than toggled: let go and the pick goes with it, so there is no
+ * mode to be left in. The pick is written straight onto the node's own element
+ * rather than fed back through the graph, which would rebuild every node.
  */
 export function useGraphKeys({ nodes, instance, host, activate, jump, land, selected }: Options) {
   const [picked, setPicked] = useState<string | null>(null);
@@ -86,10 +54,8 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
   // terminals. Only the marks read it, so it costs a render of those and
   // nothing else.
   const [holding, setHolding] = useState(false);
-  // The terminal the panel is holding, which is where a walk between terminals
-  // sets out from before it has walked anywhere of its own. Read off the graph
-  // rather than asked of the panel: the mark drawn as the one being shown is the
-  // one the eye is on, and it is already here.
+  // Where a walk between terminals sets out from before it has walked anywhere
+  // of its own. Read off the graph: the mark drawn as being shown is already here.
   const shown = useMemo(
     () => nodes.find((node) => node.type === "cli" && node.data.showing)?.id ?? null,
     [nodes],
@@ -110,10 +76,8 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
   const stacks = useMemo(() => jumpable(nodes), [nodes]);
   const places = useRef(stacks);
   places.current = stacks;
-  // The history, which is the whole of what the walk with Shift held walks
-  // along. Kept apart from the pick list above it because that one is every
-  // node on the canvas: it is what a walk is standing on, rather than what
-  // either walk is a walk through.
+  // What the walk with Shift held walks along, kept apart from the pick list
+  // above it: that one is every node on the canvas.
   const trail = useMemo(() => history(nodes), [nodes]);
   const along = useRef(trail);
   along.current = trail;
@@ -154,16 +118,9 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
       setHolding(false);
     };
 
-    /**
-     * The terminal a digit asks for, which is the one wearing that number.
-     *
-     * A digit typed straight after another is read as the second of a pair
-     * first — the tenth terminal is a 1 and then a 0 — and falls back to being
-     * a number of its own when no terminal is wearing what the pair comes to.
-     * So a window with nine terminals in it never waits for a second digit, and
-     * one with thirty answers 3 and then 1 with the thirty-first if there is
-     * one and with the third if there is not.
-     */
+    /** The terminal a digit asks for. A digit typed straight after another is
+     *  read as the second of a pair first, and falls back to a number of its own
+     *  when no terminal is wearing what the pair comes to. */
     const jumpTo = (digit: number) => {
       const stacks = places.current;
       const running = typed.current;
@@ -186,16 +143,9 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
       if (node) latest.current.jump(node);
     };
 
-    /**
-     * A step of a walk, from wherever the last one left off.
-     *
-     * The terminals are walked on their own and the history is walked with
-     * Shift, but either walk sets out from where the other one stopped — which
-     * is why what it is standing on is looked up in every node on the canvas
-     * rather than in what is being walked. A walk between terminals that begins
-     * at a commit begins at that commit's place on the canvas, and finds the
-     * terminal nearest it from there.
-     */
+    /** A step of a walk, from wherever the last one left off — either walk sets
+     *  out from where the other stopped, which is why what it is standing on is
+     *  looked up in every node rather than in what is being walked. */
     const walk = (direction: { x: number; y: number }, terminals: boolean) => {
       const among = terminals ? places.current : along.current;
       // Where the walk is, or failing that where the eye is: the terminal the
@@ -239,10 +189,8 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
 
       const direction = DIRECTIONS[event.key];
       if (direction) {
-        // A terminal is walked out of from inside it, the same way it is left
-        // by a number. Anything else being typed into keeps its own arrows:
-        // there they move a cursor through what is written, and there is
-        // nothing in a field of text to walk away from.
+        // A terminal is walked out of from inside it. Anything else being typed
+        // into keeps its own arrows, which move a cursor through what is written.
         if (typing(event.target) && !terminal(event.target)) return;
         event.preventDefault();
         walk(direction, !event.shiftKey);
@@ -305,14 +253,8 @@ function numeric(event: KeyboardEvent): boolean {
   return event.key.length === 1 && event.key >= "0" && event.key <= "9";
 }
 
-/**
- * Whether the keys are being typed into a terminal.
- *
- * Which is a textarea like any other as far as the window can see — xterm reads
- * what is typed through a hidden one — so the arrows are told the difference
- * between the thing they are for leaving and a field of text they would be
- * taken out of.
- */
+/** Whether the keys are being typed into a terminal, which the window otherwise
+ *  sees as a textarea like any other: the arrows are for leaving one. */
 function terminal(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && target.closest(".xterm") !== null;
 }

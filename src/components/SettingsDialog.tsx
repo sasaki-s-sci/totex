@@ -23,21 +23,13 @@ type Props = {
 };
 
 /**
- * One line of the page: what the thing is on the left, what can be done about
- * it on the right.
+ * One line of the page: what the thing is on the left, what can be done about it
+ * on the right.
  *
- * The rest of the window says everything with a mark, because everything else
- * in it stands in a row that is already being read — a folder, a branch, a
- * terminal — and a word beside the mark there would be a word in the way. This
- * page is the one place that is not true. It is gone looking for, it is read
- * once and left alone, and a mark that has to be hovered to find out what it
- * would do is a mark that is read twice. So here the thing is named, and the
- * mark is only kept where it says something a word cannot — see the ring on the
- * update button, which is how much of the download has arrived.
- *
- * The name and the line under it are the left half whether or not there is a
- * line: a row with nothing to explain is a row with nothing under its name, and
- * it still sits at the same height as the rest.
+ * The rest of the window says everything with a mark, because everything there
+ * stands in a row already being read. This page is gone looking for and read
+ * once, so here the thing is named and a mark is kept only where it says
+ * something a word cannot.
  */
 function Row({
   label,
@@ -67,15 +59,9 @@ function Row({
   );
 }
 
-/**
- * The one button this page has, in the one shape it takes.
- *
- * Quiet: the window is a tool and nothing in it shouts, so a button that offers
- * something reads as the same grey the names beside it are set in, and answers
- * the pointer rather than the room. Red is kept for the two endings — a restart
- * that takes every terminal with it, and a press that did not work — which is
- * the same thing red says everywhere else in the window.
- */
+/** The one button this page has. Quiet, in the same grey the names beside it
+ *  are set in; red is kept for the two endings — a restart that takes every
+ *  terminal with it, and a press that did not work. */
 function PageButton({
   danger,
   disabled,
@@ -106,12 +92,8 @@ function PageButton({
   );
 }
 
-/**
- * The three the window can be drawn in, in the order they are offered.
- *
- * The machine's own is first because it is where a window that has never been
- * told starts, and going back to it is how that is given back.
- */
+/** The three the window can be drawn in. The machine's own is first: it is where
+ *  a window that has never been told starts. */
 const THEMES: readonly ThemeMode[] = ["system", "light", "dark"];
 
 /** What each of the three is called. */
@@ -121,21 +103,14 @@ const THEME_LABELS = {
   dark: "theme.dark",
 } as const;
 
-/**
- * Which of the three the window is drawn in.
- *
- * Three laid out rather than one pressed round them: this is a thing gone
- * looking for, and something looked for is answered by showing what there is to
- * pick, not by a button that has to be pressed twice to find out what the third
- * state was.
- */
+/** Which of the three the window is drawn in. Three laid out rather than one
+ *  pressed round them: something looked for is answered by showing what there
+ *  is to pick. */
 function ThemeRow() {
   const { t } = useTranslation();
   const { mode, setMode } = useColorScheme();
-  // Undefined for the frame before the provider has read what was stored. The
-  // document already carries the answer by then — `applyStoredMode` wrote it —
-  // so this is only which of the three is lit, and the machine's own is what a
-  // window that has never been told is set to.
+  // Undefined for the frame before the provider has read what was stored; the
+  // document already carries the answer, so this is only which of the three is lit.
   const current = mode ?? "system";
 
   return (
@@ -166,21 +141,13 @@ const REGISTER = {
 } as const;
 
 /**
- * The door the agents say what they are working on through: the server this
- * window stands beside its terminals, and the one line of setup that tells an
- * agent where it is.
+ * The door the agents say what they are working on through: the server, and the
+ * one line of setup that tells an agent where it is.
  *
- * Two rows, because they are two things. The switch stands a port open on this
- * machine, which is exactly the kind of thing a program should not do because
- * it happened to start — so it is off until it is asked for, and what was asked
- * for outlives the window. The button under it writes the setup into somebody
- * else's program, which is done once and never again: what is registered is the
- * name of a variable every terminal is handed a value in, rather than an
- * address that changes.
- *
- * Neither is urgent, which is why both are in here rather than out in the one
- * row the window reserves. What they turn on is drawn on the canvas: a card
- * beside a terminal, saying what the agent in it is working on.
+ * Two rows because they are two things. The switch stands a port open, which a
+ * program should not do because it happened to start, so it is off until it is
+ * asked for. The button under it writes the setup into somebody else's program,
+ * once: what is registered is the name of a variable, not an address.
  */
 function McpSection() {
   const { t } = useTranslation();
@@ -227,27 +194,14 @@ const UPDATE = {
 /**
  * Replacing the app with a newer one, where that can work.
  *
- * Nothing is checked until it is pressed. A window that phones a release page
- * on its own every time it opens is a window doing something on the person's
- * network that they did not ask for, and the answer it would come back with is
- * not urgent enough to be worth that. So the button rests at the offer to look,
- * and what it says after that is what happened.
+ * Nothing is checked until it is pressed: a window that phones a release page
+ * every time it opens is doing something on the person's network they did not
+ * ask for. Not drawn at all where it could not work — a binary run out of
+ * `target/` was never installed.
  *
- * It is not drawn at all where it could not work: a binary run out of `target/`
- * was never installed, so there is nothing a release page can do for it. A
- * `.deb` and an `.rpm` are drawn: the program in those belongs to a package
- * manager and is left to it, but the pages are the app's own and are replaced
- * the same way everywhere.
- *
- * A press does the cheapest thing left — the pages first, which end at a
- * reload; the program on the press after that, which ends at a restart. Two
- * presses rather than one because they cost different things, and the second
- * cost is one nobody should pay by having pressed once. The restart is red for
- * the same reason ending a session is: every terminal in the window is a
- * process that goes with it.
- *
- * The rule above it belongs to it and not to the page: where there is no
- * button there is nothing to divide.
+ * A press does the cheapest thing left: the pages first, which end at a reload,
+ * and the program on the press after that, which ends at a restart. The restart
+ * is red because every terminal in the window goes with it.
  */
 function UpdateSection() {
   const { t } = useTranslation();
@@ -281,15 +235,9 @@ function UpdateSection() {
   );
 }
 
-/**
- * Everything the window is set by, on one page.
- *
- * It reads top to bottom in the order the things belong to: the window in front
- * of you first, then the door the agents speak through, then the copy of the
- * app on disk. All of it is set once and left, which is why none of it is out
- * in the one row the window reserves along the top — that band is for what is
- * reached while working, and this is what is reached instead of working.
- */
+/** Everything the window is set by, on one page: the window in front of you,
+ *  then the door the agents speak through, then the copy of the app on disk.
+ *  All of it set once and left, which is why none of it is in the top band. */
 export function SettingsDialog({ open, onClose }: Props) {
   const { t } = useTranslation();
 

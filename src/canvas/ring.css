@@ -1,0 +1,94 @@
+/**
+ * What the ring itself says: work in the copy, a refusal, a wait.
+ */
+
+/* Work in the copy the ring stands for, drawn on the ring's own rim: what has
+   arrived, what has been rewritten and what has gone, each holding the share of
+   the circle it holds of the files. The ring is the codebase, so the codebase is
+   what its line is made of — and the line is plain ink again once the work is
+   committed.
+
+   The border gives way to the arcs the node draws in its place: what those
+   shares are belongs to that worktree and not to the stylesheet, and the
+   colours are the node's too, since three of them cannot be laid along one
+   border. */
+.head__ring.is-dirty,
+.head__ring.is-unopened {
+  border-style: none;
+}
+
+/* Everything cut into the ring's line: the shares of what is uncommitted, and
+   the dashes of a branch with no worktree. Drawn as arcs of one stroked circle
+   standing where the border is, because a mask — which is what cut both of
+   them before — is a threshold and leaves an edge with no half-covered pixels
+   in it. See `rimOf` in `BranchHeadNode`. */
+.head__ring__ink {
+  position: absolute;
+  inset: 0;
+  fill: none;
+  /* The ring is the mark; the ink on it is a reading, and the press belongs to
+     the button underneath either way. */
+  pointer-events: none;
+}
+
+/* A refusal and a wait are read before what is uncommitted is: both say the ring
+   is in the middle of something, both are over in seconds, and what is
+   uncommitted will still be there to read afterwards. So they take the rim back
+   — the node stops drawing it — and the ring is the one ink again for as long
+   as they last. */
+.head__ring.is-dirty.is-busy,
+.head__ring.is-dirty.is-failed {
+  border-style: solid;
+}
+
+/* What a press on the ring could not do, on the ring it was pressed on.
+   Red and gone again in a couple of seconds: the graph did not move, and the
+   mark that was aimed at is the one that answers for it. Nothing is written —
+   a refusal the window could have known about beforehand is not offered in the
+   first place, so what is left here is only what git itself turned down. */
+.head__ring.is-failed {
+  /* The one thing that takes the ink off the ring: a refusal is read before the
+     branch it happened to, and it is over in a moment. */
+  color: var(--mui-palette-error-main);
+  animation: mark-refused 1.1s ease-out;
+}
+
+/* An operation still running on this branch — a merge landing on it, a history
+   rewrite. The ring is the thing being changed, so the ring is what waits.
+
+   The wait is breathed in colour rather than in opacity: an opacity animation
+   is run by the compositor, and one running anywhere on the canvas is what
+   turns the whole graph into a stretched drawing of itself. */
+.head__ring.is-busy {
+  animation: mark-working 1.4s ease-in-out infinite;
+}
+
+@keyframes mark-refused {
+  0%,
+  40% {
+    box-shadow:
+      var(--clearance),
+      0 0 0 3px color-mix(in srgb, var(--mui-palette-error-main) 45%, transparent);
+  }
+  100% {
+    box-shadow: var(--clearance);
+  }
+}
+
+/* Whichever of the two the ring is drawn with — the border, or the ink of a
+   branch that has no worktree — takes the same breath. Neither is `currentcolor`
+   itself: that is what the mix is made of, and a colour that moved would take
+   the dot the remote mark is drawn in with it. */
+@keyframes mark-working {
+  50% {
+    border-color: color-mix(in srgb, currentcolor 35%, transparent);
+    stroke: color-mix(in srgb, currentcolor 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head__ring.is-failed,
+  .head__ring.is-busy {
+    animation: none;
+  }
+}

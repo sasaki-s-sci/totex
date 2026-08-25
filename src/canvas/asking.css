@@ -1,0 +1,101 @@
+/**
+ * A question, as the canvas grows it.
+ */
+
+/* The one card the canvas grows by itself.
+ *
+ * Every number in here is paired with one in `asking.ts`, which measures the
+ * card before the canvas places it: the padding, the line heights and the row a
+ * choice takes are how tall the box is worked out to be, and a rule changed on
+ * one side without the other is a card that clips what it says or leaves a hole
+ * under it. The text arrives already broken to width, which is why nothing here
+ * wraps: `pre` keeps the lines the layout counted, and the overflow is the
+ * guard for a line it measured a column short.
+ *
+ * Nothing in here scrolls and nothing in here animates opacity or transform —
+ * see the note at the top of this file. What is too long to draw was cut before
+ * it arrived. */
+.ask {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  padding: 9px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 7px;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--mui-shadows-6);
+  color: var(--mui-palette-text-primary);
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+/* Whose question it is, and the way into the terminal it is being asked in.
+   The whole row is the way in: a card is small, and a target the size of one
+   word is a target somebody has to aim at. */
+.ask__head {
+  display: flex;
+  height: 15px;
+  flex: none;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  gap: 6px;
+  text-align: left;
+}
+
+.ask__who {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ask__ordinal {
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.ask__head:hover .ask__ordinal,
+.ask__head:focus-visible .ask__ordinal {
+  color: var(--mui-palette-text-primary);
+}
+
+/* What the question is about, in the face it was written in: a command in a
+   proportional face is a command that has to be read twice. */
+.ask__detail {
+  flex: none;
+  margin-top: 7px;
+  color: var(--mui-palette-text-secondary);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10px;
+  line-height: 13px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ask__question {
+  flex: none;
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 15px;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ask__choices {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  margin-top: 7px;
+  gap: 4px;
+}
