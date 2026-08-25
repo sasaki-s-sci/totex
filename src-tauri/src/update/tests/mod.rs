@@ -8,9 +8,11 @@
 //! it says something a real one never would.
 
 mod kept;
-mod layer;
+pub(super) mod layer;
 pub(super) mod rows;
 mod serve;
+mod sessions;
+mod whole;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

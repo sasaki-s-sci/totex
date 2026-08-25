@@ -29,7 +29,17 @@ pub struct Serving {
 impl Serving {
     /// Settles what this run is drawn out of, and clears away everything else.
     pub fn prepare(identifier: &str, built: Version) -> Self {
-        let home = dirs::data_dir().map(|dir| dir.join(identifier).join("front"));
+        Self::keeping(
+            dirs::data_dir().map(|dir| dir.join(identifier).join("front")),
+            built,
+        )
+    }
+
+    /// The same, told where to keep them and which pages this program carries.
+    ///
+    /// Where a machine keeps things is one question and what is kept there is
+    /// another, and only the second one is worth running a test against.
+    pub fn keeping(home: Option<PathBuf>, built: Version) -> Self {
         let at = home
             .as_deref()
             .and_then(|home| keep(home, &built, take::contract()));

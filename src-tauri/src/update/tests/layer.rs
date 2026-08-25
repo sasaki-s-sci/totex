@@ -176,3 +176,110 @@ fn a_layer_that_was_never_put_anywhere_leaves_the_built_in_copy_answering() {
         .expect("the built-in copy answers");
     assert!(listing.entries.is_empty());
 }
+
+/// The layer as a release ships it, which is the program cargo built beside
+/// this test.
+///
+/// `cargo test --workspace` -- which is what `task test` runs, and what the
+/// build workflow runs -- builds every target in the workspace before it runs
+/// any of them, so by the time this is asked the program is there. Anything
+/// that skipped building it is told so rather than quietly passing: what is
+/// being checked here is the one thing that cannot be checked without it.
+pub(super) fn built_layer() -> std::path::PathBuf {
+    let program = if cfg!(windows) {
+        "totex-layer.exe"
+    } else {
+        "totex-layer"
+    };
+    let beside = std::env::current_exe()
+        .expect("this test")
+        // target/<profile>/deps/<test> -> target/<profile>/<program>
+        .parent()
+        .and_then(|deps| deps.parent())
+        .expect("the directory this test was built in")
+        .join(program);
+    assert!(
+        beside.is_file(),
+        "{} was not built -- run `task test`, which builds the whole workspace",
+        beside.display()
+    );
+    beside
+}
+
+/// A layer as a release ships one: the program, gzipped.
+pub(super) fn packed(program: &std::path::Path) -> Vec<u8> {
+    use std::io::Write as _;
+    let mut packed = Vec::new();
+    let mut packing = flate2::write::GzEncoder::new(&mut packed, flate2::Compression::fast());
+    packing
+        .write_all(&std::fs::read(program).expect("read the program"))
+        .expect("pack it");
+    packing.finish().expect("finish packing");
+    packed
+}
+
+#[test]
+fn a_layer_that_was_taken_is_what_answers_afterwards() {
+    let temp = TempDir::new("swapped");
+    let layers = Layers::at(Some(temp.path().to_path_buf()));
+    assert!(!layers.beside(), "nothing has been taken yet");
+
+    let took = layers
+        .put(totex_layer::VERSION, &packed(&built_layer()))
+        .expect("a layer that is a layer");
+    assert_eq!(took, Took::Taken);
+    assert!(layers.beside(), "and it is the one being asked");
+
+    // Asked something, and the answer is the answer -- which is the whole of
+    // what taking a layer is for, and the one part of it that goes through a
+    // pipe to another process.
+    let listing: crate::fs_browse::Listing = layers
+        .ask(
+            "read_directory",
+            serde_json::json!({ "path": temp.path().to_string_lossy(), "show_hidden": true }),
+        )
+        .expect("the layer answers");
+    assert!(
+        listing
+            .entries
+            .iter()
+            .any(|entry| entry.name == totex_layer::VERSION),
+        "the layer reads the directory it was unpacked into"
+    );
+
+    // A question that layer does not answer is answered by the copy this
+    // program carries, without anybody being told anything went wrong.
+    let refused = layers.ask::<serde_json::Value>("pty_open", serde_json::json!({}));
+    assert!(refused.is_err_and(|said| said.contains("pty_open")));
+
+    // And what the next start of the app would open on is this same layer.
+    let after = Layers::at(Some(temp.path().to_path_buf()));
+    assert!(
+        after.beside(),
+        "it was written down as the one that was taken"
+    );
+}
+
+#[test]
+fn letting_go_of_a_layer_leaves_the_built_in_copy_answering() {
+    let temp = TempDir::new("forgotten");
+    let layers = Layers::at(Some(temp.path().to_path_buf()));
+    layers
+        .put(totex_layer::VERSION, &packed(&built_layer()))
+        .expect("a layer that is a layer");
+
+    layers.forget();
+    assert!(!layers.beside());
+    // The window never finds out: the same question is answered by the copy
+    // the program carries, and the answer is the same answer.
+    let listing: crate::fs_browse::Listing = layers
+        .ask(
+            "read_directory",
+            serde_json::json!({ "path": temp.path().to_string_lossy(), "show_hidden": true }),
+        )
+        .expect("the built-in copy answers");
+    assert!(listing.entries.is_empty(), "and it was cleared away");
+
+    let after = Layers::at(Some(temp.path().to_path_buf()));
+    assert!(!after.beside(), "the next start opens on the built-in copy");
+}

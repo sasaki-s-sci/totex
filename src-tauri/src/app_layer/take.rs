@@ -129,7 +129,7 @@ impl Layers {
     /// Goes back to the copy this program carries, and clears away what was
     /// taken.
     ///
-    pub(super) fn forget(&self) {
+    pub(crate) fn forget(&self) {
         self.drop_front();
         let Some(home) = self.home.as_ref() else {
             return;

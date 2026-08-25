@@ -80,7 +80,7 @@ pub(super) fn choose(
 /// commands or the events change in a way older pages could not be run against
 /// — and nothing else moves it, because everything it stops is a front being
 /// taken onto a program that would not answer it.
-pub(super) fn contract() -> u32 {
+pub(crate) fn contract() -> u32 {
     env!("FRONT_CONTRACT")
         .parse()
         .expect("build.rs writes this out of package.json")

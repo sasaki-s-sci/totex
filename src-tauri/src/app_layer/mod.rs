@@ -77,6 +77,10 @@ pub struct Layers {
     /// directory — which is a machine that can only ever run the layer it was
     /// installed with.
     home: Option<PathBuf>,
+    /// The version of the layer this program carries, which is the crate's own
+    /// — held rather than read so that a test can say what it is, since what a
+    /// row does about a release depends entirely on what is already here.
+    built: String,
     /// The one standing in front of the built-in copy, if any.
     front: RwLock<Option<Arc<Running>>>,
 }
@@ -96,8 +100,19 @@ impl Layers {
     /// Where a machine keeps things is one question and what is kept there is
     /// another, and only the second one is worth running a test against.
     pub fn at(home: Option<PathBuf>) -> Self {
+        Self::carrying(home, totex_layer::VERSION)
+    }
+
+    /// The same, told which layer this program carries.
+    ///
+    /// The version of the built-in copy decides what every press on the layer's
+    /// row does — a release that is the version already here is a press with
+    /// nothing to do — so it is the one thing a test of that row has to be able
+    /// to say.
+    pub fn carrying(home: Option<PathBuf>, built: &str) -> Self {
         let layers = Self {
             home,
+            built: built.to_string(),
             front: RwLock::new(None),
         };
         match layers.kept() {
@@ -118,19 +133,25 @@ impl Layers {
         self.home.is_some()
     }
 
-    /// The version of the layer this program carries.
-    pub fn built(&self) -> &'static str {
-        totex_layer::VERSION
-    }
-
     /// The version actually answering questions.
     pub fn version(&self) -> String {
         self.running()
-            .map_or_else(|| self.built().to_string(), |running| running.version())
+            .map_or_else(|| self.built.clone(), |running| running.version())
     }
 
     fn running(&self) -> Option<Arc<Running>> {
         self.front.read().ok().and_then(|front| front.clone())
+    }
+
+    /// Whether a layer of its own is what is answering, rather than the copy
+    /// this program carries.
+    ///
+    /// The two say the same version whenever the taken one is the same release
+    /// as the built-in one, which is the ordinary case and the reason this is
+    /// asked at all rather than read off [`Layers::version`].
+    #[cfg(test)]
+    pub(crate) fn beside(&self) -> bool {
+        self.running().is_some()
     }
 
     /// Asks whichever layer is in front, and answers out of the built-in copy
