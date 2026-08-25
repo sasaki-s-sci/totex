@@ -1,6 +1,6 @@
 /**
- * The branch column: one tip commit per branch, the workspace and origin rings
- * layered over it, the named curve from history, and room for its terminals.
+ * The branch column: one node per local, remote, or detached-workspace ref,
+ * the named edge from its commit, and room for its terminals.
  */
 
 import type { PlacedRef } from "../branches";
@@ -8,14 +8,14 @@ import { type Point, shortOf } from "../geometry";
 import { commitNodeId } from "../history";
 import { labelOf } from "../lines";
 import {
-  CELL_STYLE,
   CLI_STEP,
-  LANE_HEIGHT,
+  COMMIT_STEP,
+  COMMIT_TRIM,
+  HEAD_CELL,
   LINE_COLOR,
-  onCell,
   onCommit,
-  PAIR_DROP,
-  PAIR_RING_TRIM,
+  onHead,
+  REMOTE_HEAD_TRIM,
   RING_TRIM,
   SESSION_WIDTH,
 } from "../model";
@@ -26,37 +26,40 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
 
   // like any other, so a branch with no commits of its own still shows up.
   for (const ref of refs) {
-    // Where this branch's own mark is. The remote end of a branch hangs a
-    // little under the row its local end stands on, which is what makes the
-    // pair read as one branch drawn twice rather than as two branches.
-    const at: Point = { x: ring, y: branchLine[ref.row] + (ref.under ? PAIR_DROP : 0) };
+    // A head stands on the branch column's own grid row. Several refs from one
+    // commit therefore fork onto separate lanes instead of stacking names;
+    // only a synchronized local/remote pair was dealt the same row.
+    const at: Point = { x: ring, y: branchLine[ref.row] };
 
     nodes.push({
       id: ref.id,
       type: "head",
       parentId: repository.id,
       extent: "parent",
-      position: { x: heads, y: at.y - LANE_HEIGHT / 2 },
+      position: { x: heads, y: at.y - COMMIT_STEP.y / 2 },
       data: ref.data,
-      style: CELL_STYLE,
+      style: HEAD_CELL,
       draggable: false,
       selectable: false,
     });
 
-    // Drawn from the commit the branch points at outwards, which is the
+    // Drawn from the commit the ref points at outwards, which is the
     // direction the name reads. The name rides the curve rather than sitting
-    // beside the head. This end is a commit now, so the line reaches its centre
-    // just like every other history line; the solid dot drawn over it finishes
-    // the join, while the workspace and origin remain concentric readings of
-    // that same commit.
-    const reaches = shortOf(dots[ref.from], at, 0, true);
+    // beside the head. Stop at the actual ref ring. The source
+    // stops at its commit too, so a provisional dashed dot is never crossed.
+    const headTrim = ref.data.kind === "remote" ? REMOTE_HEAD_TRIM : RING_TRIM;
+    const leaves = shortOf(at, dots[ref.from], COMMIT_TRIM, true);
+    const reaches = shortOf(dots[ref.from], at, headTrim, true);
     drawn.add({
       id: `${ref.id}branch`,
       from: onCommit(commitNodeId(repository, history.placed[ref.from].commit.id)),
-      to: onCell(ref.id),
+      to: onHead(ref.id),
       curve: true,
-      trim: 0,
-      lead: 0,
+      trim: headTrim,
+      lead: COMMIT_TRIM,
+      // Two refs at one commit remain distinct. Their coincident edge is split
+      // into an upper dashed remote track and a lower solid local track.
+      offset: ref.data.together ? (ref.data.kind === "remote" ? -0.8 : 0.8) : undefined,
       stroke: {
         colour: LINE_COLOR,
         width: 1.1,
@@ -67,7 +70,12 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
         // really is somewhere else.
         dash: ref.data.kind === "remote" ? "4 5" : undefined,
       },
-      name: labelOf(ref.data.name, ref.note, dots[ref.from], reaches),
+      // Hide only the duplicate name of a synchronized remote. Once the refs
+      // diverge, the remote edge names itself so the split can be followed.
+      name:
+        ref.data.kind === "remote" && ref.data.together
+          ? undefined
+          : labelOf(ref.data.name, ref.note, leaves, reaches),
     });
 
     // Where this branch's terminals stand: a stack centred on the branch's own
@@ -84,9 +92,7 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
         at,
         x: working - SESSION_WIDTH / 2,
         y: at.y - CLI_STEP / 2,
-        // A paired branch carries its origin as the outer ring, so the edge to
-        // its terminals begins beyond that ring rather than crossing it.
-        lead: ref.data.together ? PAIR_RING_TRIM : RING_TRIM,
+        lead: RING_TRIM,
       });
     }
   }

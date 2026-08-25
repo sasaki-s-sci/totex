@@ -9,7 +9,7 @@ import type { CommitFlowNode } from "../lib/graph";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
-import type { BranchPick, FetchRequest, WorkRequest } from "./graphActions";
+import type { BranchPick, FetchRequest, WorkRequest, WorktreeBrowseRequest } from "./graphActions";
 import type { GraphMarks } from "./graphMarks";
 
 export type MergeRequest = {
@@ -77,6 +77,7 @@ export type GraphProps = {
   /** A commit was clicked, with where on screen it happened. */
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
   onOpenWork: (request: WorkRequest) => void;
+  onBrowseWorktree: (request: WorktreeBrowseRequest) => void;
   onPickBranch: (pick: BranchPick) => void;
   /** The × beside a repository's name: it leaves the canvas. */
   onCloseRepository: (repository: Repository) => void;

@@ -3,10 +3,10 @@
  * and everything either can be asked to do.
  */
 
-import { type MouseEvent, useMemo, useRef, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useResizeGrip } from "../components/useResizeGrip";
 import { describeFolders, listRoots, type Place, type Root, resolveFolder } from "./api";
-import { type Pane, useReport } from "./FolderSidebar";
+import { type FolderDestination, type Pane, useReport } from "./FolderSidebar";
 import { keepPlaces, keptPlaces } from "./places";
 
 const MIN_WIDTH = 200;
@@ -17,6 +17,7 @@ export function usePanes(
   initial: readonly string[],
   onFoldersChange: ((paths: string[]) => void) | undefined,
   onExpandedChange: ((paths: string[]) => void) | undefined,
+  destination?: FolderDestination | null,
 ) {
   const nextId = useRef(0);
   const [panes, setPanes] = useState<Pane[]>(() =>
@@ -58,6 +59,35 @@ export function usePanes(
   // scanned.
   const folders = useMemo(() => panes.map((pane) => pane.path), [panes]);
   useReport(folders, onFoldersChange);
+
+  /**
+   * Browses a worktree in the pane that led to it.
+   *
+   * A pane already at the destination wins, otherwise the pane that put the
+   * repository's root on the graph moves there. Its `graphed` paths stay put:
+   * this is the same folder navigation as the pane's own jump marks, not a
+   * change to what the canvas is scanning. The fallback is a new explorer for
+   * the narrow case where the owning pane disappeared while git was creating
+   * the worktree.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: destination is the request; panes is the current answer to it
+  useEffect(() => {
+    if (!destination) return;
+    const pane =
+      panes.find((candidate) => candidate.path === destination.path) ??
+      panes.find((candidate) => candidate.graphed.includes(destination.root));
+    if (!pane) {
+      addPane(destination.path);
+      return;
+    }
+
+    update(pane.id, { path: destination.path, open: true });
+    requestAnimationFrame(() => {
+      column.current
+        ?.querySelector<HTMLElement>(`[data-folder-pane="${pane.id}"]`)
+        ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
+  }, [destination]);
 
   function update(id: number, change: Partial<Pane>) {
     setPanes((current) => current.map((pane) => (pane.id === id ? { ...pane, ...change } : pane)));

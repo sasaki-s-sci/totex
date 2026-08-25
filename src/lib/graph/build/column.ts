@@ -15,7 +15,7 @@ import {
   CLI_STROKE,
   type Draw,
   type GraphLine,
-  onCell,
+  onHead,
   onStack,
   SESSION_WIDTH,
   stackReach,
@@ -120,7 +120,7 @@ export function bandColumn(
 
       drawn.lines.push({
         id: `${id}run`,
-        from: onCell(run.head),
+        from: onHead(run.head),
         to: onStack(id),
         curve: true,
         // Half the glyph it arrives at, so the line stops beside the terminal

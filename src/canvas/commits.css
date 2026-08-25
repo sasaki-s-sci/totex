@@ -12,7 +12,7 @@
 .commit-dots {
   fill: var(--mark);
   stroke: var(--mui-palette-background-default);
-  stroke-width: 6;
+  stroke-width: 4;
 }
 
 /* At least one parent is outside the history the repository handed over, so the

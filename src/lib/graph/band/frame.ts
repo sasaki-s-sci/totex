@@ -22,7 +22,7 @@ export type Frame = {
   columnX: (column: number) => number;
   /** The line each row of the history is drawn along. */
   historyLine: (row: number) => number;
-  /** And each row of the branch column, as far apart as their stacks need. */
+  /** The branch column's grid rows, identical to history's rows. */
   branchLine: readonly number[];
   /** Where the name of a repository with nothing folded away stands. */
   nameLine: number;

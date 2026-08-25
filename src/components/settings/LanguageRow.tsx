@@ -1,6 +1,6 @@
 /** Which language the window's words are drawn in. */
 
-import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,23 +29,23 @@ export function LanguageRow() {
 
   return (
     <Row label={t("settings.language")}>
-      <ToggleButtonGroup
-        exclusive
+      <Select
         size="small"
-        aria-label={t("settings.language")}
         value={current}
-        onChange={(_, next: LanguageMode | null) => {
-          if (!next) return;
+        onChange={(event: SelectChangeEvent<LanguageMode>) => {
+          const next = event.target.value as LanguageMode;
           setCurrent(next);
           void changeLanguage(next);
         }}
+        inputProps={{ "aria-label": t("settings.language") }}
+        sx={{ minWidth: 132 }}
       >
         {LANGUAGES.map((option) => (
-          <ToggleButton key={option} value={option} sx={{ px: 1.25, py: 0.4 }}>
+          <MenuItem key={option} value={option}>
             {t(LANGUAGE_LABELS[option])}
-          </ToggleButton>
+          </MenuItem>
         ))}
-      </ToggleButtonGroup>
+      </Select>
     </Row>
   );
 }

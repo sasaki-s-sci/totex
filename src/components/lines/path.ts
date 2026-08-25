@@ -39,10 +39,27 @@ export function pathOf(
     // towards the first, which from this direction is the start of the line.
     const start = shortOf(to, from, part.lead, part.curve);
     const end = shortOf(from, to, part.trim, part.curve);
+    offset(start, end, part.offset ?? 0);
     path += part.curve ? sigmoidPath(start, end) : straightPath(start, end);
     path += " ";
   }
   return path;
+}
+
+/** Move both ends along the line's normal. Positive is below a left-to-right
+ *  line, so coincident local and remote strokes can each keep half the track. */
+function offset(start: Point, end: Point, distance: number): void {
+  if (distance === 0) return;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return;
+  const x = (-dy / length) * distance;
+  const y = (dx / length) * distance;
+  start.x += x;
+  start.y += y;
+  end.x += x;
+  end.y += y;
 }
 
 /**

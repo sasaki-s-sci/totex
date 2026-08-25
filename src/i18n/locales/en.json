@@ -46,6 +46,7 @@
   "branch": {
     "head": "{{name}}",
     "head_remote": "{{name}} (has a remote)",
+    "browse": "Go to the worktree for {{name}}",
     "fetch": "Fetch {{branch}} from {{remote}}"
   },
   "graph": {

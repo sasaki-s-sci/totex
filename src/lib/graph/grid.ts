@@ -11,60 +11,65 @@
  * branch head, a folder's row, a repository folded into a single mark.
  *
  * Wide, because what stands in a cell is words as often as it is a mark, and a
- * name has to be read. The history is not drawn on this grid — it is dots and
- * the lines between them, and it packs into half of it; see `COMMIT_STEP`.
+ * name has to be read. History uses the same horizontal rhythm so the branch
+ * name on its final edge has room; only its rows pack into half a lane. See
+ * `COMMIT_STEP`.
  */
-export const COLUMN_WIDTH = 132;
+export const COLUMN_WIDTH = 100;
 /**
  * Vertical distance between two rows of that grid, and the height of one cell.
  *
- * Tighter than the horizontal step: a row only has to be told apart from the one
- * above it, while a name set along a line needs room to be read in. Every row a
- * branch takes costs this much band, so keeping it down is what stops a
- * repository with a handful of branches from being mostly white space.
+ * Two vertical grid steps. A row needs one step of clearance above and below
+ * its centre, while the node centres themselves stay on the 50px lattice.
  */
-export const LANE_HEIGHT = 64;
+export const LANE_HEIGHT = 100;
 /**
- * The grid the history itself is drawn on: half a cell each way.
+ * The grid the history itself is drawn on: a full named column across and half
+ * a lane down.
  *
  * History runs left to right — a commit sits one column past the last of its
  * parents, so the oldest owns the leftmost column and a branch grows out of the
  * very commit it was cut from — and down the page a row per line of
- * development. None of it is words: a commit is a dot and a piece of history is
- * a line, so it packs into half the step a name needs, and the shape of a
- * repository is that much more of it at a glance.
+ * development. A branch name is set on the last of these runs, so every run has
+ * the same full-column width: the gap from commit to commit and from the last
+ * commit to its branch head never changes when a larger ring is added at the
+ * end. Rows remain half a lane apart because none of them carries words.
  */
-export const COMMIT_STEP = { x: COLUMN_WIDTH / 2, y: LANE_HEIGHT / 2 };
+export const COMMIT_STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT / 2 };
+
+/**
+ * Moves a measurement out to the next horizontal graph line.
+ *
+ * Content can ask for any amount of room, but node centres may only stand on a
+ * grid vertex. Layout uses this at every place where dynamic content can push a
+ * row, so adding a workspace stack changes how many grid rows are skipped and
+ * never introduces an off-grid coordinate.
+ */
+export function gridRows(value: number): number {
+  return Math.ceil(value / COMMIT_STEP.y) * COMMIT_STEP.y;
+}
+
+/** The nearest grid-preserving movement of a whole graph group. */
+export function gridMove(value: number, axis: "x" | "y"): number {
+  const step = COMMIT_STEP[axis];
+  return Math.round(value / step) * step;
+}
 export const DOT_SIZE = 14;
+/**
+ * Where an edge touching a commit ends.
+ *
+ * Edges used to run to the centre and rely on the solid dot to paint over
+ * them. That fails as soon as the same commit is drawn as a provisional dashed
+ * ring. Ending at the circle itself keeps both readings clear.
+ */
+export const COMMIT_TRIM = DOT_SIZE / 2;
 /** One step of the row grid, for anything drawn to the scale of the layout. */
 export const STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT };
-/**
- * A workspace round the commit it has checked out.
- *
- * The commit stays visible as the small solid centre; this ring is far enough
- * outside it to read as another layer rather than as the dot's border.
- */
-export const HEAD_SIZE = 20;
-/**
- * How far under a branch's own ring the remote end of the same branch stands.
- *
- * The two ends share a row — one branch, one row — so what tells them apart is
- * this drop rather than a row each. Downwards because it is the one side of a
- * head that is free: the terminal a branch offers stands straight above, the
- * line in from the history arrives level with the ring, and the lines out to
- * what is running leave level the other way. Small enough that the pair reads
- * as one thing, and small enough that the dropped ring stays inside its row's
- * own cell, so a branch having a remote costs the band no height.
- */
-export const PAIR_DROP = 20;
-/**
- * The origin ring drawn round the commit it points at.
- *
- * Large enough to sit outside both the commit and its workspace. When origin
- * has moved away it keeps this same size around the commit at its own end, so
- * the three radii keep one meaning everywhere on the canvas.
- */
-export const PAIR_RING = 28;
+/** A compact local/workspace ref node. It contains no duplicate commit dot. */
+export const HEAD_SIZE = 14;
+/** A remote ref node. Its small extra radius keeps both controls reachable when
+ *  local and remote nodes occupy exactly the same grid point. */
+export const REMOTE_HEAD_SIZE = 18;
 /**
  * How far short of a hollow mark a line has to stop.
  *
@@ -75,10 +80,10 @@ export const PAIR_RING = 28;
  */
 const RING_EDGE_GAP = 1;
 export const RING_TRIM = HEAD_SIZE / 2 + RING_EDGE_GAP;
-export const PAIR_RING_TRIM = PAIR_RING / 2 + RING_EDGE_GAP;
+export const REMOTE_HEAD_TRIM = REMOTE_HEAD_SIZE / 2 + RING_EDGE_GAP;
 
 /**
- * One commit's cell. The same box for every commit, so it is shared.
+ * One full-height cell used by named rows outside history.
  *
  * The cell itself takes no pointer: only its mark does, and the CSS gives it
  * back there. A cell is most of a column wide, so a cell that answered to the
@@ -94,8 +99,9 @@ export const CELL_STYLE = {
   pointerEvents: "none",
 } as const;
 /**
- * One commit's cell, which is a cell of the history's own grid: half of the
- * above each way.
+ * One node cell on the history grid: a full named column across and half a
+ * lane down. Commits and branch heads share it, so their centres stay on the
+ * same vertices and the first row does not get a one-sided 100px box.
  *
  * Shared and pointerless for the same reasons — there is one of these per
  * commit and the canvas holds thousands of them, and what answers the cursor is
@@ -106,6 +112,7 @@ export const COMMIT_CELL = {
   height: COMMIT_STEP.y,
   pointerEvents: "none",
 } as const;
+export const HEAD_CELL = COMMIT_CELL;
 /** Enough for the repository's own name, however short its history is. */
 export const MIN_BAND_WIDTH = 240;
 /**
@@ -115,7 +122,8 @@ export const MIN_BAND_WIDTH = 240;
  * name reads as the start of the history rather than as a caption over it.
  */
 export const NAME_COLUMN = 1;
-export const REPO_GAP_Y = 40;
+/** Vertical air between repository bands: two graph rows. */
+export const REPO_GAP_Y = COMMIT_STEP.y * 2;
 /**
  * How far a folder's repositories are set in from the folder itself.
  *
@@ -154,7 +162,7 @@ export const REPO_MARK_WIDTH = COLUMN_WIDTH;
  */
 export const REPO_MARK_RING = 14;
 /** How far a folder's repositories are set below the row that heads them. */
-export const FOLDER_GAP_Y = 16;
+export const FOLDER_GAP_Y = COMMIT_STEP.y;
 /**
  * How much history a repository shows before it is asked to show more.
  *

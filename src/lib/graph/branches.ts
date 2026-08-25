@@ -6,12 +6,10 @@ import type { BranchHeadData, Fetch } from "./model";
 /**
  * The branch half of a band: a column of names, read downwards.
  *
- * Every branch stands in the one column whatever commit it was cut from, and
- * the line back to that commit says where it actually is. The rows are dealt in
- * the alphabet's order with nothing skipped, so a gap would be a name that
- * failed to draw. The two ends of one branch share one row — `main` and
- * `origin/main` are one branch to whoever works in it. Rows are counted rather
- * than measured: how far apart two stand is `layout`'s business.
+ * Every branch stands in one column, dealt into its own grid row in logical-name
+ * order. Its edge can therefore fork from a commit just like another commit
+ * edge; several names pointing at one commit never share a label track. Only a
+ * synchronized local/remote pair shares one row and grid point.
  */
 
 /** A branch head, and the row of the column it was dealt. */
@@ -22,12 +20,6 @@ export type PlacedRef = {
   from: number;
   /** Its row, counted from the top of the column. */
   row: number;
-  /**
-   * It hangs under its row rather than standing on it: the remote end of a
-   * branch whose local end already has the row. What makes the pair read as one
-   * branch drawn twice rather than as two branches.
-   */
-  under: boolean;
   /** What this branch is to the repository, set after its name; see `noteOf`. */
   note: string | null;
 };
@@ -52,7 +44,6 @@ export function placeBranches(
   }
   found.sort((left, right) => inOrder(left.ref, right.ref));
 
-  /** The row each branch was given, under the key both of its ends ask by. */
   const taken = new Map<string, number>();
   const refs = found.map(({ ref, from }) => {
     const held = taken.get(ref.shared);
@@ -72,7 +63,6 @@ export function placeBranches(
       },
       from,
       row,
-      under: held !== undefined,
       note: noteOf(ref, repository.defaultBranch),
     };
   });
@@ -80,13 +70,15 @@ export function placeBranches(
   return { refs, rows: taken.size };
 }
 
-/** Where two names come in the column: the alphabet, and the local end before
- *  the remote one — both ask for the same row, and the local end is the one
- *  somebody works in, so it takes the line. */
+/** Where two names are drawn: first by the branch name without its remote
+ *  namespace, then with remote ends before the local end. Thus `main`,
+ *  `origin/main`, and `upstream/main` stay next to one another regardless of
+ *  what their remotes happen to be called. Remote comes first only so its
+ *  larger ring sits behind the local control when both share a point. */
 function inOrder(left: Ref, right: Ref): number {
   return (
     byName(left.group, right.group) ||
-    Number(left.kind === "remote") - Number(right.kind === "remote") ||
+    Number(right.kind === "remote") - Number(left.kind === "remote") ||
     byName(left.name, right.name)
   );
 }
@@ -171,17 +163,15 @@ function pairsOf(repository: Repository): Map<string, Pairing> {
 }
 
 /** What a head can ask a remote for. The end standing on the remote asks,
- *  because that is the end a fetch moves; where both ends are on one commit
- *  there is only one ring, so the local head asks instead. */
+ *  because that is the ref a fetch moves. Local and remote heads are always
+ *  separate nodes, even when the canvas puts them at the same point. */
 function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
   if (branch.kind === "remote") {
     return branch.remote === null
       ? null
       : { remote: branch.remote, branch: branch.logicalName, work: pair?.work ?? null };
   }
-  return pair?.together === true
-    ? { remote: pair.remote, branch: branch.logicalName, work: pair.work }
-    : null;
+  return null;
 }
 
 /** The names pointing at one commit. A branch is checked out in at most one
@@ -197,11 +187,6 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
 
     const pair = pairs.get(branch.id);
     const remote = branch.kind === "remote";
-    // Two ends on one commit is one place to stand, so the remote end is not a
-    // head of its own: it is the ring drawn round the local one, and that head
-    // draws it. See `together`.
-    if (remote && pair?.together) return [];
-
     return [
       {
         key: branch.id,
@@ -209,17 +194,14 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
         /** How the backend spells it, which is what `defaultBranch` names. */
         refName: branch.refName,
         kind: remote ? ("remote" as const) : ("local" as const),
-        /**
-         * What the row is asked for under: one branch asks once, whichever of
-         * its ends is doing the asking, so the two of them come to one row.
-         */
-        shared: (remote ? pair?.other.id : undefined) ?? branch.id,
-        /** And what it sorts under, so that `main` and `origin/main` sort as one. */
-        group: pair ? branch.logicalName : branch.name,
+        /** Only synchronized counterparts may occupy one branch lane. */
+        shared: pair?.together === true ? [branch.id, pair.other.id].sort().join("+") : branch.id,
+        /** Remote namespaces never affect order: all forms of `main` group. */
+        group: branch.logicalName,
         // A local branch and its remote-tracking counterpart are separate refs,
         // but the local ring still says when the branch also exists elsewhere.
         hasRemote: remote || pair !== undefined,
-        together: !remote && pair?.together === true,
+        together: pair?.together === true,
         fetch: fetchOf(branch, pair),
         head: branch.isHead,
         cwd: checkout?.path ?? null,

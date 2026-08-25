@@ -2,7 +2,7 @@ import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CliJumps } from "../components/cliJumps";
-import type { AppNode } from "../lib/graph";
+import { type AppNode, commitNodeId } from "../lib/graph";
 import { first, history, jumpable, type Pickable, pickables, step } from "../lib/graphNav";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
@@ -60,10 +60,29 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
     () => nodes.find((node) => node.type === "cli" && node.data.showing)?.id ?? null,
     [nodes],
   );
+  // A history walk starts on the real commit pointed at by the workspace whose
+  // terminal is open. The workspace node itself is not a duplicate commit.
+  const shownCommit = useMemo(() => {
+    const cli = nodes.find((node) => node.type === "cli" && node.data.showing);
+    if (cli?.type !== "cli" || !cli.parentId) return null;
+    const { parentId } = cli;
+    const cwd = cli.data.session.cwd;
+    const head = nodes.find(
+      (node) => node.type === "head" && node.parentId === parentId && node.data.cwd === cwd,
+    );
+    if (head?.type !== "head") return null;
+    const target =
+      head.data.kind === "worktree"
+        ? head.data.repository.worktrees.find((worktree) => worktree.path === cwd)?.head
+        : head.data.repository.branches.find(
+            (branch) => branch.kind === head.data.kind && branch.name === head.data.name,
+          )?.commit;
+    return target ? commitNodeId(head.data.repository, target) : null;
+  }, [nodes]);
   // The listeners are registered once and read through this, so a graph that
   // changes underneath them does not cost a pair of listeners each time.
-  const latest = useRef({ nodes, activate, jump, land, selected, shown });
-  latest.current = { nodes, activate, jump, land, selected, shown };
+  const latest = useRef({ nodes, activate, jump, land, selected, shown, shownCommit });
+  latest.current = { nodes, activate, jump, land, selected, shown, shownCommit };
   // Where every node can be landed on, rebuilt only when the graph itself is.
   // A held arrow key repeats far faster than the canvas changes, and walking
   // every node twice per repeat is the bulk of what a walk would cost.
@@ -148,12 +167,19 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
      *  looked up in every node rather than in what is being walked. */
     const walk = (direction: { x: number; y: number }, terminals: boolean) => {
       const among = terminals ? places.current : along.current;
+      // The first history press chooses its origin. Later presses walk from it.
+      const beginning =
+        terminals || at.current
+          ? null
+          : ((latest.current.shownCommit
+              ? among.find((pick) => pick.id === latest.current.shownCommit)
+              : null) ?? first(among));
       // Where the walk is, or failing that where the eye is: the terminal the
       // panel is holding, or a commit that has been picked out already.
       const standing =
         at.current ?? (terminals ? latest.current.shown : null) ?? latest.current.selected;
       const from = index.current.find((pick) => pick.id === standing);
-      const next = from ? step(from, among, direction) : first(among);
+      const next = beginning ?? (from ? step(from, among, direction) : first(among));
       if (!next) return;
 
       at.current = next.id;
