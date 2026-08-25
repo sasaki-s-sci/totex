@@ -57,10 +57,11 @@ export type Fetch = {
 };
 
 /**
- * Where a branch is: the head the line cut at a commit runs out to.
+ * Where a branch is: a second drawing of its tip commit at the end of the named
+ * line, with workspace and origin layered over that commit.
  *
  * A branch that was cut and never committed to still has one, which is the
- * point of drawing it — the head is what says the branch exists, and the curve
+ * point of drawing it — the layered node says the branch exists, and the curve
  * out to it carries the name.
  *
  * A worktree is where a branch is checked out, one at most, so the branch name
@@ -73,8 +74,8 @@ export type BranchHeadData = {
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
   /**
-   * The remote end of this branch stands on the same commit, so this one head
-   * says both: the ring drawn round it is the other end.
+   * The remote end of this branch stands on the same commit, so this one node
+   * says both: the large dashed origin ring is layered round its workspace.
    */
   together: boolean;
   /** What this head can ask a remote for, and null where nothing can be asked. */

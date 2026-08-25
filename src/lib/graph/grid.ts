@@ -38,8 +38,13 @@ export const COMMIT_STEP = { x: COLUMN_WIDTH / 2, y: LANE_HEIGHT / 2 };
 export const DOT_SIZE = 14;
 /** One step of the row grid, for anything drawn to the scale of the layout. */
 export const STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT };
-/** A branch head, drawn a touch larger than a commit — it is the handle. */
-export const HEAD_SIZE = 16;
+/**
+ * A workspace round the commit it has checked out.
+ *
+ * The commit stays visible as the small solid centre; this ring is far enough
+ * outside it to read as another layer rather than as the dot's border.
+ */
+export const HEAD_SIZE = 20;
 /**
  * How far under a branch's own ring the remote end of the same branch stands.
  *
@@ -53,13 +58,11 @@ export const HEAD_SIZE = 16;
  */
 export const PAIR_DROP = 20;
 /**
- * The ring drawn round a head whose remote end stands on the same commit.
+ * The origin ring drawn round the commit it points at.
  *
- * A second ring rather than a second head: there is one commit, so there is one
- * place to stand, and the pair is at rest. It is what a fetch is asked for by,
- * so it has to be wide enough of the ring inside it to be aimed at — and the
- * head's own ring is drawn over it, so what is left to aim at is the gap
- * between the two.
+ * Large enough to sit outside both the commit and its workspace. When origin
+ * has moved away it keeps this same size around the commit at its own end, so
+ * the three radii keep one meaning everywhere on the canvas.
  */
 export const PAIR_RING = 28;
 /**
@@ -67,10 +70,12 @@ export const PAIR_RING = 28;
  *
  * A head and the offer of a branch are rings with the canvas showing through
  * them, so a line drawn to the middle of one is drawn across the hole. It ends
- * at the rim instead, and the ring of canvas colour every mark carries covers
- * what is left between the two.
+ * just clear of the outer rim instead. The extra pixel keeps the antialiased
+ * edge and the ring's own stroke from sharing the same screen pixels.
  */
-export const RING_TRIM = HEAD_SIZE / 2;
+const RING_EDGE_GAP = 1;
+export const RING_TRIM = HEAD_SIZE / 2 + RING_EDGE_GAP;
+export const PAIR_RING_TRIM = PAIR_RING / 2 + RING_EDGE_GAP;
 
 /**
  * One commit's cell. The same box for every commit, so it is shared.

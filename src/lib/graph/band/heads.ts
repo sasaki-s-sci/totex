@@ -1,6 +1,6 @@
 /**
- * The branch column: one ring per branch, the curve out to it from the commit it
- * points at, and the room its terminals stand in.
+ * The branch column: one tip commit per branch, the workspace and origin rings
+ * layered over it, the named curve from history, and room for its terminals.
  */
 
 import type { PlacedRef } from "../branches";
@@ -15,6 +15,7 @@ import {
   onCell,
   onCommit,
   PAIR_DROP,
+  PAIR_RING_TRIM,
   RING_TRIM,
   SESSION_WIDTH,
 } from "../model";
@@ -44,15 +45,17 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
 
     // Drawn from the commit the branch points at outwards, which is the
     // direction the name reads. The name rides the curve rather than sitting
-    // beside the head, and the curve itself stops at the ring rather than
-    // crossing the hole in it.
-    const reaches = shortOf(dots[ref.from], at, RING_TRIM, true);
+    // beside the head. This end is a commit now, so the line reaches its centre
+    // just like every other history line; the solid dot drawn over it finishes
+    // the join, while the workspace and origin remain concentric readings of
+    // that same commit.
+    const reaches = shortOf(dots[ref.from], at, 0, true);
     drawn.add({
       id: `${ref.id}branch`,
       from: onCommit(commitNodeId(repository, history.placed[ref.from].commit.id)),
       to: onCell(ref.id),
       curve: true,
-      trim: RING_TRIM,
+      trim: 0,
       lead: 0,
       stroke: {
         colour: LINE_COLOR,
@@ -81,6 +84,9 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
         at,
         x: working - SESSION_WIDTH / 2,
         y: at.y - CLI_STEP / 2,
+        // A paired branch carries its origin as the outer ring, so the edge to
+        // its terminals begins beyond that ring rather than crossing it.
+        lead: ref.data.together ? PAIR_RING_TRIM : RING_TRIM,
       });
     }
   }

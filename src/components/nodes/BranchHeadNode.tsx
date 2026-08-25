@@ -1,7 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import { useFetchPull } from "../../hooks/useFetchPull";
-import { type BranchHeadFlowNode, HEAD_SIZE, PAIR_RING } from "../../lib/graph";
+import { type BranchHeadFlowNode, DOT_SIZE, HEAD_SIZE, PAIR_RING } from "../../lib/graph";
 import { dirtyCount } from "../../lib/workspace";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
@@ -10,12 +10,13 @@ import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
 
 /**
- * Where a branch is, and the state of the codebase standing there.
+ * A branch-column commit and the states layered over it.
  *
- * Drawn as a ring rather than as a filled dot: a commit is history and has its
- * contents settled, and this is the working copy at the tip — everything about
- * it is still open. A branch cut and never committed to still shows up here, as
- * an empty one.
+ * The small solid centre is the commit the branch points at. A workspace is the
+ * middle hollow ring over it, dashed while it has not been created; origin is
+ * the largest dashed ring. The radii are vocabulary: when local and remote have
+ * parted, each still carries its commit at the centre and only the layers that
+ * exist at that end.
  *
  * The ring stays hollow — the canvas shows through it either way — and what is
  * uncommitted is drawn on its rim instead: the files that have arrived, the
@@ -28,22 +29,22 @@ import { dashes, rimOf } from "./branchRim";
  * like every other offer here that is not there yet: the branch exists, the
  * codebase for it does not, and opening it makes one.
  *
- * On the rim rather than as a fill, because a filled ring reads as a commit —
- * the history is drawn in solid marks — and because the mark is sixteen pixels
- * across: an interior split three ways is three wedges too small to tell apart,
+ * On the rim rather than as a fill, because the solid centre belongs to the
+ * commit underneath it, and because the workspace ring is still small: an
+ * interior split three ways is three wedges too small to tell apart,
  * while a rim split three ways is one line whose colour changes as the eye runs
  * round it. Nothing about the ring moves when the share does; only its colour.
  * A refusal and a wait take the rim back for as long as they last: both are
  * about to change what is uncommitted, and both are over sooner than it is.
  *
- * The plain ring is the button's own border. Everything cut into that line —
- * the shares, the dashes — is drawn as a stroked circle instead, on the line
- * the border was on; see `rimOf`.
+ * The plain workspace ring is the button's own border. Everything cut into
+ * that line — the shares, the dashes — is drawn as a stroked circle instead,
+ * on the line the border was on; see `rimOf`.
  *
  * It sits in the one column every branch stands in, past the whole of the
- * history, and the line back to the commit it points at carries the branch's
- * name — so the head itself needs no label, and reading the column downwards
- * reads what the repository has.
+ * history. The line back to the history copy of this same commit carries the
+ * branch's name, so the node itself needs no label and reading the column
+ * downwards reads what the repository has.
  *
  * It is also the handle for the branch: click it for what can be done with its
  * working directory, or drag it onto another head to merge into that one.
@@ -127,16 +128,14 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
       data-repository={repository.id}
       data-branch={name}
     >
-      {/* The other end of this branch, standing on the same commit as this one:
-          a ring outside the head's own rather than a head of its own, because
-          one commit is one place to stand. It is drawn before the head so the
-          head is drawn over it — what is left of this to take hold of is the
-          gap between the two, which is the whole of what a pull needs. */}
-      {together && (
+      {/* Origin is the largest layer. When it has moved away this entire node
+          moves with it and still keeps the commit at its centre; when it is in
+          sync with a local branch, the local node carries all three layers. */}
+      {(kind === "remote" || together) && (
         <button
           type="button"
           ref={pull.handle}
-          className={`mark mark--centred nopan head__pair${live ? " is-asking" : ""}`}
+          className={`mark mark--centred nopan head__origin${live ? " is-asking" : ""}`}
           style={{ width: PAIR_RING, height: PAIR_RING }}
           aria-label={asking ?? name}
           onPointerDown={pull.onPointerDown}
@@ -144,54 +143,50 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
         />
       )}
 
-      {/* Whatever follows the branch along its row runs out to the right. */}
-      <button
-        type="button"
-        // The head of a branch that is somewhere else is the pull itself: there
-        // is nothing here to drag onto another branch, because git merges what
-        // is checked out and a remote-tracking ref never is.
-        ref={kind === "remote" ? pull.handle : undefined}
-        className={`mark mark--centred nopan head__ring${state ? ` ${state}` : ""}${doing}${
-          kind === "remote" && live ? " is-asking" : ""
-        }`}
-        style={{ width: HEAD_SIZE, height: HEAD_SIZE }}
-        aria-label={
-          kind === "remote" && asking
-            ? asking
-            : t("branch.head", { name, context: hasRemote ? "remote" : "" })
-        }
-        onPointerDown={
-          kind === "remote" ? pull.onPointerDown : (event) => dragBranch(repository, name, event)
-        }
-        onClick={
-          kind === "remote"
-            ? pull.onClick
-            : (event) => {
-                event.stopPropagation();
-                pickBranch({
-                  repository,
-                  branch: name,
-                  kind,
-                  cwd,
-                  // Handed over rather than looked up again on the other side:
-                  // the ring above was drawn from it, so the menu and the mark
-                  // that opened it are answering about the same moment.
-                  status,
-                  at: { x: event.clientX, y: event.clientY },
-                });
-              }
-        }
-      >
-        {ink && (
-          <svg
-            className="head__ring__ink"
-            viewBox={`0 0 ${HEAD_SIZE} ${HEAD_SIZE}`}
-            aria-hidden="true"
-          >
-            {ink}
-          </svg>
-        )}
-      </button>
+      {/* Every branch-column node is a commit first. Workspace and origin are
+          states layered over this solid centre, not substitute endpoints. */}
+      <span
+        className="mark mark--centred head__commit"
+        style={{ width: DOT_SIZE, height: DOT_SIZE }}
+        aria-hidden="true"
+      />
+
+      {/* A local branch or detached worktree contributes the middle workspace
+          ring. A remote-only ref has no workspace at that commit, so it leaves
+          the middle radius empty and shows only commit + origin. */}
+      {kind !== "remote" && (
+        <button
+          type="button"
+          className={`mark mark--centred nopan head__ring${state ? ` ${state}` : ""}${doing}`}
+          style={{ width: HEAD_SIZE, height: HEAD_SIZE }}
+          aria-label={t("branch.head", { name, context: hasRemote ? "remote" : "" })}
+          onPointerDown={(event) => dragBranch(repository, name, event)}
+          onClick={(event) => {
+            event.stopPropagation();
+            pickBranch({
+              repository,
+              branch: name,
+              kind,
+              cwd,
+              // Handed over rather than looked up again on the other side:
+              // the ring above was drawn from it, so the menu and the mark
+              // that opened it are answering about the same moment.
+              status,
+              at: { x: event.clientX, y: event.clientY },
+            });
+          }}
+        >
+          {ink && (
+            <svg
+              className="head__ring__ink"
+              viewBox={`0 0 ${HEAD_SIZE} ${HEAD_SIZE}`}
+              aria-hidden="true"
+            >
+              {ink}
+            </svg>
+          )}
+        </button>
+      )}
 
       {/* The offer of a terminal in this branch, standing over its ring. Faint
           until the pointer is on it, like every other button that stands on the
