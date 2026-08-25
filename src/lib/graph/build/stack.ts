@@ -6,7 +6,7 @@
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
-import { ASK_GAP, ASK_STACK_GAP, ASK_WIDTH } from "../asking";
+import { ASK_GAP, ASK_STACK_GAP } from "../asking";
 import {
   type AppNode,
   CLI_MARK,
@@ -122,7 +122,7 @@ export function rowStack(
     drawn.floor = card.at + card.height + ASK_STACK_GAP;
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
-    drawn.right = Math.max(drawn.right, x + ASK_WIDTH);
+    drawn.right = Math.max(drawn.right, x + card.width);
     drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
   }
 

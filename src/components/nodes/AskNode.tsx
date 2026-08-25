@@ -24,8 +24,13 @@ import { useGraphActions } from "../graphActions";
  *
  * The rule the whole card is built on: no press invents a keystroke. Each names
  * an act at the session, and what is shown is the agent's own next drawing of
- * the same question. The words are already cut to width by the layout, because
- * the canvas needs this card's height before it can place it.
+ * the same question.
+ *
+ * The words in it are already broken to width by the layout, and the width is
+ * the question's own — as wide as its longest line wanted, within what a card
+ * may be. Nothing is measured here: the canvas needs the size of this card
+ * before it can place it, and a card that decided its own would be one the
+ * graph had to be rebuilt for after it had been drawn.
  */
 export function AskNode({ data }: NodeProps<AskFlowNode>) {
   const { t } = useTranslation();

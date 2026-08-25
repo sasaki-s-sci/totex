@@ -44,11 +44,18 @@ pub fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
         question,
         taking: Taking::Key,
         picking,
-        // The caret on one of the answers is the agent saying that answer is a
-        // place to type; there is nowhere else in a list for it to be.
-        writing: standing.shown && (start..=foot).contains(&standing.row),
+        writing: written_at(standing, start..=foot, column),
         choices,
     })
+}
+
+/// Whether the caret is in the writable part of a keyed answer row.
+///
+/// A cursor parked for list navigation stands at the head of the row. A cursor
+/// accepting text stands past the key, among the words where input will land;
+/// some agents hide that cursor while keeping its position.
+fn written_at(standing: &Standing, rows: std::ops::RangeInclusive<usize>, key: usize) -> bool {
+    rows.contains(&standing.row) && standing.col > key
 }
 
 /// Upwards to the head of the list, over anything drawn across it on the way.

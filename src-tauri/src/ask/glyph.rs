@@ -13,7 +13,10 @@ const TOPS: [char; 5] = ['╭', '┌', '╔', '┏', '╒'];
 /// And what it ends with, which says the question is the last thing in it.
 const BOTTOMS: [char; 5] = ['╰', '└', '╚', '┗', '╘'];
 /// What a rule is drawn with, wherever one is drawn.
-const RULES: [char; 6] = ['─', '═', '━', '┄', '┈', '-'];
+const RULES: [char; 4] = ['─', '═', '━', '-'];
+/// What a rule drawn inside a question is dashed with. Unlike a solid rule,
+/// this divides the question's own drawing rather than ending it.
+const DASHES: [char; 6] = ['╌', '╍', '┄', '┅', '┈', '┉'];
 /// The box an agent fills in beside an answer it is holding, and leaves empty
 /// beside one it is not. A box at all is what says the list takes several.
 pub const TAKEN: [char; 4] = ['☑', '☒', '◉', '⦿'];
@@ -101,7 +104,16 @@ pub fn is_edge(line: &str) -> bool {
         || is_bottom(line)
         || line
             .chars()
-            .all(|letter| RULES.contains(&letter) || letter == ' ')
+            .all(|letter| RULES.contains(&letter) || DASHES.contains(&letter) || letter == ' ')
+}
+
+/// A dashed rule inside a question rather than an edge around it.
+pub fn is_dashed(line: &str) -> bool {
+    let line = line.trim();
+    !line.is_empty()
+        && line
+            .chars()
+            .all(|letter| DASHES.contains(&letter) || letter == ' ')
 }
 
 /// Whether what is being asked for is something not to be drawn on a canvas.

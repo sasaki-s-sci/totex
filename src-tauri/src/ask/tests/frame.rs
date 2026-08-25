@@ -80,8 +80,131 @@ fn a_question_between_two_rules_is_a_question() {
         ]
     );
     assert!(found.choices[0].selected);
-    // Nothing above the question is what it is about: there is no box.
-    assert!(found.detail.is_empty());
+    // What stands between the rule and the question is inside the drawing.
+    assert_eq!(found.detail, vec!["←  Q1  ✔ Submit  →".to_string()]);
+}
+
+/// A full-screen question drawn in place of the agent's composer.
+fn ruled_question(on: usize, caret: (usize, usize)) -> String {
+    let rule = "\u{2500}".repeat(58);
+    let answers = [
+        ("Rewrite the reader", "Start from the screen again"),
+        ("Patch the check", "Leave the shape alone"),
+        ("Hold it as it is", "Nothing changes today"),
+    ];
+    let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+    drawn.push_str("\u{25cf} Right, here we go.\r\n");
+    drawn.push_str(&format!("{rule}\r\n"));
+    drawn.push_str(" \u{2610} Approach\r\n\r\n");
+    drawn.push_str("Which approach should we take for the reader?\r\n\r\n");
+    for (at, (answer, under)) in answers.iter().enumerate() {
+        let mark = if at == on { '\u{276f}' } else { ' ' };
+        drawn.push_str(&format!("{mark} {}. {answer}\r\n", at + 1));
+        drawn.push_str(&format!("     {under}\r\n"));
+    }
+    let mark = if on == 3 { '\u{276f}' } else { ' ' };
+    drawn.push_str(&format!("{mark} 4. Type something.\r\n"));
+    drawn.push_str(&format!("{rule}\r\n"));
+    let mark = if on == 4 { '\u{276f}' } else { ' ' };
+    drawn.push_str(&format!("{mark} 5. Chat about this\r\n\r\n"));
+    drawn.push_str("Enter to select · ↑/↓ to navigate · Esc to cancel\r\n");
+    let (row, col) = caret;
+    drawn.push_str(&format!("\u{1b}[{};{}H", row + 1, col + 1));
+    drawn
+}
+
+#[test]
+fn a_question_a_full_screen_agent_drew_in_place_of_its_composer_is_a_question() {
+    let found = read(&screen_of(&ruled_question(0, (6, 0)))).expect("the rules are a question");
+
+    assert_eq!(
+        found.question,
+        "Which approach should we take for the reader?"
+    );
+    assert_eq!(found.taking, Taking::Key);
+    assert_eq!(
+        found
+            .choices
+            .iter()
+            .map(|choice| (choice.key.as_str(), choice.label.as_str()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("1", "Rewrite the reader Start from the screen again"),
+            ("2", "Patch the check Leave the shape alone"),
+            ("3", "Hold it as it is Nothing changes today"),
+            ("4", "Type something."),
+            ("5", "Chat about this"),
+        ]
+    );
+    assert!(found.choices[0].selected);
+    assert_eq!(found.detail, vec!["☐ Approach".to_string()]);
+    assert!(!found.writing);
+}
+
+#[test]
+fn the_caret_in_among_the_words_is_a_row_being_written_at() {
+    let found = read(&screen_of(&ruled_question(3, (12, 5)))).expect("still a question");
+    assert!(found.writing);
+    assert!(found.choices[3].selected);
+
+    let found = read(&screen_of(&ruled_question(4, (14, 0)))).expect("still a question");
+    assert!(!found.writing);
+    assert!(found.choices[4].selected);
+}
+
+#[test]
+fn a_diff_between_dashed_rules_is_what_the_question_is_about() {
+    let rule = "\u{2500}".repeat(58);
+    let dashes = "\u{254c}".repeat(58);
+    let text = [
+        "\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H",
+        "\u{25cf} Write(notes.txt)\r\n\r\n",
+        &format!("{rule}\r\n"),
+        " Create file\r\n",
+        " notes.txt\r\n",
+        &format!("{dashes}\r\n"),
+        "  1 one\r\n",
+        "  2 two\r\n",
+        "  3 three\r\n",
+        &format!("{dashes}\r\n"),
+        " Do you want to create notes.txt?\r\n",
+        " \u{276f} 1. Yes\r\n",
+        "   2. Yes, and switch to accept edits for this session\r\n",
+        "   3. No\r\n",
+        "\r\n",
+        " Esc to cancel · Tab to amend\r\n",
+    ]
+    .concat();
+
+    let found = read(&screen_of(&text)).expect("the prompt is a question");
+    assert_eq!(found.question, "Do you want to create notes.txt?");
+    assert_eq!(found.choices.len(), 3);
+    assert_eq!(
+        found.detail,
+        vec![
+            "Create file".to_string(),
+            "notes.txt".to_string(),
+            "1 one".to_string(),
+            "2 two".to_string(),
+            "3 three".to_string(),
+        ]
+    );
+
+    let long = text.replace(
+        "  2 two\r\n",
+        &(1..14)
+            .map(|line| format!("  {line} more\r\n"))
+            .collect::<String>(),
+    );
+    let found = read(&screen_of(&long)).expect("still a question");
+    assert_eq!(found.question, "Do you want to create notes.txt?");
+    assert_eq!(found.choices.len(), 3);
+
+    let mut screen = screen_of(&text);
+    screen.feed("\u{25cf} Wrote notes.txt\r\n\r\n");
+    screen.feed(&format!("{rule}\r\n\u{276f} \r\n{rule}\r\n"));
+    screen.feed("  \u{23f8} manual mode on · ? for shortcuts\r\n");
+    assert!(read(&screen).is_none());
 }
 
 /// The same question with a pane of its own beside the answers, drawn on the

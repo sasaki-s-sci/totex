@@ -19,6 +19,9 @@ use super::glyph::SIDES;
 pub struct Standing {
     /// Which row the caret is standing on.
     pub row: usize,
+    /// How far along that row, distinguishing a parked cursor at the head of a
+    /// choice from one standing in the text field of that choice.
+    pub col: usize,
     /// Whether nothing is drawn between it and the end of that row.
     pub clear: bool,
     /// Whether the caret is being drawn at all.
@@ -113,6 +116,7 @@ impl Screen {
 
         Standing {
             row: self.row,
+            col: self.col,
             clear,
             shown: self.shown,
             alt: self.alt,

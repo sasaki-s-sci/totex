@@ -45,7 +45,7 @@ export function askNode(
     ...(band === null ? null : { parentId: band }),
     position: { x, y },
     data,
-    style: { width: ASK_WIDTH, height: data.card.height },
+    style: { width: data.card.width, height: data.card.height },
     zIndex: ASK_Z,
     draggable: false,
     selectable: false,
@@ -79,7 +79,7 @@ export function besideMark(
   y: number,
   floor: number,
   draw: Draw,
-): { node: AppNode; line: GraphLine; at: number; height: number } | null {
+): { node: AppNode; line: GraphLine; at: number; width: number; height: number } | null {
   /** Beside its own terminal, or under whatever was drawn last. */
   const place = (height: number) => Math.max(y + CLI_STEP / 2 - height / 2, floor);
 
@@ -92,6 +92,7 @@ export function besideMark(
       node: askNode(id, { session, ask: asking, card }, band, x, at, draw),
       line: cardLine(id, mark, card.height),
       at,
+      width: card.width,
       height: card.height,
     };
   }
@@ -106,6 +107,7 @@ export function besideMark(
     node: reportNode(id, { session, report: said, card }, band, x, at, draw),
     line: cardLine(id, mark, card.height),
     at,
+    width: ASK_WIDTH,
     height: card.height,
   };
 }

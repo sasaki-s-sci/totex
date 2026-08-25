@@ -6,15 +6,44 @@ import type { Session } from "../session";
 /**
  * The card a question is drawn in, and the room it takes on the canvas.
  *
- * A question is the one thing here that is words rather than a mark, so it is
- * the one card the graph grows of its own accord — the same card every time, in
- * the same place beside its terminal, with the answers in the same row at the
- * foot of it. The words are cut to length here rather than where they are
- * drawn, because how tall the card is has to be known before it is placed.
+ * A question is the one thing on this canvas that is words rather than a mark.
+ * Everything else here — a commit, a branch, a terminal — says what it is by
+ * being a shape in a place, and a question cannot: what is being asked is the
+ * whole of it, and it has to be read. So it is the one card the graph grows of
+ * its own accord, and it is the same card every time, in the same place beside
+ * the terminal it belongs to, with the answers in the same row at the foot of
+ * it. Whatever the agent is asking about, the shape of being asked is constant,
+ * which is what makes it recognisable from across a canvas.
+ *
+ * The words are broken to width here rather than where they are drawn, the way
+ * a branch's name is: how big the card is has to be known before it is placed —
+ * the canvas is measured from it, and two questions in one branch have to be
+ * stacked clear of each other — and a box laid out from text it has not
+ * measured is a box that either clips what it says or leaves a hole under it.
+ *
+ * What it is measured to is the whole of the question and the whole of every
+ * answer. A card is the place the question is taken from, and an answer with
+ * its end cut off is an answer somebody has to open the terminal to read —
+ * which is the walk the card is here to save. So the size is the question's
+ * rather than the card's: it is as wide as its longest line wants, up to a
+ * width past which reading gets worse rather than better, and then as tall as
+ * what it holds comes to at that width. Only what the question is about is
+ * still cut, because that is the one part an agent can hand over a screenful
+ * of.
  */
 
-/** How wide a card is. Wide enough for a command, narrow enough beside a band. */
+/**
+ * How wide a card is at its narrowest, and how wide it may grow.
+ *
+ * The narrow one is a width rather than a minimum for most questions: wide
+ * enough for a command, narrow enough beside a band, and the same for every
+ * short question so that a column of them is a column. The wide one is where
+ * growing stops being worth it — a card that goes on widening for one long
+ * answer ends up a page laid over the graph, and a line of eighty columns is
+ * not read more easily for being a line of a hundred and forty.
+ */
 export const ASK_WIDTH = 264;
+export const ASK_WIDEST = 432;
 /** How far it stands from the terminal mark, leaving room for the line. */
 export const ASK_GAP = 30;
 /** How far apart two cards stand when one branch is asked twice at once. */
@@ -42,18 +71,37 @@ const WORK_LINE = FIELD_LINE;
 /** The line round the card, and the one round each of its answers. */
 const BORDER = 2;
 
-/** How many columns of each kind of text a card holds. Columns rather than
- *  pixels because what a card shows came off a terminal, where a character is a
- *  cell and a Japanese character is two of them. */
-const DETAIL_CELLS = 38;
-const QUESTION_CELLS = 36;
-const CHOICE_CELLS = 32;
+/**
+ * How wide one column of each kind of text is drawn, in canvas units.
+ *
+ * Columns rather than pixels because that is what the text is: what a card
+ * shows came off a terminal, where a character is a cell and a Japanese
+ * character is two of them. These turn the one into the other, in both
+ * directions — how many columns a card of a given width holds, and how wide a
+ * card would have to be to hold a given line — and they are what pairs this
+ * file with the stylesheet, where the sizes themselves are.
+ */
+const DETAIL_CELL = 6.42;
+const QUESTION_CELL = 6.78;
+const CHOICE_CELL = 6.56;
+/** What the card's own frame takes out of its width before any text is set. */
+const INSET = 2 * PAD + BORDER;
+/** And what an answer's own row takes out of that: its line, the agent's
+ * column, and the padding either side of both. */
+const CHOICE_INSET = BORDER + 6 + 14 + 12;
 
-/** How much of each part is drawn. A card is a question, not a document, and
- *  what is cut is said to have been cut. */
-const DETAIL_LINES = 4;
-const QUESTION_LINES = 3;
-const CHOICE_WRAP = 2;
+/**
+ * How much of what a question is about is drawn.
+ *
+ * The one part of a card that is still cut, and the only part that could ever
+ * want it: a tool's argument is a command, a path, or a diff, and an agent that
+ * hands over a screenful of one is handing over a screenful of something the
+ * terminal is still the place to read. The question and the answers are never
+ * cut — a question with its end missing is a question somebody has to open the
+ * terminal to finish reading, which is the walk this card exists to save. What
+ * is cut is said to have been cut.
+ */
+const DETAIL_LINES = 8;
 
 /** One answer, as it is drawn: its key, and its words already cut to width. */
 export type CardChoice = {
@@ -64,13 +112,14 @@ export type CardChoice = {
   picked: boolean;
 };
 
-/** A question, measured and cut to the card it is drawn in. */
+/** A question, measured and broken to the card it is drawn in. */
 export type AskCard = {
   /** Already broken to width and cut to length, the cut marked by an ellipsis. */
   detail: string[];
   question: string[];
   choices: CardChoice[];
-  /** How tall the card comes out, which is what the canvas is measured from. */
+  /** How big the card comes out, which is what the canvas is measured from. */
+  width: number;
   height: number;
 };
 
@@ -84,16 +133,17 @@ export type AskNodeData = {
 
 export type AskFlowNode = Node<AskNodeData, "ask">;
 
-/** The question as the card will draw it, and how tall that makes the card. */
+/** The question as the card will draw it, and how big that makes the card. */
 export function askCard(ask: Ask): AskCard {
+  const width = widthFor(ask);
   const detail = clamp(
-    ask.detail.flatMap((line) => wrap(line, DETAIL_CELLS)),
+    ask.detail.flatMap((line) => wrap(line, cellsAcross(width, DETAIL_CELL))),
     DETAIL_LINES,
   );
-  const question = clamp(wrap(ask.question, QUESTION_CELLS), QUESTION_LINES);
+  const question = wrap(ask.question, cellsAcross(width, QUESTION_CELL));
   const choices = ask.choices.map((choice) => ({
     key: choice.key,
-    lines: clamp(wrap(choice.label, CHOICE_CELLS), CHOICE_WRAP),
+    lines: wrap(choice.label, cellsAcross(width, CHOICE_CELL, CHOICE_INSET)),
     selected: choice.selected,
     picked: choice.picked,
   }));
@@ -116,7 +166,40 @@ export function askCard(ask: Ask): AskCard {
     if (ask.picking || ask.writing) height += SPLIT + WORK_LINE;
   }
 
-  return { detail, question, choices, height };
+  return { detail, question, choices, width, height };
+}
+
+/**
+ * How wide the card is: what its longest line wants, within what a card may be.
+ *
+ * Every line the card will hold is asked how wide it would have to be to stand
+ * unbroken, and the widest of those wins — so a question of three words is the
+ * card every other question of three words is, and one with an answer a
+ * sentence long is given the room to say it rather than being made to wrap it
+ * five times over. Past the widest it stops asking: a line longer than that is
+ * one that reads better broken than run out across the canvas, and the wrapping
+ * below is what then breaks it.
+ *
+ * What it is about is measured with the rest of it and holds the same sway,
+ * because a command is what somebody is being asked to allow: a card that fits
+ * the answers and cuts the command in half has cut the half that decides.
+ */
+function widthFor(ask: Ask): number {
+  let wanted = ASK_WIDTH;
+  const room = (text: string, cell: number, inset = 0) => {
+    wanted = Math.max(wanted, INSET + inset + Math.ceil(cellsOf(text.trim()) * cell));
+  };
+
+  for (const line of ask.detail) room(line, DETAIL_CELL);
+  room(ask.question, QUESTION_CELL);
+  for (const choice of ask.choices) room(choice.label, CHOICE_CELL, CHOICE_INSET);
+
+  return Math.min(wanted, ASK_WIDEST);
+}
+
+/** How many columns of one kind of text a card of that width holds. */
+function cellsAcross(width: number, cell: number, inset = 0): number {
+  return Math.max(1, Math.floor((width - INSET - inset) / cell));
 }
 
 /** As many lines as are allowed, with the last one saying there were more. */

@@ -3,7 +3,7 @@
 mod lists;
 mod prompt;
 
-use super::glyph::{blank, is_edge, is_rule, is_top, undressed};
+use super::glyph::{blank, is_dashed, is_edge, is_rule, is_top, typed_at, undressed};
 use super::screen::{Screen, Standing};
 use super::{Reading, choice::choice_of};
 
@@ -74,17 +74,22 @@ fn asked_above(above: &[&str]) -> (Vec<String>, String, Framing) {
     (detail, question, framing)
 }
 
-/// What the box says above its question, and whether there was a box. Only ever
-/// what is inside one: the lines above an unboxed prompt are the conversation.
+/// What is set above a question, and what the whole of it is drawn in. The walk
+/// stops at a box or solid rule, but crosses dashed rules drawn inside it.
 fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
     let floor = question.saturating_sub(BOX_LIMIT);
     let mut detail = Vec::new();
     let mut framing = Framing::Bare;
+    let mut dashed = false;
     let mut walk = question;
 
     while walk > floor {
         walk -= 1;
         let line = above[walk];
+        if is_dashed(line) {
+            dashed = true;
+            continue;
+        }
         if is_edge(line) {
             // A box's foot above the question is somebody else's box.
             framing = if is_top(line) {
@@ -99,15 +104,17 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
         if blank(line) {
             continue;
         }
-        detail.push(line.trim().to_string());
-        if detail.len() >= DETAIL_LIMIT {
-            // More than the card can draw: walking further buys nothing.
-            framing = Framing::Boxed;
-            break;
+        if detail.len() < DETAIL_LIMIT {
+            detail.push(line.trim().to_string());
         }
     }
 
-    if framing != Framing::Boxed {
+    // Crossing a dashed rule means the question is framed even when its outer
+    // edge lies beyond the part of the screen worth walking.
+    if framing == Framing::Bare && dashed {
+        framing = Framing::Ruled;
+    }
+    if framing == Framing::Bare {
         return (Vec::new(), framing);
     }
     detail.reverse();
@@ -125,10 +132,14 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
 /// the foot of everything, so what is asked of one instead is a box round the
 /// question and the caret put away.
 fn last_thing(inner: &[&str], foot: usize, framing: Framing, standing: &Standing) -> bool {
-    if standing.alt {
-        return framing == Framing::Boxed && !standing.shown;
+    if nothing_since(inner, foot, framing) {
+        return true;
     }
+    standing.alt && framing == Framing::Boxed && !standing.shown
+}
 
+/// Whether what is under a question is its own drawing and no later output.
+fn nothing_since(inner: &[&str], foot: usize, framing: Framing) -> bool {
     let mut closed = false;
     let mut drawing = PANEL_LINES;
     let mut spare = HINT_LINES;
@@ -140,9 +151,12 @@ fn last_thing(inner: &[&str], foot: usize, framing: Framing, standing: &Standing
         if is_top(line) || choice_of(line).is_some() {
             return false;
         }
+        // A composer below it means the agent has resumed after an answer.
+        if typed_at(line.trim()) {
+            return false;
+        }
         if is_edge(line) {
             closed = true;
-            spare = HINT_LINES;
             continue;
         }
         if closed {

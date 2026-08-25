@@ -6,7 +6,7 @@
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
-import { ASK_GAP, ASK_STACK_GAP, ASK_WIDTH } from "../asking";
+import { ASK_GAP, ASK_STACK_GAP } from "../asking";
 import type { Ring } from "../folders";
 import { CLI_MARK, CLI_STROKE, type Draw, inBand, onStack } from "../model";
 import { besideMark } from "./cards";
@@ -103,7 +103,7 @@ export function rowRing(
     drawn.floor = card.at + card.height + ASK_STACK_GAP;
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
-    drawn.right = Math.max(drawn.right, column + ASK_WIDTH);
+    drawn.right = Math.max(drawn.right, column + card.width);
     drawn.bottom = Math.max(drawn.bottom, card.at + card.height);
   }
 

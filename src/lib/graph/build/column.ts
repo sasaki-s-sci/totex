@@ -6,7 +6,7 @@
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
-import { ASK_GAP, ASK_STACK_GAP, ASK_WIDTH } from "../asking";
+import { ASK_GAP, ASK_STACK_GAP } from "../asking";
 import type { PreparedRepository } from "../layout";
 import {
   type AppNode,
@@ -145,7 +145,7 @@ export function bandColumn(
       drawn.lines.push(beside.line);
 
       drawn.bottom = Math.max(drawn.bottom, beside.at + beside.height);
-      drawn.right = Math.max(drawn.right, x + ASK_WIDTH);
+      drawn.right = Math.max(drawn.right, x + beside.width);
     }
   }
 
