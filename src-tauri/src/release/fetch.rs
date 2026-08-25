@@ -1,6 +1,6 @@
 //! Reading a manifest off the release page, and asking a URL for bytes.
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Runtime};
 
 use super::cycle::{Cycle, Cycles};
 use super::url::{listing_url, manifest_url, versions};
@@ -119,7 +119,10 @@ pub async fn along(
 /// one repository — so the window asks for the cycles its rows are following
 /// and this answers each of them out of the one listing.
 #[tauri::command]
-pub async fn update_versions(app: AppHandle, cycles: Vec<Cycles>) -> Vec<(Cycles, Vec<String>)> {
+pub async fn update_versions<R: Runtime>(
+    app: AppHandle<R>,
+    cycles: Vec<Cycles>,
+) -> Vec<(Cycles, Vec<String>)> {
     let Ok((endpoint, _)) = declared(&app) else {
         return Vec::new();
     };

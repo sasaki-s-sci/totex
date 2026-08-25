@@ -155,7 +155,7 @@ pub async fn take_front<R: Runtime>(
 /// it was drawn from and does not need to: there is nothing to write unless
 /// there is a taken front that has not said this yet.
 #[tauri::command(async)]
-pub fn confirm_front(app: AppHandle) {
+pub fn confirm_front<R: Runtime>(app: AppHandle<R>) {
     let serving = app.state::<Arc<Serving>>();
     // Whatever this window was drawn out of, nothing is asking for the front
     // before it any more: this window is the one that was waited for.

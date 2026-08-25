@@ -197,6 +197,9 @@ pub fn run() {
             mcp::attend(app.handle());
             Ok(())
         })
+        // Every command the window may ask for. The names here and the names
+        // the window sends are two lists nothing checks against each other,
+        // which is what `update::tests::rows` is for on the ones that matter.
         .invoke_handler(tauri::generate_handler![
             list_roots,
             resolve_folder,

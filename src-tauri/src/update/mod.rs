@@ -68,7 +68,7 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tauri::utils::config::BundleType;
 use tauri::utils::platform::bundle_type;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::app_layer::Layers;
 use crate::front::Serving;
@@ -152,7 +152,7 @@ pub struct Rung {
 /// that has just been taken is answering questions already, and the row has to
 /// say so.
 #[tauri::command]
-pub fn update_standing(app: AppHandle) -> Vec<Rung> {
+pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
     let serving = app.state::<std::sync::Arc<Serving>>();
     let layers = app.state::<std::sync::Arc<Layers>>();
     let kept = app.state::<std::sync::Arc<Kept>>();
@@ -191,8 +191,8 @@ pub fn update_standing(app: AppHandle) -> Vec<Rung> {
 /// pages are unpacked and pointed at, a layer is started and asked the next
 /// question, and a program is installed and waits for the restart.
 #[tauri::command]
-pub async fn update_take(
-    app: AppHandle,
+pub async fn update_take<R: Runtime>(
+    app: AppHandle<R>,
     layer: Layer,
     version: Option<String>,
     coming: Channel<Coming>,
@@ -215,13 +215,13 @@ pub async fn update_take(
 /// left on a version is on it again after a reload, after a layer has been
 /// swapped, and after the restart that a program takes.
 #[tauri::command]
-pub fn update_pick(app: AppHandle, layer: Layer, version: Option<String>) {
+pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
     app.state::<std::sync::Arc<Kept>>().pick(layer, version);
 }
 
 /// Points one layer at a different cycle of releases, and remembers that too.
 #[tauri::command]
-pub fn update_follow(app: AppHandle, layer: Layer, cycle: Cycles) {
+pub fn update_follow<R: Runtime>(app: AppHandle<R>, layer: Layer, cycle: Cycles) {
     app.state::<std::sync::Arc<Kept>>().follow(layer, cycle);
 }
 

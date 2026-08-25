@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::front::Serving;
 use crate::release::{self, Cycle};
@@ -38,8 +38,8 @@ const FETCHING: Duration = Duration::from_secs(15 * 60);
 /// turn down the release somebody just picked for the crime of being the one
 /// they were on last week. Unnamed, the ordinary rule stands — newer only.
 #[cfg(desktop)]
-pub async fn take_core(
-    app: &AppHandle,
+pub async fn take_core<R: Runtime>(
+    app: &AppHandle<R>,
     cycle: &Cycle,
     version: Option<&str>,
     coming: &Channel<Coming>,
@@ -120,8 +120,8 @@ pub async fn take_core(
 /// There is no program to replace where there is no updater to replace it: a
 /// phone gets its app from a store rather than from a release page.
 #[cfg(not(desktop))]
-pub async fn take_core(
-    _app: &AppHandle,
+pub async fn take_core<R: Runtime>(
+    _app: &AppHandle<R>,
     _cycle: &Cycle,
     _version: Option<&str>,
     _coming: &Channel<Coming>,
