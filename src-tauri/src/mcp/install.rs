@@ -71,7 +71,7 @@ pub fn into_claude_code() -> Result<String, String> {
     }
 
     for distro in wsl::distros() {
-        if !super::shares_loopback(&distro) {
+        if !super::address::shares_loopback(&distro) {
             continue;
         }
         match inside(&distro, &line(QUOTE_INSIDE)) {

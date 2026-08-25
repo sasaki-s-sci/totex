@@ -10,19 +10,15 @@ import {
   NodeResizer,
   ResizeControlVariant,
 } from "@xyflow/react";
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../../hooks/useReadingSize";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
+import { useDraft } from "./preview/draft";
+import { widthWithout } from "./preview/measure";
+import { useReading } from "./preview/reading";
+import { formatSize } from "./preview/text";
 
 /** The smallest box a reading is still worth drawing in. */
 export const MIN_WIDTH = 180;
@@ -31,222 +27,12 @@ export const MIN_HEIGHT = 96;
 /** The card's own edge, which stands outside everything measured inside it. */
 const BORDERS = 2;
 
-/** What one line of a wheel comes to, for the mice that count in lines. */
-const LINE = 16;
-
-/** How much of a file is read at all. `MAX_FILE_HEAD` in src-tauri/src/fs_browse.rs. */
+/** How much of a file is read at all. `MAX_FILE_HEAD` in src-tauri/src/fs_browse. */
 const HEAD_KB = 64;
 
-/** How much of the box is kept past the caret when it is brought back in. */
-const CARET_ROOM = 16;
-
-/**
- * Moving the reading inside its card, rather than scrolling it.
- *
- * A box with more in it than fits, that can be scrolled to reach the rest, is a
- * scroller — and a scroller on the canvas is a compositing layer of its own,
- * which is enough to have the whole graph drawn once at one scale and stretched
- * to whatever it is zoomed to. `graph.css` states the rule at its head. So the
- * body is clipped, the reading is moved by a transform, and how far it has been
- * moved is drawn as a pair of rails.
- *
- * Written to the elements rather than held as state: a wheel arrives many times
- * a second, a keystroke nearly as often, and none of it is anything the graph
- * has to be laid out again for.
- */
-function useReading() {
-  // The two elements that anything here has to be told about are held as state
-  // rather than as refs: a card put away and taken back out draws a new box and
-  // a new reading, and an effect that watches a ref is never told. What was
-  // watched then was an element that is no longer in the window.
-  const [body, setBody] = useState<HTMLDivElement | null>(null);
-  const [paper, setPaper] = useState<HTMLPreElement | null>(null);
-  const sheet = useRef<HTMLDivElement>(null);
-  const gutter = useRef<HTMLPreElement>(null);
-  const across = useRef<HTMLElement>(null);
-  const down = useRef<HTMLElement>(null);
-  const at = useRef({ x: 0, y: 0 });
-  const wheel = useRef({ x: 0, y: 0 });
-  const wheelFrame = useRef<number | null>(null);
-  const caretFrame = useRef<number | null>(null);
-
-  /** Move by this much, and redraw where that leaves everything. */
-  const move = useCallback(
-    (dx: number, dy: number) => {
-      const box = body;
-      const reading = sheet.current;
-      if (!box || !reading) return;
-      const room = {
-        x: Math.max(0, reading.offsetWidth - box.clientWidth),
-        y: Math.max(0, reading.offsetHeight - box.clientHeight),
-      };
-      const now = {
-        x: Math.min(room.x, Math.max(0, at.current.x + dx)),
-        y: Math.min(room.y, Math.max(0, at.current.y + dy)),
-      };
-      at.current = now;
-      reading.style.transform = `translate(${-now.x}px, ${-now.y}px)`;
-      if (gutter.current) gutter.current.style.transform = `translateX(${now.x}px)`;
-      rail(across.current, "width", "left", box.clientWidth, reading.offsetWidth, now.x, room.x);
-      rail(down.current, "height", "top", box.clientHeight, reading.offsetHeight, now.y, room.y);
-    },
-    [body],
-  );
-
-  /** Back to the top of a reading that has just been opened. */
-  const home = useCallback(() => {
-    wheel.current = { x: 0, y: 0 };
-    at.current = { x: 0, y: 0 };
-    move(0, 0);
-  }, [move]);
-
-  // A trackpad can send several wheel events inside one display frame. Their
-  // distance is additive, but measuring and writing the reading for each event
-  // only forces the same layout several times before any of it can be painted.
-  // Keep all of the distance and apply it once at the next frame boundary.
-  const queueMove = useCallback(
-    (dx: number, dy: number) => {
-      wheel.current.x += dx;
-      wheel.current.y += dy;
-      if (wheelFrame.current !== null) return;
-      wheelFrame.current = requestAnimationFrame(() => {
-        wheelFrame.current = null;
-        const next = wheel.current;
-        wheel.current = { x: 0, y: 0 };
-        move(next.x, next.y);
-      });
-    },
-    [move],
-  );
-
-  // The box changes size when the card is dragged by an edge or put away, and
-  // the reading changes when the file is read or typed into: either can leave
-  // it standing past its own end, so both settle it back with a move of
-  // nothing.
-  useEffect(() => {
-    if (!body) return;
-    const watch = new ResizeObserver(() => move(0, 0));
-    watch.observe(body);
-    return () => watch.disconnect();
-  }, [body, move]);
-
-  const onWheel = useCallback(
-    (event: React.WheelEvent) => {
-      // Most wheels count in pixels; some count in lines, and a page is the box.
-      const step =
-        event.deltaMode === 1 ? LINE : event.deltaMode === 2 ? (body?.clientHeight ?? 0) : 1;
-      queueMove(event.deltaX * step, event.deltaY * step);
-    },
-    [body, queueMove],
-  );
-
-  /**
-   * Brings the caret back into the box when typing has taken it outside.
-   *
-   * Nothing else would: the box is clipped rather than scrolled, so there is no
-   * scroller for the engine to bring the caret into view in, and the line being
-   * typed would simply carry on past the edge. The caret is measured on screen,
-   * where the canvas's zoom is already in it, so the move is taken back through
-   * the scale the box is drawn at.
-   */
-  const showCaretNow = useCallback(() => {
-    const box = body;
-    const selection = document.getSelection();
-    if (!box || !selection || selection.rangeCount === 0) return;
-    const caret = selection.getRangeAt(0).getBoundingClientRect();
-    if (caret.height === 0 && caret.width === 0) return;
-    const frame = box.getBoundingClientRect();
-    const scale = box.clientWidth > 0 ? frame.width / box.clientWidth : 1;
-    const room = CARET_ROOM * scale;
-    const dx =
-      caret.left < frame.left + room
-        ? caret.left - frame.left - room
-        : caret.right > frame.right - room
-          ? caret.right - frame.right + room
-          : 0;
-    const dy =
-      caret.top < frame.top
-        ? caret.top - frame.top
-        : caret.bottom > frame.bottom
-          ? caret.bottom - frame.bottom
-          : 0;
-    if (dx === 0 && dy === 0) return;
-    move(dx / scale, dy / scale);
-  }, [body, move]);
-
-  // Selection geometry is only settled after the edit event. Waiting for the
-  // next frame both gives the browser that chance and coalesces input and keyup
-  // into one measurement.
-  const showCaret = useCallback(() => {
-    if (caretFrame.current !== null) return;
-    caretFrame.current = requestAnimationFrame(() => {
-      caretFrame.current = null;
-      showCaretNow();
-    });
-  }, [showCaretNow]);
-
-  useEffect(
-    () => () => {
-      if (wheelFrame.current !== null) cancelAnimationFrame(wheelFrame.current);
-      if (caretFrame.current !== null) cancelAnimationFrame(caretFrame.current);
-    },
-    [],
-  );
-
-  return { setBody, sheet, gutter, paper, setPaper, across, down, move, home, onWheel, showCaret };
-}
-
-/**
- * One rail: as long a share of the edge as is being shown, as far along it as
- * the reading has been moved. Nothing to move means nothing to say.
- */
-function rail(
-  element: HTMLElement | null,
-  length: "width" | "height",
-  from: "left" | "top",
-  box: number,
-  whole: number,
-  at: number,
-  room: number,
-) {
-  if (!element) return;
-  if (room <= 0) {
-    element.style[length] = "0px";
-    return;
-  }
-  const size = Math.max(12, (box / whole) * box);
-  element.style[length] = `${size}px`;
-  element.style[from] = `${(at / room) * (box - size)}px`;
-}
-
-/**
- * How wide an element would stand if the rule holding it to the card were
- * lifted.
- *
- * Both of the things a card is as wide as are held to the card rather than to
- * themselves: the reading by a `min-width` that keeps it filling the box under
- * it, the header by being one row of a column. Neither will say what it would
- * take on its own while that holds, so the rule is taken off, the width is
- * read, and it is put straight back — one forced layout inside one press, and
- * the frame is painted from what was already there.
- */
-function widthWithout(element: HTMLElement | null, rule: "minWidth" | "width", lifted: string) {
-  if (!element) return 0;
-  const held = element.style[rule];
-  element.style[rule] = lifted;
-  const width = element.offsetWidth;
-  element.style[rule] = held;
-  return width;
-}
-
-/**
- * A card standing on the canvas: the grips that resize it, and the card itself.
- *
- * A pinned card is not one of these. It has left the canvas — the node is
- * hidden and `GitGraph` draws the card over the graph instead — so the grips,
- * which are React Flow's and are drawn in the canvas's own coordinates, are
- * here rather than on the card, where they would follow it off.
- */
+/** A card standing on the canvas: the grips that resize it, and the card itself.
+ *  A pinned card is not one of these — it has left the canvas, and the grips are
+ *  React Flow's and drawn in the canvas's own coordinates. */
 export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
   return (
     <>
@@ -282,21 +68,21 @@ export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
   );
 }
 
-/**
- * The card itself: a file's reading, and what can be done to it.
- *
- * Drawn in two places and the same in both — as the body of a node while it
- * stands on the canvas, and on the layer over the canvas once it is pinned.
- * Everything it does it does through `data` and the graph's actions, so which
- * of the two it is standing in is not something it has to know.
- */
+/** The card itself: a file's reading, and what can be done to it. Drawn the same
+ *  as the body of a node and on the layer over the canvas once pinned — which of
+ *  the two it is in is not something it has to know. */
 export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const { t } = useTranslation();
   const { closeFilePreview, saveFilePreview, collapseFilePreview, fitFilePreview, pinFilePreview } =
     useGraphActions();
   const detail = data.size === null ? null : formatSize(data.size);
-  const { setBody, sheet, gutter, paper, setPaper, across, down, move, home, onWheel, showCaret } =
-    useReading();
+  const view = useReading();
+  const { setBody, sheet, gutter, setPaper, across, down, move, onWheel, showCaret } = view;
+  const { editable, numbers, unsaved, refused, save, typing, onInput } = useDraft(
+    data,
+    view,
+    saveFilePreview,
+  );
   /** The header, measured alongside the reading when the card is asked to fit:
    *  the name in it is as much what the card is showing as the lines are. */
   const bar = useRef<HTMLElement>(null);
@@ -312,143 +98,19 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     move(0, 0);
   }, [size, move]);
 
-  // A file the card holds only the head of is read and never written: what is
-  // on screen is what would go to disk, and the rest of the file would go with
-  // it. The backend refuses the same write; this is what keeps the card from
-  // offering it.
-  const editable = data.state === "ready" && data.text !== null && !data.truncated;
-
-  /**
-   * The reading as the card holds it, with every line ending the same way.
-   *
-   * An editable box keeps line breaks as newlines whatever the file had, so a
-   * file written on Windows would come back with every one of its endings
-   * changed by the first save. The endings it arrived with are noted here and
-   * put back when it is written.
-   */
-  const reading = useMemo(
-    () => (data.text === null ? null : data.text.replace(/\r\n?/g, "\n")),
-    [data.text],
-  );
-  const crlf = data.text?.includes("\r\n") ?? false;
-  // Read by the handlers, which are not rebuilt for a save.
-  const kept = useRef(reading);
-  kept.current = reading;
-
-  const [lines, setLines] = useState(1);
-  const numbers = useMemo(() => lineNumbers(lines), [lines]);
-  /** There is more in the card than the file holds. */
-  const [unsaved, setUnsaved] = useState(false);
-  /** The last write did not go through, and what is in the card is all there is. */
-  const [refused, setRefused] = useState(false);
-  const writing = useRef(false);
-  const inputTimer = useRef<number | null>(null);
-
-  /**
-   * The reading, written to the element rather than drawn from the data.
-   *
-   * React does not own what is inside an editable box: rendering the text would
-   * replace it on every save and take the caret along with it. So it is written
-   * here, and only when the element is not already holding it — which is when a
-   * file has just been read, and never when what came back is what was just
-   * written to disk.
-   */
-  useLayoutEffect(() => {
-    if (!paper || reading === null) return;
-    if (draftOf(paper) === reading) return;
-    paper.textContent = reading;
-    setLines(countLines(reading));
-    setUnsaved(false);
-    setRefused(false);
-    home();
-  }, [paper, reading, home]);
-
-  /** Cancels the deferred inspection when a save or unmount supersedes it. */
-  const cancelInputInspection = useCallback(() => {
-    if (inputTimer.current === null) return;
-    clearTimeout(inputTimer.current);
-    inputTimer.current = null;
-  }, []);
-
-  useEffect(() => cancelInputInspection, [cancelInputInspection]);
-
-  /** Keep what the file holds, and say nothing when it already holds it. */
-  const save = useCallback(async () => {
-    if (!paper || !editable || writing.current) return;
-    cancelInputInspection();
-    const draft = draftOf(paper);
-    setLines(countLines(draft));
-    move(0, 0);
-    if (draft === kept.current) {
-      setUnsaved(false);
-      return;
-    }
-    writing.current = true;
-    const went = await saveFilePreview(
-      data.requestId,
-      crlf ? draft.split("\n").join("\r\n") : draft,
-    );
-    writing.current = false;
-    // Typing carries on while a write is in flight, and what went to disk is
-    // then already behind what is on screen.
-    setUnsaved(!went || draftOf(paper) !== draft);
-    setRefused(!went);
-  }, [cancelInputInspection, crlf, data.requestId, editable, move, paper, saveFilePreview]);
-
-  /**
-   * What a reading that can be typed into is, and nothing at all for one that
-   * cannot: a box that answers to nobody says so by holding none of this.
-   */
-  const typing = editable
-    ? ({
-        contentEditable: "plaintext-only",
-        role: "textbox",
-        "aria-multiline": true,
-        "aria-label": data.name,
-      } as const)
-    : {};
-
-  const onInput = useCallback(() => {
-    if (!paper) return;
-    // The edit itself is enough to mark the card immediately. Walking its DOM,
-    // rebuilding the gutter and measuring the reading can wait until typing
-    // pauses; repeated input replaces this one pending job instead of stacking
-    // work on the input event.
-    setUnsaved(true);
-    setRefused(false);
-    showCaret();
-    cancelInputInspection();
-    inputTimer.current = window.setTimeout(() => {
-      inputTimer.current = null;
-      const draft = draftOf(paper);
-      setLines(countLines(draft));
-      setUnsaved(draft !== kept.current);
-      // A line added or taken away changes what the reading comes to, which is
-      // what says how far it can be moved and how long the rails are.
-      move(0, 0);
-    }, 60);
-  }, [cancelInputInspection, move, paper, showCaret]);
-
-  /**
-   * Puts the card at the width of what is in it.
-   *
-   * Both parts are measured, because a card too narrow cuts both: the longest
-   * line of the reading, and the header, whose name goes to an ellipsis long
-   * before the lines under it run out. The wider of the two is what is asked
-   * for. A card that is put away, or holding a file that would not read, has
-   * only the header — which is then the whole of what it is showing, and so the
-   * whole of what it should be as wide as.
-   *
-   * The width and nothing else: a card is dragged taller to see more of a file,
-   * and there is no height that fits one — the reading goes on for as long as
-   * the file does.
-   */
+  /** Puts the card at the width of what is in it: the wider of the longest line
+   *  of the reading and the header, whose name goes to an ellipsis long before
+   *  the lines run out. The width and nothing else — no height fits a file. */
   function fitWidth() {
     const header = widthWithout(bar.current, "width", "max-content");
     const reading = widthWithout(sheet.current, "minWidth", "0");
     fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, reading) + BORDERS));
   }
 
+  // A file the card holds only the head of is read and never written: what is
+  // on screen is what would go to disk, and the rest of the file would go with
+  // it. The backend refuses the same write; this is what keeps the card from
+  // offering it.
   return (
     <article
       className={`file-preview${data.collapsed ? " is-collapsed" : ""}${
@@ -592,56 +254,4 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       )}
     </article>
   );
-}
-
-/**
- * What an editable box holds, as text.
- *
- * `textContent` alone would not answer for it: a line break in an editable box
- * can be put there as an element rather than as a newline. `innerText` answers
- * for both, but it is laid out to answer, and that is a reflow for every key
- * pressed. Walking what is there costs neither.
- */
-function draftOf(root: Node): string {
-  let text = "";
-  for (const node of root.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) text += node.nodeValue ?? "";
-    else if (node.nodeName === "BR") text += "\n";
-    else text += draftOf(node);
-  }
-  return text.replace(/\r\n?/g, "\n");
-}
-
-/**
- * How many lines a reading has.
- *
- * A reading that ends in a newline ends there. The empty line after it is still
- * drawn — the text is shown as it is — but it is not counted, which is what an
- * editor makes of the same file.
- */
-function countLines(text: string): number {
-  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
-  return body.split("\n").length;
-}
-
-/**
- * The numbers down the side of a reading, as one string.
- *
- * One string and not one element per line: sixty-four kilobytes is a few
- * thousand lines, and a gutter built out of elements puts a few thousand more
- * on a canvas whose frame is counted in elements rather than in arithmetic.
- */
-function lineNumbers(count: number): string {
-  const lines: string[] = [];
-  for (let line = 1; line <= count; line += 1) lines.push(String(line));
-  return lines.join("\n");
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1_000) return `${bytes} B`;
-  if (bytes < 1_000_000) return `${(bytes / 1_000).toFixed(bytes < 10_000 ? 1 : 0)} KB`;
-  if (bytes < 1_000_000_000) {
-    return `${(bytes / 1_000_000).toFixed(bytes < 10_000_000 ? 1 : 0)} MB`;
-  }
-  return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
 }

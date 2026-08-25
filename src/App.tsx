@@ -1,75 +1,36 @@
-import { Box, CssBaseline, LinearProgress } from "@mui/material";
+import { Box, CssBaseline } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CommitTarget } from "./components/CommitMenu";
-import type { BranchPick, FetchRequest, MergeRequest } from "./components/GitGraph";
-import type { WorkRequest } from "./components/graphActions";
-import { branchMark } from "./components/graphMarks";
-import { HEADER_HEIGHT, WindowControls } from "./components/WindowControls";
+import type { BranchPick } from "./components/GitGraph";
+import { WindowBand } from "./components/WindowBand";
+import { WindowControls } from "./components/WindowControls";
 import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { FolderSidebar } from "./folder/FolderSidebar";
+import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
+import { useCanvasWork } from "./hooks/useCanvasWork";
+import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
 import { useReports } from "./hooks/useReports";
 import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
-import type { Ask } from "./lib/ask";
-import { FILE_DRAG_TYPE, type FilePreviewRequest } from "./lib/filePreview";
-import type { CommitFlowNode } from "./lib/graph";
-import { onDemand, warmInTurn } from "./lib/onDemand";
-import { type Session, shellSession } from "./lib/session";
+import { FILE_DRAG_TYPE } from "./lib/filePreview";
+import { warmInTurn } from "./lib/onDemand";
 import { confirmFront, watchVersions } from "./lib/update";
-import { fetchBranch, mergeBranch, openWorkspace } from "./lib/workspace";
+import {
+  commitPart,
+  EMPTY_WORKSPACE,
+  graphPart,
+  panelPart,
+  ROOTS_KEY,
+  settingsPart,
+  storedRoots,
+  worktreePart,
+} from "./parts";
 import { MODE_KEY, storedMode, theme } from "./theme";
-import type { Repository, Workspace } from "./types/git";
-
-/**
- * The heavy halves of the window, loaded separately from the first paint.
- *
- * A window that has just opened is a column of folders: the canvas has read
- * nothing, no session is running, and no menu is open. The graph is requested
- * immediately so its canvas is always present; the terminal and dialogs stay
- * on demand. Keeping them in separate chunks leaves all of them off the way to
- * the first column.
- */
-const graphPart = onDemand(() => import("./components/GitGraph").then((part) => part.GitGraph));
-const panelPart = onDemand(() => import("./components/SidePanel").then((part) => part.SidePanel));
-const commitPart = onDemand(() =>
-  import("./components/CommitMenu").then((part) => part.CommitMenu),
-);
-const worktreePart = onDemand(() =>
-  import("./components/WorktreeMenu").then((part) => part.WorktreeMenu),
-);
-const settingsPart = onDemand(() =>
-  import("./components/SettingsDialog").then((part) => part.SettingsDialog),
-);
-
-const ROOTS_KEY = "totex.roots";
-const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };
-
-/**
- * The folders the column was showing when the window last closed.
- *
- * Where they were browsing, and nothing about the graph: what the graph draws
- * is asked for a folder at a time, so a window that has just opened has a
- * column to pick up from and a canvas that has read nothing.
- */
-function storedRoots(): string[] {
-  try {
-    const stored: unknown = JSON.parse(localStorage.getItem(ROOTS_KEY) ?? "[]");
-    // Whatever is under the key was written by some earlier version of this
-    // window, so it is read as a claim rather than as a fact: anything that is
-    // not a list of paths is a column that cannot be restored, and an empty
-    // column is what a window opens as anyway.
-    if (Array.isArray(stored)) return stored.filter((path) => typeof path === "string");
-  } catch {
-    // A window that cannot remember where it was browsing starts with nothing
-    // open, which is the plus in the header and the folders behind it.
-  }
-  return [];
-}
+import type { Repository } from "./types/git";
 
 export default function App() {
   return (
@@ -101,8 +62,6 @@ function Window() {
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [filePreviews, setFilePreviews] = useState<FilePreviewRequest[]>([]);
-  const nextFilePreview = useRef(0);
   const main = useRef<HTMLElement>(null);
   // What the window is doing to a branch, and what it was refused. Both are
   // drawn on the branch's own ring — see `useMarks`; nothing is written.
@@ -132,93 +91,15 @@ function Window() {
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
-
-  const openFiles = useCallback((paths: readonly string[], at: { x: number; y: number } | null) => {
-    setFilePreviews((current) => [
-      ...current,
-      ...paths.map((path, index) => ({
-        id: nextFilePreview.current++,
-        path,
-        at: at ? { x: at.x + index * 18, y: at.y + index * 18 } : null,
-      })),
-    ]);
-  }, []);
-
-  // Held still, because the graph's actions are context: a callback rebuilt on
-  // every render is every node on the canvas told that something changed.
-  const answerAsk = useCallback(
-    (session: Session, ask: Ask, key: string) => answer(session.id, ask, key),
-    [answer],
-  );
-
-  const replyToAsk = useCallback(
-    (session: Session, ask: Ask, text: string) => reply(session.id, ask, text),
-    [reply],
-  );
-
-  // And the four that work the question rather than end it. Three of them
-  // leave it standing — the mark moved, an answer picked up, words written at
-  // the row the mark is in — and the fourth is the return that ends the kinds
-  // of question no key ends.
-  const pointAtAsk = useCallback(
-    (session: Session, ask: Ask, key: string) => point(session.id, ask, key),
-    [point],
-  );
-
-  const pickInAsk = useCallback(
-    (session: Session, ask: Ask, key: string) => pick(session.id, ask, key),
-    [pick],
-  );
-
-  const composeAtAsk = useCallback(
-    (session: Session, ask: Ask, text: string) => compose(session.id, ask, text),
-    [compose],
-  );
-
-  const takeAsking = useCallback((session: Session, ask: Ask) => take(session.id, ask), [take]);
-
-  const closeFilePreview = useCallback((requestId: number) => {
-    setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
-  }, []);
-
-  // Native file drops do not become browser drop events in a Tauri webview.
-  // Listen at the window boundary, then turn the physical point into the CSS
-  // coordinates React Flow expects. Drops over the explorer stay the
-  // explorer's; only the canvas accepts a preview card.
-  useEffect(() => {
-    const appWindow = getCurrentWindow();
-    let cancelled = false;
-    let stop: (() => void) | null = null;
-
-    void appWindow
-      .onDragDropEvent(async ({ payload }) => {
-        if (payload.type !== "drop" || payload.paths.length === 0) return;
-        const scale = await appWindow.scaleFactor();
-        if (cancelled) return;
-        const at = { x: payload.position.x / scale, y: payload.position.y / scale };
-        const bounds = main.current?.getBoundingClientRect();
-        if (
-          !bounds ||
-          at.x < bounds.left ||
-          at.x > bounds.right ||
-          at.y < bounds.top ||
-          at.y > bounds.bottom
-        ) {
-          return;
-        }
-        openFiles(payload.paths, at);
-      })
-      .then((unlisten) => {
-        if (cancelled) unlisten();
-        else stop = unlisten;
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, [openFiles]);
+  const { filePreviews, openFiles, closeFilePreview } = useFileDrops(main);
+  const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
+    answer,
+    reply,
+    point,
+    pick,
+    compose,
+    take,
+  });
 
   // The repositories taken off the canvas by the mark beside their name. Held
   // by id rather than by folder: one folder can hold several repositories, and
@@ -242,14 +123,9 @@ function Window() {
     });
   }, [workspace]);
 
-  /**
-   * What the graph draws: everything the folders turned up, less what has been
-   * closed.
-   *
-   * Closing one is about the canvas and nothing else — the folder stays open
-   * and watched, and a session running in that repository carries on running,
-   * so the band comes back with its terminals still on it.
-   */
+  /** What the graph draws: everything the folders turned up, less what has been
+   *  closed. Closing is about the canvas and nothing else — the folder stays open
+   *  and watched, and its sessions carry on running. */
   const drawn = useMemo(() => {
     if (!workspace || closed.size === 0) return workspace;
     return {
@@ -265,11 +141,9 @@ function Window() {
   // every window because none of them knows which front it was drawn from.
   useEffect(confirmFront, []);
 
-  // Which releases there are, kept up to date from here on. The settings dialog
-  // offers them in a pull-down, and a list that is only asked for when that
-  // pull-down is opened is a list that is empty at the moment somebody looks at
-  // it — so it is asked for on a slow loop instead, and only on a copy that
-  // could do something with the answer. See `watchVersions`.
+  // Which releases there are, kept up to date from here on: a list only asked
+  // for when the pull-down is opened is a list that is empty at the moment
+  // somebody looks at it. See `watchVersions`.
   useEffect(watchVersions, []);
 
   // The menus the graph can open are fetched in the idle moments after the
@@ -286,86 +160,20 @@ function Window() {
   // The graph is always asked for. Each other part is requested once there is
   // something for it to draw, then kept in hand because closing a menu is a
   // fade and unmounting it immediately would make it vanish instead.
+  const { openWork, pickCommit, merge, fetch } = useCanvasWork({
+    openSession,
+    fail,
+    hold,
+    release,
+    setCommitMenu,
+  });
+  const stalled = gitMissing || failed;
+
   const GitGraph = graphPart.use();
   const SidePanel = panelPart.use(useEver(sessions.length > 0));
   const CommitMenu = commitPart.use(useEver(commitMenu !== null));
   const WorktreeMenu = worktreePart.use(useEver(worktreeMenu !== null));
   const SettingsDialog = settingsPart.use(useEver(settingsOpen));
-
-  /**
-   * Opens a terminal in a branch.
-   *
-   * A branch that has no worktree yet gets one here, on the way in: a branch
-   * you can see is a branch you can work in, and the directory it needs is
-   * derived rather than asked for — so there is nothing to decide and nothing
-   * to distinguish a branch that has one from a branch that does not.
-   */
-  const openWork = useCallback(
-    ({ repository, branch, cwd }: WorkRequest) => {
-      // A folder is already a directory, so there is nothing to make; only a
-      // branch that has never been checked out is answered with a worktree.
-      const start = cwd
-        ? Promise.resolve(cwd)
-        : repository
-          ? openWorkspace(repository.id, branch).then((workspace) => workspace.path)
-          : Promise.reject(new Error("nowhere to open"));
-
-      start
-        .then((path) => openSession(shellSession(path, branch)))
-        // Nothing to mark when there is no branch: a folder that would not open
-        // is the shell saying so, in the terminal that was asked for.
-        .catch(() => repository && fail(branchMark(repository.id, branch)));
-    },
-    [openSession, fail],
-  );
-
-  // What the last change was is not reported. The graph has already moved:
-  // the commit is drawn, the ring has filled, the branch is where it now is —
-  // and a line of text saying so was the same news a second time.
-
-  // Clicking a commit is how work starts from it: the graph already answers
-  // everything else about a commit, so there is nothing to open a panel for.
-  const pickCommit = useCallback((node: CommitFlowNode, at: { x: number; y: number }) => {
-    const { repository, commit } = node.data;
-    setCommitMenu({ repository, commit, at });
-  }, []);
-
-  const merge = useCallback(
-    ({ repository, source, target }: MergeRequest) => {
-      // The branch being merged into is the one that changes, so it is the one
-      // that waits — and the one that goes red when git will not do it.
-      const key = branchMark(repository.id, target);
-      hold(key);
-      mergeBranch(repository.id, source, target)
-        .then(() => release(key))
-        .catch(() => {
-          release(key);
-          fail(key);
-        });
-    },
-    [fail, hold, release],
-  );
-
-  const fetch = useCallback(
-    ({ repository, branch, fetch }: FetchRequest) => {
-      // The head the pull was made on is the one that waits: on a branch at
-      // rest that is the ring the pair share, and on one whose ends have parted
-      // it is the remote end hanging under the local one. Either way it is the
-      // mark the hand was on, which is where an answer is looked for.
-      const key = branchMark(repository.id, branch);
-      hold(key);
-      fetchBranch(repository.id, fetch.remote, fetch.branch)
-        .then(() => release(key))
-        .catch(() => {
-          release(key);
-          fail(key);
-        });
-    },
-    [fail, hold, release],
-  );
-
-  /** Something the whole window depends on is not answering. */
-  const stalled = gitMissing || failed;
 
   return (
     <Box
@@ -396,56 +204,7 @@ function Window() {
         }}
         sx={{ position: "relative", flex: 1, minWidth: 0 }}
       >
-        {/* Where the title bar was. Nothing is drawn there and the graph runs
-            underneath it, but the band still picks the window up and still
-            fills the screen on a double click — the two things a title bar is
-            for, kept without the bar. This half only: the same band over the
-            column is the sidebar's own header, which carries its two marks and
-            picks the window up around them. */}
-        <Box
-          data-tauri-drag-region
-          sx={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: HEADER_HEIGHT,
-            zIndex: 1100,
-            cursor: "grab",
-            // Nothing at all until the pointer is on it, and then barely
-            // anything: a band that is drawn all the time is a title bar, which
-            // is the row this window went without. The wash is the whole of
-            // what it says — the shape of the band is the message, and a mark
-            // drawn inside it would be a second one saying the same thing.
-            opacity: 0,
-            bgcolor: "action.hover",
-            transition: "opacity 120ms ease-out",
-            "&:hover": { opacity: 1 },
-          }}
-        />
-        {/* A scan that is still running, and a window that cannot get an
-            answer at all. Both are one hairline along the top of the canvas —
-            moving while it is working, red and still when it has stopped. The
-            canvas underneath stays whatever it was, which is the rest of the
-            answer: nothing has been drawn yet, or nothing new can be. */}
-        {loading && (
-          <LinearProgress
-            sx={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, zIndex: 1200 }}
-          />
-        )}
-        {!loading && stalled && (
-          <Box
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              height: 2,
-              zIndex: 1200,
-              bgcolor: "error.main",
-            }}
-          />
-        )}
+        <WindowBand loading={loading} stalled={stalled} />
 
         {GitGraph && (
           <GitGraph
@@ -501,14 +260,9 @@ function Window() {
   );
 }
 
-/**
- * True from the first moment it is, and true from then on.
- *
- * What a menu is wanted for outlasts the moment it is asked for: closing one is
- * a fade, and a menu taken down the frame it was told to close would vanish
- * instead of closing. So the asking is remembered, and what it costs is a part
- * kept in hand drawing nothing.
- */
+/** True from the first moment it is, and true from then on: closing a menu is a
+ *  fade, and one taken down the frame it was told to close would vanish instead
+ *  of closing. */
 function useEver(wanted: boolean): boolean {
   const asked = useRef(false);
   asked.current ||= wanted;

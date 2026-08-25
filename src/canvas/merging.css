@@ -1,0 +1,22 @@
+/**
+ * While a merge is being aimed.
+ */
+
+/* The whole canvas says a merge is in hand. */
+.graph.is-merging .head__ring {
+  cursor: grabbing;
+}
+
+/* Only the two ends change while a merge is aimed. Fading the whole SVG made
+   Chromium allocate and rasterise a graph-sized composited layer at pointer
+   down — the pause before the drag moved, and the same texture blur that the
+   old pan promotion caused. Two rings carry the same message without touching
+   the history layer. */
+.graph .head.is-merge-source .head__ring {
+  opacity: 0.55;
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.graph .head.is-merge-target .head__ring {
+  box-shadow: var(--clearance), var(--halo-selected);
+}

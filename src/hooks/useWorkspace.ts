@@ -19,18 +19,9 @@ const SEPARATOR = "\u0000";
 /** What the backend has open, by the path it was asked to open. */
 type Open = Record<string, Workspace>;
 
-/**
- * One folder that was put on the graph, and what was found in it.
- *
- * The graph draws folders as well as repositories — a folder is where several
- * repositories are worked on at once, and it is a directory in its own right,
- * which is somewhere a terminal can be opened. So the merge into one workspace
- * is not the whole answer any more: which folder a repository came through is
- * what the canvas groups by.
- *
- * A repository reached through two folders belongs to the first of them, the
- * same way the merged workspace keeps the first copy of it.
- */
+/** One folder that was put on the graph, and what was found in it: which folder
+ *  a repository came through is what the canvas groups by, and one reached
+ *  through two belongs to the first. */
 export type Folder = {
   /** The path the scan settled on, which is what the folder is known by. */
   root: string;
@@ -39,14 +30,9 @@ export type Folder = {
   repositories: string[];
 };
 
-/**
- * Opens every folder in `roots` and then follows them.
- *
- * Each folder is its own scan and its own snapshot on the backend, so a commit
- * arrives here as a diff of the one folder it happened in. What the graph draws
- * is the folders put together: several explorers expand into one view, and a
- * repository reached through two of them is still drawn once.
- */
+/** Opens every folder in `roots` and then follows them. Each is its own scan and
+ *  snapshot on the backend, so a commit arrives as a diff of the one folder it
+ *  happened in; what the graph draws is the folders put together. */
 export function useWorkspaces(roots: string[]) {
   const [open, setOpen] = useState<Open>({});
   const [loading, setLoading] = useState(false);
@@ -154,14 +140,9 @@ export function useWorkspaces(roots: string[]) {
   return { workspace, folders, loading, failed };
 }
 
-/**
- * The open folders as the single workspace the graph draws.
- *
- * Folder order, and each folder's own order within it: the backend already
- * sorted every scan, and a repository reached through two folders keeps the
- * place the first one gave it. Repository objects are passed through untouched,
- * which is what lets the graph rebuild without moving what did not change.
- */
+/** The open folders as the single workspace the graph draws, in folder order.
+ *  Repository objects are passed through untouched, which is what lets the graph
+ *  rebuild without moving what did not change. */
 function merge(roots: string[], open: Open): Workspace | null {
   const workspaces = roots.map((root) => open[root]).filter(Boolean);
   if (workspaces.length === 0) return null;
@@ -181,13 +162,8 @@ function merge(roots: string[], open: Open): Workspace | null {
   };
 }
 
-/**
- * The open folders, each with the repositories the graph draws under it.
- *
- * A folder whose scan has not come back yet is left out rather than drawn
- * empty: it would arrive as a row with nothing in it and then grow, which is
- * the canvas moving under whoever asked for it.
- */
+/** The open folders, each with the repositories drawn under it. One whose scan
+ *  has not come back is left out rather than drawn empty and then grown. */
 function group(roots: string[], open: Open): Folder[] {
   const seen = new Set<string>();
   const folders: Folder[] = [];
@@ -209,18 +185,11 @@ function group(roots: string[], open: Open): Folder[] {
 }
 
 /**
- * Whether the git that would read these folders is there at all.
- *
- * Asked of the folders rather than of the machine, because those are not the
- * same question: a folder inside a WSL distribution is read by that
- * distribution's git, and a window that only ever opens those has no use for
- * the git beside it — which may well not be installed. Asking about the machine
- * would draw this rule over a window that works perfectly.
- *
- * With nothing open there is nothing to answer for. Nothing is drawn from this
- * but the same rule every other failure draws: a window whose git is missing
- * can open folders and can draw nothing from them, and the canvas staying empty
- * is most of that answer already.
+ * Whether the git that would read these folders is there at all. Asked of the
+ * folders rather than of the machine: a folder inside a WSL distribution is read
+ * by that distribution's git, and asking about the machine would draw this rule
+ * over a window that works perfectly. With nothing open there is nothing to
+ * answer for.
  */
 export function useGitMissing(roots: readonly string[]): boolean {
   const [missing, setMissing] = useState(false);

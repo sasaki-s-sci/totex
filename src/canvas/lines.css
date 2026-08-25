@@ -1,0 +1,107 @@
+/**
+ * Every line the graph draws, and the marks that ride on one.
+ */
+
+/* The branch's name, set along its own curve. Lifted clear of the stroke by the
+   edge's `dy`, so the line it names never runs through it. */
+.edge__name {
+  fill: var(--line);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  opacity: 0.9;
+}
+
+/* A name on a branch that is only being reached for goes back with the curve it
+   is set along: a name is the most factual thing a band draws, and one left at
+   full strength over dashed lines would be the one part of a proposal reading
+   as settled. Here rather than with the rest of `.band-lines--provisional`,
+   because a rule has to follow the one it is meant to beat. */
+.band-lines--provisional .edge__name {
+  opacity: 0.4;
+}
+
+/* What can be done to the history a line carries: folded away from here back.
+   Out of sight until the cursor is on that line — there is one of these per
+   commit, and a graph showing all of them at once would be a graph of buttons.
+   Coming back the other way is not on a line at all, because there is only ever
+   one folded end to a repository: see `.collapse__more`.
+
+   The stretch of line that brings the mark out is the button, not the mark: at
+   the scale a repository is usually read at the mark is a dot the size of a full
+   stop, and having to land on it once it appeared was as much of what left the
+   fold out of reach as never seeing it was. How wide that stretch is belongs
+   with the reason it is that wide, in `GraphLines` — it is counted in pixels of
+   screen rather than in units of the graph, and the canvas's own scale is what
+   turns the one into the other. */
+.edge__fold {
+  color: var(--line);
+  cursor: pointer;
+}
+
+.edge__hit {
+  fill: none;
+  stroke: transparent;
+  pointer-events: stroke;
+}
+
+/* The mark is only ever drawn for the line the cursor is already on — being
+   there is what it means — so there is nothing to reveal it on top of that.
+   It takes the pointer as well: once the canvas is zoomed in the disc reaches
+   further from the line than the stretch does, and a mark that let go of the
+   cursor at its own edge would flicker as it was aimed at. */
+.edge__mark {
+  pointer-events: all;
+}
+
+/* Arrows on the line, in the line's own colour, and no frame around them: a ring
+   drawn on a line reads as another node on that line, and this is a move, not a
+   place. The disc under them is canvas, so the line does not run through them. */
+.edge__mark__disc {
+  fill: var(--mui-palette-background-default);
+}
+
+.edge__mark__arrows {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+.edge__mark:hover .edge__mark__arrows {
+  opacity: 1;
+}
+
+/* ---------- lines ---------- */
+
+/* Every line the graph draws, in one place and behind everything else.
+
+   The layer sits inside the canvas's own transform, so panning and zooming move
+   it with the marks and no line has to be redrawn to keep up. Negative z is
+   what puts it under the nodes: the marks are drawn over the lines that meet
+   them, which is what covers the last of a line at either end.
+
+   It takes no pointer at all. What a line offers is the fold, and that is drawn
+   only for the line the cursor is on — one stretch on the canvas rather than
+   one per commit. */
+.graph__lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Sized to everything the build laid out: an SVG root clips to its own box
+     whatever it is told about overflow, so a layer with no size of its own drew
+     nothing at all. Overflow is still let out, for the offer of a branch that
+     hangs a cell past the last of them. */
+  overflow: visible;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The stretch the cursor is on, the mark it brings out, and the offer over a
+   commit are the only things in the layer that answer back. */
+.graph__lines .edge__fold,
+.graph__lines .commit-branch {
+  pointer-events: auto;
+}

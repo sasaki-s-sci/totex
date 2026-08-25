@@ -1,0 +1,228 @@
+/**
+ * The answers under a question, and the ways of taking one.
+ */
+
+/* One answer, in two parts: the agent's own column, and the words beside it.
+   Two, because a question is worked at as well as finished — the column is
+   pressed to do what pressing that column at the terminal does, and the words
+   are pressed to take the answer. The row itself is the border round the pair
+   of them; each half lights on its own, so which of the two a press would land
+   on is never a guess. */
+.ask__choice {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  overflow: hidden;
+  transition: border-color var(--reveal);
+}
+
+.ask__choice:hover,
+.ask__choice:focus-within {
+  border-color: var(--mui-palette-text-secondary);
+}
+
+/* The agent's own column: the key it printed, the mark it is standing on, or
+   the box it draws when several answers may be taken. */
+.ask__hold {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  padding: 4px 0 4px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: background-color var(--reveal);
+}
+
+.ask__hold:hover,
+.ask__hold:focus-visible {
+  background: var(--mui-palette-action-hover);
+  outline: none;
+}
+
+.ask__key {
+  width: 14px;
+  flex: none;
+  border-radius: 3px;
+  background: var(--mui-palette-action-selected);
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* Where the agent's own cursor is standing. Marked rather than made to look
+   like the answer to press: which one it is sitting on is a fact about the
+   terminal, and the card does not get to recommend anything. */
+.ask__choice.is-here .ask__key {
+  background: var(--mui-palette-text-secondary);
+  color: var(--mui-palette-background-paper);
+}
+
+/* And where its own mark is standing, on a list it drew no keys beside. The
+   mark and the blank beside the others are the terminal's own layout: what is
+   in that column there is exactly what is in it here. */
+.ask__mark {
+  width: 14px;
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* The box, for a list several answers may be taken from. Filled in on the ones
+   the agent is holding, which is read off its own drawing rather than kept
+   here: what is picked up is the terminal's, and the card shows it. */
+.ask__box {
+  width: 14px;
+  flex: none;
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+}
+
+.ask__choice.is-held .ask__box {
+  color: var(--mui-palette-text-primary);
+}
+
+.ask__answer {
+  min-width: 0;
+  flex: 1;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  line-height: 14px;
+  text-align: left;
+  white-space: pre;
+  overflow: hidden;
+  transition: background-color var(--reveal);
+}
+
+.ask__answer:hover,
+.ask__answer:focus-visible {
+  background: var(--mui-palette-action-hover);
+  outline: none;
+}
+
+/* The row that ends a question pressing an answer does not end: a list several
+   answers are picked up from, and a list whose mark is standing in a row being
+   written at. One row, whose height is paired with `WORK_LINE` in `asking.ts`. */
+.ask__work {
+  display: flex;
+  height: 24px;
+  flex: none;
+  margin-top: 7px;
+  gap: 4px;
+}
+
+.ask__writing {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.ask__take {
+  display: flex;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  gap: 5px;
+  transition:
+    background-color var(--reveal),
+    border-color var(--reveal);
+}
+
+/* With nothing to write beside it there is room to say what it does, and a
+   return on its own is the one mark on this card nobody would read twice. */
+.ask__take.is-wide {
+  width: auto;
+  flex: 1;
+}
+
+.ask__taking {
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.ask__take:hover,
+.ask__take:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  background: var(--mui-palette-action-hover);
+  color: var(--mui-palette-text-primary);
+}
+
+/* The one place to write, for a question that offered nothing to press. One
+   row: the height of it is paired with `FIELD_LINE` in `asking.ts`, and a card
+   is not where a paragraph is written. */
+.ask__field {
+  display: flex;
+  flex: none;
+  margin-top: 7px;
+  gap: 4px;
+}
+
+.ask__written {
+  min-width: 0;
+  box-sizing: border-box;
+  height: 24px;
+  flex: 1;
+  padding: 0 6px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  transition: border-color var(--reveal);
+}
+
+.ask__written:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  outline: none;
+}
+
+.ask__send {
+  display: grid;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-default);
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+  place-items: center;
+  transition:
+    background-color var(--reveal),
+    border-color var(--reveal);
+}
+
+.ask__send:hover,
+.ask__send:focus-visible {
+  border-color: var(--mui-palette-text-secondary);
+  background: var(--mui-palette-action-hover);
+  color: var(--mui-palette-text-primary);
+}

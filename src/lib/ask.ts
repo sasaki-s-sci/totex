@@ -8,8 +8,8 @@
  * question rather than as a picture of one, and the graph can both show it and
  * answer it without the panel ever being opened.
  *
- * Read off the session's own screen by the Rust side — see `ask/mod.rs` there
- * for the reading itself, and `ask/watch.rs` for what holds a screen per
+ * Read off the session's own screen by the Rust side — see `ask/read` there
+ * for the reading itself, and `ask/watch` for what holds a screen per
  * session and answers for it. Everything here is the shape it hands over.
  *
  * All of it is derived, which is worth knowing here too: the questions are
@@ -31,7 +31,7 @@ export const ASK_EVENT = "pty:ask";
  * every answer for the lists that print one, a bare row of answers for the
  * lists that are walked with the arrow keys instead, and a place to write for
  * the questions that have no list at all. What is actually typed at the session
- * is the session's own business — see `ask/watch.rs` — and none of it is worked
+ * is the session's own business — see `ask/watch` — and none of it is worked
  * out here.
  */
 export type Taking = "key" | "line" | "walk" | "words";

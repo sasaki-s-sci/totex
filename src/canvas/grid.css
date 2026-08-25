@@ -1,0 +1,62 @@
+/**
+ * One square of the grid, the mark that stands in it, and the band a
+ * repository opens with.
+ */
+
+.cell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Marks carry `nopan` beside this class in the markup: pressing one is the
+   start of using it — clicking, or dragging a branch onto another — and React
+   Flow would otherwise read the same press as the start of a pan and slide the
+   canvas out from under it. */
+.mark {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: all;
+}
+
+/* A mark that stands on the cell's own centre, which is where the lines meet. */
+.mark--centred {
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- the repository band ---------- */
+
+/* Deliberately frameless: a heading and whitespace separate repositories. */
+.band {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+
+/* The name sits in the cell before the mark the band opens with — the first
+   commit drawn, or the fold where the history carries on past it — level with
+   that mark and set against it, so the eye runs straight from the name into the
+   history. */
+.band__name {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 14px;
+  overflow: hidden;
+}
+
+/* The mark that takes the repository off the canvas, standing in the room the
+   name's own cell has spare rather than between the name and its history.
+
+   The band takes no pointer and everything in it inherits that, so the mark is
+   where it comes back — `nopan` beside it in the markup, because pressing a
+   button is not the start of a drag across the canvas. */
+.band__close {
+  display: flex;
+  flex: none;
+  align-items: center;
+  pointer-events: all;
+}

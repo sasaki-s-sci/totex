@@ -1,0 +1,57 @@
+/**
+ * The canvas only.
+ *
+ * Everything with a chrome to it is MUI; what is left here is the graph itself,
+ * which is thousands of nodes and SVG paths — too many to give each one a
+ * styled wrapper. The colours are the theme's own, published as custom
+ * properties by `cssVariables`.
+ *
+ * Three words carry the whole file:
+ *
+ *   `cell`  one square of the grid, which is what a node is. The cell is a
+ *           position and nothing else: it draws nothing and takes no pointer.
+ *   `mark`  what is drawn in a cell — a dot, a ring, a row of buttons — and the
+ *           only part of it the pointer can reach. Everything else in the cell
+ *           is canvas: the lines run through it, they carry buttons of their
+ *           own, and dragging anywhere between two marks pans the graph.
+ *   `is-`   a state the graph is in, or one a node is in: `is-merging`,
+ *           `is-selected`, `is-picked`.
+ *
+ * The cells say `pointer-events: none` in `CELL_STYLE`, because React Flow
+ * writes that property inline on every node and only the node's own style
+ * outranks it. `.mark` is where it comes back.
+ *
+ * One rule holds over everything drawn here: nothing on the canvas may ask for
+ * a layer of its own. Zoom is a CSS scale on the one element the canvas hangs
+ * from, and WebKit draws a layer once, at the scale it had when it was made —
+ * so anything inside that asks the compositor for a layer takes the whole
+ * canvas with it, and the graph is then that drawing stretched to the zoom.
+ * Measured at 3x: one branch ring fading took a commit dot's edge from a single
+ * antialiased pixel to three, and the branch names went to mush.
+ *
+ * What asks for a layer is an `opacity` or `transform` animation while it runs,
+ * a transition of either while it runs, and a box with more in it than fits
+ * that can be scrolled. So the fades here are drawn in colour rather than in
+ * opacity, and the one card that holds more than it can show moves what is in
+ * it instead of scrolling. A colour that never moves is free: `opacity` as a
+ * flat value is fine, and only an animated one is not. `scratch/raster-check.html`
+ * is the page those readings came off.
+ */
+
+@import "./base.css";
+@import "./grid.css";
+@import "./folders.css";
+@import "./commits.css";
+@import "./branches.css";
+@import "./ring.css";
+@import "./menus.css";
+@import "./folded.css";
+@import "./running.css";
+@import "./lines.css";
+@import "./flow.css";
+@import "./preview.css";
+@import "./reading.css";
+@import "./merging.css";
+@import "./asking.css";
+@import "./answers.css";
+@import "./report.css";

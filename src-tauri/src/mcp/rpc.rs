@@ -1,16 +1,10 @@
 //! What is said through the door: MCP, and the one thing this server offers.
 //!
-//! The protocol is a handshake and a list. An agent says who it is, is told
-//! what there is, and from then on calls the one tool there — so what is
-//! written out here is the smallest server that is a real one: `initialize`,
-//! `tools/list`, `tools/call`, and the answer to being pinged.
-//!
-//! The tool is the interesting part, and it is deliberately one. An agent will
-//! call what it is given, so what it is given is the shape of what ends up on
-//! the graph: one line about the work, and the plan that line is a step of.
-//! Anything wider — a place to put arbitrary things under arbitrary names —
-//! would draw a different card every time, and a card that is a different shape
-//! every time is one that has to be read rather than recognised.
+//! The protocol is a handshake and a list, so what is written out here is the
+//! smallest server that is a real one: `initialize`, `tools/list`, `tools/call`
+//! and a ping. The tool is deliberately one — an agent calls what it is given,
+//! so what it is given is the shape of what ends up on the graph, and anything
+//! wider would draw a different card every time.
 
 use serde_json::{Value, json};
 use tauri::{AppHandle, Runtime};

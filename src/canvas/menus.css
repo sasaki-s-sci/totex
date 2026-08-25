@@ -1,0 +1,39 @@
+/**
+ * What can be done with a folder.
+ */
+
+/* The one button a folder's row ends with: a folder is a directory and nothing
+   else, so a terminal in it is the whole of what it offers. A branch carries
+   the same button on its ring — see `.head__cli` — and what either of them
+   opens stands in a stack of marks beside it; see `.cli__row`.
+
+   The glyph and nothing else: no box round it and no paper under it, which is
+   the argument `.cli__row` already makes for what these buttons open. A frame
+   drawn round the offer and none round what the offer put on the canvas read as
+   two kinds of thing standing for one, and the frame was the part doing the
+   reading. The square the button answers in is untouched — a glyph on its own
+   is a small thing to aim at — it is only left unpainted.
+
+   Out at rest and full under the cursor, and the difference is drawn in the
+   colour the glyph is painted rather than in its opacity: an opacity that moves
+   is run by the compositor, and one running here would take the canvas with it.
+   A colour mixed with `transparent` is the same paint an opacity gave — the
+   canvas shows through the mark exactly as far. */
+.tools__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 70%, transparent);
+  cursor: pointer;
+  transition: color var(--reveal);
+}
+
+.tools__button:hover,
+.tools__button:focus-visible {
+  color: var(--mui-palette-text-secondary);
+}

@@ -16,40 +16,23 @@ import {
 } from "./model";
 
 /**
- * A folder drawn as the head of a column: its name, its own mark, and a line
- * out of that mark to every repository it holds.
+ * A folder drawn as the head of a column: its name, its own mark, and a line out
+ * of that mark to every repository it holds.
  *
- * A folder is where work that spans several repositories is done — the reason
- * for putting one on the graph at all — and what the canvas has to say about it
- * is which repositories are in it and what is going on in each. So it is drawn
- * as one thing: a row, and under it a repository per row, every one of them
- * joined back to the folder's own mark. Reading the group is reading down a
- * column, and there is never a repository to be found somewhere other than
- * under the folder it came through.
- *
- * A repository in that column is either folded into a single mark or opened out
- * into a band of its own history, and it stands in the same place either way.
- * That is what makes folding cheap: what is drawn changes and nothing moves
- * sideways, and everything running in the repository stays in the column it was
- * already in.
- *
- * The row is a place as well as a heading. Its own directory is somewhere a
- * terminal can be opened, and the folder's mark is what the whole group is
- * dragged by — see `Group`.
+ * Reading the group is reading down a column: a repository per row, every one
+ * joined back to the folder's mark, and never one to be found somewhere else. A
+ * repository in that column is either folded into a single mark or opened out
+ * into a band, and it stands in the same place either way — which is what makes
+ * folding cheap. The row is a place as well as a heading: its own directory can
+ * hold a terminal, and its mark is what the whole group is dragged by.
  */
 
 /** How wide the row's own button is, which is what the row has to hold. */
 const TOOLS_WIDTH = 40;
 
-/**
- * Where the folder's own mark stands: at the head of its row, before the name.
- *
- * The order the folder column in the sidebar reads in — the mark, then what it
- * is called — and here it earns that twice over. Every line down to a
- * repository leaves from this mark, and the repositories are set in by a whole
- * column, so leaving from the left of the name gives those lines the room to be
- * a fan rather than a single stroke down the edge of the rows.
- */
+/** Where the folder's own mark stands: at the head of its row, before the name.
+ *  Every line down to a repository leaves from here, and leaving from the left
+ *  of the name gives those lines room to be a fan. */
 export const FOLDER_MARK_X = 0;
 /** The name, in what is left of the column the mark leads. */
 const LABEL_X = FOLDER_MARK_X + FOLDER_MARK;
@@ -61,33 +44,18 @@ const TOOLS_X = NAME_COLUMN * COLUMN_WIDTH;
 /** How wide the row is: what it holds, and nothing beyond it. */
 export const FOLDER_ROW_WIDTH = TOOLS_X + TOOLS_WIDTH;
 
-/**
- * The class on the folder's mark, which is what the row is dragged by.
- *
- * Named here rather than in the stylesheet's own words because it is a
- * contract: React Flow is told the selector, and the row draws the element.
- */
+/** The class on the folder's mark, which is what the row is dragged by: a
+ *  contract between React Flow's selector and the element the row draws. */
 export const GRIP = "folder__grip";
 
-/**
- * The row's node id.
- *
- * Distinct from a repository's, which is the path of its git directory: a
- * folder opened directly on a repository would otherwise be handed to React
- * Flow as one node under two meanings.
- */
+/** The row's node id, distinct from a repository's: a folder opened directly on
+ *  one would otherwise be two meanings under a single node. */
 export function folderId(root: string): string {
   return `folder${root}`;
 }
 
-/**
- * Whether a repository is opened out into a band of its own.
- *
- * A folder holding one repository is opened by default — folding it away would
- * hide the whole of what the folder is, and put a press between the window
- * opening and anything being on it. A folder holding several starts folded,
- * which is the arrangement the marks are for.
- */
+/** Whether a repository is opened out into a band. A folder holding one is
+ *  opened by default; one holding several starts folded. */
 export function isOpen(
   opened: ReadonlyMap<string, boolean>,
   repository: string,
@@ -96,13 +64,8 @@ export function isOpen(
   return opened.get(repository) ?? held <= 1;
 }
 
-/**
- * The folder's own row, at the head of its column.
- *
- * `at` is where the group stands on the canvas, which is this row's own
- * position: everything else in the group is placed against it, and moving the
- * folder is moving this node and taking the rest with it.
- */
+/** The folder's own row. `at` is where the group stands on the canvas, which is
+ *  this row's position: everything else is placed against it. */
 export function folderRow(
   root: string,
   name: string,
@@ -149,15 +112,9 @@ export function folderRow(
   };
 }
 
-/**
- * One folded repository: a row of its own, holding its name and the ring that
- * stands for everything behind it.
- *
- * Placed on the canvas rather than inside the folder's row, because a group is
- * a column of rows that are all placed the same way — the band of an opened
- * repository is a node of the canvas's, and a folded one has to be able to
- * stand exactly where it stood.
- */
+/** One folded repository: its name and the ring standing for everything behind
+ *  it. Placed on the canvas rather than inside the folder's row, so a folded
+ *  repository stands exactly where its band would. */
 export function repoMark(
   band: string,
   repository: Repository,
@@ -191,12 +148,8 @@ export function markId(band: string, repository: Repository): string {
   return `${band}mark${repository.id}`;
 }
 
-/**
- * Where one terminal stands on the ring, and where its line leaves the row.
- *
- * Both in the row's own coordinates, so the ring is worked out once from the
- * shape of the row and then put wherever the row happens to stand.
- */
+/** Where one terminal stands on the ring, in the row's own coordinates, so the
+ *  ring is worked out once and put wherever the row stands. */
 export type RingSpot = {
   /** The corner of the terminal's own box, which is what a node is placed by. */
   x: number;
@@ -223,22 +176,11 @@ const RING_STEP = CHIP_STEP;
 /**
  * A folder's own terminals, set round the row rather than stacked beside it.
  *
- * For the folder that holds no repository at all. There is nothing under such a
- * row and nothing beside it — the column that would push the canvas about is
- * empty — so what is running in it is the only thing the folder has to show,
- * and the room around the row is all its own. They are put on a ring from three
- * o'clock, clockwise: the first stands exactly where the stack used to start,
- * past the end of the row, and every one after it grows round the folder rather
- * than down away from it.
- *
- * Eight to a turn, at a fixed angle apiece rather than the circle split by how
- * many there are. A terminal opening is a terminal arriving, and one that
- * re-spaced every mark already standing would move the thing somebody was
- * reaching for. The ninth starts the next ring out, a `RING_STEP` further.
- *
- * The ring is an ellipse rather than a circle because the row is: it clears the
- * end of a long row on one axis and the height of it on the other, so the marks
- * hug what they belong to instead of standing off at the width of the name.
+ * For a folder holding no repository at all: nothing is under such a row, so
+ * the room around it is all its own. They go on a ring from three o'clock,
+ * eight to a turn at a fixed angle apiece — a terminal arriving must not
+ * re-space the marks already standing — and the ninth starts the next ring out.
+ * The ring is an ellipse because the row is.
  */
 export function ringAround(count: number): Ring {
   const cx = FOLDER_ROW_WIDTH / 2;

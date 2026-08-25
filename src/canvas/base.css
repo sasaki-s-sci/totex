@@ -1,0 +1,54 @@
+/**
+ * The canvas itself: the element the graph hangs from, and how it is zoomed.
+ */
+
+.graph {
+  position: relative;
+  width: 100%;
+  height: 100%;
+
+  /* How long anything on the canvas takes to appear or fade. */
+  --reveal: 90ms ease-out;
+  /* A ring of the canvas's own colour, so a line passing behind a mark stops
+     short of it instead of touching. */
+  --clearance: 0 0 0 3px var(--mui-palette-background-default);
+  /* Every line on the canvas, in the one colour: lines are the wiring between
+     the marks, and a hue apiece made them compete with the marks themselves.
+     `LINE_COLOR` is the layout's name for this one. */
+  --line: var(--mui-palette-text-secondary);
+  /* Every mark on the canvas, in the one colour: a commit, a branch head, a
+     folded repository, the fold a history ends at.
+
+     They carried a hue apiece, cycled by lane, on the reading that colour is
+     what makes parallel history legible. It is not: which line a mark is on is
+     said by the row it stands in and by the line running into it, and a lane's
+     hue says nothing that survives the same branch being laid out one row
+     further down tomorrow. What it did instead was spend the canvas's only
+     strong signal on nothing — a graph where a dozen marks shout cannot make
+     the two that mean something heard.
+
+     So colour is left to what names a thing rather than a position: the agent
+     working in a worktree, the work standing in a checkout, and a refusal.
+     Everything that is only history is this ink. */
+  --mark: var(--mui-palette-text-primary);
+  /* Under the cursor, and picked out by the cursor keys.
+
+     Drawn from the mark's own edge, so the clearance covers its inner 3px and
+     what is left showing is the band outside that: a line, not a collar. A
+     wider one read as the mark having grown under the cursor rather than as
+     the cursor having found it, and on a canvas of marks a hair apart it was
+     also the halo touching the neighbours of whatever it was answering for. */
+  --halo: 0 0 0 5px color-mix(in srgb, var(--mui-palette-text-primary) 22%, transparent);
+  --halo-selected: 0 0 0 5px color-mix(in srgb, var(--mui-palette-primary-main) 60%, transparent);
+  /* What the canvas does instead of drawing a box round something: the mark is
+     lit, in the ink everything picked out here is drawn in, with a little of
+     that ink spilled round it.
+
+     A `drop-shadow` rather than a `box-shadow`, because these are marks rather
+     than boxes — a glyph, a ring, a dot the size of a full stop — and a shadow
+     cast by the box would be a square glow round something that is not a
+     square. The spill is what makes it read as lit rather than merely tinted,
+     which colour alone could not say at 11px against a column of the same
+     mark. */
+  --lit: drop-shadow(0 0 3px color-mix(in srgb, var(--mui-palette-primary-main) 70%, transparent));
+}

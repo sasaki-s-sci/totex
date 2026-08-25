@@ -8,73 +8,33 @@ import type { AskFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
 
 /**
- * A question something running in a terminal has stopped to ask, and the
- * answers to it.
+ * A question something running in a terminal has stopped to ask, and the answers
+ * to it.
  *
  * The one card this canvas grows by itself, and the one thing on it that is
- * words rather than a mark. Everything else here says what it is by being a
- * shape in a place; a question cannot, because what is being asked is the whole
- * of it. So it is drawn the same way every time — what it is about, then the
- * question, then the answers in a row down the foot of it — and the sameness is
- * the point: from across a canvas, this shape means somebody is waiting, and it
- * is the same shape whether the agent wants to run a command or wants to know
- * which of three things you meant.
+ * words rather than a mark. It is drawn the same way every time — what it is
+ * about, then the question, then the answers down the foot of it — because from
+ * across a canvas that shape has to mean somebody is waiting.
  *
- * It is answered from here, which is the whole reason it is here. A question is
- * a turn: nothing else happens in that session until it is taken, and walking
- * to the terminal, finding the prompt and typing the number is a walk that
- * decides nothing. Pressing the answer types it at the agent — the key the
- * agent itself printed, so what is taken is exactly what the terminal would
- * have taken — and the card goes at once.
+ * Every answer is in two halves: the agent's own column does at that answer what
+ * pressing that column does at the terminal — walks the mark to it, or picks it
+ * up — and the words beside it take the answer. Two kinds of question carry a
+ * row of their own under the answers, because two kinds are not over when an
+ * answer is pressed.
  *
- * What the foot of the card holds is the one thing that changes with the
- * question, because it is the one thing the agent did not draw the same way
- * every time: a list with keys beside it is drawn with them, a list that is
- * walked with the arrow keys is drawn with the agent's own mark and no keys at
- * all, and a question with no list under it is drawn as the one place to write.
- * Everything about how any of that is typed at the session is the session's, so
- * that a card never invents a keystroke — see `ask/watch.rs`.
- *
- * Every answer is in two halves rather than one, and that is the whole of what
- * makes this a card a question can be worked at rather than only finished at.
- * The agent's own column — the key, the mark, the box — does at that answer
- * what pressing that column does at the terminal: walks the mark to it, or, on
- * a list several answers may be taken from, picks it up and puts it down
- * again. The words beside it take the answer, as they always did.
- *
- * Two kinds of question carry a row of their own under the answers, because
- * two kinds are not over when an answer is pressed. A list several answers are
- * picked up from is answered by one return under the lot of them, so pressing
- * an answer there walks to it rather than taking it. And a list whose mark is
- * standing in a row that is being written at carries the place to write, since
- * that is where the words go — though pressing an answer still takes it, the
- * session knowing that a key at such a list would be a letter and walking
- * instead. None of that is worked out here.
- *
- * Which is the rule the whole card is built on: no press invents a keystroke.
- * Each one names an act at the session, and what comes back is the agent's own
- * next drawing of the same question — the mark somewhere else, a box filled
- * in, words in a row — which is what is then shown. A card that drew what it
- * had asked for would be a card saying something the terminal had not done.
- *
- * The words in it are already cut to width by the layout. Nothing is measured
- * here: the canvas needs the height of this card before it can place it, and a
- * card that decided its own size would be one the graph had to be rebuilt for
- * after it had been drawn.
+ * The rule the whole card is built on: no press invents a keystroke. Each names
+ * an act at the session, and what is shown is the agent's own next drawing of
+ * the same question. The words are already cut to width by the layout, because
+ * the canvas needs this card's height before it can place it.
  */
 export function AskNode({ data }: NodeProps<AskFlowNode>) {
   const { t } = useTranslation();
   const { session, ask, card } = data;
   const { answer, reply, point, pick, compose, take, showSession } = useGraphActions();
 
-  /**
-   * Whether the question carries a row of its own under the answers.
-   *
-   * A list several answers are picked up from needs the return that ends it,
-   * and a list whose mark is standing in a row being written at needs the place
-   * to write. Neither is a question that pressing one answer finishes in the
-   * ordinary way.
-   */
+  /** Whether the question carries a row of its own under the answers: a list
+   *  several answers are picked up from needs the return that ends it, and one
+   *  being written at needs the place to write. */
   const working = ask.picking || ask.writing;
 
   /** What has been written at a question that wants words, until it is sent. */

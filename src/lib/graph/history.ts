@@ -5,19 +5,11 @@ import { DEFAULT_VISIBLE_COMMITS } from "./model";
 /**
  * The history half of a band: which cell of the grid every commit is drawn in.
  *
- * Two numbers per commit and nothing else. The column is how far along the
- * history it is — a commit stands one past the last of its parents, so the work
- * that happened in parallel is drawn in parallel. The row is the line of
- * development it belongs to, which is the lane the packing gave it, with the
- * trunk holding the top one.
- *
- * Both are counted in cells rather than in pixels: what a cell is worth is the
- * band's business — see `layout` — and nothing here has to know it.
- *
- * Where a branch's *name* goes is a different question with a different answer:
- * the names stand in a column of their own, in the alphabet's order, so that
- * what a repository has is one thing to read rather than something to be found
- * among the commits. See `branches`.
+ * Two numbers per commit. The column is how far along the history it is — one
+ * past the last of its parents, so parallel work is drawn in parallel — and the
+ * row is the lane the packing gave it, with the trunk holding the top one. Both
+ * in cells rather than pixels: what a cell is worth is `layout`'s business, and
+ * where a branch's *name* goes is `branches`'.
  */
 
 /** One commit, and the cell it was dealt. */
@@ -27,21 +19,12 @@ export type Placed = {
   row: number;
   branches: Branch[];
   worktrees: Worktree[];
-  /**
-   * At least one parent is outside the history the repository handed over, so
-   * the line really does end here. History that is merely folded away is not
-   * this: the fold has its own dash and its own way back.
-   */
+  /** At least one parent is outside the history handed over, so the line really
+   *  does end here. History merely folded away has its own dash. */
   boundary: boolean;
-  /**
-   * At least one parent is known and merely folded away, and the collapse
-   * node's own dash does not already run there.
-   *
-   * A row carries whatever lines of development fit along it, so a chain cut
-   * short by the fold can be followed on its own row by an unrelated one, and
-   * the two marks either side of the join have nothing drawn between them.
-   * Without this that gap reads as a line that failed to draw.
-   */
+  /** At least one parent is known and merely folded away, and the collapse
+   *  node's own dash does not already run there. Without this the gap where one
+   *  run ends and the next begins reads as a line that failed to draw. */
   folded: boolean;
 };
 
@@ -64,12 +47,8 @@ export function commitNodeId(repository: Repository, sha: string): string {
   return `${repository.id}commit${sha}`;
 }
 
-/**
- * How many commits to show when nobody has asked for more.
- *
- * Always enough to reach the tip of the line the repository is on: a graph that
- * hid the commit you are sitting on would be answering the wrong question.
- */
+/** How many commits to show when nobody has asked for more: always enough to
+ *  reach the tip of the line the repository is on. */
 export function defaultShown(repository: Repository): number {
   const trunk = trunkOf(repository)?.commit;
   const count = Math.min(DEFAULT_VISIBLE_COMMITS, repository.commits.length);
@@ -79,23 +58,17 @@ export function defaultShown(repository: Repository): number {
 }
 
 /**
- * How much history a repository draws, given what it was asked for.
- *
- * Asking for more than there is, or for nothing at all, are both answered here
- * rather than inside the layout, so that the depth this settles on is the one
- * the cache is keyed by: two different questions with the same answer must not
- * count as two different graphs.
+ * How much history a repository draws, given what it was asked for. Asking for
+ * more than there is, or for nothing at all, are both answered here rather than
+ * inside the layout, so that the depth this settles on is the one the cache is
+ * keyed by.
  */
 export function depthOf(repository: Repository, want: number | undefined): number {
   return Math.max(1, Math.min(repository.commits.length, want ?? defaultShown(repository)));
 }
 
-/**
- * The branch the repository is on, which the top lane is held for.
- *
- * A detached or bare repository has no branch checked out; the branch git
- * itself would call the default one is the next best trunk.
- */
+/** The branch the repository is on, which the top lane is held for. A detached
+ *  or bare repository falls back to git's own default branch. */
 export function trunkOf(repository: Repository): Branch | undefined {
   return (
     repository.branches.find((branch) => branch.isHead) ??
@@ -161,22 +134,13 @@ export function placeHistory(repository: Repository, shown: number): History {
 }
 
 /**
- * Where along the history each commit sits.
+ * Where along the history each commit sits: the column after the last of its
+ * parents, which is what makes the picture a graph rather than a list. `git
+ * log`'s own order cannot do this — it hands a branch's commits back in one run,
+ * so the branch would begin wherever that run falls instead of at the fork.
  *
- * A commit takes the column after the last of its parents, which is what makes
- * the picture a graph rather than a list: a branch starts at the very commit it
- * was cut from, and the work that happened in parallel is drawn in parallel.
- * Reading the position out of `git log`'s own order cannot do this — the log
- * hands back a branch's commits in one run, so the branch would begin wherever
- * that run happens to fall instead of at the fork.
- *
- * A row never has two commits in one column: `next` holds the first column each
- * row is still free in, and no commit is placed before it. Nothing else moves a
- * commit along the axis — one column is one commit, and the gaps that do appear
- * are the history's own, a merge waiting on a branch to finish.
- *
- * Nothing but commits is placed here. The branches stand in a column of their
- * own past the whole of this, so no commit has to make room for one.
+ * `next` holds the first column each row is still free in, so a row never has
+ * two commits in one column. The gaps that do appear are the history's own.
  */
 function assignColumns(placed: Placed[], index: Map<string, number>, rows: number[]) {
   const columns = new Array<number>(placed.length);
@@ -210,22 +174,12 @@ function assignColumns(placed: Placed[], index: Map<string, number>, rows: numbe
 
 /**
  * Classic lane packing, walking newest to oldest: a commit takes the lane its
- * children reserved for it, its first parent inherits that lane, and every
- * other parent opens a lane of its own. Lanes are released as soon as the
- * commit that reserved them is drawn, so the tree stays shallow.
+ * children reserved, its first parent inherits it, and every other parent opens
+ * one of its own. Lanes are released as soon as the commit holding them is
+ * drawn, so one lane carries a run of unrelated lines over a long history.
  *
- * `trunk` is the tip of the branch the repository is on. Lane zero is held for
- * it, so the line the work is happening on runs across the top of the band and
- * everything else hangs under it — rather than lane zero going to whichever tip
- * the log happened to print first, which leaves the trunk looking like a branch
- * of a branch.
- *
- * A lane is a row of the picture and nothing more. It is handed on the moment
- * the commit holding it is drawn, so one lane carries a run of unrelated lines
- * over the length of a history — a topic branch, and then whatever was cut
- * next. That is exactly what a row of a graph is for, and the dash on a commit
- * whose parent was folded away is what says where one run ends and the next
- * begins.
+ * Lane zero is held for `trunk`, the tip of the branch the repository is on, so
+ * the line the work is happening on runs across the top of the band.
  */
 function assignLanes(commits: Commit[], drawn: Set<string>, trunk: string | undefined): number[] {
   const reserved: (string | null)[] = trunk !== undefined && drawn.has(trunk) ? [trunk] : [];

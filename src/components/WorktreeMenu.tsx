@@ -37,26 +37,15 @@ type Props = {
  * The question a deletion is put behind, and the one place in this window that
  * answers in sentences.
  *
- * Everywhere else a mark says what a press would do, and a press that ends
- * something is armed by a first press and run by a second. That was enough
- * while a deletion was the small thing it used to be: git refused an unmerged
- * branch and it refused a dirty worktree, so the presses that could cost
- * anything never reached git at all. They reach it now, and what is behind them
- * is somebody's afternoon. Two presses of the same wordless mark do not say
- * that. This does, in the only terms that matter — what is in there, and what
- * will not be coming back.
+ * Everywhere else a press that ends something is armed by a first press and run
+ * by a second. That was enough while git itself refused an unmerged branch and
+ * a dirty worktree; those presses reach git now, and what is behind them is
+ * somebody's afternoon.
  *
- * It names what it can count, and only what it has. The worktree's line is
- * drawn for a branch that has one, and the uncommitted line where there is
- * something uncommitted to lose: a list padded out with lines saying nothing
- * happens is a list nobody reads to the end of, and the line that mattered
- * would be somewhere in the middle of it. The count is the head's own — read
- * for the ring long before this was opened, so the question is about the same
- * moment the ring was drawn from and costs no crossing of its own.
- *
- * The confirming press is red at rest, which is what red says of an ending
- * everywhere else in the window. That leaves it nothing to turn if git refuses
- * after all, so that one thing is said by changing a word instead of a colour.
+ * It names what it can count and only what it has: a list padded with lines
+ * saying nothing happens is a list nobody reads to the end of. The count is the
+ * head's own, read for the ring long before this was opened. The confirming
+ * press is red at rest, so a refusal is said by changing a word.
  */
 function DeleteDialog({
   target,
@@ -149,27 +138,16 @@ function DeleteDialog({
 /**
  * What can be done with a branch, as two marks.
  *
- * The state of the directory is not written here — the ring the menu was opened
- * from is already drawn from it, and saying it again in words was the same fact
- * twice. It is not read here either: what the head had in hand came along with
- * the press, and the only thing left that wants it is the question below.
+ * The state of the directory is neither written nor read here: the ring the menu
+ * was opened from is already drawn from it, and what the head had in hand came
+ * along with the press.
  *
- * Removal takes the branch and everything standing on it: its linked worktree,
- * and whatever was left uncommitted in there. A branch nothing has merged goes
- * the same way — this is the mark for a line of work being thrown away, and
- * being turned down for that would be the answer to a question nobody asked.
- * Its remote-tracking branch is left alone; what is on the remote is not this
- * window's to throw away.
- *
- * Which is a great deal to do to somebody who meant to press the mark beside
- * it, so the press does not do it. It puts the question, in words, and the menu
- * goes as the question arrives: the menu was how a branch was chosen, that is
- * over, and two sheets of glass stacked over the graph — one asking about the
- * other — is one more than the graph can be read through.
- *
- * The one branch that cannot go is the one checked out in the repository's own
- * directory: git refuses to take that worktree away, and the refusal comes back
- * in the box rather than the mark being faded beforehand.
+ * Removal takes the branch and everything standing on it — its linked worktree,
+ * and whatever was left uncommitted. A branch nothing has merged goes the same
+ * way; its remote-tracking branch is left alone. That is a great deal to do to
+ * somebody who meant the mark beside it, so the press puts the question instead
+ * and the menu goes as the question arrives. The one branch that cannot go is
+ * the one checked out in the repository's own directory.
  */
 export function WorktreeMenu({ target, onClose, onOpen, onEndAttached }: Props) {
   const { t } = useTranslation();
