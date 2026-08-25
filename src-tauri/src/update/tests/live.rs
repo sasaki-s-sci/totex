@@ -35,22 +35,28 @@ fn declared() -> (String, String) {
 
 #[test]
 #[ignore = "downloads the newest released application layer"]
-fn the_newest_released_layer_is_taken_and_answers() {
-    let (endpoint, key) = declared();
-    let cycle = Cycles::Layer.cycle();
-
-    // Which versions that cycle has, read the way the window's pull-down reads
+fn the_newest_released_layer_of_every_cycle_is_taken_and_answers() {
+    let (endpoint, _) = declared();
+    // Which versions each cycle has, read the way the window's pull-down reads
     // them: out of the one listing of the repository.
     let listing = release::url::listing_url(&endpoint).expect("the listing");
     let listing = tauri::async_runtime::block_on(release::fetch::ask(&listing, release::SMALL))
         .expect("the listing answers");
-    let versions = release::url::versions(&listing, &cycle);
-    println!("the layer cycle has: {versions:?}");
-    let Some(newest) = versions.first() else {
-        println!("nothing has been released on the layer cycle yet");
-        return;
-    };
 
+    for which in [Cycles::Release, Cycles::Layer] {
+        let cycle = which.cycle();
+        let versions = release::url::versions(&listing, &cycle);
+        println!("{}*: {versions:?}", cycle.tag);
+        match versions.first() {
+            None => println!("  nothing has been released on that cycle yet"),
+            Some(newest) => taken(&cycle, newest),
+        }
+    }
+}
+
+/// One press, against the release page as it stands.
+fn taken(cycle: &release::Cycle, newest: &str) {
+    let (endpoint, key) = declared();
     let temp = TempDir::new("live");
     let mut context = mock_context(noop_assets());
     context.config_mut().plugins.0.insert(
@@ -69,9 +75,9 @@ fn the_newest_released_layer_is_taken_and_answers() {
 
     let coming = Channel::new(|_| Ok(()));
     let took =
-        tauri::async_runtime::block_on(take_layer(app.handle(), &cycle, Some(newest), &coming))
+        tauri::async_runtime::block_on(take_layer(app.handle(), cycle, Some(newest), &coming))
             .expect("the press");
-    println!("taking layer-v{newest} for {}: {took:?}", target());
+    println!("  taking {}{newest} for {}: {took:?}", cycle.tag, target());
     assert_eq!(took, Took::Taken);
 
     assert!(layers.beside(), "the layer that was downloaded is running");
@@ -83,7 +89,7 @@ fn the_newest_released_layer_is_taken_and_answers() {
         )
         .expect("the layer answers");
     println!(
-        "and it read {} entries out of the directory it was unpacked into",
+        "  and it read {} entries out of the directory it was unpacked into",
         listing.entries.len()
     );
     assert!(listing.entries.iter().any(|entry| entry.name == *newest));
