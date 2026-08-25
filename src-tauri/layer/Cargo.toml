@@ -3,7 +3,7 @@ name = "totex-layer"
 # Its own number, because it is released on a cycle of its own -- see
 # `src/update` in the crate above, which is what decides which version of this
 # a copy of the app is running against.
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 rust-version = "1.95"
 
