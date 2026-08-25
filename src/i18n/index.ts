@@ -7,11 +7,10 @@
  * be written down somewhere a translator can reach — a locale file, rather than
  * a literal wedged between two JSX tags.
  *
- * The language is the operating system's, asked of the webview: a desktop
- * window is opened by somebody who has already told their machine which
- * language they read, and asking them again in the app would be one more thing
- * to answer. Anything not translated falls back to English, which is also the
- * language the code is written in.
+ * The language starts as the operating system's, asked of the webview. It can
+ * be chosen explicitly in settings when this window needs a different answer.
+ * Anything not translated falls back to English, which is also the language
+ * the code is written in.
  */
 
 import i18next from "i18next";
@@ -24,7 +23,13 @@ export const LOCALES = ["en", "ja"] as const;
 
 export type Locale = (typeof LOCALES)[number];
 
+/** A language named outright, or the machine's own answer. */
+export type LanguageMode = "system" | Locale;
+
 export const FALLBACK_LOCALE: Locale = "en";
+
+/** Where an explicit choice is kept. Its absence means to follow the machine. */
+export const LANGUAGE_KEY = "totex.language";
 
 /* English is the shape every other locale is held to: a key added to en.json is
    a type error here until ja.json answers it, which is a cheaper way to find a
@@ -49,12 +54,28 @@ function preferred(): Locale {
   return FALLBACK_LOCALE;
 }
 
+/** The last choice made in settings, or the machine's own if none was made. */
+export function storedLanguage(): LanguageMode {
+  try {
+    const stored = localStorage.getItem(LANGUAGE_KEY);
+    if (stored === "en" || stored === "ja" || stored === "system") return stored;
+  } catch {
+    // A window that cannot remember the choice still follows the machine.
+  }
+  return "system";
+}
+
+/** The catalogue a choice resolves to right now. */
+function languageFor(mode: LanguageMode): Locale {
+  return mode === "system" ? preferred() : mode;
+}
+
 void i18next.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     ja: { translation: ja },
   },
-  lng: preferred(),
+  lng: languageFor(storedLanguage()),
   fallbackLng: FALLBACK_LOCALE,
   interpolation: {
     // React escapes everything it renders, and these strings are read by
@@ -68,5 +89,16 @@ void i18next.use(initReactI18next).init({
    reader picks the voice for it. index.html cannot: it is written before anyone
    has been asked. */
 document.documentElement.lang = i18next.resolvedLanguage ?? FALLBACK_LOCALE;
+
+/** Remember and immediately apply a choice made in settings. */
+export async function changeLanguage(mode: LanguageMode): Promise<void> {
+  try {
+    localStorage.setItem(LANGUAGE_KEY, mode);
+  } catch {
+    // The choice still applies to this window even when it cannot be kept.
+  }
+  await i18next.changeLanguage(languageFor(mode));
+  document.documentElement.lang = i18next.resolvedLanguage ?? FALLBACK_LOCALE;
+}
 
 export default i18next;

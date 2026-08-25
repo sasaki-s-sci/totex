@@ -91,6 +91,7 @@
   "settings": {
     "title": "設定",
     "theme": "テーマ",
+    "language": "言語",
     "mcp": "エージェントの報告",
     "mcpHint": "エージェントの作業内容をグラフに表示する",
     "register": "エージェントの設定",
@@ -123,6 +124,11 @@
     "system": "システム",
     "light": "ライト",
     "dark": "ダーク"
+  },
+  "language": {
+    "system": "システム",
+    "english": "英語",
+    "japanese": "日本語"
   },
   "filePreview": {
     "unsaved": "{{name}}は未保存",
