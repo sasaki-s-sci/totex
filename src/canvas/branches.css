@@ -2,8 +2,19 @@
  * Where a branch is, and the handle for it.
  */
 
-/* Where a branch is, and the handle for it: click it for what can be done with
-   its working directory, or drag it onto another head to merge.
+/* The commit at the centre of every node in the branch column. It uses the same
+   fill and three-pixel canvas-colour boundary as a history commit, so the column
+   is a column of commits before workspace or origin add anything to it. */
+.head__commit {
+  box-sizing: border-box;
+  border: 3px solid var(--mui-palette-background-default);
+  border-radius: 50%;
+  background: var(--mark);
+  pointer-events: none;
+}
+
+/* The workspace around that commit, and the handle for it: click it for what
+   can be done with its working directory, or drag it onto another head to merge.
 
    A ring, not a dot — it marks a position, and a branch that was cut and never
    committed to is an empty one — and hollow while there is nothing uncommitted
@@ -32,23 +43,20 @@
   box-shadow: var(--clearance), var(--halo);
 }
 
-/* The other end of a branch, where both ends stand on one commit: a ring
-   outside the head's own, dashed like everything else on this canvas that is
-   somewhere else.
+/* Origin around the commit it points at: always the largest radius and always
+   dashed, because it is somewhere else.
 
-   Under the head rather than beside it, because there is one commit and so one
-   place to stand — and because the head has to keep the whole of itself: the
-   press that opens what can be done with the branch, and the drag that merges
-   it. What this leaves to take hold of is the gap between the two rings, and a
-   pull is a movement rather than an aim, so a gap is enough of a handle. A pair
-   whose ends have parted is not drawn here at all: that one has a head of its
-   own, hanging under this row, and the pull is on that.
+   Behind the workspace when both refs point at one commit, so the workspace
+   keeps the press that opens or merges it. What remains to take hold of is the
+   gap between the two rings, and a pull is a movement rather than a fine aim.
+   When the refs have parted, the remote node carries this ring around its own
+   centre commit and the pull is on that whole outer layer.
 
    Faint until it can be used. What makes it usable is the codebase being at
    rest — see `atRest` — so the ring coming up is the branch saying it has
    nothing in hand, which is exactly when reaching for the remote is the next
    thing anybody would do. */
-.head__pair {
+.head__origin {
   padding: 0;
   color: var(--mark);
   border: 1px dashed currentcolor;
@@ -64,11 +72,11 @@
     opacity 160ms ease-out;
 }
 
-.head__pair.is-asking {
+.head__origin.is-asking {
   opacity: 0.7;
 }
 
-.head:hover .head__pair.is-asking {
+.head:hover .head__origin.is-asking {
   opacity: 1;
 }
 
@@ -77,7 +85,7 @@
    because a press there already means "all of it" — so the cursor is the whole
    of the notice, and it is only worth giving where a pull would do something. */
 .head__ring.is-asking,
-.head__pair.is-asking {
+.head__origin.is-asking {
   cursor: ew-resize;
 }
 
@@ -86,7 +94,7 @@
    dropped for the length of the pull so that what is drawn is where the hand
    is, and put back for the way home when it is let go short. */
 .head__ring.is-pulling,
-.head__pair.is-pulling {
+.head__origin.is-pulling {
   box-shadow: var(--clearance), var(--halo);
   transition: none;
 }
@@ -99,11 +107,11 @@
    keeps for something picked rather than something found, because that is the
    difference — the pull has stopped being a movement and become an answer. */
 .head__ring.is-reached,
-.head__pair.is-reached {
+.head__origin.is-reached {
   box-shadow: var(--clearance), var(--halo-selected);
 }
 
-.head__pair.is-reached {
+.head__origin.is-reached {
   border-style: solid;
   opacity: 1;
 }

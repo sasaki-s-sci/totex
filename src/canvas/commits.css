@@ -2,8 +2,8 @@
  * Commits: a filled dot, and what may be offered over one.
  */
 
-/* A commit: a filled dot, because a commit is settled — a branch head beside it
-   is the same mark left hollow, which is the working copy still open. The whole
+/* A commit: a filled dot, because a commit is settled. The branch column repeats
+   this dot and layers the open workspace and remote origin round it. The whole
    history is one path; see `CommitDots`.
 
    The stroke is the canvas's own colour rather than paint: it is the clearance

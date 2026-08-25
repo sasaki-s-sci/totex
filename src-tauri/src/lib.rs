@@ -59,6 +59,31 @@ fn write_file(path: String, text: String, expect_size: u64) -> Result<u64, Strin
     fs_browse::write_file(&path, &text, expect_size)
 }
 
+#[tauri::command(async)]
+fn fs_read_file(path: String) -> Result<Vec<u8>, String> {
+    fs_browse::read_file(&path)
+}
+
+#[tauri::command(async)]
+fn fs_create_entry(parent: String, name: String, directory: bool) -> Result<String, String> {
+    fs_browse::create_entry(&parent, &name, directory)
+}
+
+#[tauri::command(async)]
+fn fs_duplicate_file(path: String) -> Result<String, String> {
+    fs_browse::duplicate_file(&path)
+}
+
+#[tauri::command(async)]
+fn fs_rename_file(path: String, name: String) -> Result<String, String> {
+    fs_browse::rename_file(&path, &name)
+}
+
+#[tauri::command(async)]
+fn fs_delete_file(path: String) -> Result<(), String> {
+    fs_browse::delete_file(&path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Before anything builds a window: the window this app draws is undecorated,
@@ -115,6 +140,11 @@ pub fn run() {
             read_directory,
             read_file_head,
             write_file,
+            fs_read_file,
+            fs_create_entry,
+            fs_duplicate_file,
+            fs_rename_file,
+            fs_delete_file,
             update::update_standing,
             update::take_whole,
             release::fetch::update_versions,

@@ -17,7 +17,6 @@ import {
   type GraphLine,
   onCell,
   onStack,
-  RING_TRIM,
   SESSION_WIDTH,
   stackReach,
 } from "../model";
@@ -128,7 +127,7 @@ export function bandColumn(
         // rather than being drawn across it. There is no paper under the mark
         // to hide a line that went too far.
         trim: CLI_MARK / 2,
-        lead: RING_TRIM,
+        lead: run.lead,
         stroke: CLI_STROKE,
       });
 

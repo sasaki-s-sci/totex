@@ -74,6 +74,8 @@ export type BranchRun = {
   /** Band-relative corner of the box a stack of one would stand in: its middle. */
   x: number;
   y: number;
+  /** How far beyond the head's centre its outgoing edge begins. */
+  lead: number;
 };
 
 /** How many terminals are running in each directory. All of them, because a
@@ -108,10 +110,13 @@ export function prepare(
   return prepared;
 }
 
-/** How far past the end of the history the branches stand. Two whole cells,
- *  because this gap is what every branch line climbs in and what its name is
- *  set along: one column and the steepest names run into each other. */
-const BRANCH_GAP = COLUMN_WIDTH * 2;
+/** How far past the end of the history the branches stand.
+ *
+ * `columnX(history.width)` is half a commit step past the centre of the last
+ * history column. Adding the other half puts a branch/worktree ring exactly one
+ * commit step after that column, so the transition out of history keeps the
+ * same rhythm as the commits themselves. */
+const BRANCH_GAP = COMMIT_STEP.x / 2;
 
 /** Every node and line one repository contributes, relative to its band. */
 function layout(repository: Repository, shown: number, deep: Depth): PreparedRepository {

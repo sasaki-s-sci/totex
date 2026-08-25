@@ -21,6 +21,25 @@
     "move": "Move",
     "shell": "Shell"
   },
+  "file": {
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "new-file": "New file",
+    "new-folder": "New folder",
+    "newFolderName": "New folder",
+    "copy": "Copy",
+    "duplicate": "Duplicate",
+    "download": "Download",
+    "copyPath": "Copy path",
+    "copyRelativePath": "Copy relative path",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteTitle": "Delete {{name}}?",
+    "deleteBody": "This file will be permanently deleted.",
+    "cancel": "Cancel",
+    "confirm": "OK",
+    "failed": "Could not complete the operation"
+  },
   "repository": {
     "close": "Close"
   },

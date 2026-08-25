@@ -106,6 +106,30 @@ export function writeFile(path: string, text: string, expectSize: number): Promi
   return invoke<number>("write_file", { path, text, expectSize });
 }
 
+/** Reads a complete file for an explicit clipboard copy or download. */
+export function readFile(path: string): Promise<number[]> {
+  return invoke<number[]>("fs_read_file", { path });
+}
+
+/** Creates one empty file or folder directly inside `parent`. */
+export function createEntry(parent: string, name: string, directory: boolean): Promise<string> {
+  return invoke<string>("fs_create_entry", { parent, name, directory });
+}
+
+/** Copies a file beside itself and returns the unused name chosen for it. */
+export function duplicateFile(path: string): Promise<string> {
+  return invoke<string>("fs_duplicate_file", { path });
+}
+
+/** Renames one file in place and returns its new full path. */
+export function renameFile(path: string, name: string): Promise<string> {
+  return invoke<string>("fs_rename_file", { path, name });
+}
+
+export function deleteFile(path: string): Promise<void> {
+  return invoke<void>("fs_delete_file", { path });
+}
+
 /**
  * How many repositories each of these folders holds — itself, or under it.
  *

@@ -80,15 +80,17 @@ export function rimOf(status: WorktreeStatus | undefined): ReactNode {
  * makes the circle 360 units round, so the dash and the gap between two dashes
  * are written as the degrees they take.
  */
-export function dashes(): ReactNode {
+export function dashes(size = HEAD_SIZE): ReactNode {
+  const centre = size / 2;
+  const radius = (size - RING_WIDTH) / 2;
   return (
     <circle
-      cx={CENTRE}
-      cy={CENTRE}
-      r={RADIUS}
+      cx={centre}
+      cy={centre}
+      r={radius}
       pathLength={360}
       strokeDasharray="22 14"
-      transform={`rotate(-90 ${CENTRE} ${CENTRE})`}
+      transform={`rotate(-90 ${centre} ${centre})`}
     />
   );
 }

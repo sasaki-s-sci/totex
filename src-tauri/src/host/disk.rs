@@ -14,6 +14,29 @@ use crate::wsl;
 const BATCH: usize = 128;
 
 impl Host {
+    /// Whether anything occupies this path, including a broken symbolic link.
+    pub fn exists(&self, path: &Path) -> bool {
+        match self {
+            Self::Local => std::fs::symlink_metadata(path).is_ok(),
+            Self::Wsl(distro) => {
+                let native = self.native(path);
+                wsl::exec(
+                    distro,
+                    None,
+                    &[],
+                    &[
+                        "sh",
+                        "-c",
+                        "test -e \"$1\" || test -L \"$1\"",
+                        "sh",
+                        &native,
+                    ],
+                )
+                .is_ok_and(|output| output.ok())
+            }
+        }
+    }
+
     pub fn stat(&self, path: &Path) -> Option<Stat> {
         match self {
             Self::Local => local_stat(path),

@@ -1,16 +1,20 @@
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack } from "@mui/material";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderMark, GraphMark, JumpMark, MarkButton } from "../components/marks";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { FsEntry, Listing } from "./api";
+import { FileContextMenu, type FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
 import { CHANGE_COLOUR, ICON, IGNORED_COLOUR, LEVEL_STEP, ROW_INDENT } from "./rows";
 import { useLevel } from "./useLevel";
 
 interface LevelProps {
   path: string;
+  /** The pane's top-level folder, for paths copied relative to it. */
+  root: string;
   /** How far in the rows are drawn: one step per folder that was opened. */
   depth: number;
   graphed: readonly string[];
@@ -33,6 +37,7 @@ interface LevelProps {
  */
 export function Level({
   path,
+  root,
   depth,
   graphed,
   selected,
@@ -43,6 +48,7 @@ export function Level({
   onListing,
 }: LevelProps) {
   const { t } = useTranslation();
+  const [menu, setMenu] = useState<FileMenuTarget | null>(null);
   const {
     failed,
     expanded,
@@ -101,6 +107,18 @@ export function Level({
                 event.stopPropagation();
                 onOpen(entry);
                 onOpenFile?.(entry.path);
+              }}
+              onContextMenu={(event) => {
+                if (entry.isDir) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onOpen(entry);
+                setMenu({
+                  entry,
+                  parent: path,
+                  root,
+                  at: { x: event.clientX, y: event.clientY },
+                });
               }}
               onClick={() => {
                 onOpen(entry);
@@ -174,6 +192,7 @@ export function Level({
             {open && (
               <Level
                 path={entry.path}
+                root={root}
                 depth={depth + 1}
                 graphed={graphed}
                 selected={selected}
@@ -192,6 +211,7 @@ export function Level({
           view when its rows arrive has not crossed anything, and an observer
           left on it would never speak again. */}
       {rest > 0 && <MoreRows key={shown} indent={indent} onSeen={drawMore} />}
+      <FileContextMenu target={menu} onClose={() => setMenu(null)} />
     </>
   );
 }
