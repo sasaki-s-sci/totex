@@ -85,39 +85,58 @@ until it is let out of it — `xattr -dr com.apple.quarantine
 /Applications/totex.app` — and Windows SmartScreen calls it an unknown
 publisher, which is More info, then Run anyway.
 
-`latest.json`, `totex-macos-universal.app.tar.gz` and `front.tar.gz` sit beside
-them and are not downloads at all: they are what an installed copy updates
-itself from.
+`latest.json`, `totex-macos-universal.app.tar.gz`, `front.tar.gz` and the three
+`totex-layer-*.gz` sit beside them and are not downloads at all: they are what
+an installed copy updates itself from.
 
 ## Updating
 
-The last three rows of the settings dialog are the whole of it: which release,
-and then each of the two halves that release comes in. The releases are listed
-in a pull-down, which the window keeps filled on a slow loop from the moment it
-opens, so it is full when it is opened rather than after.
+Three rows of the settings dialog, one per layer of the app, and each of them
+says which release it is pointed at and what a press of it would cost. The
+releases are listed in each row's pull-down, which the window keeps filled on a
+slow loop from the moment it opens, so a list is full when it is opened rather
+than after.
 
 **The window's own pages.** About a megabyte, checked against the same key the
 installers are signed with, and it ends in a reload. The program underneath is
 untouched, so every terminal it is holding stays open and is redrawn from its
 own backlog as the window comes back.
 
+**The application layer.** The part of the program that answers everything the
+app asks of the machine — what is in this directory, what is in this file, where
+this window can be opened — which is a small program totex runs beside itself
+rather than something built into it. It ends in nothing: the new one is started,
+the old one is let go of between two questions, and the window is not reloaded.
+It is the cheapest of the three and the one that interrupts nothing at all.
+
 **The program.** That is the installer, and it ends in a restart — which ends
 every terminal with it. It is a row of its own because it is a different cost,
-and nobody should pay it by having pressed the other one.
+and nobody should pay it by having pressed one of the others.
 
-A `.deb` or an `.rpm` is never offered the second: those files belong to the
-package manager, which is who brings them forward. It is offered the first, so
-the window can be current while the program waits for the next `apt upgrade`.
+A `.deb` or an `.rpm` is never offered the last: those files belong to the
+package manager, which is who brings them forward. It is offered the other two,
+so the window and the layer under it can be current while the program waits for
+the next `apt upgrade`.
 
-The pages only ever go forward — pages older than the program are pages the next
-start throws away, so the row says so rather than downloading them. Going back is
-the program's row, which takes whichever release is named whether it is newer or
-older than the one running, and brings that release's own pages with it.
+Any of the three can be pointed at any release, older or newer. The row says
+where it is going — `0.1.10 → 0.1.9` — because a version on its own does not
+say which way a press goes, and going back is as much of what naming a release
+is for as going forward. Pages older than the program are held in place by
+having been chosen; taking a program is what clears them away again, since the
+release a program comes out of carries its own.
 
 Pages that cannot draw a window are dropped on the next start of the app, so one
 restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the
 environment is the same way out without waiting to be asked: it opens the app on
-the pages built into it and throws away whatever had been taken.
+the pages built into it and throws away whatever had been taken. A layer that
+will not start needs no such thing — the copy built into the program answers
+instead, from the next question onwards.
+
+**Releases of one layer.** Each row can also be pointed at a cycle of releases
+of its own: `layer-v*` for the application layer, `front-v*` for the pages,
+alongside the `v*` releases that carry all three. What a row is left pointed at
+is remembered by the program rather than by the window, which is what makes it
+survive the reload, the swap and the restart that the three rows end in.
 
 ## Letting the agents say what they are working on
 

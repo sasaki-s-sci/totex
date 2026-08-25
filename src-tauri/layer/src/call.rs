@@ -26,7 +26,15 @@ use crate::fs_browse;
 /// know how to talk to, and it is left alone rather than run: what is served
 /// instead is the copy the program carries, which is by definition the one it
 /// agrees with.
-pub const PROTOCOL: u32 = 1;
+///
+/// Written in `package.json`, which is where `frontContract` is and for the
+/// same reason: the release job has to write it into the document a release
+/// publishes, so that a copy can tell what it would be downloading before it
+/// downloads it. See `build.rs` beside this crate.
+pub const PROTOCOL: u32 = match u32::from_str_radix(env!("LAYER_PROTOCOL"), 10) {
+    Ok(spoken) => spoken,
+    Err(_) => panic!("build.rs writes this out of package.json"),
+};
 
 /// Every question in the table, by name.
 ///
