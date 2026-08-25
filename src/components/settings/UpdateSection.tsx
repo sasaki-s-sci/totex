@@ -113,7 +113,10 @@ function LayerRow({ at, rung }: { at: UpdateState; rung: Rung }) {
       }
     >
       <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-        <Releases at={at} rung={rung} />
+        {/* A layer this copy cannot replace has no release to be pointed at:
+            the row is here to say why not, and a pull-down of versions none of
+            which could be taken is a question nobody is being asked. */}
+        {rung.can && <Releases at={at} rung={rung} />}
         <PageButton
           danger={stage === "ready" || stage === "failed"}
           disabled={stage === "taking" || stage === "held"}
@@ -155,11 +158,23 @@ function Releases({ at, rung }: { at: UpdateState; rung: Rung }) {
   // is not 0.1.9 of another and a list holding both would have two rows that
   // are the same string.
   const value = rung.picked ? `${rung.cycle}:${rung.picked}` : "";
+  // A row can be pointed at a release the list does not hold: what it is
+  // pointed at is remembered by the backend and survives a restart, and the
+  // list is filled by a poll of somebody else's server which may not have
+  // answered yet, or at all. A pull-down that cannot draw what it is set to
+  // draws nothing, which is a row that has quietly stopped saying what it would
+  // do — so what it is set to is always one of the things it can draw.
+  const held = at.versions[rung.cycle];
+  const kept = rung.picked && !held.includes(rung.picked) ? [rung.picked] : [];
 
   return (
     <Select
       size="small"
       value={value}
+      // "Whichever is newest" is a choice like any other and reads as one.
+      // Without this the row is blank until the list lands, which is the state
+      // every window opens in.
+      displayEmpty
       disabled={taking}
       onChange={(event) => {
         const [cycle, version] = event.target.value.split(":");
@@ -171,10 +186,15 @@ function Releases({ at, rung }: { at: UpdateState; rung: Rung }) {
       {/* Whichever is newest, which is the one thing that can be asked for
           without having been told which releases exist. */}
       <MenuItem value="">{t("update.newest")}</MenuItem>
+      {kept.map((version) => (
+        <MenuItem key={`${rung.cycle}:${version}`} value={`${rung.cycle}:${version}`}>
+          {version}
+        </MenuItem>
+      ))}
       {cycles.flatMap((cycle) => [
         // A heading only where there is more than one cycle to tell apart:
         // one list under one name is a name that says nothing.
-        ...(cycles.length > 1
+        ...(cycles.length > 1 && at.versions[cycle].length > 0
           ? [<ListSubheader key={cycle}>{t(`update.cycle.${cycle}`)}</ListSubheader>]
           : []),
         ...at.versions[cycle].map((version) => (

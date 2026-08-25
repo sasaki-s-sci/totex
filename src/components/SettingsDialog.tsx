@@ -18,7 +18,11 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
   const { t } = useTranslation();
 
   return (
-    <Dialog open={open} onClose={onClose} slotProps={{ paper: { sx: { width: 380 } } }}>
+    // Wide enough for the widest row, which is an update row: a name, the
+    // version it is at and the one it is pointed at, a pull-down of releases
+    // and the press. At 380 the version line under a name wrapped, and a line
+    // that says what a press would do is not one to make somebody read twice.
+    <Dialog open={open} onClose={onClose} slotProps={{ paper: { sx: { width: 440 } } }}>
       <Stack sx={{ p: 2, gap: 1 }}>
         <Typography variant="subtitle2" sx={{ color: "text.secondary" }}>
           {t("settings.title")}
