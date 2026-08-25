@@ -12,6 +12,7 @@
 //! would get.
 
 pub mod model;
+mod operate;
 mod path;
 mod read;
 mod roots;
@@ -20,6 +21,7 @@ mod roots;
 mod tests;
 
 pub use model::{FileHead, Listing, Place, Root};
+pub use operate::{create_entry, delete_file, duplicate_file, read_file, rename_file};
 pub use path::{describe_folders, home_dir, resolve_folder};
 pub use read::{read_directory, read_file_head, write_file};
 pub use roots::list_roots;

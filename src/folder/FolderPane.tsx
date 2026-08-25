@@ -151,6 +151,7 @@ export function FolderPane({
       {showing && (
         <Level
           path={path}
+          root={path}
           depth={0}
           graphed={graphed}
           selected={selected}

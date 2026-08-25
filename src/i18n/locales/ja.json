@@ -21,6 +21,25 @@
     "move": "動かす",
     "shell": "シェル"
   },
+  "file": {
+    "newFile": "新しいファイル",
+    "newFolder": "新しいフォルダ",
+    "new-file": "新しいファイル",
+    "new-folder": "新しいフォルダ",
+    "newFolderName": "新しいフォルダ",
+    "copy": "コピー",
+    "duplicate": "複製",
+    "download": "ダウンロード",
+    "copyPath": "パスをコピー",
+    "copyRelativePath": "相対パスをコピー",
+    "rename": "名前を変更",
+    "delete": "削除",
+    "deleteTitle": "{{name}} を削除しますか？",
+    "deleteBody": "このファイルは完全に削除されます。",
+    "cancel": "キャンセル",
+    "confirm": "OK",
+    "failed": "操作を完了できませんでした"
+  },
   "repository": {
     "close": "閉じる"
   },

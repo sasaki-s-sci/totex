@@ -7,6 +7,21 @@ use super::script::{HEAD, WRITE};
 use crate::wsl;
 
 impl Host {
+    /// The whole of one file, for an explicit copy or download.
+    pub fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
+        match self {
+            Self::Local => std::fs::read(path).map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let output = wsl::exec(distro, None, &[], &["cat", "--", &self.native(path)])?;
+                if output.ok() {
+                    Ok(output.stdout)
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
     /// The first `limit` bytes of a file, and how long the whole of it is.
     pub fn read_head(&self, path: &Path, limit: u64) -> Result<(Vec<u8>, u64), String> {
         match self {
@@ -81,6 +96,123 @@ impl Host {
             Self::Local => std::fs::create_dir_all(path).map_err(|error| error.to_string()),
             Self::Wsl(distro) => {
                 let output = wsl::exec(distro, None, &[], &["mkdir", "-p", &self.native(path)])?;
+                if output.ok() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
+    /// Creates exactly one empty file, refusing to replace anything there.
+    pub fn create_file(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(path)
+                .map(|_| ())
+                .map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let native = self.native(path);
+                let output = wsl::exec(
+                    distro,
+                    None,
+                    &[],
+                    &[
+                        "sh",
+                        "-c",
+                        "test ! -e \"$1\" && test ! -L \"$1\" && : > \"$1\"",
+                        "sh",
+                        &native,
+                    ],
+                )?;
+                output
+                    .ok()
+                    .then_some(())
+                    .ok_or_else(|| "already-exists".to_string())
+            }
+        }
+    }
+
+    /// Creates exactly one directory, refusing to reuse one already there.
+    pub fn create_dir(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::create_dir(path).map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let output = wsl::exec(distro, None, &[], &["mkdir", "--", &self.native(path)])?;
+                if output.ok() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
+    pub fn copy_file(&self, from: &Path, to: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => {
+                let mut source = std::fs::File::open(from).map_err(|error| error.to_string())?;
+                let mut destination = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(to)
+                    .map_err(|error| error.to_string())?;
+                std::io::copy(&mut source, &mut destination)
+                    .map(|_| ())
+                    .map_err(|error| error.to_string())
+            }
+            Self::Wsl(distro) => {
+                let from = self.native(from);
+                let to = self.native(to);
+                let output = wsl::exec(
+                    distro,
+                    None,
+                    &[],
+                    &[
+                        "sh",
+                        "-c",
+                        "test ! -e \"$2\" && test ! -L \"$2\" && cp -- \"$1\" \"$2\"",
+                        "sh",
+                        &from,
+                        &to,
+                    ],
+                )?;
+                if output.ok() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
+    pub fn rename(&self, from: &Path, to: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::rename(from, to).map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let output = wsl::exec(
+                    distro,
+                    None,
+                    &[],
+                    &["mv", "--", &self.native(from), &self.native(to)],
+                )?;
+                if output.ok() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
+    pub fn remove_file(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::remove_file(path).map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let output = wsl::exec(distro, None, &[], &["rm", "--", &self.native(path)])?;
                 if output.ok() {
                     Ok(())
                 } else {
