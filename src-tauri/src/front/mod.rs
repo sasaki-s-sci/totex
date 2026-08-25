@@ -20,7 +20,8 @@
 //! ## Which front a window opens on
 //!
 //! One rule: a taken front is served only while it is newer than the one built
-//! into the binary and no further ahead of it than the two agreed on, and only
+//! into the binary -- or was asked for by name, which is the way back to an
+//! older release -- and no further ahead of it than the two agreed on, and only
 //! after a window has finished drawing itself out of it once.
 //!
 //! The first half is what makes it safe to leave lying about. A copy that
@@ -92,11 +93,27 @@ struct Taken {
     /// to serve are not therefore pages this one is.
     ///
     /// Absent from a file written before this was, which is a front no run
-    /// that reads this will serve anyway -- see [`keep`], where a front has to
-    /// be newer than the binary, and a binary carrying this is newer than any
-    /// front taken without it.
+    /// that reads this will serve anyway -- see [`serving::keep`], where a
+    /// front has to be newer than the binary, and a binary carrying this is
+    /// newer than any front taken without it.
     #[serde(default)]
     needs: u32,
+    /// Whether these pages were asked for by name.
+    ///
+    /// The rule is that a front is served while it is newer than the program,
+    /// which is what makes a front left lying about harmless: a copy that
+    /// replaces itself the whole way arrives carrying newer pages, and the
+    /// taken ones are overtaken and deleted rather than left standing in front
+    /// of them.
+    ///
+    /// Pages somebody chose are the exception, and they are an exception on
+    /// purpose: choosing the release you were on last week is the whole of what
+    /// choosing is for. So they are held in place until something is chosen
+    /// instead, or until the program under them is replaced -- see
+    /// [`Serving::drop_front`], which is what a step in the program's own row
+    /// does to a front pinned over the top of it.
+    #[serde(default)]
+    pinned: bool,
     /// Whether a window has ever finished drawing itself out of it.
     confirmed: bool,
 }
@@ -111,6 +128,8 @@ struct Unpacked {
     version: Version,
     /// The agreement it was built against -- see [`Taken::needs`].
     needs: u32,
+    /// Whether it was asked for by name -- see [`Taken::pinned`].
+    pinned: bool,
 }
 
 /// What answers for a file the front being served has not got.

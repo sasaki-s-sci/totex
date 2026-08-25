@@ -49,7 +49,7 @@ pub(super) fn wait_answering<R: Runtime>(
 
 /// Collects output until `wanted` shows up, or gives up.
 #[cfg(unix)]
-pub(super) fn wait_for(rx: &mpsc::Receiver<String>, wanted: &str) -> String {
+pub(crate) fn wait_for(rx: &mpsc::Receiver<String>, wanted: &str) -> String {
     let deadline = Instant::now() + Duration::from_secs(10);
     let mut seen = String::new();
     while Instant::now() < deadline {
@@ -64,7 +64,7 @@ pub(super) fn wait_for(rx: &mpsc::Receiver<String>, wanted: &str) -> String {
 }
 
 /// Every run of output a session sends, on a channel.
-pub(super) fn listening<R: Runtime>(app: &AppHandle<R>) -> mpsc::Receiver<String> {
+pub(crate) fn listening<R: Runtime>(app: &AppHandle<R>) -> mpsc::Receiver<String> {
     use tauri::Listener;
 
     let (tx, rx) = mpsc::channel();

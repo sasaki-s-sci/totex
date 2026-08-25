@@ -29,7 +29,17 @@ pub struct Serving {
 impl Serving {
     /// Settles what this run is drawn out of, and clears away everything else.
     pub fn prepare(identifier: &str, built: Version) -> Self {
-        let home = dirs::data_dir().map(|dir| dir.join(identifier).join("front"));
+        Self::keeping(
+            dirs::data_dir().map(|dir| dir.join(identifier).join("front")),
+            built,
+        )
+    }
+
+    /// The same, told where to keep them and which pages this program carries.
+    ///
+    /// Where a machine keeps things is one question and what is kept there is
+    /// another, and only the second one is worth running a test against.
+    pub fn keeping(home: Option<PathBuf>, built: Version) -> Self {
         let at = home
             .as_deref()
             .and_then(|home| keep(home, &built, take::contract()));
@@ -96,6 +106,7 @@ impl Serving {
         let dropped = Taken {
             version: unpacked.version.to_string(),
             needs: unpacked.needs,
+            pinned: unpacked.pinned,
             confirmed: false,
         };
         if let Ok(bytes) = serde_json::to_vec(&dropped) {
@@ -145,13 +156,17 @@ pub(super) fn keep(home: &Path, built: &Version, contract: u32) -> Option<Unpack
         .and_then(|taken| {
             Version::parse(&taken.version)
                 .ok()
-                .map(|version| (version, taken.needs))
+                .map(|version| (version, taken.needs, taken.pinned))
         })
-        .filter(|(version, _)| version > built)
-        .map(|(version, needs)| Unpacked {
+        // Newer than the program, or chosen. Anything else is a front the
+        // program has overtaken, and the program's own pages are what would be
+        // drawn instead -- see [`super::Taken::pinned`].
+        .filter(|(version, _, pinned)| version > built || *pinned)
+        .map(|(version, needs, pinned)| Unpacked {
             dir: home.join(version.to_string()),
             version,
             needs,
+            pinned,
         })
         .filter(|unpacked| unpacked.dir.is_dir())
         .filter(|_| std::env::var_os(BUILT_IN).is_none());

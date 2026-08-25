@@ -5,7 +5,10 @@ fn main() {
     contract();
 }
 
-/// Writes the agreement between the pages and the program into the binary.
+/// Writes what this binary knows about the pages built into it.
+///
+/// Two numbers, both out of `package.json`, which is the pages' own manifest:
+/// the agreement they were built to, and the version they are.
 ///
 /// The pages of a release can be taken onto an older program than the one they
 /// were built beside — that is the whole point of `src/front` — and what stops
@@ -25,4 +28,13 @@ fn contract() {
         .as_u64()
         .expect("package.json declares frontContract");
     println!("cargo:rustc-env=FRONT_CONTRACT={contract}");
+
+    // And the version of the pages built into this binary, which is the version
+    // of the package they are built from. The same number as the crate's in a
+    // release that moves every layer at once, and not the same in a release of
+    // the pages alone -- see `src/release/cycle.rs`.
+    let version = read["version"]
+        .as_str()
+        .expect("package.json declares a version");
+    println!("cargo:rustc-env=FRONT_VERSION={version}");
 }

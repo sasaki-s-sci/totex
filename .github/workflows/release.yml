@@ -65,26 +65,43 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Three files carry the version and they are only ever the same
-          # number. Read all three rather than the one that names the
-          # installers, because a tree that disagrees with itself here is a
-          # release that ships a crate and a bundle claiming different things.
+          # Four files carry a version, and they are not always the same
+          # number. The app is three layers, each of which can be released on a
+          # cycle of its own -- see src-tauri/src/release/cycle.rs -- so the
+          # pages or the application layer can have moved since the last
+          # release of the app without the app having moved with them.
+          #
+          # This is the cycle where all four move together, and they move to
+          # one number: the next one after the highest of them. Not after the
+          # program's own, because that would hand a number to the program that
+          # a layer released on its own has already been published under, and a
+          # version is only worth naming while it names one thing.
           conf=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
-          pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
           crate=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml | head -1)
-          if [ "$pkg" != "$conf" ] || [ "$crate" != "$conf" ]; then
-            echo "::error::the tree disagrees about its own version: tauri.conf.json $conf, package.json $pkg, Cargo.toml $crate"
+          pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
+          layer=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/layer/Cargo.toml | head -1)
+
+          # The two the program is described by are one thing said twice, and a
+          # bundle that claims a different version from the crate inside it is
+          # a release nobody could ask for by name.
+          if [ "$crate" != "$conf" ]; then
+            echo "::error::the program disagrees about its own version: tauri.conf.json $conf, Cargo.toml $crate"
             exit 1
           fi
 
           # Three numbers and nothing else: this adds to them, and there is
           # nothing sensible to add to a version with a suffix on it.
-          if ! printf '%s' "$conf" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::$conf is not a version this knows how to turn over"
-            exit 1
-          fi
+          for carried in "$conf" "$pkg" "$layer"; do
+            if ! printf '%s' "$carried" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::$carried is not a version this knows how to turn over"
+              exit 1
+            fi
+          done
 
-          IFS=. read -r major minor patch <<<"$conf"
+          highest=$(printf '%s\n' "$conf" "$pkg" "$layer" | sort -V | tail -1)
+          echo "the program is at $conf, the pages at $pkg, the layer at $layer"
+
+          IFS=. read -r major minor patch <<<"$highest"
           case "$PART" in
             major) major=$((major + 1)); minor=0; patch=0 ;;
             minor) minor=$((minor + 1)); patch=0 ;;
@@ -101,39 +118,45 @@ jobs:
             exit 1
           fi
 
-          echo "from=$conf" >>"$GITHUB_OUTPUT"
+          echo "from=$highest" >>"$GITHUB_OUTPUT"
           echo "to=$next" >>"$GITHUB_OUTPUT"
-          echo "cutting v$conf -> v$next"
+          echo "cutting v$highest -> v$next"
 
       - name: Write it into everything that carries it
         env:
-          FROM: ${{ steps.version.outputs.from }}
           TO: ${{ steps.version.outputs.to }}
         run: |
           set -euo pipefail
 
           # The first match in each file is the package's own version; the ones
-          # further down belong to dependencies.
-          sed -i "0,/\"version\": \"$FROM\"/s//\"version\": \"$TO\"/" package.json
-          sed -i "0,/\"version\": \"$FROM\"/s//\"version\": \"$TO\"/" src-tauri/tauri.conf.json
-          sed -i "0,/^version = \"$FROM\"/s//version = \"$TO\"/" src-tauri/Cargo.toml
+          # further down belong to dependencies. Written by position rather
+          # than by what was there, because the four are not all coming from
+          # the same number -- see the step above.
+          sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" package.json
+          sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" src-tauri/tauri.conf.json
+          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/Cargo.toml
+          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/layer/Cargo.toml
 
-          # The lock says the version of every crate in the build, this one
+          # The lock says the version of every crate in the build, these two
           # included, and cargo rewrites it on the next build either way. Doing
           # it here is what keeps the committed lock true of the committed
-          # manifest. The line wanted is the one under the crate's own name.
+          # manifests. The lines wanted are the ones under the crates' own
+          # names.
           awk -v to="$TO" '
             found && /^version = / { $0 = "version = \"" to "\"" }
-            { found = ($0 == "name = \"totex\""); print }
+            { found = ($0 == "name = \"totex\"" || $0 == "name = \"totex-layer\""); print }
           ' src-tauri/Cargo.lock >Cargo.lock.next
           mv Cargo.lock.next src-tauri/Cargo.lock
 
-          # None of the four is allowed to have been missed: a file left on the
-          # old number is the disagreement the step above refuses to start on.
-          grep -q "\"version\": \"$TO\"" package.json &&
-            grep -q "\"version\": \"$TO\"" src-tauri/tauri.conf.json &&
+          # None of them is allowed to have been missed: a file left on the old
+          # number is a release that ships a layer claiming to be something
+          # else, and the app compares the two.
+          grep -q "^  \"version\": \"$TO\"" package.json &&
+            grep -q "^  \"version\": \"$TO\"" src-tauri/tauri.conf.json &&
             grep -q "^version = \"$TO\"" src-tauri/Cargo.toml &&
-            grep -A1 '^name = "totex"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
+            grep -q "^version = \"$TO\"" src-tauri/layer/Cargo.toml &&
+            grep -A1 '^name = "totex"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" &&
+            grep -A1 '^name = "totex-layer"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
               echo "::error::the version was not written everywhere it lives"
               git --no-pager diff --stat
               exit 1

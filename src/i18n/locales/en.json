@@ -95,8 +95,7 @@
     "mcp": "Agent reports",
     "mcpHint": "Let the agents say what they are working on",
     "register": "Agent setup",
-    "registerHint": "Point this machine's agent at the server",
-    "update": "Update to"
+    "registerHint": "Point this machine's agent at the server"
   },
   "mcp": {
     "register": "Set up",
@@ -118,7 +117,15 @@
     "pages": "Pages",
     "program": "Program",
     "drawn": "Drawn from {{version}}",
-    "running": "Running {{version}}"
+    "running": "Running {{version}}",
+    "layer": "Application layer",
+    "answering": "Answering from {{version}}",
+    "moving": "{{from}} → {{to}}",
+    "cycle": {
+      "release": "Releases",
+      "layer": "Layer releases",
+      "front": "Page releases"
+    }
   },
   "theme": {
     "system": "System",

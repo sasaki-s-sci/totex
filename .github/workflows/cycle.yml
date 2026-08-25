@@ -1,0 +1,358 @@
+name: Cycle
+
+# Releasing one layer of the app on its own.
+#
+# The app is three layers and they do not have to move together: the pages the
+# window is drawn out of and the application layer beside the program are both
+# replaceable while the app is running, so either can be published between two
+# releases of the app and taken by a copy that is pointed at it. See
+# `src-tauri/src/release/cycle.rs`, which is where a copy is told what a cycle
+# is, and `.github/workflows/release.yml`, which is the cycle where all three
+# move at once.
+#
+# What comes out of this is a release under a tag of its own, holding one
+# document and the downloads it names. It is never what
+# `releases/latest/download/...` answers with -- see `make_latest` at the end --
+# because the newest release of totex is a release of totex, and a layer
+# published between two of them must not step in front of one.
+on:
+  workflow_dispatch:
+    inputs:
+      layer:
+        description: Which layer is released on its own
+        type: choice
+        required: true
+        options:
+          - layer
+          - front
+      part:
+        description: Which part of the version turns over
+        type: choice
+        required: true
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+
+# Two of these at once would work the same number out twice and race to push it.
+concurrency: release
+
+env:
+  MISE_DISABLE_TOOLS: rust
+  # Keep in sync with the `rust` pin in mise.toml.
+  RUST_VERSION: "1.95.0"
+
+jobs:
+  cut:
+    name: Cut a ${{ inputs.layer }} release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.cut.outputs.tag }}
+      version: ${{ steps.version.outputs.to }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Whichever branch this was started from, what is released is what is
+          # on main: a tag on anything else names a version nobody can get back
+          # to.
+          ref: main
+          fetch-depth: 0
+
+      - name: Refuse a release nothing could update to
+        # Without the key, what is published is a download every installed copy
+        # turns down, and a tag is not a thing to have to take back.
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is unset, so nothing could be signed"
+            exit 1
+          fi
+
+      - name: Work out what this turns over to
+        id: version
+        env:
+          LAYER: ${{ inputs.layer }}
+          PART: ${{ inputs.part }}
+        run: |
+          set -euo pipefail
+
+          # Every layer carries its own number, and the next one is the one
+          # after the highest of them -- whichever layer is being released. Two
+          # cycles are two sets of tags on one repository, and a version worth
+          # naming names one thing: `0.2.0` must not be a version of the layer
+          # and a version of the app at the same time.
+          conf=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
+          pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
+          layer=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/layer/Cargo.toml | head -1)
+
+          for carried in "$conf" "$pkg" "$layer"; do
+            if ! printf '%s' "$carried" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::$carried is not a version this knows how to turn over"
+              exit 1
+            fi
+          done
+
+          highest=$(printf '%s\n' "$conf" "$pkg" "$layer" | sort -V | tail -1)
+          IFS=. read -r major minor patch <<<"$highest"
+          case "$PART" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "::error::$PART is not a part of a version"; exit 1 ;;
+          esac
+          next="$major.$minor.$patch"
+
+          if git rev-parse -q --verify "refs/tags/$LAYER-v$next" >/dev/null; then
+            echo "::error::$LAYER-v$next is already a tag"
+            exit 1
+          fi
+
+          echo "to=$next" >>"$GITHUB_OUTPUT"
+          echo "the program is at $conf, the pages at $pkg, the layer at $layer"
+          echo "cutting $LAYER-v$next"
+
+      - name: Write it into the layer being released
+        # One file and not four. That is the whole of the difference between
+        # this and a release of the app: the layer being released moves and
+        # nothing else does, so the version each of the others carries is still
+        # the version each of them was published under.
+        env:
+          LAYER: ${{ inputs.layer }}
+          TO: ${{ steps.version.outputs.to }}
+        run: |
+          set -euo pipefail
+          case "$LAYER" in
+            layer)
+              sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/layer/Cargo.toml
+              awk -v to="$TO" '
+                found && /^version = / { $0 = "version = \"" to "\"" }
+                { found = ($0 == "name = \"totex-layer\""); print }
+              ' src-tauri/Cargo.lock >Cargo.lock.next
+              mv Cargo.lock.next src-tauri/Cargo.lock
+              grep -q "^version = \"$TO\"" src-tauri/layer/Cargo.toml &&
+                grep -A1 '^name = "totex-layer"$' src-tauri/Cargo.lock |
+                  grep -q "^version = \"$TO\"$" || {
+                  echo "::error::the version was not written where the layer carries it"
+                  exit 1
+                }
+              ;;
+            front)
+              sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" package.json
+              grep -q "^  \"version\": \"$TO\"" package.json || {
+                echo "::error::the version was not written where the pages carry it"
+                exit 1
+              }
+              ;;
+            *) echo "::error::$LAYER is not a layer with a cycle of its own"; exit 1 ;;
+          esac
+          git --no-pager diff
+
+      - name: Commit it, tag it, and push both
+        id: cut
+        env:
+          LAYER: ${{ inputs.layer }}
+          TO: ${{ steps.version.outputs.to }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -aqm "Turn the $LAYER over to $TO" -m \
+            "Cut by .github/workflows/cycle.yml, which releases one layer of the app on a cycle of its own."
+          git tag -a "$LAYER-v$TO" -m "totex $LAYER $TO"
+          git push origin main "refs/tags/$LAYER-v$TO"
+          echo "tag=$LAYER-v$TO" >>"$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: cut
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust-targets: x86_64-unknown-linux-gnu
+            layer: totex-layer-linux-x86_64.gz
+          - name: Windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+            layer: totex-layer-windows-x86_64.gz
+          - name: macOS
+            runner: macos-latest
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            layer: totex-layer-macos-universal.gz
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The commit the tag was cut on, which is the one carrying the number
+          # this release is published under.
+          ref: ${{ needs.cut.outputs.tag }}
+
+      - name: Install node, pnpm and task
+        uses: jdx/mise-action@v4
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        # The pages are built by node alone, so only a release of the layer
+        # needs a compiler at all.
+        if: inputs.layer == 'layer'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        if: inputs.layer == 'layer'
+        with:
+          workspaces: src-tauri
+          key: layer-${{ matrix.target }}
+
+      - name: Install npm dependencies
+        # For the signer, which is the tauri CLI, and for the pages when it is
+        # those being released.
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the application layer
+        if: inputs.layer == 'layer'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-cycle
+          case "${{ matrix.target }}" in
+            universal-apple-darwin)
+              for half in aarch64-apple-darwin x86_64-apple-darwin; do
+                cargo build --manifest-path src-tauri/Cargo.toml -p totex-layer \
+                  --release --target "$half"
+              done
+              built=src-tauri/target/totex-layer-universal
+              lipo -create -output "$built" \
+                src-tauri/target/aarch64-apple-darwin/release/totex-layer \
+                src-tauri/target/x86_64-apple-darwin/release/totex-layer
+              ;;
+            *)
+              cargo build --manifest-path src-tauri/Cargo.toml -p totex-layer \
+                --release --target ${{ matrix.target }}
+              built="src-tauri/target/${{ matrix.target }}/release/totex-layer"
+              [ -f "$built" ] || built="$built.exe"
+              ;;
+          esac
+
+          # A layer says what it is on the way up, so a closed pipe is the whole
+          # of what it takes to hear it say it.
+          said=$(printf '' | "$built" | head -1 || true)
+          case "$said" in
+            *'"protocol"'*) echo "the layer says $said" ;;
+            *)
+              echo "::error::the layer that was built does not say what it is"
+              exit 1
+              ;;
+          esac
+
+          gzip -9 -c "$built" >"dist-cycle/${{ matrix.layer }}"
+
+      - name: Pack the pages
+        # One job packs them: they are the same pages on all three platforms.
+        if: inputs.layer == 'front' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist-cycle
+          pnpm build
+          tar -czf dist-cycle/front.tar.gz -C dist .
+
+      - name: Sign what was built
+        # The same key as the installers, so a copy checks one of these exactly
+        # as it checks anything else it downloads.
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -d dist-cycle ] || exit 0
+          for file in dist-cycle/*; do
+            [ -f "$file" ] || continue
+            case "$file" in *.sig) continue ;; esac
+            pnpm tauri signer sign "$file"
+          done
+          ls -l dist-cycle
+
+      - name: Upload what this runner made
+        uses: actions/upload-artifact@v7
+        with:
+          name: cycle-${{ matrix.name }}
+          path: dist-cycle/*
+          # Two of the three runners make nothing at all when it is the pages
+          # being released, which is not a failure.
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish
+    needs: [cut, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.cut.outputs.tag }}
+
+      - name: Install node
+        uses: jdx/mise-action@v4
+
+      - name: Take what every runner made
+        uses: actions/download-artifact@v7
+        with:
+          path: dist-cycle
+          merge-multiple: true
+
+      - name: Write the document this cycle publishes
+        # The same script the app's own releases are written by, told which
+        # cycle this is: one document, one shape, one place that knows it.
+        env:
+          LAYER: ${{ inputs.layer }}
+          TAG: ${{ needs.cut.outputs.tag }}
+        run: |
+          node scripts/update-manifest.mjs dist-cycle "$TAG" "$LAYER"
+          # Every signature is inside the document by now.
+          find dist-cycle -name '*.sig' -delete
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.cut.outputs.tag }}
+          name: totex ${{ inputs.layer }} ${{ needs.cut.outputs.version }}
+          files: dist-cycle/*
+          fail_on_unmatched_files: true
+          # Never what `releases/latest/download/...` answers with. Every
+          # address in the README that says `latest` is the app's newest
+          # release, and one layer published between two of them must not step
+          # in front of one. Not a pre-release, though: a copy pointed at this
+          # cycle is meant to find this in the list of what it can take, and a
+          # pre-release is the one thing that list leaves out.
+          make_latest: "false"
+          body: |
+            One layer of totex, released on a cycle of its own.
+
+            There is nothing to download here by hand. An installed copy takes
+            this from its own settings dialog: the row for the
+            ${{ inputs.layer }} names which release it is pointed at, and this
+            one is offered there under **${{ needs.cut.outputs.version }}**.
+
+            The app itself is not this. Its releases are tagged `v*` and hold
+            the installers; this holds one layer, which the app can replace
+            without replacing itself — the pages with a reload, the application
+            layer with nothing at all.

@@ -27,6 +27,46 @@ env:
   RUST_VERSION: "1.95.0"
 
 jobs:
+  check:
+    name: Check
+    # Everything `task check` is: both stacks formatted, both linted, the
+    # frontend type-checked and every test in the workspace run. One machine,
+    # because none of it is platform-specific -- what is, is the three builds
+    # below, and this is what says the thing they are building works.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install node, pnpm and task
+        uses: jdx/mise-action@v4
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt,clippy
+
+      - name: Install what the crate is linked against
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: check
+
+      - name: Install npm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check
+        run: task check
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
@@ -44,11 +84,13 @@ jobs:
             target: x86_64-unknown-linux-gnu
             rust-targets: x86_64-unknown-linux-gnu
             artifact: totex-linux-x86_64
+            layer: totex-layer-linux-x86_64.gz
           - name: Windows
             runner: windows-latest
             target: x86_64-pc-windows-msvc
             rust-targets: x86_64-pc-windows-msvc
             artifact: totex-windows-x86_64
+            layer: totex-layer-windows-x86_64.gz
           - name: macOS
             runner: macos-latest
             # One download for both kinds of Mac: tauri builds each half and
@@ -57,6 +99,7 @@ jobs:
             target: universal-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
             artifact: totex-macos-universal
+            layer: totex-layer-macos-universal.gz
 
     steps:
       - uses: actions/checkout@v7
@@ -120,6 +163,18 @@ jobs:
             echo "::error file=src-tauri/tauri.conf.json::tag $GITHUB_REF_NAME does not name version $declared"
             exit 1
           fi
+          # The three layers carry their own version each, because each of them
+          # can be released on a cycle of its own -- see src-tauri/src/release.
+          # A release of the app itself is the cycle where all three move
+          # together, so on this tag they are all this number.
+          front=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
+          layer=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/layer/Cargo.toml | head -1)
+          for named in "package.json:$front" "src-tauri/layer/Cargo.toml:$layer"; do
+            if [ "${named#*:}" != "$tagged" ]; then
+              echo "::error file=${named%%:*}::tag $GITHUB_REF_NAME does not name version ${named#*:}"
+              exit 1
+            fi
+          done
 
       - name: Verify the release can be updated to
         # The updater takes a version whose signature matches the key in the
@@ -254,6 +309,73 @@ jobs:
           fi
           ls -l dist-release
 
+      - name: Build the application layer
+        # The third of the app that can be replaced while it is running -- see
+        # src-tauri/layer. `tauri build` does not make this: it builds the
+        # program, and this is a crate of its own beside it, which is the whole
+        # reason a release of it can be a download of a few megabytes rather
+        # than of eighty.
+        #
+        # One per kind of machine rather than per kind of installed copy. macOS
+        # gets both halves glued into one file, the same way the app does, so
+        # that the manifest can point both processors at one download.
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.target }}" in
+            universal-apple-darwin)
+              for half in aarch64-apple-darwin x86_64-apple-darwin; do
+                cargo build --manifest-path src-tauri/Cargo.toml -p totex-layer \
+                  --release --target "$half"
+              done
+              built=src-tauri/target/totex-layer-universal
+              lipo -create -output "$built" \
+                src-tauri/target/aarch64-apple-darwin/release/totex-layer \
+                src-tauri/target/x86_64-apple-darwin/release/totex-layer
+              ;;
+            *)
+              cargo build --manifest-path src-tauri/Cargo.toml -p totex-layer \
+                --release --target ${{ matrix.target }}
+              built="src-tauri/target/${{ matrix.target }}/release/totex-layer"
+              [ -f "$built" ] || built="$built.exe"
+              ;;
+          esac
+
+          # A layer says what it is on the way up and then answers questions
+          # until the pipe closes, so a pipe that is closed already is the whole
+          # of what it takes to hear it say it. Which is worth doing here: a
+          # layer that cannot say what it is, is one every copy of the app would
+          # download and then refuse to run.
+          said=$(printf '' | "$built" | head -1 || true)
+          case "$said" in
+            *'"protocol"'*) echo "the layer says $said" ;;
+            *)
+              echo "::error::the layer that was built does not say what it is"
+              exit 1
+              ;;
+          esac
+
+          gzip -9 -c "$built" >"dist-release/${{ matrix.layer }}"
+          ls -l "dist-release/${{ matrix.layer }}"
+
+      - name: Sign the application layer
+        # Checked against the same key as the installers and the pages, by the
+        # same signer, in the same job -- see the step below this one, which
+        # says the whole of why. A build with nothing to sign with signs
+        # nothing: the app turns down a layer that is not ours, and nothing but
+        # a tag is released.
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "there is no key to sign a layer with, so it is left unsigned"
+            exit 0
+          fi
+          pnpm tauri signer sign "dist-release/${{ matrix.layer }}"
+          ls -l "dist-release/${{ matrix.layer }}.sig"
+
       - name: Pack the pages on their own
         # The other half of a release. The pages the window is drawn out of are
         # the same on all three platforms -- one `pnpm build` produces them, and
@@ -297,7 +419,9 @@ jobs:
     name: Release
     # A tag is a release; a push to main is a build somebody may want to look at.
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    # Nothing is published that the tests have not been run against: a release
+    # is the one moment where finding out later is finding out too late.
+    needs: [check, build]
     runs-on: ubuntu-latest
     permissions:
       # The one job that writes anything back to the repository.

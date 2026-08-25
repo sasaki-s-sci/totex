@@ -6,6 +6,7 @@
 //! earlier run left behind, which is a directory and a small file beside it.
 
 mod keep;
+mod live;
 pub(super) mod serve;
 mod take;
 
@@ -54,12 +55,18 @@ pub(super) fn lay(home: &Path, version: &str, confirmed: bool) {
 
 /// The same, for a front that says which program it has to be served by.
 pub(super) fn needing(home: &Path, version: &str, needs: u32, confirmed: bool) {
+    pinning(home, version, needs, false, confirmed);
+}
+
+/// The same, for one that was asked for by name -- see [`super::Taken::pinned`].
+pub(super) fn pinning(home: &Path, version: &str, needs: u32, pinned: bool, confirmed: bool) {
     let dir = home.join(version);
     fs::create_dir_all(&dir).expect("lay a front");
     fs::write(dir.join("index.html"), b"<!doctype html>").expect("lay a page");
     let taken = Taken {
         version: version.to_string(),
         needs,
+        pinned,
         confirmed,
     };
     fs::write(
