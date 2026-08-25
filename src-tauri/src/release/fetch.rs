@@ -27,12 +27,33 @@ pub async fn read(endpoint: &str, version: Option<&str>) -> Result<Manifest, Str
     Ok(manifest)
 }
 
+/// Settles which implementation of the ciphers this process uses, once.
+///
+/// rustls does not carry one: something has to name it before the first client
+/// is built, and a client built before anything has is not an error but a
+/// panic — the one failure that does not come back down the wire as a message
+/// somebody could read. The updater plugin names one, and it does it on the way
+/// into its own download, so a copy that has never downloaded a release is a
+/// copy where nothing has named one yet — which is every copy at the moment it
+/// opens and asks which releases there are.
+///
+/// So it is named here as well, and it is the same one the plugin names:
+/// installing it twice is what `install_default` returns an error for, and that
+/// error is the answer "somebody already did", which is not a failure.
+fn provider() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
 /// Reads a URL into memory, or says why it could not.
 ///
 /// `most` is what the thing being read has no right to be bigger than. Held to
 /// twice: once on what the server says it is about to send, and once on what it
 /// actually sent, because a server that says nothing is read anyway.
 pub async fn ask(url: &str, most: usize) -> Result<Vec<u8>, String> {
+    provider();
     let client = reqwest::Client::builder()
         .timeout(PATIENCE)
         .user_agent(concat!("totex/", env!("CARGO_PKG_VERSION")))
@@ -90,6 +111,22 @@ mod tests {
     /// The address this app is actually pointed at, from `tauri.conf.json`.
     const ENDPOINT: &str =
         "https://github.com/sasaki-s-sci/totex/releases/latest/download/latest.json";
+
+    /// The one thing about asking a URL that is not about the URL.
+    ///
+    /// A client is built out of a TLS stack that has to have been told which
+    /// ciphers to use, and being told is a thing somebody does to the process
+    /// rather than to the client — so the failure is not a failed request, it
+    /// is a panic on the way to making one, and a panic inside a command is an
+    /// answer the window never receives at all. Nothing here reaches a network:
+    /// what is asked for is a port nothing is listening on, and the answer
+    /// wanted is that it came back as an error rather than took the process
+    /// with it.
+    #[test]
+    fn a_url_can_be_asked_before_anything_has_been_downloaded() {
+        let refused = tauri::async_runtime::block_on(ask("http://127.0.0.1:1/nothing", SMALL));
+        assert!(refused.is_err(), "nothing is listening there");
+    }
 
     #[test]
     fn a_version_is_three_numbers() {

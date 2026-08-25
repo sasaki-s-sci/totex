@@ -6,6 +6,7 @@
 //! earlier run left behind, which is a directory and a small file beside it.
 
 mod keep;
+mod live;
 pub(super) mod serve;
 mod take;
 

@@ -106,7 +106,7 @@ pub fn declared<R: Runtime>(app: &AppHandle<R>) -> Result<(String, String), Stri
 }
 
 pub mod fetch;
-mod url;
+pub(crate) mod url;
 
 pub use fetch::{ask, read};
 pub use url::manifest_url;

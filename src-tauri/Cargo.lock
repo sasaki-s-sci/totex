@@ -4085,6 +4085,7 @@ dependencies = [
  "notify-debouncer-full",
  "portable-pty",
  "reqwest",
+ "rustls",
  "semver",
  "serde",
  "serde_json",

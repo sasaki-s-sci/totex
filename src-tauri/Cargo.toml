@@ -31,10 +31,18 @@ minisign-verify = "0.2.5"
 semver = "1.0.28"
 tar = "0.4.46"
 # No TLS feature of its own. The updater plugin already builds this same
-# reqwest with rustls and a provider under it, and cargo builds one crate per
-# version -- asking for a second stack here would be a second copy of the
-# machinery, chosen by whichever feature name happened to be written first.
+# reqwest with rustls, and cargo builds one crate per version -- asking for a
+# second stack here would be a second copy of the machinery, chosen by
+# whichever feature name happened to be written first.
 reqwest = { version = "0.13.4", default-features = false }
+# What that rustls has no opinion about: which implementation of the ciphers it
+# uses. The plugin picks one and installs it for the process, but it does that
+# on the way into its own download -- so a client built before anything has
+# been downloaded is built against no provider at all, which is a panic rather
+# than an error. This is the same provider the plugin picks, asked for here so
+# that the reading of a release page does not depend on having downloaded one
+# first. See `provider` in src/release/fetch.rs.
+rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 # `test` brings in tauri's headless mock runtime, which the window tests drive.
