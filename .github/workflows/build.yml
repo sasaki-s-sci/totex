@@ -89,7 +89,7 @@ jobs:
             echo "::error file=src-tauri/tauri.conf.json::there is no updater key in here"
             exit 1
           fi
-          for carrier in scripts/install.sh scripts/install.ps1 setup/src/release.rs; do
+          for carrier in scripts/install.sh scripts/install.ps1 setup/src/release/mod.rs; do
             grep -qF "$declared" "$carrier" || {
               echo "::error file=$carrier::this does not carry the key in src-tauri/tauri.conf.json"
               exit 1
