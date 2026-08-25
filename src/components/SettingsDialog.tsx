@@ -1,6 +1,7 @@
 import { Dialog, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
+import { LanguageRow } from "./settings/LanguageRow";
 import { McpSection } from "./settings/McpSection";
 import { ThemeRow } from "./settings/ThemeRow";
 import { UpdateSection } from "./settings/UpdateSection";
@@ -28,6 +29,7 @@ export function SettingsDialog({ open, onClose }: { open: boolean; onClose: () =
           {t("settings.title")}
         </Typography>
         <ThemeRow />
+        <LanguageRow />
         <McpSection />
         <UpdateSection />
       </Stack>
