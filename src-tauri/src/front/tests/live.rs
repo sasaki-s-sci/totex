@@ -78,6 +78,36 @@ fn every_listed_release_can_be_named() {
 }
 
 #[test]
+#[ignore = "reads the release page over the network"]
+fn every_cycle_is_read_out_of_the_one_listing() {
+    let (endpoint, _) = declared();
+    let url = listing_url(&endpoint).expect("the listing of the repository");
+    let listing =
+        tauri::async_runtime::block_on(ask(&url, release::SMALL)).expect("the listing answers");
+
+    for which in [Cycles::Release, Cycles::Layer, Cycles::Front] {
+        let cycle = which.cycle();
+        let found = versions(&listing, &cycle);
+        println!("{}{}: {found:?}", cycle.tag, cycle.manifest);
+        // A cycle nothing has been released on yet is not a failure -- it is a
+        // pull-down with one row in it, which is "whichever is newest".
+        let Some(newest) = found.first() else {
+            continue;
+        };
+        match tauri::async_runtime::block_on(release::read(&endpoint, &cycle, Some(newest))) {
+            Err(error) => println!("  v{newest}: {error}"),
+            Ok(manifest) => {
+                assert_eq!(&manifest.version, newest);
+                match manifest.layers.get(&crate::release::target()) {
+                    None => println!("  v{newest}: no layer for {}", crate::release::target()),
+                    Some(layer) => println!("  v{newest}: a layer speaking {}", layer.protocol),
+                }
+            }
+        }
+    }
+}
+
+#[test]
 #[ignore = "downloads the front of the newest release"]
 fn the_front_of_the_newest_release_is_ours_and_unpacks() {
     let (endpoint, key) = declared();
