@@ -122,9 +122,9 @@ export function jumpable(nodes: readonly AppNode[]): Pickable[] {
  * The commits on the canvas.
  *
  * What Ctrl and Shift and an arrow walks through, and the one thing it walks
- * through: the history is what is being read out here, and a walk along it that
- * stopped at every ring and card standing beside it would be a walk through the
- * furniture rather than through the history.
+ * through: the history is what is being read out here, and a branch/workspace
+ * node is no longer a second copy of its commit. A walk from an open terminal
+ * resolves that ref back to the real commit before it enters this list.
  *
  * The bands come along for the same reason they do in `jumpable`: a commit is
  * positioned against the repository it belongs to, and `pickables` is where that

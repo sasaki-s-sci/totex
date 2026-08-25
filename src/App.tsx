@@ -7,7 +7,7 @@ import type { BranchPick } from "./components/GitGraph";
 import { WindowBand } from "./components/WindowBand";
 import { WindowControls } from "./components/WindowControls";
 import type { WorktreeTarget } from "./components/WorktreeMenu";
-import { FolderSidebar } from "./folder/FolderSidebar";
+import { type FolderDestination, FolderSidebar } from "./folder/FolderSidebar";
 import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
 import { useCanvasWork } from "./hooks/useCanvasWork";
@@ -59,6 +59,7 @@ function Window() {
   // Where the column starts. Read once — the sidebar owns the panes from there,
   // and reports back what to keep for next time.
   const [initialFolders] = useState(storedRoots);
+  const [folderDestination, setFolderDestination] = useState<FolderDestination | null>(null);
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -160,12 +161,21 @@ function Window() {
   // The graph is always asked for. Each other part is requested once there is
   // something for it to draw, then kept in hand because closing a menu is a
   // fade and unmounting it immediately would make it vanish instead.
-  const { openWork, pickCommit, merge, fetch } = useCanvasWork({
+  const browseFolder = useCallback(
+    (repository: Repository, path: string) => {
+      const root = folders.find((folder) => folder.repositories.includes(repository.id))?.root;
+      if (root) setFolderDestination({ root, path });
+    },
+    [folders],
+  );
+
+  const { openWork, browseWorktree, pickCommit, merge, fetch } = useCanvasWork({
     openSession,
     fail,
     hold,
     release,
     setCommitMenu,
+    onBrowseFolder: browseFolder,
   });
   const stalled = gitMissing || failed;
 
@@ -185,6 +195,7 @@ function Window() {
         onFoldersChange={(folders) => localStorage.setItem(ROOTS_KEY, JSON.stringify(folders))}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenFile={(path) => openFiles([path], null)}
+        destination={folderDestination}
       />
 
       {/* No toolbar: the graph owns the whole pane. */}
@@ -223,6 +234,7 @@ function Window() {
             marks={marks}
             onSelect={pickCommit}
             onOpenWork={openWork}
+            onBrowseWorktree={browseWorktree}
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}
             onCloseRepository={closeRepository}
             onMerge={merge}

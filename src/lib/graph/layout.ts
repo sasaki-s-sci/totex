@@ -14,11 +14,11 @@ import {
   COMMIT_STEP,
   type CollapseFlowNode,
   type CommitFlowNode,
+  gridRows,
   LANE_HEIGHT,
   MIN_BAND_WIDTH,
   NAME_COLUMN,
   type RepositoryNodeData,
-  rowPitch,
   rowReach,
   SESSION_WIDTH,
 } from "./model";
@@ -28,10 +28,9 @@ import {
  * inside the band that holds them.
  *
  * A band is read left to right in four parts — the name, the history on a grid
- * of its own, every branch in a single column in the alphabet's order, and what
- * is running in each of them stacked off its row. So a branch head does not
- * stand where the branch was cut: it stands where every other branch stands,
- * and the line out of the commit it points at says where it is.
+ * of its own, every branch in a single column of branch lanes, and what is
+ * running in each of them stacked off that row. An edge forks from its commit
+ * lane into the branch lane exactly as history forks between commit lanes.
  *
  * What is actually in each stack is `build`'s to fill — terminals come and go
  * while the layout does not — but how deep each stack is belongs here, because
@@ -132,19 +131,15 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     if (cwd !== null) stacks[ref.row] = Math.max(stacks[ref.row], deep.get(cwd) ?? 0);
   }
 
-  // Both halves hang from one line: the trunk's own lane and the first branch
-  // in the alphabet start level with each other, half a lane down the band. Half
-  // a lane, because that is what the repository's name needs under it and what a
-  // branch running a stack of terminals reaches up by — whichever is the more.
-  const top = Math.max(LANE_HEIGHT / 2, rows > 0 ? rowReach(stacks[0]) : 0);
+  // Both halves hang from the trunk's line, half a lane down the band. Half a
+  // lane, because that is what the repository's name needs under it and what a
+  // workspace stack on that line reaches up by — whichever is the more.
+  const top = gridRows(Math.max(LANE_HEIGHT / 2, rows > 0 ? rowReach(stacks[0]) : 0));
 
   /** The line each row of the history is drawn along: evenly spaced. */
   const historyLine = (row: number) => top + row * COMMIT_STEP.y;
-  /** And each row of the branch column: as far apart as their stacks need. */
-  const branchLine: number[] = [];
-  for (let row = 0; row < rows; row++) {
-    branchLine.push(row === 0 ? top : branchLine[row - 1] + rowPitch(stacks[row - 1], stacks[row]));
-  }
+  /** Branch nodes use their own evenly spaced 50px Grid rows. */
+  const branchLine = Array.from({ length: rows }, (_, row) => historyLine(row));
 
   /** The left edge of a column of the history, the name's own cell cleared. */
   const columnX = (column: number) => NAME_COLUMN * COLUMN_WIDTH + column * COMMIT_STEP.x;
@@ -195,10 +190,12 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   drawHeads(frame, refs);
 
   // the history and the branch column reaches furthest down.
-  const bottom = Math.max(
-    nameLine + LANE_HEIGHT / 2,
-    historyLine(Math.max(history.depth - 1, 0)) + COMMIT_STEP.y / 2,
-    rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0,
+  const bottom = gridRows(
+    Math.max(
+      nameLine + LANE_HEIGHT / 2,
+      historyLine(Math.max(history.depth - 1, 0)) + COMMIT_STEP.y / 2,
+      rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0,
+    ),
   );
 
   return {

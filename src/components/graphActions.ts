@@ -22,6 +22,9 @@ export type WorkRequest = {
   cwd: string | null;
 };
 
+/** A branch whose worktree should be browsed in the folder sidebar. */
+export type WorktreeBrowseRequest = WorkRequest & { repository: Repository };
+
 /** A branch to be asked of its remote, and the head the asking was done on. */
 export type FetchRequest = {
   repository: Repository;
@@ -57,6 +60,8 @@ export type BranchPick = {
 export type GraphActions = {
   /** Open a terminal in a branch, making its worktree if need be. */
   openWork: (request: WorkRequest) => void;
+  /** Browse a branch's worktree as a folder, making it if need be. */
+  browseWorktree: (request: WorktreeBrowseRequest) => void;
   /** A branch head was picked, at this point on screen. */
   pickBranch: (pick: BranchPick) => void;
   /** A branch head is being dragged towards another, to merge into it. */
@@ -172,6 +177,7 @@ export type GraphActions = {
 
 const GraphActionsContext = createContext<GraphActions>({
   openWork: () => {},
+  browseWorktree: () => {},
   pickBranch: () => {},
   dragBranch: () => {},
   fetchBranch: () => {},

@@ -109,12 +109,6 @@
   pointer-events: none;
 }
 
-.head.is-provisional .head__commit {
-  border: 1.4px dashed var(--mark);
-  background: transparent;
-  opacity: 0.6;
-}
-
 .head.is-provisional .head__ring {
   border-style: dashed;
   box-shadow: var(--clearance);

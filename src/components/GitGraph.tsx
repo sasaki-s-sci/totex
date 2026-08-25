@@ -56,6 +56,7 @@ export function GitGraph({
   marks,
   onSelect,
   onOpenWork,
+  onBrowseWorktree,
   onPickBranch,
   onCloseRepository,
   onMerge,
@@ -185,6 +186,7 @@ export function GitGraph({
 
   const actions = useCanvasActions({
     onOpenWork,
+    onBrowseWorktree,
     onPickBranch,
     dragBranch,
     onFetch,

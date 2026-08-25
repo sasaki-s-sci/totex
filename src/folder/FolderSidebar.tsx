@@ -22,6 +22,13 @@ export interface Pane {
   graphed: string[];
 }
 
+/** A request from the canvas to browse a directory in the pane that put its
+ *  root on the graph. The root identifies the pane; the path is where it goes. */
+export interface FolderDestination {
+  root: string;
+  path: string;
+}
+
 export interface FolderSidebarProps {
   /** Panes to stand up on the first render, e.g. paths restored from storage.
    *  They start browsing, and off the graph: what goes on the graph is asked
@@ -35,6 +42,8 @@ export interface FolderSidebarProps {
   onOpenSettings?: () => void;
   /** A file was opened from one of the explorer rows. */
   onOpenFile?: (path: string) => void;
+  /** A graph node asked to move its owning pane to a folder. */
+  destination?: FolderDestination | null;
 }
 
 /**
@@ -72,6 +81,7 @@ export function FolderSidebar({
   onFoldersChange,
   onOpenSettings,
   onOpenFile,
+  destination,
 }: FolderSidebarProps) {
   const { t } = useTranslation();
   const {
@@ -95,7 +105,7 @@ export function FolderSidebar({
     addPane,
     dropPlace,
     keepTyped,
-  } = usePanes(initialFolders ?? [], onFoldersChange, onExpandedChange);
+  } = usePanes(initialFolders ?? [], onFoldersChange, onExpandedChange, destination);
 
   return (
     <Box
@@ -202,7 +212,7 @@ export function FolderSidebar({
         }}
       >
         {panes.map((pane, index) => (
-          <Box key={pane.id}>
+          <Box key={pane.id} data-folder-pane={pane.id}>
             {index > 0 && <Divider />}
             <FolderPane
               path={pane.path}

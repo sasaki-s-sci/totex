@@ -15,6 +15,7 @@ import { branchMark } from "../components/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
 import { fetchBranch, mergeBranch, openWorkspace } from "../lib/workspace";
+import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";
 
@@ -24,12 +25,14 @@ export function useCanvasWork({
   hold,
   release,
   setCommitMenu,
+  onBrowseFolder,
 }: {
   openSession: ReturnType<typeof useSessions>["open"];
   fail: ReturnType<typeof useMarks>["fail"];
   hold: ReturnType<typeof useMarks>["hold"];
   release: ReturnType<typeof useMarks>["release"];
   setCommitMenu: React.Dispatch<React.SetStateAction<CommitTarget | null>>;
+  onBrowseFolder: (repository: Repository, path: string) => void;
 }) {
   /**
    * Opens a terminal in a branch.
@@ -56,6 +59,34 @@ export function useCanvasWork({
         .catch(() => repository && fail(branchMark(repository.id, branch)));
     },
     [openSession, fail],
+  );
+
+  /**
+   * Moves the folder explorer to a branch's worktree.
+   *
+   * An unopened branch gets its directory first, just as opening a terminal
+   * there does. Git never checks the main working tree out to another branch:
+   * the result is a path, and the sidebar browses that path as a folder.
+   */
+  const browseWorktree = useCallback(
+    ({ repository, branch, cwd }: WorkRequest & { repository: Repository }) => {
+      const key = branchMark(repository.id, branch);
+      if (!cwd) hold(key);
+      const start = cwd
+        ? Promise.resolve(cwd)
+        : openWorkspace(repository.id, branch).then((workspace) => workspace.path);
+
+      start
+        .then((path) => {
+          release(key);
+          onBrowseFolder(repository, path);
+        })
+        .catch(() => {
+          release(key);
+          fail(key);
+        });
+    },
+    [fail, hold, onBrowseFolder, release],
   );
 
   // What the last change was is not reported. The graph has already moved:
@@ -108,5 +139,5 @@ export function useCanvasWork({
 
   /** Something the whole window depends on is not answering. */
 
-  return { openWork, pickCommit, merge, fetch };
+  return { openWork, browseWorktree, pickCommit, merge, fetch };
 }

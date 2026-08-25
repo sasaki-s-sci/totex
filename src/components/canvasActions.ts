@@ -16,6 +16,7 @@ import type { GraphActions } from "./graphActions";
  */
 export function useCanvasActions({
   onOpenWork,
+  onBrowseWorktree,
   onPickBranch,
   dragBranch,
   onFetch,
@@ -42,6 +43,7 @@ export function useCanvasActions({
   pinFilePreview,
 }: {
   onOpenWork: GraphActions["openWork"];
+  onBrowseWorktree: GraphActions["browseWorktree"];
   onPickBranch: GraphActions["pickBranch"];
   dragBranch: GraphActions["dragBranch"];
   onFetch: GraphActions["fetchBranch"];
@@ -70,6 +72,7 @@ export function useCanvasActions({
   return useMemo(
     () => ({
       openWork: onOpenWork,
+      browseWorktree: onBrowseWorktree,
       pickBranch: onPickBranch,
       dragBranch,
       fetchBranch: onFetch,
@@ -97,6 +100,7 @@ export function useCanvasActions({
     }),
     [
       onOpenWork,
+      onBrowseWorktree,
       onPickBranch,
       dragBranch,
       onFetch,

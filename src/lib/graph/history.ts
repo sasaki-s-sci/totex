@@ -175,8 +175,8 @@ function assignColumns(placed: Placed[], index: Map<string, number>, rows: numbe
 /**
  * Classic lane packing, walking newest to oldest: a commit takes the lane its
  * children reserved, its first parent inherits it, and every other parent opens
- * one of its own. Lanes are released as soon as the commit holding them is
- * drawn, so one lane carries a run of unrelated lines over a long history.
+ * one of its own. Branch heads are dealt independently after this pass and fork
+ * from these lanes in the branch column.
  *
  * Lane zero is held for `trunk`, the tip of the branch the repository is on, so
  * the line the work is happening on runs across the top of the band.
@@ -211,11 +211,8 @@ function assignLanes(commits: Commit[], drawn: Set<string>, trunk: string | unde
 
     for (const [parentIndex, parent] of commit.parents.entries()) {
       if (!drawn.has(parent)) continue;
-      // The first parent carries on this commit's own lane even when another
-      // line is already waiting for it. The parent then has two lanes waiting,
-      // takes the lower of them, and the other ends there — which is what keeps
-      // a long-lived line whole instead of handing it to the first branch that
-      // happened to be cut from it.
+      // The first parent carries on this commit's own lane. Other parents fork
+      // onto free lanes; convergence is handled by `waiting` above.
       if (parentIndex === 0 && reserved[lane] === null) {
         reserved[lane] = parent;
         continue;

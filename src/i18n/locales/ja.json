@@ -46,6 +46,7 @@
   "branch": {
     "head": "{{name}}",
     "head_remote": "{{name}}（リモートあり）",
+    "browse": "{{name}} のワークツリーへ移動",
     "fetch": "{{remote}} から {{branch}} を取得"
   },
   "graph": {

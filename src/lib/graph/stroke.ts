@@ -16,6 +16,8 @@ export type GraphLine = {
   trim: number;
   /** How far out from the near end to start, for a line that leaves a box. */
   lead: number;
+  /** Perpendicular screen-space separation for otherwise coincident lines. */
+  offset?: number;
   /** How it is drawn, which is also what it is batched by. */
   stroke: StrokeStyle;
   /** The branch name set along it, for the few lines that carry one. */
@@ -51,6 +53,11 @@ export function onCell(node: string): LineEnd {
  * the history's own grid.
  */
 export function onCommit(node: string): LineEnd {
+  return { node, dx: COMMIT_STEP.x / 2, dy: COMMIT_STEP.y / 2 };
+}
+
+/** The middle of a branch head's cell on that same history grid. */
+export function onHead(node: string): LineEnd {
   return { node, dx: COMMIT_STEP.x / 2, dy: COMMIT_STEP.y / 2 };
 }
 

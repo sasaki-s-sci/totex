@@ -57,8 +57,8 @@ export type Fetch = {
 };
 
 /**
- * Where a branch is: a second drawing of its tip commit at the end of the named
- * line, with workspace and origin layered over that commit.
+ * Where a branch or workspace is, at the end of the line from the commit its
+ * ref points at.
  *
  * A branch that was cut and never committed to still has one, which is the
  * point of drawing it — the layered node says the branch exists, and the curve
@@ -74,8 +74,8 @@ export type BranchHeadData = {
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
   /**
-   * The remote end of this branch stands on the same commit, so this one node
-   * says both: the large dashed origin ring is layered round its workspace.
+   * The paired local and remote refs stand on the same commit. They remain two
+   * nodes, but share a grid point and split their coincident edges vertically.
    */
   together: boolean;
   /** What this head can ask a remote for, and null where nothing can be asked. */

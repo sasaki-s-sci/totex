@@ -2,19 +2,8 @@
  * Where a branch is, and the handle for it.
  */
 
-/* The commit at the centre of every node in the branch column. It uses the same
-   fill and three-pixel canvas-colour boundary as a history commit, so the column
-   is a column of commits before workspace or origin add anything to it. */
-.head__commit {
-  box-sizing: border-box;
-  border: 3px solid var(--mui-palette-background-default);
-  border-radius: 50%;
-  background: var(--mark);
-  pointer-events: none;
-}
-
-/* The workspace around that commit, and the handle for it: click it for what
-   can be done with its working directory, or drag it onto another head to merge.
+/* The local/workspace ref, and the handle for it: click it to browse its
+   worktree as a folder, or drag it onto another head to merge.
 
    A ring, not a dot — it marks a position, and a branch that was cut and never
    committed to is an empty one — and hollow while there is nothing uncommitted
@@ -43,26 +32,21 @@
   box-shadow: var(--clearance), var(--halo);
 }
 
-/* Origin around the commit it points at: always the largest radius and always
-   dashed, because it is somewhere else.
+/* A remote-tracking ref: slightly larger and always dashed, because it is
+   somewhere else. It is a node of its own even when it shares a grid point
+   with the corresponding local ref. The remote is inserted first, leaving its
+   annulus reachable around the smaller local control layered above it.
 
-   Behind the workspace when both refs point at one commit, so the workspace
-   keeps the press that opens or merges it. What remains to take hold of is the
-   gap between the two rings, and a pull is a movement rather than a fine aim.
-   When the refs have parted, the remote node carries this ring around its own
-   centre commit and the pull is on that whole outer layer.
-
-   Faint until it can be used. What makes it usable is the codebase being at
-   rest — see `atRest` — so the ring coming up is the branch saying it has
-   nothing in hand, which is exactly when reaching for the remote is the next
-   thing anybody would do. */
+   A synchronized remote keeps the larger hit target but draws its dashed ring
+   at local size underneath the local ring. It therefore remains reachable at
+   the rim while the combined node stays visually simple. */
 .head__origin {
   padding: 0;
   color: var(--mark);
-  border: 1px dashed currentcolor;
+  border: 1.4px dashed currentcolor;
   border-radius: 50%;
   background: transparent;
-  opacity: 0.4;
+  opacity: 1;
   /* Grows outwards with the pull, from the same centre the head is on. The
      translate is `mark--centred`'s own and has to be carried, or the ring would
      leave the middle of the cell the moment a scale was written over it. */
@@ -72,8 +56,20 @@
     opacity 160ms ease-out;
 }
 
+.head__origin.is-together {
+  border: 0;
+}
+
+.head__origin.is-together::after {
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed currentcolor;
+  border-radius: 50%;
+  content: "";
+}
+
 .head__origin.is-asking {
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .head:hover .head__origin.is-asking {

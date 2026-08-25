@@ -11,7 +11,7 @@
   --reveal: 90ms ease-out;
   /* A ring of the canvas's own colour, so a line passing behind a mark stops
      short of it instead of touching. */
-  --clearance: 0 0 0 3px var(--mui-palette-background-default);
+  --clearance: 0 0 0 2px var(--mui-palette-background-default);
   /* Every line on the canvas, in the one colour: lines are the wiring between
      the marks, and a hue apiece made them compete with the marks themselves.
      `LINE_COLOR` is the layout's name for this one. */

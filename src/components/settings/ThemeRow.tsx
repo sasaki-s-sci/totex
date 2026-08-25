@@ -2,7 +2,7 @@
  * Which of the three the window is drawn in.
  */
 
-import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
 import { useColorScheme } from "@mui/material/styles";
 import { useTranslation } from "react-i18next";
 
@@ -27,10 +27,8 @@ const THEME_LABELS = {
 /**
  * Which of the three the window is drawn in.
  *
- * Three laid out rather than one pressed round them: this is a thing gone
- * looking for, and something looked for is answered by showing what there is to
- * pick, not by a button that has to be pressed twice to find out what the third
- * state was.
+ * The choices share a compact pull-down because only the current mode needs to
+ * remain visible once it has been chosen.
  */
 export function ThemeRow() {
   const { t } = useTranslation();
@@ -43,19 +41,19 @@ export function ThemeRow() {
 
   return (
     <Row label={t("settings.theme")}>
-      <ToggleButtonGroup
-        exclusive
+      <Select
         size="small"
-        aria-label={t("settings.theme")}
         value={current}
-        onChange={(_, next: ThemeMode | null) => next && setMode(next)}
+        onChange={(event: SelectChangeEvent<ThemeMode>) => setMode(event.target.value as ThemeMode)}
+        inputProps={{ "aria-label": t("settings.theme") }}
+        sx={{ minWidth: 132 }}
       >
         {THEMES.map((option) => (
-          <ToggleButton key={option} value={option} sx={{ px: 1.25, py: 0.4 }}>
+          <MenuItem key={option} value={option}>
             {t(THEME_LABELS[option])}
-          </ToggleButton>
+          </MenuItem>
         ))}
-      </ToggleButtonGroup>
+      </Select>
     </Row>
   );
 }

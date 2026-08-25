@@ -5,7 +5,14 @@
 
 import { shortOf } from "../geometry";
 import { commitNodeId } from "../history";
-import { COMMIT_CELL, COMMIT_STEP, type CommitFlowNode, LINE_COLOR, onCommit } from "../model";
+import {
+  COMMIT_CELL,
+  COMMIT_STEP,
+  COMMIT_TRIM,
+  type CommitFlowNode,
+  LINE_COLOR,
+  onCommit,
+} from "../model";
 import type { Frame } from "./frame";
 
 /** How history itself is drawn. */
@@ -46,7 +53,8 @@ export function drawCommits(frame: Frame) {
       // between rows takes the S, and that is what makes a fork or a merge
       // readable at a glance.
       const curve = entry.row !== history.placed[parentPosition].row;
-      const end = shortOf(dots[position], dots[parentPosition], 0, curve);
+      const start = shortOf(dots[parentPosition], dots[position], COMMIT_TRIM, curve);
+      const end = shortOf(dots[position], dots[parentPosition], COMMIT_TRIM, curve);
 
       drawn.add(
         {
@@ -54,8 +62,8 @@ export function drawCommits(frame: Frame) {
           from: onCommit(commitNodeId(repository, entry.commit.id)),
           to: onCommit(commitNodeId(repository, parent)),
           curve,
-          trim: 0,
-          lead: 0,
+          trim: COMMIT_TRIM,
+          lead: COMMIT_TRIM,
           stroke: HISTORY_STROKE,
         },
         // Folding here keeps everything from this commit forwards; what the
@@ -63,7 +71,7 @@ export function drawCommits(frame: Frame) {
         {
           keep: position + 1,
           hides: history.placed.length - (position + 1),
-          from: dots[position],
+          from: start,
           to: end,
           curve,
         },
@@ -101,8 +109,10 @@ export function drawCommits(frame: Frame) {
       to: onCommit(commitNodeId(repository, oldest.commit.id)),
       // The same S every line off the row takes; level ends make it straight.
       curve: true,
-      trim: 0,
-      lead: 0,
+      trim: COMMIT_TRIM,
+      // The fold is a 56px pill centred on this end. Start just past its edge
+      // instead of showing the dash through its translucent background.
+      lead: 29,
       stroke: { colour: LINE_COLOR, width: 1.2, opacity: 0.5, dash: "4 5" },
     });
   }

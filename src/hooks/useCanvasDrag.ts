@@ -5,7 +5,7 @@
 
 import type { Edge, OnNodeDrag, ReactFlowInstance, XYPosition } from "@xyflow/react";
 import { type RefObject, useCallback, useRef } from "react";
-import { type AppNode, COLUMN_WIDTH, type GraphResult, HEAD_SIZE, LANE_HEIGHT } from "../lib/graph";
+import { type AppNode, COMMIT_STEP, type GraphResult, gridMove, HEAD_SIZE } from "../lib/graph";
 import type { Repository } from "../types/git";
 import { useBranchDrag } from "./useBranchDrag";
 
@@ -61,8 +61,8 @@ export function useCanvasDrag({
           continue;
         }
         const centre = {
-          x: band.position.x + node.position.x + COLUMN_WIDTH / 2,
-          y: band.position.y + node.position.y + LANE_HEIGHT / 2,
+          x: band.position.x + node.position.x + COMMIT_STEP.x / 2,
+          y: band.position.y + node.position.y + COMMIT_STEP.y / 2,
         };
         const away = Math.hypot(point.x - centre.x, point.y - centre.y);
         if (away > HEAD_SIZE / 2 || away >= nearest) continue;
@@ -153,9 +153,12 @@ export function useCanvasDrag({
       if (!held || node.type !== "folder") return;
       const group = graph.groups.get(held.root);
       if (!group) return;
+      // A carried group may follow the pointer freely, but its settled movement
+      // is a whole number of graph columns and rows. Every commit and head in
+      // the group therefore lands on the same lattice it started on.
       placeFolder(held.root, {
-        x: Math.max(group.least.x, node.position.x) - group.at.x,
-        y: Math.max(group.least.y, node.position.y) - group.at.y,
+        x: gridMove(Math.max(group.least.x, node.position.x) - group.at.x, "x"),
+        y: gridMove(Math.max(group.least.y, node.position.y) - group.at.y, "y"),
       });
     },
     [graph.groups, placeFolder],

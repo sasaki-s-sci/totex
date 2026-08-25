@@ -2,7 +2,7 @@
  * The stack of terminals a row carries, and the room it asks that row for.
  */
 
-import { LANE_HEIGHT } from "./grid";
+import { gridRows, LANE_HEIGHT } from "./grid";
 
 /**
  * The box one terminal's mark is drawn in: the terminal itself, the count of
@@ -80,7 +80,7 @@ export function stackReach(marks: number): number {
  * branches down a band — where there is no neighbour to share the room with.
  */
 export function rowReach(marks: number): number {
-  return Math.max(LANE_HEIGHT / 2, stackReach(marks) + CLI_STEP / 2);
+  return gridRows(Math.max(LANE_HEIGHT / 2, stackReach(marks) + CLI_STEP / 2));
 }
 /**
  * How far apart the lines of two neighbouring rows stand, given what each of
@@ -94,7 +94,7 @@ export function rowReach(marks: number): number {
  * a lane has spare, so nothing moves until something is running two at once.
  */
 export function rowPitch(above: number, below: number): number {
-  return Math.max(LANE_HEIGHT, reachOf(above) + reachOf(below) + CLI_CLEAR);
+  return gridRows(Math.max(LANE_HEIGHT, reachOf(above) + reachOf(below) + CLI_CLEAR));
 }
 /** How far a row's stack reaches past its own line, for a row that has one. */
 function reachOf(marks: number): number {
