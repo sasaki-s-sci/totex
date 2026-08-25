@@ -91,13 +91,25 @@ impl Running {
     /// knowing at the handshake rather than through answers from a build nobody
     /// chose.
     pub fn start(program: &std::path::Path, version: &str) -> Result<Self, String> {
-        let mut child = Command::new(program)
+        let mut command = Command::new(program);
+        command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             // Whatever it has to say for itself that is not an answer is not
             // this program's to relay. Nothing is written on it -- see `main.rs`
             // in the layer -- and a pipe nobody drains is a program that stops.
-            .stderr(Stdio::null())
+            .stderr(Stdio::null());
+        // A layer reads and writes on pipes and draws nothing, but Windows
+        // hands a console to anything built to have one -- so starting it
+        // would flash a black window beside the app, or leave one standing.
+        // The same thing every other program this app starts is told.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = command
             .spawn()
             .map_err(|error| format!("{}: {error}", program.display()))?;
 
