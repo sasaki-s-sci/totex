@@ -20,14 +20,22 @@
 //! ## Which front a window opens on
 //!
 //! One rule: a taken front is served only while it is newer than the one built
-//! into the binary, and only after a window has finished drawing itself out of
-//! it once.
+//! into the binary and no further ahead of it than the two agreed on, and only
+//! after a window has finished drawing itself out of it once.
 //!
 //! The first half is what makes it safe to leave lying about. A copy that
 //! replaces itself the whole way, or one a package manager brings forward,
 //! arrives carrying its own newer pages — and the taken ones, older now, are
 //! deleted rather than left standing in front of them. Nothing has to remember
 //! to clean up after a version; being overtaken is what deletes it.
+//!
+//! The agreement is the same half read from the other side. A front is checked
+//! against the program it is being taken onto, and the program underneath it
+//! can move afterwards: a version can be named, so the next program to start
+//! here can be an older one, with an older agreement. So what a front needs is
+//! written down beside it and read again by whichever run is about to serve it
+//! — and taking a program says so outright, which is what leaves the release
+//! that was asked for standing on its own. See [`Serving::drop_front`].
 //!
 //! The second is the way back out. A front that cannot draw the window cannot
 //! draw the mark that would replace it either, so it is not allowed to be what
@@ -57,7 +65,6 @@
 //! only ever asked for by that one.
 
 mod assets;
-mod fetch;
 mod serving;
 pub mod take;
 #[cfg(test)]
@@ -77,6 +84,19 @@ const BUILT_IN: &str = "TOTEX_BUILT_IN_FRONT";
 struct Taken {
     /// The release the front came out of.
     version: String,
+    /// The agreement those pages were built against, which the program they
+    /// are served by has to be at least at. Written down rather than checked
+    /// once at the moment of taking, because the program underneath can move
+    /// afterwards: taking an older release replaces it with one whose
+    /// agreement is older too, and pages the run before this one was allowed
+    /// to serve are not therefore pages this one is.
+    ///
+    /// Absent from a file written before this was, which is a front no run
+    /// that reads this will serve anyway -- see [`keep`], where a front has to
+    /// be newer than the binary, and a binary carrying this is newer than any
+    /// front taken without it.
+    #[serde(default)]
+    needs: u32,
     /// Whether a window has ever finished drawing itself out of it.
     confirmed: bool,
 }
@@ -89,6 +109,8 @@ const TAKEN: &str = "taken.json";
 struct Unpacked {
     dir: PathBuf,
     version: Version,
+    /// The agreement it was built against -- see [`Taken::needs`].
+    needs: u32,
 }
 
 /// What answers for a file the front being served has not got.

@@ -1,13 +1,12 @@
-//! What a press decides, what a front on disk is allowed to be, and which of
-//! them a window is drawn out of.
+//! What a press on the pages row decides, and what a front on disk is allowed
+//! to be.
 //!
-//! The two halves that can be run without a window: the choice between the
-//! pages and the program, which is arithmetic on four versions, and the reading
-//! of what an earlier run left behind, which is a directory and a small file
-//! beside it.
+//! The parts that can be run without a window: the choice a press makes, which
+//! is arithmetic on four versions and a contract, and the reading of what an
+//! earlier run left behind, which is a directory and a small file beside it.
 
 mod keep;
-mod serve;
+pub(super) mod serve;
 mod take;
 
 use std::fs;
@@ -50,11 +49,17 @@ impl Drop for TempDir {
 
 /// A front lying under `home` the way a run that took one leaves it.
 pub(super) fn lay(home: &Path, version: &str, confirmed: bool) {
+    needing(home, version, 1, confirmed);
+}
+
+/// The same, for a front that says which program it has to be served by.
+pub(super) fn needing(home: &Path, version: &str, needs: u32, confirmed: bool) {
     let dir = home.join(version);
     fs::create_dir_all(&dir).expect("lay a front");
     fs::write(dir.join("index.html"), b"<!doctype html>").expect("lay a page");
     let taken = Taken {
         version: version.to_string(),
+        needs,
         confirmed,
     };
     fs::write(

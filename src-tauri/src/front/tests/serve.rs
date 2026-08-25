@@ -13,7 +13,7 @@ use super::{TempDir, at, lay};
 
 /// A `Serving` pointed at a front laid out under `home`, without going near the
 /// machine's real data directory the way `prepare` does.
-fn serving(home: &Path, built: &str, version: Option<&str>) -> Arc<Serving> {
+pub(super) fn serving(home: &Path, built: &str, version: Option<&str>) -> Arc<Serving> {
     Arc::new(Serving {
         home: Some(home.to_path_buf()),
         built: at(built),
@@ -21,6 +21,7 @@ fn serving(home: &Path, built: &str, version: Option<&str>) -> Arc<Serving> {
             at: version.map(|version| Unpacked {
                 dir: home.join(version),
                 version: at(version),
+                needs: 1,
             }),
             behind: Behind::Nothing,
         }),
@@ -69,6 +70,7 @@ fn the_front_being_replaced_answers_until_a_window_has_been_drawn() {
     serving.point_at(Unpacked {
         dir: temp.path().join("0.1.4"),
         version: at("0.1.4"),
+        needs: 1,
     });
 
     // The window on the screen is still the one that was there, and it goes on

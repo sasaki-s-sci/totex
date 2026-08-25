@@ -76,7 +76,7 @@
     "mcpHint": "Let the agents say what they are working on",
     "register": "Agent setup",
     "registerHint": "Point this machine's agent at the server",
-    "update": "Update"
+    "update": "Update to"
   },
   "mcp": {
     "register": "Set up",
@@ -85,14 +85,20 @@
     "refused": "Failed"
   },
   "update": {
-    "check": "Check for updates",
-    "checking": "Checking…",
-    "current": "Up to date",
+    "take": "Take",
+    "taking": "Taking…",
     "fetching": "Downloading…",
+    "current": "Up to date",
     "reload": "Reload to finish",
     "restart": "Restart to finish",
+    "inProgram": "Comes with the program",
     "held": "Update with your package manager",
-    "failed": "Failed, try again"
+    "failed": "Failed, try again",
+    "newest": "Newest release",
+    "pages": "Pages",
+    "program": "Program",
+    "drawn": "Drawn from {{version}}",
+    "running": "Running {{version}}"
   },
   "theme": {
     "system": "System",

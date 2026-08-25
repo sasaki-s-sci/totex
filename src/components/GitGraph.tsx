@@ -69,7 +69,7 @@ export function GitGraph({
   // The graph React Flow is currently showing, which is what the next one is
   // built against.
   const applied = useRef<GraphResult | null>(null);
-  const depth = useHistoryDepth();
+  const depth = useHistoryDepth(workspace.repositories);
   const { visible, reaching } = depth;
   // What each worktree has uncommitted, which the branch rings are drawn from.
   const worktreeStatus = useWorktreeStatus(workspace);

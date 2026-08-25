@@ -29,28 +29,28 @@ const SPIN = {
 } as const;
 
 /**
- * Where the app is in replacing itself, as one mark on one button.
+ * Where one half of the app is in being replaced, as one mark on one button.
  *
- * Seven drawings, one press between them, the way `MaximiseMark` is one button
- * for both of its moves: an arrow down for the offer to look, a
- * ring while it is looking, a tick for nothing to do, the same ring filling as
- * the new version arrives, two arrows round a circle for the reload that
- * finishes the pages, and one arrow round a circle for the restart that
- * finishes the program. A failure is the arrow again, in red — see the update
- * section of `SettingsDialog`, which is what colours it: what went wrong is not
- * a thing this window has a word for, and pressing again is the whole of what
- * can be done about it.
+ * Six drawings, one press between them, the way `MaximiseMark` is one button
+ * for both of its moves: an arrow down for the offer to take a release, a ring
+ * while it is being taken, the same ring filling instead of turning once the
+ * download has said how long it is, a tick for nothing to do, two arrows round
+ * a circle for the reload that finishes the pages, and one arrow round a circle
+ * for the restart that finishes the program. A failure is the arrow again, in
+ * red — see the update rows of `SettingsDialog`, which is what colours it: what
+ * went wrong is not a thing this window has a word for, and pressing again is
+ * the whole of what can be done about it.
  *
- * The seventh is the arrow struck through: a release nothing here can take any
- * more of. The two circles are told apart by how many arrows are in them, which
- * is also how much of the app each of them replaces.
+ * The last is the arrow struck through: a release this half cannot take. The
+ * two circles are told apart by how many arrows are in them, which is also how
+ * much of the app each of them replaces.
  *
  * The arrow is the download and not a version number, because the version is
- * not the point: there is one newer than this or there is not, and the mark
- * that says which is the mark that fetches it.
+ * said in the pull-down above the row: the mark is what the press is doing
+ * about it.
  */
 export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: number | null }) {
-  if (stage === "checking" || (stage === "fetching" && progress === null)) {
+  if (stage === "taking" && progress === null) {
     return (
       <Frame>
         {/* Three quarters of a ring: a whole one turning is a whole one. */}
@@ -61,7 +61,7 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
     );
   }
 
-  if (stage === "fetching") {
+  if (stage === "taking") {
     return (
       <Frame>
         {/* The ring it is filling, faint, so that how far along it is can be
@@ -136,7 +136,6 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
     </Frame>
   );
 }
-
 /** A line: the window down to the taskbar. */
 export function MinimiseMark() {
   return (

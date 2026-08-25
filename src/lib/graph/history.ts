@@ -57,6 +57,16 @@ export function defaultShown(repository: Repository): number {
   return at === -1 ? count : Math.max(count, at + 1);
 }
 
+/**
+ * How much history a repository draws, given what it was asked for. Asking for
+ * more than there is, or for nothing at all, are both answered here rather than
+ * inside the layout, so that the depth this settles on is the one the cache is
+ * keyed by.
+ */
+export function depthOf(repository: Repository, want: number | undefined): number {
+  return Math.max(1, Math.min(repository.commits.length, want ?? defaultShown(repository)));
+}
+
 /** The branch the repository is on, which the top lane is held for. A detached
  *  or bare repository falls back to git's own default branch. */
 export function trunkOf(repository: Repository): Branch | undefined {

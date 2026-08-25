@@ -18,7 +18,7 @@ import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import { warmInTurn } from "./lib/onDemand";
-import { confirmFront } from "./lib/update";
+import { confirmFront, watchVersions } from "./lib/update";
 import {
   commitPart,
   EMPTY_WORKSPACE,
@@ -140,6 +140,11 @@ function Window() {
   // this is the first moment the whole of the window exists, and said out of
   // every window because none of them knows which front it was drawn from.
   useEffect(confirmFront, []);
+
+  // Which releases there are, kept up to date from here on: a list only asked
+  // for when the pull-down is opened is a list that is empty at the moment
+  // somebody looks at it. See `watchVersions`.
+  useEffect(watchVersions, []);
 
   // The menus the graph can open are fetched in the idle moments after the
   // window opens, so the first click does not have to wait for their chunks.

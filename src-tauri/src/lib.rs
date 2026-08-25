@@ -8,6 +8,7 @@ mod git;
 mod host;
 mod mcp;
 mod pty;
+mod release;
 mod stream;
 mod sync;
 mod update;
@@ -114,7 +115,9 @@ pub fn run() {
             read_directory,
             read_file_head,
             write_file,
-            update::update_supported,
+            update::update_standing,
+            update::take_whole,
+            release::fetch::update_versions,
             front::take::take_front,
             front::take::confirm_front,
             derived::rederive,
