@@ -94,8 +94,7 @@
     "mcp": "エージェントの報告",
     "mcpHint": "エージェントの作業内容をグラフに表示する",
     "register": "エージェントの設定",
-    "registerHint": "このマシンのエージェントに接続先を書き込む",
-    "update": "更新先"
+    "registerHint": "このマシンのエージェントに接続先を書き込む"
   },
   "mcp": {
     "register": "設定する",
@@ -117,7 +116,15 @@
     "pages": "画面",
     "program": "本体",
     "drawn": "表示中 {{version}}",
-    "running": "実行中 {{version}}"
+    "running": "実行中 {{version}}",
+    "layer": "アプリケーション層",
+    "answering": "応答中 {{version}}",
+    "moving": "{{from}} → {{to}}",
+    "cycle": {
+      "release": "リリース",
+      "layer": "アプリケーション層のリリース",
+      "front": "画面のリリース"
+    }
   },
   "theme": {
     "system": "システム",

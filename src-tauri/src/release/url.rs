@@ -3,31 +3,49 @@
 use serde_json::Value;
 
 use super::BACK;
+use super::cycle::Cycle;
 
-/// The manifest of one release, or of whichever is newest when none is named.
+/// The manifest of one release of one cycle.
 ///
-/// The endpoint is the newest release's copy under the address GitHub keeps
-/// pointed at it; a named version is the same file under that release's own
-/// tag. Anything that is not that shape of address has no per-version copy this
+/// Every cycle publishes its own document under its own tag, so an address is
+/// the repository, the tag the cycle names a version under, and the name of the
+/// document. The one exception is the address the app is actually configured
+/// with: GitHub keeps `releases/latest/download/<name>` pointed at whichever
+/// release is newest, and that is the only way to reach a release without
+/// having first been told which ones exist — so the cycle the app is released
+/// on is allowed to be asked for without naming a version, and the others are
+/// not. See [`Cycle::rides_the_newest`].
+///
+/// Anything that is not a GitHub release address has no per-version copy this
 /// knows how to reach, and says so rather than guessing at one.
-pub fn manifest_url(endpoint: &str, version: Option<&str>) -> Option<String> {
+pub fn manifest_url(endpoint: &str, cycle: &Cycle, version: Option<&str>) -> Option<String> {
     let Some(version) = version else {
-        return Some(endpoint.to_string());
+        return cycle.rides_the_newest().then(|| endpoint.to_string());
     };
     // A version goes into an address, so what it may hold is worth being exact
     // about: this is the only thing between the pull-down and a URL.
     if !is_version(version) {
         return None;
     }
-    let (repository, name) = endpoint.split_once("/releases/latest/download/")?;
-    Some(format!("{repository}/releases/download/v{version}/{name}"))
+    let repository = repository_url(endpoint)?;
+    Some(format!(
+        "{repository}/releases/download/{}{version}/{}",
+        cycle.tag, cycle.manifest
+    ))
+}
+
+/// The repository the app is released out of, read out of the one address it is
+/// already pointed at rather than written down again.
+fn repository_url(endpoint: &str) -> Option<&str> {
+    let (repository, _) = endpoint.split_once("/releases/latest/download/")?;
+    Some(repository)
 }
 
 /// Where the releases that exist are listed.
 ///
-/// Read out of the endpoint rather than written again: the repository releases
-/// are cut from is the repository the app updates itself out of, and the one
-/// address it is already pointed at names it.
+/// One listing serves every cycle: they are tags on the same repository, and
+/// which of them belongs to which cycle is the prefix on the tag — see
+/// [`versions`].
 pub fn listing_url(endpoint: &str) -> Option<String> {
     let rest = endpoint.strip_prefix("https://github.com/")?;
     let (owner, rest) = rest.split_once('/')?;
@@ -40,12 +58,19 @@ pub fn listing_url(endpoint: &str) -> Option<String> {
     ))
 }
 
-/// The versions there are to take, newest first.
+/// The versions of one cycle there are to take, newest first.
 ///
-/// Anything that is not a released `vX.Y.Z` is left out, which is what keeps
-/// the standalone installer's own releases — tagged for the installer rather
-/// than for the app — from being offered as versions of the app.
-pub fn versions(listing: &[u8]) -> Vec<String> {
+/// A tag belongs to the cycle whose prefix it carries and to no other, which is
+/// what keeps three cycles on one repository apart — and what keeps the
+/// standalone installer's own releases, tagged for the installer rather than
+/// for anything the app updates, out of every one of them.
+///
+/// The tag of a cycle whose prefix is a prefix of another's would be read as
+/// both. That cannot happen with the cycles that exist -- `v` and `layer-v`
+/// have no version in common, because `0.1.10` is not what follows `layer-v` in
+/// `layer-v0.1.10` -- and it is why what is left after the prefix has to be a
+/// version and nothing else.
+pub fn versions(listing: &[u8], cycle: &Cycle) -> Vec<String> {
     let Ok(Value::Array(releases)) = serde_json::from_slice::<Value>(listing) else {
         return Vec::new();
     };
@@ -55,7 +80,7 @@ pub fn versions(listing: &[u8]) -> Vec<String> {
             release["draft"] != Value::Bool(true) && release["prerelease"] != Value::Bool(true)
         })
         .filter_map(|release| release["tag_name"].as_str())
-        .filter_map(|tag| tag.strip_prefix('v'))
+        .filter_map(|tag| tag.strip_prefix(cycle.tag))
         .filter(|tag| is_version(tag))
         .map(str::to_string)
         .collect()

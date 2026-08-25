@@ -9,8 +9,15 @@
 
 use super::super::take::{contract, ours, unpack};
 use super::TempDir;
-use crate::release;
+use crate::release::fetch::ask;
 use crate::release::url::{listing_url, versions};
+use crate::release::{self, Cycle, Cycles};
+
+/// The app's own cycle, which is what every layer follows until it is told
+/// otherwise -- and the only one the release page has anything under today.
+fn release() -> Cycle {
+    Cycles::Release.cycle()
+}
 
 /// The address and the key this build is pointed at, read from the same place
 /// the app reads them: `tauri.conf.json`, which the test binary has no app to
@@ -32,12 +39,17 @@ fn declared() -> (String, String) {
 #[ignore = "reads the release page over the network"]
 fn the_newest_release_says_what_this_build_expects_it_to() {
     let (endpoint, _) = declared();
-    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, None))
+    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, &release(), None))
         .expect("the newest release's manifest");
     println!("newest release: {}", manifest.version);
     let front = manifest.front.expect("the newest release carries a front");
     println!("  front needs {} and is at {}", front.needs, front.url);
     println!("  this build answers to contract {}", contract());
+    match manifest.layers.get(&crate::release::target()) {
+        None => println!("  no application layer for {}", crate::release::target()),
+        Some(layer) => println!("  a layer speaking {} at {}", layer.protocol, layer.url),
+    }
+    println!("  this build speaks {}", totex_layer::PROTOCOL);
 }
 
 #[test]
@@ -45,14 +57,14 @@ fn the_newest_release_says_what_this_build_expects_it_to() {
 fn every_listed_release_can_be_named() {
     let (endpoint, _) = declared();
     let url = listing_url(&endpoint).expect("the listing of the repository");
-    let listing = tauri::async_runtime::block_on(release::ask(&url, release::SMALL))
-        .expect("the listing answers");
-    let versions = versions(&listing);
+    let listing =
+        tauri::async_runtime::block_on(ask(&url, release::SMALL)).expect("the listing answers");
+    let versions = versions(&listing, &release());
     println!("listed: {versions:?}");
     assert!(!versions.is_empty(), "the pull-down would be empty");
 
     for version in &versions {
-        match tauri::async_runtime::block_on(release::read(&endpoint, Some(version))) {
+        match tauri::async_runtime::block_on(release::read(&endpoint, &release(), Some(version))) {
             Ok(manifest) => println!(
                 "  v{version}: front {}",
                 manifest.front.map_or_else(
@@ -69,18 +81,18 @@ fn every_listed_release_can_be_named() {
 #[ignore = "downloads the front of the newest release"]
 fn the_front_of_the_newest_release_is_ours_and_unpacks() {
     let (endpoint, key) = declared();
-    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, None))
+    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, &release(), None))
         .expect("the newest release's manifest");
     let front = manifest.front.expect("the newest release carries a front");
     let version = semver::Version::parse(&manifest.version).expect("a version");
 
-    let tarball = tauri::async_runtime::block_on(release::ask(&front.url, 64 * 1024 * 1024))
+    let tarball = tauri::async_runtime::block_on(ask(&front.url, 64 * 1024 * 1024))
         .expect("the front downloads");
     println!("front.tar.gz is {} bytes", tarball.len());
     ours(&tarball, &front.signature, &key).expect("the front is signed with the app's key");
 
     let temp = TempDir::new("live");
-    let unpacked = unpack(temp.path(), &version, front.needs, &tarball).expect("it unpacks");
+    let unpacked = unpack(temp.path(), &version, front.needs, false, &tarball).expect("it unpacks");
     println!("unpacked into {}", unpacked.dir.display());
     assert!(unpacked.dir.join("index.html").is_file());
 }

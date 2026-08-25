@@ -14,11 +14,12 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use minisign_verify::{PublicKey, Signature};
 use semver::Version;
-use tauri::{AppHandle, Manager};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Manager, Runtime};
 
 use super::{Serving, TAKEN, Taken, Unpacked};
-use crate::release;
-use crate::update::Took;
+use crate::release::{self, Cycle};
+use crate::update::{Coming, Took};
 
 /// The most of a front that will be read off the network.
 ///
@@ -37,18 +38,21 @@ const MOST: usize = 64 * 1024 * 1024;
 /// `serving` is the version of the front the window is drawn out of now, which
 /// is `built` until something newer has been taken.
 ///
-/// The pages only ever go forward. Not because taking an older set would be
-/// hard, but because it would not last: a front is served while it is newer
-/// than the program, so pages older than the program are pages the next start
-/// throws away — and the program's own are what would be drawn instead, which
-/// is what the person would have got by taking nothing. Going back is the
-/// program's to do, and it brings its own pages with it.
+/// `named` is whether somebody said which release this is about. It is the
+/// whole of the difference between going forward and going back. Left to
+/// itself, the pages only go forward: a press that means "bring me up to date"
+/// and finds pages older than the program has found nothing worth doing, since
+/// the program's own pages are newer than what it would be taking. Named, it
+/// is not a direction at all — it is a version somebody chose, and choosing the
+/// one you were on last week is the thing choosing is for. What holds a front
+/// older than the program in place afterwards is [`super::Taken::pinned`].
 pub(super) fn choose(
     release: &Version,
     needs: Option<u32>,
     serving: &Version,
     built: &Version,
     contract: u32,
+    named: bool,
 ) -> Took {
     if release == serving {
         // These are the pages on the screen. Whether they were taken or built
@@ -56,11 +60,14 @@ pub(super) fn choose(
         return Took::Current;
     }
     match needs {
-        Some(needs) if release > built && needs <= contract => Took::Taken,
-        // Either the release keeps its pages inside its program, or they talk
-        // to a program this one is not, or they are behind the program already
-        // here. All three are the same answer: these are not pages this half
-        // can bring, and the row underneath is the one that brings them.
+        // Pages that talk to a program this one is not would be a window
+        // calling commands that are not there, whoever asked for them.
+        Some(needs) if needs > contract => Took::Held,
+        Some(_) if release > built || named => Took::Taken,
+        // Either the release keeps its pages inside its program, or they are
+        // behind the program already here and nobody asked for them by name.
+        // Both are the same answer: these are not pages this row can bring, and
+        // the row underneath is the one that brings them.
         _ => Took::Held,
     }
 }
@@ -79,17 +86,21 @@ pub(super) fn contract() -> u32 {
         .expect("build.rs writes this out of package.json")
 }
 
-/// Takes the pages of one release, or says why they are not this half's to take.
+/// Takes the pages of one release, or says why they are not this row's to take.
 ///
 /// `version` is what the pull-down was on, or nothing at all on a window that
 /// never got a list of versions — which reads whatever the release page says is
 /// newest, exactly as every press meant before a version could be named.
-#[tauri::command]
-pub async fn take_front(app: AppHandle, version: Option<String>) -> Result<Took, String> {
+pub async fn take_front<R: Runtime>(
+    app: &AppHandle<R>,
+    cycle: &Cycle,
+    version: Option<&str>,
+    coming: &Channel<Coming>,
+) -> Result<Took, String> {
     let serving = Arc::clone(app.state::<Arc<Serving>>().inner());
-    let (endpoint, key) = release::declared(&app)?;
+    let (endpoint, key) = release::declared(app)?;
 
-    let manifest = release::read(&endpoint, version.as_deref()).await?;
+    let manifest = release::read(&endpoint, cycle, version).await?;
     let release = Version::parse(&manifest.version)
         .map_err(|error| format!("unreadable version: {error}"))?;
 
@@ -103,6 +114,7 @@ pub async fn take_front(app: AppHandle, version: Option<String>) -> Result<Took,
         &serving.version(),
         serving.built(),
         contract(),
+        version.is_some(),
     );
     if took != Took::Taken {
         return Ok(took);
@@ -113,14 +125,18 @@ pub async fn take_front(app: AppHandle, version: Option<String>) -> Result<Took,
         .clone()
         .ok_or_else(|| "nowhere to keep a front".to_string())?;
     let entry = entry.expect("choose only takes a front it was given");
-    let tarball = release::ask(&entry.url, MOST).await?;
+    let tarball = release::fetch::along(&entry.url, MOST, |taken, length| {
+        Coming::say(coming, taken, length);
+    })
+    .await?;
 
     // Everything left is the disk, and the disk is not the event loop's to
     // wait on: a front is a few hundred files, and unpacking them is long
     // enough to be seen in a window that is still drawing.
+    let pinned = release <= *serving.built();
     let unpacked = tauri::async_runtime::spawn_blocking(move || {
         ours(&tarball, &entry.signature, &key)?;
-        let unpacked = unpack(&home, &release, entry.needs, &tarball)?;
+        let unpacked = unpack(&home, &release, entry.needs, pinned, &tarball)?;
         point(&home, &unpacked)?;
         Ok::<_, String>(unpacked)
     })
@@ -150,6 +166,7 @@ pub fn confirm_front(app: AppHandle) {
     let confirmed = Taken {
         version: unpacked.version.to_string(),
         needs: unpacked.needs,
+        pinned: unpacked.pinned,
         confirmed: true,
     };
     let already = fs::read(home.join(TAKEN))
@@ -170,7 +187,7 @@ pub fn confirm_front(app: AppHandle) {
 /// is the shape the updater plugin's own manifest carries and the shape
 /// `tauri signer` writes — the front is signed by the same command, with the
 /// same key, in the same job as the installers beside it.
-pub(super) fn ours(tarball: &[u8], signature: &str, key: &str) -> Result<(), String> {
+pub(crate) fn ours(tarball: &[u8], signature: &str, key: &str) -> Result<(), String> {
     let text = |encoded: &str, what: &str| {
         BASE64
             .decode(encoded)
@@ -196,6 +213,7 @@ pub(super) fn unpack(
     home: &Path,
     version: &Version,
     needs: u32,
+    pinned: bool,
     tarball: &[u8],
 ) -> Result<Unpacked, String> {
     let dir = home.join(version.to_string());
@@ -226,6 +244,7 @@ pub(super) fn unpack(
         dir,
         version: version.clone(),
         needs,
+        pinned,
     })
 }
 
@@ -242,6 +261,7 @@ fn point(home: &Path, unpacked: &Unpacked) -> Result<(), String> {
     let taken = Taken {
         version: unpacked.version.to_string(),
         needs: unpacked.needs,
+        pinned: unpacked.pinned,
         confirmed: false,
     };
     let bytes = serde_json::to_vec(&taken).map_err(|error| error.to_string())?;

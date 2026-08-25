@@ -22,6 +22,7 @@ pub(super) fn serving(home: &Path, built: &str, version: Option<&str>) -> Arc<Se
                 dir: home.join(version),
                 version: at(version),
                 needs: 1,
+                pinned: false,
             }),
             behind: Behind::Nothing,
         }),
@@ -71,6 +72,7 @@ fn the_front_being_replaced_answers_until_a_window_has_been_drawn() {
         dir: temp.path().join("0.1.4"),
         version: at("0.1.4"),
         needs: 1,
+        pinned: false,
     });
 
     // The window on the screen is still the one that was there, and it goes on

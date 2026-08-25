@@ -4094,6 +4094,15 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-process",
  "tauri-plugin-updater",
+ "totex-layer",
+]
+
+[[package]]
+name = "totex-layer"
+version = "0.1.10"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

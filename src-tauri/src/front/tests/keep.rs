@@ -6,7 +6,7 @@ use tauri::utils::assets::AssetKey;
 
 use super::super::serving::{keep, read_under};
 use super::serve::serving;
-use super::{TempDir, at, lay, needing};
+use super::{TempDir, at, lay, needing, pinning};
 
 #[test]
 fn a_page_can_only_ask_for_what_is_under_the_front() {
@@ -83,6 +83,23 @@ fn taking_the_program_leaves_the_release_that_was_asked_for_standing() {
     );
     assert!(keep(temp.path(), &at("0.1.2"), 1).is_none());
     assert!(!temp.path().exists(), "and the next start clears it away");
+}
+
+#[test]
+fn a_front_somebody_named_is_opened_on_however_old_it_is() {
+    // The way back to an older release, which is a front behind the program
+    // rather than in front of it -- see `Taken::pinned`.
+    let pinned = TempDir::new("pinned");
+    pinning(pinned.path(), "0.1.1", 1, true, true);
+    let kept = keep(pinned.path(), &at("0.1.2"), 1).expect("the one that was named");
+    assert_eq!(kept.version, at("0.1.1"));
+
+    // And taking the program is still what clears one away: the release the
+    // program came out of carries its own pages, and those are the ones that
+    // release means.
+    let serving = serving(pinned.path(), "0.1.2", Some("0.1.1"));
+    serving.drop_front();
+    assert!(keep(pinned.path(), &at("0.1.2"), 1).is_none());
 }
 
 #[test]

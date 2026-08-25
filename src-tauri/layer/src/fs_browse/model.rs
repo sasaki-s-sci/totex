@@ -1,11 +1,16 @@
 //! What a listing, a root and a card are, as the window receives them.
+//!
+//! Read back as well as written, because these cross one more boundary than
+//! they used to: the layer that fills them in may be a program of its own -- see
+//! `crate::serve` -- and the program above it reads them back out of the JSON
+//! before handing them to the window.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Where a root comes from, so the frontend can group and label the rail. The
 /// frontend knows every variant even though each host only produces some.
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RootKind {
     /// The current user's home directory.
@@ -20,7 +25,7 @@ pub enum RootKind {
     WindowsMount,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Root {
     pub kind: RootKind,
@@ -35,7 +40,7 @@ pub struct Root {
 /// Not a [`Root`]: those are what the machine has, worked out afresh every time
 /// the menu is opened. This is the other kind — a place that exists because a
 /// person named it, which between two windows is only ever a path.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Place {
     /// What a pane is started at: folded, and spelled the way every path in
@@ -48,7 +53,7 @@ pub struct Place {
     pub display: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub name: String,
@@ -62,7 +67,7 @@ pub struct Entry {
     pub modified_ms: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Listing {
     /// The directory that was actually read, which may differ from the request
@@ -80,7 +85,7 @@ pub struct Listing {
 }
 
 /// The top of one file, for the card the canvas draws it in.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileHead {
     /// The file that actually answered, which may differ from the request once

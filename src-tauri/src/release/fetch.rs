@@ -2,12 +2,17 @@
 
 use tauri::AppHandle;
 
+use super::cycle::{Cycle, Cycles};
 use super::url::{listing_url, manifest_url, versions};
 use super::{Manifest, PATIENCE, SMALL, declared};
 
 /// Reads what one release says about itself, and checks it is that release.
-pub async fn read(endpoint: &str, version: Option<&str>) -> Result<Manifest, String> {
-    let url = manifest_url(endpoint, version).ok_or_else(|| {
+pub async fn read(
+    endpoint: &str,
+    cycle: &Cycle,
+    version: Option<&str>,
+) -> Result<Manifest, String> {
+    let url = manifest_url(endpoint, cycle, version).ok_or_else(|| {
         format!(
             "there is no release page here for {}",
             version.unwrap_or("the newest release")
@@ -50,47 +55,71 @@ fn provider() {
 /// Reads a URL into memory, or says why it could not.
 ///
 /// `most` is what the thing being read has no right to be bigger than. Held to
-/// twice: once on what the server says it is about to send, and once on what it
-/// actually sent, because a server that says nothing is read anyway.
+/// twice: once on what the server says it is about to send, and once on what has
+/// arrived so far, because a server that says nothing is read anyway — and a
+/// server that says one thing and sends another is the reason the second check
+/// is made as it goes rather than at the end.
 pub async fn ask(url: &str, most: usize) -> Result<Vec<u8>, String> {
+    along(url, most, |_, _| {}).await
+}
+
+/// The same, saying how much has arrived as it arrives.
+///
+/// Read a piece at a time rather than in one go, which is the only difference:
+/// a download of eighty megabytes on somebody's line is a ring that has to
+/// fill, and a ring that fills is the difference between a window that is
+/// working and a window that has stopped.
+pub async fn along(
+    url: &str,
+    most: usize,
+    mut coming: impl FnMut(u64, Option<u64>),
+) -> Result<Vec<u8>, String> {
     provider();
     let client = reqwest::Client::builder()
         .timeout(PATIENCE)
         .user_agent(concat!("totex/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|error| format!("no client: {error}"))?;
-    let response = client
+    let mut response = client
         .get(url)
         .send()
         .await
         .map_err(|error| format!("{url} did not answer: {error}"))?
         .error_for_status()
         .map_err(|error| format!("{url} answered {error}"))?;
-    if response
-        .content_length()
-        .is_some_and(|len| len > most as u64)
-    {
+    let length = response.content_length();
+    if length.is_some_and(|len| len > most as u64) {
         return Err(format!("{url} is larger than it has any right to be"));
     }
-    let bytes = response
-        .bytes()
+
+    let mut taken = Vec::with_capacity(length.unwrap_or(0).min(most as u64) as usize);
+    while let Some(piece) = response
+        .chunk()
         .await
-        .map_err(|error| format!("{url} stopped part way: {error}"))?;
-    if bytes.len() > most {
-        return Err(format!("{url} is larger than it has any right to be"));
+        .map_err(|error| format!("{url} stopped part way: {error}"))?
+    {
+        taken.extend_from_slice(&piece);
+        if taken.len() > most {
+            return Err(format!("{url} is larger than it has any right to be"));
+        }
+        coming(taken.len() as u64, length);
     }
-    Ok(bytes.to_vec())
+    Ok(taken)
 }
 
-/// Which versions the pull-down offers, newest first.
+/// Which versions one cycle offers, newest first.
 ///
 /// Asked on a loop by the window rather than by a press, because a list has to
 /// be filled before it is opened. Nothing is drawn for a listing that does not
 /// answer: an empty answer leaves the window with the versions it already had,
 /// and a window that has never had any offers the newest release instead, which
 /// is what every press meant before a version could be named at all.
+///
+/// One reading of the release page serves all three cycles — they are tags on
+/// one repository — so the window asks for the cycles its rows are following
+/// and this answers each of them out of the one listing.
 #[tauri::command]
-pub async fn update_versions(app: AppHandle) -> Vec<String> {
+pub async fn update_versions(app: AppHandle, cycles: Vec<Cycles>) -> Vec<(Cycles, Vec<String>)> {
     let Ok((endpoint, _)) = declared(&app) else {
         return Vec::new();
     };
@@ -100,17 +129,30 @@ pub async fn update_versions(app: AppHandle) -> Vec<String> {
     let Ok(listing) = ask(&url, SMALL).await else {
         return Vec::new();
     };
-    versions(&listing)
+    cycles
+        .into_iter()
+        .map(|which| {
+            let found = versions(&listing, &which.cycle());
+            (which, found)
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::url::is_version;
     use super::*;
+    use crate::release::cycle::{Cycle, Cycles};
 
     /// The address this app is actually pointed at, from `tauri.conf.json`.
     const ENDPOINT: &str =
         "https://github.com/sasaki-s-sci/totex/releases/latest/download/latest.json";
+
+    /// The app's own cycle, which is the one every layer follows until it is
+    /// told otherwise.
+    fn release() -> Cycle {
+        Cycles::Release.cycle()
+    }
 
     /// The one thing about asking a URL that is not about the URL.
     ///
@@ -143,18 +185,38 @@ mod tests {
 
     #[test]
     fn a_named_version_is_the_same_file_under_its_own_tag() {
-        assert_eq!(manifest_url(ENDPOINT, None).as_deref(), Some(ENDPOINT));
         assert_eq!(
-            manifest_url(ENDPOINT, Some("0.1.2")).as_deref(),
+            manifest_url(ENDPOINT, &release(), None).as_deref(),
+            Some(ENDPOINT)
+        );
+        assert_eq!(
+            manifest_url(ENDPOINT, &release(), Some("0.1.2")).as_deref(),
             Some("https://github.com/sasaki-s-sci/totex/releases/download/v0.1.2/latest.json")
         );
         // Nothing that is not a version becomes part of an address.
-        assert_eq!(manifest_url(ENDPOINT, Some("0.1.2/../../x")), None);
-        // And an endpoint of another shape has no per-version copy to name.
         assert_eq!(
-            manifest_url("https://example.invalid/x.json", Some("0.1.2")),
+            manifest_url(ENDPOINT, &release(), Some("0.1.2/../../x")),
             None
         );
+        // And an endpoint of another shape has no per-version copy to name.
+        assert_eq!(
+            manifest_url("https://example.invalid/x.json", &release(), Some("0.1.2")),
+            None
+        );
+    }
+
+    #[test]
+    fn a_cycle_of_its_own_is_the_same_page_under_its_own_tag() {
+        let layer = Cycles::Layer.cycle();
+        assert_eq!(
+            manifest_url(ENDPOINT, &layer, Some("0.2.0")).as_deref(),
+            Some("https://github.com/sasaki-s-sci/totex/releases/download/layer-v0.2.0/layer.json")
+        );
+        // And it has no address for "whichever is newest": the one address
+        // GitHub keeps pointed at a release is pointed at the newest release of
+        // the repository, which is not the newest release of this cycle. Which
+        // version is newest here is the listing's to say.
+        assert_eq!(manifest_url(ENDPOINT, &layer, None), None);
     }
 
     #[test]
@@ -178,14 +240,33 @@ mod tests {
           {"tag_name": "v0.1.3", "draft": false, "prerelease": false}
         ]"#;
         assert_eq!(
-            versions(listing),
+            versions(listing, &release()),
             vec!["0.1.6".to_string(), "0.1.3".to_string()]
         );
     }
 
     #[test]
+    fn one_listing_tells_three_cycles_apart() {
+        let listing = br#"[
+          {"tag_name": "layer-v0.2.0", "draft": false, "prerelease": false},
+          {"tag_name": "v0.1.6",       "draft": false, "prerelease": false},
+          {"tag_name": "front-v0.1.7", "draft": false, "prerelease": false},
+          {"tag_name": "layer-v0.1.9", "draft": false, "prerelease": false}
+        ]"#;
+        assert_eq!(versions(listing, &release()), vec!["0.1.6".to_string()]);
+        assert_eq!(
+            versions(listing, &Cycles::Layer.cycle()),
+            vec!["0.2.0".to_string(), "0.1.9".to_string()]
+        );
+        assert_eq!(
+            versions(listing, &Cycles::Front.cycle()),
+            vec!["0.1.7".to_string()]
+        );
+    }
+
+    #[test]
     fn a_listing_that_is_not_one_offers_nothing() {
-        assert!(versions(b"{\"message\":\"API rate limit exceeded\"}").is_empty());
-        assert!(versions(b"not json at all").is_empty());
+        assert!(versions(b"{\"message\":\"API rate limit exceeded\"}", &release()).is_empty());
+        assert!(versions(b"not json at all", &release()).is_empty());
     }
 }
