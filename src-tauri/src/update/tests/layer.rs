@@ -11,17 +11,15 @@ use crate::update::layer::take_layer;
 
 use super::{Page, TempDir, app};
 
-/// A release page holding one manifest, and whatever else is named in it.
-fn holding(manifest: serde_json::Value, files: &[(&str, &[u8])]) -> Page {
-    let mut held = HashMap::new();
-    held.insert(
-        "/releases/latest/download/latest.json".to_string(),
-        serde_json::to_vec(&manifest).expect("a manifest is JSON"),
-    );
-    for (path, body) in files {
-        held.insert((*path).to_string(), body.to_vec());
-    }
-    Page::holding(held)
+/// A release page saying one thing about itself, and holding nothing.
+///
+/// For the presses that are answered before anything is downloaded, which is
+/// most of them: a release that keeps its layer inside its program, one built
+/// for another machine, one this program could not talk to.
+fn holding(manifest: serde_json::Value) -> Page {
+    let page = Page::holding(HashMap::new());
+    page.says(manifest);
+    page
 }
 
 /// What a press is answered with, with nothing listening to the download.
@@ -41,22 +39,19 @@ fn press(
 #[test]
 fn a_release_whose_layer_speaks_another_language_is_not_downloaded() {
     let temp = TempDir::new("protocol");
-    let page = holding(
-        serde_json::json!({
-            "version": "9.9.9",
-            "layers": {
-                target(): {
-                    // A layer built against a conversation this program does
-                    // not have. Said in the manifest, so it is known before
-                    // anything has been downloaded.
-                    "protocol": totex_layer::PROTOCOL + 1,
-                    "url": "http://127.0.0.1:1/never-asked-for",
-                    "signature": "",
-                }
+    let page = holding(serde_json::json!({
+        "version": "9.9.9",
+        "layers": {
+            target(): {
+                // A layer built against a conversation this program does
+                // not have. Said in the manifest, so it is known before
+                // anything has been downloaded.
+                "protocol": totex_layer::PROTOCOL + 1,
+                "url": "http://127.0.0.1:1/never-asked-for",
+                "signature": "",
             }
-        }),
-        &[],
-    );
+        }
+    }));
     let app = app(page.endpoint(), temp.path());
     assert_eq!(press(&app, None), Ok(Took::Held));
 }
@@ -64,19 +59,16 @@ fn a_release_whose_layer_speaks_another_language_is_not_downloaded() {
 #[test]
 fn a_release_with_no_layer_for_this_machine_is_the_programs_to_bring() {
     let temp = TempDir::new("elsewhere");
-    let page = holding(
-        serde_json::json!({
-            "version": "9.9.9",
-            "layers": {
-                "commodore-6502": {
-                    "protocol": totex_layer::PROTOCOL,
-                    "url": "http://127.0.0.1:1/never-asked-for",
-                    "signature": "",
-                }
+    let page = holding(serde_json::json!({
+        "version": "9.9.9",
+        "layers": {
+            "commodore-6502": {
+                "protocol": totex_layer::PROTOCOL,
+                "url": "http://127.0.0.1:1/never-asked-for",
+                "signature": "",
             }
-        }),
-        &[],
-    );
+        }
+    }));
     let app = app(page.endpoint(), temp.path());
     assert_eq!(press(&app, None), Ok(Took::Held));
 }
@@ -84,10 +76,7 @@ fn a_release_with_no_layer_for_this_machine_is_the_programs_to_bring() {
 #[test]
 fn the_layer_that_is_already_answering_is_nothing_to_do() {
     let temp = TempDir::new("current");
-    let page = holding(
-        serde_json::json!({ "version": totex_layer::VERSION, "layers": {} }),
-        &[],
-    );
+    let page = holding(serde_json::json!({ "version": totex_layer::VERSION, "layers": {} }));
     let app = app(page.endpoint(), temp.path());
     assert_eq!(press(&app, None), Ok(Took::Current));
 }
@@ -100,19 +89,16 @@ fn a_layer_that_is_not_signed_with_the_apps_key_is_not_put_anywhere() {
     let mut held = HashMap::new();
     held.insert("/layer.gz".to_string(), b"not a layer either".to_vec());
     let page = Page::holding(held);
-    let page = holding(
-        serde_json::json!({
-            "version": "9.9.9",
-            "layers": {
-                target(): {
-                    "protocol": totex_layer::PROTOCOL,
-                    "url": page.url("/layer.gz"),
-                    "signature": "not a signature",
-                }
+    page.says(serde_json::json!({
+        "version": "9.9.9",
+        "layers": {
+            target(): {
+                "protocol": totex_layer::PROTOCOL,
+                "url": page.url("/layer.gz"),
+                "signature": "not a signature",
             }
-        }),
-        &[("/layer.gz", b"not a layer either")],
-    );
+        }
+    }));
     let app = app(page.endpoint(), temp.path());
 
     let refused = press(&app, None).expect_err("nothing signed with our key");

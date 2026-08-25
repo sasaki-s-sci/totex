@@ -96,26 +96,16 @@ fn a_press_downloads_a_layer_and_the_layer_answers_the_next_question() {
         std::fs::read(&gz).expect("the packed layer"),
     );
     let page = Page::holding(held);
-    let mut held = HashMap::new();
-    held.insert(
-        "/totex-layer.gz".to_string(),
-        std::fs::read(&gz).expect("the packed layer"),
-    );
-    held.insert(
-        "/releases/latest/download/latest.json".to_string(),
-        serde_json::to_vec(&serde_json::json!({
-            "version": totex_layer::VERSION,
-            "layers": {
-                target(): {
-                    "protocol": totex_layer::PROTOCOL,
-                    "url": page.url("/totex-layer.gz"),
-                    "signature": signature.trim(),
-                }
+    page.says(serde_json::json!({
+        "version": totex_layer::VERSION,
+        "layers": {
+            target(): {
+                "protocol": totex_layer::PROTOCOL,
+                "url": page.url("/totex-layer.gz"),
+                "signature": signature.trim(),
             }
-        }))
-        .expect("a manifest is JSON"),
-    );
-    let page = Page::holding(held);
+        }
+    }));
 
     // An app carrying an older layer than the release does, which is what
     // leaves the row with something to do.
@@ -202,26 +192,16 @@ fn a_layer_signed_with_somebody_elses_key_is_not_taken() {
         std::fs::read(&gz).expect("the packed layer"),
     );
     let page = Page::holding(held);
-    let mut held = HashMap::new();
-    held.insert(
-        "/totex-layer.gz".to_string(),
-        std::fs::read(&gz).expect("the packed layer"),
-    );
-    held.insert(
-        "/releases/latest/download/latest.json".to_string(),
-        serde_json::to_vec(&serde_json::json!({
-            "version": totex_layer::VERSION,
-            "layers": {
-                target(): {
-                    "protocol": totex_layer::PROTOCOL,
-                    "url": page.url("/totex-layer.gz"),
-                    "signature": signature.trim(),
-                }
+    page.says(serde_json::json!({
+        "version": totex_layer::VERSION,
+        "layers": {
+            target(): {
+                "protocol": totex_layer::PROTOCOL,
+                "url": page.url("/totex-layer.gz"),
+                "signature": signature.trim(),
             }
-        }))
-        .expect("a manifest is JSON"),
-    );
-    let page = Page::holding(held);
+        }
+    }));
 
     let mut context = mock_context(noop_assets());
     context.config_mut().plugins.0.insert(
@@ -302,27 +282,22 @@ fn a_press_downloads_the_pages_and_the_next_window_is_drawn_out_of_them() {
     let signature = std::fs::read_to_string(format!("{}.sig", tarball.display()))
         .expect("the signature beside it");
 
-    let packed = std::fs::read(&tarball).expect("the packed pages");
     let mut held = HashMap::new();
-    held.insert("/front.tar.gz".to_string(), packed.clone());
-    let page = Page::holding(held);
-    let mut held = HashMap::new();
-    held.insert("/front.tar.gz".to_string(), packed);
     held.insert(
-        "/releases/latest/download/latest.json".to_string(),
-        serde_json::to_vec(&serde_json::json!({
-            "version": "9.9.9",
-            "front": {
-                // What this build of the program answers to, so the pages and
-                // the program agree -- see `contract` in front/take.rs.
-                "needs": crate::front::take::contract(),
-                "url": page.url("/front.tar.gz"),
-                "signature": signature.trim(),
-            }
-        }))
-        .expect("a manifest is JSON"),
+        "/front.tar.gz".to_string(),
+        std::fs::read(&tarball).expect("the packed pages"),
     );
     let page = Page::holding(held);
+    page.says(serde_json::json!({
+        "version": "9.9.9",
+        "front": {
+            // What this build of the program answers to, so the pages and the
+            // program agree -- see `contract` in front/take.rs.
+            "needs": crate::front::take::contract(),
+            "url": page.url("/front.tar.gz"),
+            "signature": signature.trim(),
+        }
+    }));
 
     let mut context = mock_context(noop_assets());
     context.config_mut().plugins.0.insert(
