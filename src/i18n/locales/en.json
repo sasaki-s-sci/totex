@@ -96,7 +96,8 @@
     "follow": "Follow remotes",
     "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",
-    "register": "Agent setup"
+    "register": "Agent setup",
+    "registerHint": "Written into each agent once, and read by every terminal it is run in."
   },
   "mcp": {
     "on": "On",

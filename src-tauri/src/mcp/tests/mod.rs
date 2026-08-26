@@ -31,15 +31,26 @@ pub(super) fn mock_app() -> tauri::App<MockRuntime> {
 /// what comes back, and a client that reconnects is a client the server has to
 /// be able to take anyway.
 pub(super) fn post(url: &str, message: &Value) -> (String, Value) {
+    knock(url, message, None)
+}
+
+/// The same, with the session named in the request instead of only in the
+/// address — which is the whole of what an agent that could not be given a door
+/// of its own has to say who it is with.
+pub(super) fn knock(url: &str, message: &Value, bearer: Option<&str>) -> (String, Value) {
     let rest = url.strip_prefix("http://").expect("an http address");
     let (host, path) = rest.split_once('/').expect("a path");
     let body = message.to_string();
+    let named = match bearer {
+        Some(token) => format!("Authorization: Bearer {token}\r\n"),
+        None => String::new(),
+    };
 
     let mut stream = TcpStream::connect(host).expect("the door is open");
     stream
         .write_all(
             format!(
-                "POST /{path} HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+                "POST /{path} HTTP/1.1\r\nHost: {host}\r\n{named}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
                 body.len()
             )
             .as_bytes(),
@@ -82,7 +93,16 @@ pub(super) fn session(app: &AppHandle<MockRuntime>, id: &str) -> String {
     pty::spawn::pty_open(app.clone(), id.to_string(), cwd.clone(), 24, 80, None)
         .expect("a shell starts");
     serve(app).expect("the server stands up");
-    address(app, id, &cwd).expect("the session has an address")
+    addressed(app, id, &cwd).expect("the session has an address")
+}
+
+/// The address a session working in `cwd` would be started with, read out of
+/// what it is actually dressed with rather than worked out again beside it.
+pub(super) fn addressed(app: &AppHandle<MockRuntime>, id: &str, cwd: &str) -> Option<String> {
+    address::dressing(app, id, cwd)
+        .into_iter()
+        .find(|(name, _)| name == ADDRESS_VAR)
+        .map(|(_, url)| url)
 }
 
 pub(super) fn reported(app: &AppHandle<MockRuntime>, id: &str) -> Option<Report> {

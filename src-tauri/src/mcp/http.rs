@@ -23,6 +23,10 @@ const BODY_LIMIT: usize = 256 * 1024;
 pub(super) struct Request {
     pub method: String,
     pub target: String,
+    /// The token an agent that was registered against the one door names its
+    /// own session with, where it sent one. An agent registered against a door
+    /// of its own has said the same thing in `target` instead.
+    pub bearer: Option<String>,
     /// Whether a browser sent this.
     ///
     /// Nothing that belongs here ever sets it: an agent is a program with an
@@ -65,6 +69,7 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
 
     let mut length = 0usize;
     let mut from_page = false;
+    let mut bearer = None;
     for _ in 0..HEADER_LIMIT {
         let mut header = String::new();
         match reading.by_ref().take(LINE_LIMIT).read_line(&mut header) {
@@ -81,6 +86,7 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
             return Taken::Message(Request {
                 method,
                 target,
+                bearer,
                 from_page,
                 body,
             });
@@ -94,6 +100,16 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
                 Err(_) => return Taken::Done,
             },
             "origin" => from_page = !value.trim().is_empty(),
+            "authorization" => {
+                // The scheme and the token, and nothing done about a header
+                // that is neither: what is not a bearer token is not a name
+                // for a session, and the door answers the same way to both.
+                if let Some((scheme, said)) = value.trim().split_once(' ')
+                    && scheme.eq_ignore_ascii_case("bearer")
+                {
+                    bearer = Some(said.trim().to_string());
+                }
+            }
             _ => {}
         }
     }
@@ -110,9 +126,9 @@ pub(super) fn timed_out(error: &std::io::Error) -> bool {
 
 /// What one request is answered with.
 ///
-/// The only door is a session's own — `/s/` and the address it was handed — and
-/// the only thing that happens at it is a message being answered. A GET is what
-/// a client offers to be pushed to down, and there is nothing to push.
+/// Whichever way in was used, what is behind it is one session, and the only
+/// thing that happens there is a message being answered. A GET is what a client
+/// offers to be pushed to down, and there is nothing to push.
 pub(super) fn route<R: Runtime>(
     app: &AppHandle<R>,
     request: &Request,
@@ -121,7 +137,7 @@ pub(super) fn route<R: Runtime>(
         return ("403 Forbidden", None);
     }
 
-    let Some(token) = request.target.strip_prefix("/s/") else {
+    let Some(token) = named(request) else {
         return ("404 Not Found", None);
     };
     // A door with nothing behind it any more: the session ended while its agent
@@ -141,6 +157,29 @@ pub(super) fn route<R: Runtime>(
         "GET" => ("405 Method Not Allowed", None),
         _ => ("405 Method Not Allowed", None),
     }
+}
+
+/// Which session was knocked on for, however the agent was able to say it.
+///
+/// Two ways in, and one of them is not this side's choice: an agent that
+/// expands a variable into an address is handed a door of its own and names the
+/// session in the path, and an agent that can only be given a literal address
+/// is handed the one door and names it in the request instead. What is behind
+/// them is the same session, and the token is the same token.
+fn named(request: &Request) -> Option<&str> {
+    // Nothing here reads a query, and an agent that appends one is asking for
+    // the same door it was given.
+    let target = request
+        .target
+        .split_once('?')
+        .map_or(request.target.as_str(), |(path, _)| path);
+    if let Some(token) = target.strip_prefix("/s/") {
+        return Some(token);
+    }
+    if target == super::DOOR_PATH {
+        return request.bearer.as_deref();
+    }
+    None
 }
 
 pub(super) fn reply(

@@ -11,10 +11,28 @@ use super::{LOOPBACK, McpState};
 use crate::host::Host;
 use crate::wsl;
 
-/// Where a session running in `cwd` is to say what it is doing, if it can reach
-/// the server at all. Handed to a shell as it starts and never again, so a
-/// terminal opened before the server went up has no address in it.
-pub fn address<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Option<String> {
+/// What a session is handed so that whatever is run in it can find its own
+/// door: the whole address, for an agent that expands one out of its
+/// environment, and the same token on its own for an agent that can only be
+/// told the name of a variable to read a credential from.
+///
+/// Both or neither. Which of the two an agent reads is the agent's business,
+/// and a terminal is dressed before anybody knows which one will be run in it.
+/// Handed to a shell as it starts and never again, so a terminal opened before
+/// the server went up has nothing of this in it.
+pub fn dressing<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Vec<(String, String)> {
+    let Some((url, token)) = door(app, id, cwd) else {
+        return Vec::new();
+    };
+    vec![
+        (super::ADDRESS_VAR.to_string(), url),
+        (super::TOKEN_VAR.to_string(), token),
+    ]
+}
+
+/// A session's own door, as the address it is reached at and as the token that
+/// address is made of.
+fn door<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Option<(String, String)> {
     // Read and let go of before anything else happens: what follows can ask a
     // distribution a question, and every other door would wait on the answer.
     let (port, keys) = {
@@ -23,7 +41,8 @@ pub fn address<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Option<St
         (standing.as_ref()?.port, state.keys.clone())
     };
     let host = reachable(cwd)?;
-    Some(format!("http://{host}:{port}/s/{}", token(&keys, id)))
+    let token = token(&keys, id);
+    Some((format!("http://{host}:{port}/s/{token}"), token))
 }
 
 /// A session's own door, which is the whole of what an address says.

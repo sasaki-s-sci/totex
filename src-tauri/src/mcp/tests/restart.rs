@@ -3,7 +3,7 @@
 use serde_json::json;
 
 use super::super::*;
-use super::{mock_app, post, reported, session};
+use super::{addressed, mock_app, post, reported, session};
 use crate::pty;
 
 /// The switch is a switch, and not a way of cutting off every agent that is
@@ -25,7 +25,7 @@ fn switching_the_server_off_and_on_leaves_the_addresses_where_they_were() {
     unserve(&handle);
     serve(&handle).expect("the server stands again");
 
-    let after = address(&handle, &id, &cwd).expect("the session still has one");
+    let after = addressed(&handle, &id, &cwd).expect("the session still has one");
     assert_eq!(
         before, after,
         "a terminal was left holding the wrong address"

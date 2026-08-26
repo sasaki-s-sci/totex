@@ -9,14 +9,15 @@
  *
  * Being told rather than reading has one consequence the window has to carry:
  * it only happens where somebody has set it up. The server is off until it is
- * turned on, every session is handed the address of its own door as it starts,
- * and an agent that has been registered against that address says something
- * through it. Where any of that is missing there are no reports, and the graph
- * looks exactly as it did before — which is the same thing the window does
- * about a session that is simply not saying anything.
+ * turned on, every session is handed its own door as it starts — the address of
+ * it, and the token that address is made of — and an agent that has been
+ * registered against one of the two says something through it. Where any of
+ * that is missing there are no reports, and the graph looks exactly as it did
+ * before — which is the same thing the window does about a session that is
+ * simply not saying anything.
  *
  * The Rust side is `mcp/`: `serve` is the door, `rpc` is what is said through
- * it, and `install` is the one line of setup written into the agent.
+ * it, and `install` is the line of setup written into the agents.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -84,15 +85,43 @@ export function reportsNow(): Promise<Reported[]> {
   return invoke<Reported[]>("mcp_reports");
 }
 
+/** A coding agent the window knows the setup line for. */
+export type Agent = "claude" | "codex";
+
+/** An agent, and the line that sets it up. */
+export type Setup = {
+  agent: Agent;
+  /**
+   * The setup, as the shell this window would run it through reads it.
+   *
+   * Shown as well as run. What the press does happens inside somebody else's
+   * program, and the honest way to offer that is in the words they could have
+   * typed themselves — which is also the way to run it anywhere this window
+   * cannot reach.
+   */
+  line: string;
+};
+
 /**
- * Writes the one line of setup into the coding agent on this machine.
+ * What each agent would be set up with, and the door each line names.
+ *
+ * Asked again whenever the server moves, because one of the lines carries the
+ * port in it: an agent that cannot expand a variable into an address is
+ * registered against the door itself.
+ */
+export function setups(): Promise<Setup[]> {
+  return invoke<Setup[]>("mcp_setups");
+}
+
+/**
+ * Writes the setup into one coding agent on this machine.
  *
  * What comes back is where it was written, which is worth having: on a Windows
  * machine reaching into WSL there is more than one place the agent could be,
  * and this only reaches the ones whose terminals could talk back.
  */
-export function install(): Promise<string> {
-  return invoke<string>("mcp_install");
+export function install(agent: Agent): Promise<string> {
+  return invoke<string>("mcp_install", { agent });
 }
 
 export function onReport(next: (reported: Reported) => void): Promise<UnlistenFn> {

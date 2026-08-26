@@ -33,3 +33,15 @@
   overflow: auto;
   overscroll-behavior: contain;
 }
+
+/* The line an agent is set up with, in the face it would be typed in: a command
+   in a proportional face is a command that has to be read twice. React Flow
+   says `user-select: none` on every node it draws, and a line offered to be
+   read and taken away is a line that has to be selectable — this is where the
+   page takes it back. */
+.settings-page__line {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  line-height: 15px;
+  user-select: text;
+}

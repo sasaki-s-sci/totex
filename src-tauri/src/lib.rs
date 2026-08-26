@@ -255,6 +255,7 @@ pub fn run() {
             mcp::mcp_serve,
             mcp::mcp_stop,
             mcp::mcp_reports,
+            mcp::mcp_setups,
             mcp::mcp_install,
         ])
         .run(context)
