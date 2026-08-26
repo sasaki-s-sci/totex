@@ -61,14 +61,16 @@ const QUESTION_LINE = 15;
 const CHOICE_LINE = 14;
 const CHOICE_PAD = 8;
 const CHOICE_GAP = 4;
-/** The row a written answer is typed into. One row and no more: a card is not
- *  the place to write a paragraph — the terminal it was asked in is. */
+/** The row a written answer is typed into, for a question that is nothing but a
+ *  line to type at. One row and no more: a card is not the place to write a
+ *  paragraph — the terminal it was asked in is. */
 const FIELD_LINE = 24;
-/** The row under a list that is worked rather than simply answered: one several
- *  answers are picked up from, and one whose mark stands in a row being written
- *  at. Both carry a place to write and the return that ends the question. */
+/** The row under a list several answers are picked up from, which carries the
+ *  return that ends it. */
 const WORK_LINE = FIELD_LINE;
-/** The line round the card, and the one round each of its answers. */
+/** The line round the card. Only the card has one: an answer is a row of a list
+ *  and reads as one, and a box drawn round every row is a box drawn round
+ *  something that was already a row. */
 const BORDER = 2;
 
 /**
@@ -86,9 +88,9 @@ const QUESTION_CELL = 6.78;
 const CHOICE_CELL = 6.56;
 /** What the card's own frame takes out of its width before any text is set. */
 const INSET = 2 * PAD + BORDER;
-/** And what an answer's own row takes out of that: its line, the agent's
- * column, and the padding either side of both. */
-const CHOICE_INSET = BORDER + 6 + 14 + 12;
+/** And what an answer's own row takes out of that: the agent's column, and the
+ * padding either side of it and of the words. */
+const CHOICE_INSET = 6 + 14 + 12;
 
 /**
  * How much of what a question is about is drawn.
@@ -141,12 +143,18 @@ export function askCard(ask: Ask): AskCard {
     DETAIL_LINES,
   );
   const question = wrap(ask.question, cellsAcross(width, QUESTION_CELL));
-  const choices = ask.choices.map((choice) => ({
-    key: choice.key,
-    lines: wrap(choice.label, cellsAcross(width, CHOICE_CELL, CHOICE_INSET)),
-    selected: choice.selected,
-    picked: choice.picked,
-  }));
+  const choices = ask.choices.map((choice) => {
+    const lines = wrap(choice.label, cellsAcross(width, CHOICE_CELL, CHOICE_INSET));
+    return {
+      key: choice.key,
+      // The row the mark is standing in while the agent is taking words there
+      // is drawn as a place to write rather than as words to read, and a place
+      // to write is one row however much or little the agent has in it.
+      lines: ask.writing && choice.selected ? [lines[0] ?? ""] : lines,
+      selected: choice.selected,
+      picked: choice.picked,
+    };
+  });
 
   // The border is the card's as much as its padding is — see the stylesheet,
   // which pairs every number below with a rule.
@@ -159,11 +167,11 @@ export function askCard(ask: Ask): AskCard {
     height += FIELD_LINE;
   } else {
     for (const choice of choices) {
-      height += choice.lines.length * CHOICE_LINE + CHOICE_PAD + BORDER;
+      height += choice.lines.length * CHOICE_LINE + CHOICE_PAD;
     }
     height += Math.max(0, choices.length - 1) * CHOICE_GAP;
     // And the row that ends a list which pressing an answer does not end.
-    if (ask.picking || ask.writing) height += SPLIT + WORK_LINE;
+    if (ask.picking) height += SPLIT + WORK_LINE;
   }
 
   return { detail, question, choices, width, height };

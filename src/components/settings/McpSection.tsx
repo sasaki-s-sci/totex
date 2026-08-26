@@ -6,36 +6,35 @@ import { Divider, Stack, Switch, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import type { ServingControls } from "../../hooks/useServing";
-import { PageButton, Row } from "./Row";
-
-/** What each state of the setup button is. */
-const REGISTER = {
-  rest: "mcp.register",
-  working: "mcp.registering",
-  done: "mcp.registered",
-  failed: "mcp.refused",
-} as const;
+import { AgentRow } from "./AgentRow";
+import { Row } from "./Row";
 
 /**
  * The door the agents say what they are working on through: the server this
- * window stands beside its terminals, and the one line of setup that tells an
- * agent where it is.
+ * window stands beside its terminals, and the setup that tells an agent where
+ * it is.
  *
- * Two rows, because they are two things. The switch stands a port open on this
- * machine, which is exactly the kind of thing a program should not do because
- * it happened to start — so it is off until it is asked for, and what was asked
- * for outlives the window. The button under it writes the setup into somebody
- * else's program, which is done once and never again: what is registered is the
- * name of a variable every terminal is handed a value in, rather than an
- * address that changes.
+ * Two things, because they are two things. The switch stands a port open on
+ * this machine, which is exactly the kind of thing a program should not do
+ * because it happened to start — so it is off until it is asked for, and what
+ * was asked for outlives the window. The lines under it are written into
+ * somebody else's program, which is done once and rarely again: what is
+ * registered is the same for every session there will ever be.
  *
- * Neither is urgent, which is why both are in here rather than out in the one
- * row the window reserves. What they turn on is drawn on the canvas: a card
- * beside a terminal, saying what the agent in it is working on.
+ * One line per agent, because the agents cannot be told the same thing. Where
+ * one expands a variable into an address and is handed a door of its own, the
+ * other takes a literal address and is handed the door itself with the session
+ * named in the request instead — see `mcp::install`. Neither is this side's
+ * choice, so both are on the page, in the words they would be typed in.
+ *
+ * Neither the switch nor the lines are urgent, which is why they are in here
+ * rather than out in the one row the window reserves. What they turn on is
+ * drawn on the canvas: a card beside a terminal, saying what the agent in it is
+ * working on.
  */
 export function McpSection({ controls }: { controls: ServingControls }) {
   const { t } = useTranslation();
-  const { serving, activity, change, installing, register } = controls;
+  const { serving, activity, change, setups, installing, register } = controls;
   const status =
     activity === "idle"
       ? serving
@@ -69,15 +68,17 @@ export function McpSection({ controls }: { controls: ServingControls }) {
           />
         </Stack>
       </Row>
-      <Row label={t("settings.register")}>
-        <PageButton
-          danger={installing === "failed"}
-          disabled={installing === "working"}
-          onClick={register}
-        >
-          {t(REGISTER[installing])}
-        </PageButton>
-      </Row>
+      <Row label={t("settings.register")} hint={t("settings.registerHint")} />
+      <Stack sx={{ gap: 0.5, pl: 1.5 }}>
+        {setups.map((setup) => (
+          <AgentRow
+            key={setup.agent}
+            setup={setup}
+            press={installing[setup.agent] ?? "rest"}
+            onPress={() => register(setup.agent)}
+          />
+        ))}
+      </Stack>
     </>
   );
 }

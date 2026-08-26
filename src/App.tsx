@@ -10,6 +10,7 @@ import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { type FolderDestination, FolderSidebar } from "./folder/FolderSidebar";
 import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
+import { useAutoFollow } from "./hooks/useAutoFollow";
 import { useCanvasWork } from "./hooks/useCanvasWork";
 import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
@@ -94,7 +95,7 @@ function Window() {
   // What any of them has stopped to ask, which the graph draws beside the
   // terminal doing the asking. A question is a turn nobody has taken: it is
   // worth seeing from the canvas, and worth being able to answer from there.
-  const { asks, answer, reply, point, pick, compose, take } = useAsks();
+  const { asks, answer, reply, point, pick, take } = useAsks();
 
   // And what any of them says it is working on, which is the other half of what
   // the graph can show about a running agent. Nothing is waiting on this one —
@@ -136,13 +137,17 @@ function Window() {
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
+  // Every branch kept up with its remote on a slow loop, while the settings
+  // page's one checkbox says to. Held with the window rather than with the
+  // graph: it is about repositories and not about what is drawn of them, and it
+  // has to run whether or not that page has ever been opened.
+  useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops(main);
-  const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
+  const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, takeAsking } = useAskActions({
     answer,
     reply,
     point,
     pick,
-    compose,
     take,
   });
 
@@ -273,7 +278,6 @@ function Window() {
             onReply={replyToAsk}
             onPoint={pointAtAsk}
             onPick={pickInAsk}
-            onCompose={composeAtAsk}
             onTake={takeAsking}
             marks={marks}
             onSelect={pickCommit}

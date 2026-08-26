@@ -12,6 +12,7 @@
 //! worktree's path is derived from the repository and the branch, so the same
 //! branch always lands in the same place.
 
+pub mod follow;
 pub mod history;
 mod place;
 mod probe;

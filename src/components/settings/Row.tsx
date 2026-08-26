@@ -30,7 +30,12 @@ export function Row({
   label: string;
   /** The half-sentence a name cannot carry. Left out where the name is enough. */
   hint?: string;
-  children: React.ReactNode;
+  /**
+   * What can be done about it, where that is one thing. A row that names what
+   * the rows under it are about has nothing on its right, and still sits at the
+   * same height as the rest.
+   */
+  children?: React.ReactNode;
 }) {
   return (
     <Stack

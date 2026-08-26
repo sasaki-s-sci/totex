@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use super::{ADDRESS_VAR, McpState, REPORT_EVENT, Reported, address};
+use super::{McpState, REPORT_EVENT, Reported, address};
 use crate::pty::{Event, PtyState};
 
 /// The port the server is answering on, or nothing when it is not up.
@@ -63,10 +63,7 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
         // Nothing at all while the server is down, or where the session could
         // not reach it: an agent told an address it cannot use is an agent that
         // reports a connection nobody asked it to make.
-        match address(&dressing, id, cwd) {
-            Some(url) => vec![(ADDRESS_VAR.to_string(), url)],
-            None => Vec::new(),
-        }
+        address::dressing(&dressing, id, cwd)
     }));
 
     let handle = app.clone();

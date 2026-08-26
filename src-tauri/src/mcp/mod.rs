@@ -9,11 +9,13 @@
 //! Three things follow from it being a server rather than a reading. It is
 //! **opted into**, because a program that opens a port nobody asked for is doing
 //! something on the person's machine that they did not ask for. It is
-//! **addressed** — every session is handed an address of its own in
-//! `TOTEX_MCP_URL`, made with keys this run invented, so a report needs no name
-//! in it. And what it holds **cannot be worked out again**: a report is not in
-//! the session's output at all, so `rederive` leaves it alone and it goes when
-//! the session goes.
+//! **addressed** — every session is handed a door of its own, made with keys
+//! this run invented, so a report needs no name in it: the whole address in
+//! `TOTEX_MCP_URL` for an agent that can expand one, and the same token on its
+//! own in `TOTEX_MCP_TOKEN` for an agent that can only carry it in a request.
+//! And what it holds **cannot be worked out again**: a report is not in the
+//! session's output at all, so `rederive` leaves it alone and it goes when the
+//! session goes.
 
 mod address;
 mod door;
@@ -34,8 +36,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};
 
-pub use address::address;
 pub use door::{attend, serve, serving, unserve};
+pub use install::{Agent, Setup};
 pub use report::{keep, reports, session_of};
 
 /// Carries what a session says it is doing, and its going away again. Sent
@@ -44,13 +46,34 @@ pub use report::{keep, reports, session_of};
 pub const REPORT_EVENT: &str = "mcp:report";
 
 /// What a session is told its own address in. The name is the whole of the
-/// registration an agent is set up with — see `install` — so it is written down
-/// once, here.
+/// registration an agent that expands one is set up with — see `install` — so
+/// it is written down once, here.
 pub const ADDRESS_VAR: &str = "TOTEX_MCP_URL";
+
+/// And what it is told the same session's token in, for an agent registered
+/// against the one door rather than against a door of its own. It says exactly
+/// what the address says; which of the two an agent is given is a fact about
+/// the agent, and about nothing else.
+pub const TOKEN_VAR: &str = "TOTEX_MCP_TOKEN";
 
 /// The one address this server answers on. Never the machine's own address on a
 /// network: what stands behind this door is a way to write on somebody's window.
 const LOOPBACK: &str = "127.0.0.1";
+
+/// The port asked for before any other.
+///
+/// A registration that names a variable never goes stale, and an agent that can
+/// be given one is given one. An agent that can only be told a literal address
+/// has this number written into its own settings instead — so it has to be the
+/// same number tomorrow, which is the whole reason it is a constant here rather
+/// than whatever the machine had free. Above the well-known ports and below the
+/// range either this machine or Windows hands out to whoever asks for any port
+/// at all, which is as far out of the way as a port nobody owns can be kept.
+const DOOR: u16 = 26374;
+
+/// The one door, as against a session's own `/s/...`: what stands behind it is
+/// the session named by the token in the request instead of by the address.
+const DOOR_PATH: &str = "/mcp";
 
 /// One step of whatever a session is working through.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -155,9 +178,21 @@ pub fn mcp_reports<R: Runtime>(app: AppHandle<R>) -> Vec<Reported> {
     reports(&app)
 }
 
-/// Registers this server with a coding agent on this machine, once and for all
-/// its sessions.
+/// What each agent would be set up with, in the words somebody could have typed
+/// themselves.
+///
+/// The port in a line is the one standing where there is a server, and the one
+/// that would be asked for where there is not: this page is read before the
+/// switch is touched at least as often as after it, and a line that says
+/// nothing until something else has been turned on is a line nobody can act on.
+#[tauri::command]
+pub fn mcp_setups<R: Runtime>(app: AppHandle<R>) -> Vec<Setup> {
+    install::setups(serving(&app).unwrap_or(DOOR))
+}
+
+/// Registers this server with one coding agent on this machine, once and for
+/// all its sessions.
 #[tauri::command(async)]
-pub fn mcp_install() -> Result<String, String> {
-    install::into_claude_code()
+pub fn mcp_install<R: Runtime>(app: AppHandle<R>, agent: Agent) -> Result<String, String> {
+    install::into_agent(agent, serving(&app).unwrap_or(DOOR))
 }

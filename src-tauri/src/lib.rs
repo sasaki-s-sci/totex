@@ -236,6 +236,7 @@ pub fn run() {
             git::workspace::history::merge_branch,
             git::workspace::history::sync_branch,
             git::remote::fetch_branch,
+            git::workspace::follow::follow_repository,
             git::workspace::history::revert_commit,
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,
@@ -252,11 +253,11 @@ pub fn run() {
             ask::watch::answer::pty_take,
             ask::watch::adjust::pty_point,
             ask::watch::adjust::pty_pick,
-            ask::watch::adjust::pty_compose,
             mcp::mcp_serving,
             mcp::mcp_serve,
             mcp::mcp_stop,
             mcp::mcp_reports,
+            mcp::mcp_setups,
             mcp::mcp_install,
         ])
         .run(context)

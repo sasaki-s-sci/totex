@@ -5,22 +5,26 @@
 /* One answer, in two parts: the agent's own column, and the words beside it.
    Two, because a question is worked at as well as finished — the column is
    pressed to do what pressing that column at the terminal does, and the words
-   are pressed to take the answer. The row itself is the border round the pair
-   of them; each half lights on its own, so which of the two a press would land
-   on is never a guess. */
+   are pressed to take the answer. Each half lights on its own, which is what
+   keeps which of the two a press would land on from being a guess.
+
+   Nothing is drawn round either of them. A list of answers is already a list:
+   its keys run down one column and its words down another, and a box round
+   every row is a box drawn round something that was a row before it was drawn.
+   The card has the one border there is, and inside it the answers are read the
+   way they were read on the terminal they came off. */
 .ask__choice {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--mui-palette-divider);
-  border-radius: 5px;
-  background: var(--mui-palette-background-default);
-  overflow: hidden;
-  transition: border-color var(--reveal);
+  border-radius: 4px;
 }
 
-.ask__choice:hover,
-.ask__choice:focus-within {
-  border-color: var(--mui-palette-text-secondary);
+/* Where the agent's own cursor is standing, said with one mark down the near
+   edge. Marked rather than made to look like the answer to press: which one it
+   is sitting on is a fact about the terminal, and the card does not get to
+   recommend anything. */
+.ask__choice.is-here {
+  box-shadow: inset 2px 0 0 var(--mui-palette-text-secondary);
 }
 
 /* The agent's own column: the key it printed, the mark it is standing on, or
@@ -31,6 +35,7 @@
   align-items: flex-start;
   padding: 4px 0 4px 6px;
   border: 0;
+  border-radius: 4px;
   background: none;
   color: inherit;
   cursor: pointer;
@@ -47,20 +52,14 @@
 .ask__key {
   width: 14px;
   flex: none;
-  border-radius: 3px;
-  background: var(--mui-palette-action-selected);
-  color: var(--mui-palette-text-secondary);
+  color: var(--mui-palette-text-disabled);
   font-size: 10px;
   line-height: 14px;
   text-align: center;
 }
 
-/* Where the agent's own cursor is standing. Marked rather than made to look
-   like the answer to press: which one it is sitting on is a fact about the
-   terminal, and the card does not get to recommend anything. */
 .ask__choice.is-here .ask__key {
-  background: var(--mui-palette-text-secondary);
-  color: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-primary);
 }
 
 /* And where its own mark is standing, on a list it drew no keys beside. The
@@ -96,6 +95,7 @@
   flex: 1;
   padding: 4px 6px;
   border: 0;
+  border-radius: 4px;
   background: none;
   color: inherit;
   cursor: pointer;
@@ -114,50 +114,34 @@
   outline: none;
 }
 
-/* The row that ends a question pressing an answer does not end: a list several
-   answers are picked up from, and a list whose mark is standing in a row being
-   written at. One row, whose height is paired with `WORK_LINE` in `asking.ts`. */
+/* The row that ends a list several answers are picked up from, where every key
+   is a picking up and the answer is the return under the lot of them. One row,
+   whose height is paired with `WORK_LINE` in `asking.ts`. */
 .ask__work {
   display: flex;
   height: 24px;
   flex: none;
   margin-top: 7px;
-  gap: 4px;
-}
-
-.ask__writing {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  gap: 4px;
 }
 
 .ask__take {
   display: flex;
   box-sizing: border-box;
-  width: 24px;
   height: 24px;
-  flex: none;
+  flex: 1;
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid var(--mui-palette-divider);
-  border-radius: 5px;
-  background: var(--mui-palette-background-default);
+  border: 0;
+  border-radius: 4px;
+  background: var(--mui-palette-action-hover);
   color: var(--mui-palette-text-secondary);
   cursor: pointer;
   font: inherit;
   gap: 5px;
   transition:
     background-color var(--reveal),
-    border-color var(--reveal);
-}
-
-/* With nothing to write beside it there is room to say what it does, and a
-   return on its own is the one mark on this card nobody would read twice. */
-.ask__take.is-wide {
-  width: auto;
-  flex: 1;
+    color var(--reveal);
 }
 
 .ask__taking {
@@ -167,19 +151,31 @@
 
 .ask__take:hover,
 .ask__take:focus-visible {
-  border-color: var(--mui-palette-text-secondary);
-  background: var(--mui-palette-action-hover);
+  background: var(--mui-palette-action-selected);
   color: var(--mui-palette-text-primary);
+  outline: none;
 }
 
-/* The one place to write, for a question that offered nothing to press. One
-   row: the height of it is paired with `FIELD_LINE` in `asking.ts`, and a card
-   is not where a paragraph is written. */
+/* The place a question is written at. Two of them stand in different places —
+   the whole foot of a card for a question with nothing to press, and one row of
+   the list where the agent has put a line to type — and both are the same row:
+   what is written, and the return that sends it.
+
+   One row either way: the height of the standing one is paired with
+   `FIELD_LINE` in `asking.ts` and the row inside a list with `CHOICE_LINE` and
+   the padding round it, and a card is not where a paragraph is written. */
 .ask__field {
   display: flex;
   flex: none;
   margin-top: 7px;
   gap: 4px;
+}
+
+.ask__writing {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
 }
 
 .ask__written {
@@ -188,41 +184,48 @@
   height: 24px;
   flex: 1;
   padding: 0 6px;
-  border: 1px solid var(--mui-palette-divider);
-  border-radius: 5px;
-  background: var(--mui-palette-background-default);
+  border: 0;
+  border-radius: 4px;
+  background: var(--mui-palette-action-hover);
   color: inherit;
   font: inherit;
   font-size: 11px;
-  transition: border-color var(--reveal);
+  transition: background-color var(--reveal);
 }
 
-.ask__written:focus-visible {
-  border-color: var(--mui-palette-text-secondary);
+.ask__written:focus {
+  background: var(--mui-palette-action-selected);
   outline: none;
+}
+
+/* The same field standing in one row of a list, which is that row: as tall as
+   the answer it is written over, and no taller. */
+.ask__choice .ask__written {
+  height: 22px;
+  padding: 0 6px;
+  line-height: 14px;
 }
 
 .ask__send {
   display: grid;
   box-sizing: border-box;
-  width: 24px;
-  height: 24px;
+  width: 22px;
   flex: none;
   padding: 0;
-  border: 1px solid var(--mui-palette-divider);
-  border-radius: 5px;
-  background: var(--mui-palette-background-default);
-  color: var(--mui-palette-text-secondary);
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--mui-palette-text-disabled);
   cursor: pointer;
   place-items: center;
   transition:
     background-color var(--reveal),
-    border-color var(--reveal);
+    color var(--reveal);
 }
 
 .ask__send:hover,
 .ask__send:focus-visible {
-  border-color: var(--mui-palette-text-secondary);
   background: var(--mui-palette-action-hover);
   color: var(--mui-palette-text-primary);
+  outline: none;
 }

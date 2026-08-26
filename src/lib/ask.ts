@@ -90,10 +90,10 @@ export type Ask = {
   /**
    * Whether the answer the mark is standing on is a place to type.
    *
-   * The "and tell it what to do instead" every agent offers. While it is true
-   * the card carries a place to write beside the list, what is written goes by
-   * `compose`, and the question is taken by `take` rather than by pressing a
-   * key — a key would be a letter typed into what has been written.
+   * The "and tell it what to do instead" every agent offers. The card draws
+   * that row as the place to write it is, and what is written there is answered
+   * by `reply` rather than by pressing a key — a key would be a letter typed
+   * into what has been written.
    */
   writing: boolean;
   /** The answers offered, or none at all when the answer is to be written. */
@@ -130,9 +130,15 @@ export function answerAsk(id: string, seq: number, key: string): Promise<void> {
 /**
  * Answers one that asked to be written at, by writing at it.
  *
+ * Two of the four shapes are written at rather than pressed: a question that is
+ * nothing but a line to type at, and a list whose mark is standing in a row to
+ * type in — the "and tell it what to do instead" every agent offers. Both are
+ * this one act, because both are one turn: the words, and the return that ends
+ * the question, which is the session's to add.
+ *
  * The same rules as an answer that is pressed: the question's own number goes
  * with it, and the session refuses words meant for a question it has moved on
- * from. The return that submits the line is the session's to add.
+ * from.
  */
 export function replyAsk(id: string, seq: number, text: string): Promise<void> {
   return invoke("pty_reply", { id, seq, text });
@@ -162,23 +168,11 @@ export function pickAsk(id: string, seq: number, key: string): Promise<void> {
 }
 
 /**
- * Writes at the answer the mark is standing in, without ending the question.
- *
- * The other half of `replyAsk`: that one is for a question that is nothing but
- * a place to write, and this is for the place to write that is one row of a
- * list. No return goes with it, because the return is the answer and the answer
- * is a separate press.
- */
-export function composeAsk(id: string, seq: number, text: string): Promise<void> {
-  return invoke("pty_compose", { id, seq, text });
-}
-
-/**
  * Ends the question where it stands, by sending the return that takes it.
  *
- * What answers the two kinds of question a key would not: a list the answers
- * are picked up from, and a list whose mark is standing in a row being written
- * at. Both are taken at the terminal by pressing return and nothing else.
+ * What answers the one kind of question a key would not: a list the answers are
+ * picked up from, where every key is a picking up and the return under them all
+ * is the answer.
  */
 export function takeAsk(id: string, seq: number): Promise<void> {
   return invoke("pty_take", { id, seq });

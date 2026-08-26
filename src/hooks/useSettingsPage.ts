@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import type { SettingsFlowNode } from "../lib/graph";
 import type { PageCanvas } from "./useFilePreviews";
 
-const SETTINGS_PAGE_SIZE = { width: 760, height: 330 } as const;
+const SETTINGS_PAGE_SIZE = { width: 760, height: 390 } as const;
 const SETTINGS_PAGE_ID = "settings";
 const SETTINGS_PAGE_Z = 1_100;
 

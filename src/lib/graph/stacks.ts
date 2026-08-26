@@ -2,7 +2,7 @@
  * The stack of terminals a row carries, and the room it asks that row for.
  */
 
-import { gridRows, LANE_HEIGHT } from "./grid";
+import { COMMIT_STEP, gridRows, LANE_HEIGHT } from "./grid";
 
 /**
  * The box one terminal's mark is drawn in: the terminal itself, the count of
@@ -66,8 +66,8 @@ export const CLI_STEP = 34;
  *
  * The room this asks for is therefore split between the row above and the row
  * below, which is why spacing two rows needs the depth of both — see
- * `rowPitch`, which is the sum a band's branch column and a folder's own column
- * are both spaced by.
+ * `rowPitch`, which spaces a folder's own column, and `branchPitch`, which is
+ * the same sum on the tighter grid a band's branches are dealt onto.
  */
 export function stackReach(marks: number): number {
   return ((marks - 1) * CLI_STEP) / 2;
@@ -86,15 +86,37 @@ export function rowReach(marks: number): number {
  * How far apart the lines of two neighbouring rows stand, given what each of
  * them is running.
  *
- * A band's branches and a folder's repositories are spaced by this same sum,
- * because they are the same shape: a stack is centred on its row's own line, so
- * the room it takes is split between the row above and the row below, and the
- * gap between two rows is a sum over both of their stacks. A lane holds a row
- * and one terminal without any of that showing, which is what `CLI_CLEAR` says
- * a lane has spare, so nothing moves until something is running two at once.
+ * A folder's repositories are spaced by this, and its branches by the same sum
+ * a lane at a time — see `branchPitch` — because they are the same shape: a
+ * stack is centred on its row's own line, so the room it takes is split between
+ * the row above and the row below, and the gap between two rows is a sum over
+ * both of their stacks. A lane holds a row and one terminal without any of that
+ * showing, which is what `CLI_CLEAR` says a lane has spare, so nothing moves
+ * until something is running two at once.
  */
 export function rowPitch(above: number, below: number): number {
   return gridRows(Math.max(LANE_HEIGHT, reachOf(above) + reachOf(below) + CLI_CLEAR));
+}
+/**
+ * How far apart two neighbouring lanes of a band's branch column stand.
+ *
+ * The same sum as `rowPitch`, on the half-lane grid the branches are dealt
+ * onto: a branch is a name pointing into the history rather than a line of
+ * development of its own, so its lanes are packed as tightly as the commit rows
+ * beside them and every one of them stands on the same lattice.
+ *
+ * Half a lane holds a branch and the one terminal running in it without any of
+ * that showing — a stack of one stands exactly on the branch's own line. A
+ * second terminal opens the stack out either way, and the lanes above and below
+ * it drop a whole grid row apiece rather than sliding to wherever the marks
+ * happen to fit: what moves a branch is visible as a row of the grid, and the
+ * branches go on being read down the same lattice as the history.
+ *
+ * The clearance is a step of the stack itself, so the marks that meet across a
+ * boundary stand no closer than the marks within one branch's stack do.
+ */
+export function branchPitch(above: number, below: number): number {
+  return gridRows(Math.max(COMMIT_STEP.y, reachOf(above) + reachOf(below) + CLI_STEP));
 }
 /** How far a row's stack reaches past its own line, for a row that has one. */
 function reachOf(marks: number): number {

@@ -15,7 +15,6 @@ export function useAskActions({
   reply,
   point,
   pick,
-  compose,
   take,
 }: Omit<ReturnType<typeof useAsks>, "asks">) {
   const answerAsk = useCallback(
@@ -28,10 +27,9 @@ export function useAskActions({
     [reply],
   );
 
-  // And the four that work the question rather than end it. Three of them
-  // leave it standing — the mark moved, an answer picked up, words written at
-  // the row the mark is in — and the fourth is the return that ends the kinds
-  // of question no key ends.
+  // And the three that work the question rather than answer it. Two of them
+  // leave it standing — the mark moved, an answer picked up — and the third is
+  // the return that ends the kind of question no key ends.
   const pointAtAsk = useCallback(
     (session: Session, ask: Ask, key: string) => point(session.id, ask, key),
     [point],
@@ -42,12 +40,7 @@ export function useAskActions({
     [pick],
   );
 
-  const composeAtAsk = useCallback(
-    (session: Session, ask: Ask, text: string) => compose(session.id, ask, text),
-    [compose],
-  );
-
   const takeAsking = useCallback((session: Session, ask: Ask) => take(session.id, ask), [take]);
 
-  return { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking };
+  return { answerAsk, replyToAsk, pointAtAsk, pickInAsk, takeAsking };
 }

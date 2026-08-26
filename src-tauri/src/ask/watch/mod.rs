@@ -54,6 +54,56 @@ impl AskState {
     }
 }
 
+/// Says what a session is asking, whether or not the reading changed.
+///
+/// The ordinary telling is the one in `attend`, off a reading of what just
+/// arrived. This is for the acts on a question, which have two other things to
+/// say: that a question has been taken, and — when a press named a question the
+/// session had already moved on from — what is really being asked instead.
+fn say<R: Runtime>(app: &AppHandle<R>, id: String, ask: Option<super::Ask>) {
+    let _ = app.emit(ASK_EVENT, Asking { id, ask });
+}
+
+/// The question a press names, if it is still the one being asked, and how far
+/// the session's screen had been drawn when the press landed.
+///
+/// What every act on a question is held to: a card is drawn from a reading that
+/// is already a moment old, and nothing meant for "may I delete this" may arrive
+/// at whatever the agent went on to ask instead.
+///
+/// A refusal is not silent. The window takes a card off the graph at the press —
+/// see the note above `answer` — so a press refused without a word would leave
+/// the graph short of a question somebody still has to answer. What goes back is
+/// what the session is really asking: the question it moved on to, or nothing.
+fn pressed<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    seq: u64,
+) -> Result<(super::Ask, usize), String> {
+    let found = {
+        let state = app.state::<AskState>();
+        let watching = state.lock();
+        match watching.get(id) {
+            None => Err(("no-session", None)),
+            Some(watcher) => match watcher.asking() {
+                Some(ask) if ask.seq == seq => Ok((ask.clone(), watcher.drawn())),
+                Some(ask) => Err(("asking-something-else", Some(ask.clone()))),
+                None => Err(("asking-nothing", None)),
+            },
+        }
+    };
+
+    // Said outside the lock, the way every telling is: it crosses to the window,
+    // and the next run of output must not wait on that.
+    match found {
+        Ok(standing) => Ok(standing),
+        Err((error, standing)) => {
+            say(app, id.to_string(), standing);
+            Err(error.to_string())
+        }
+    }
+}
+
 /// Starts following the sessions, for the life of the app. The one place the
 /// two sides are joined, and joined this way round on purpose: `pty` is told
 /// that something is following and never what it is for.

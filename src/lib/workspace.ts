@@ -103,6 +103,19 @@ export function fetchBranch(repoId: string, remote: string, branch: string): Pro
   return invoke("fetch_branch", { repoId, remote, branch });
 }
 
+/**
+ * Asks every remote of one repository, and takes the branches that were only
+ * behind up to what came back.
+ *
+ * The automatic round, and fast-forward only: a branch with commits of its own
+ * is two ends that have parted, and joining those is a decision rather than
+ * something a timer does. Nothing is reported and nothing can fail — a remote
+ * that would not answer is a branch left where it was.
+ */
+export function followRepository(repoId: string): Promise<void> {
+  return invoke("follow_repository", { repoId });
+}
+
 /** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });

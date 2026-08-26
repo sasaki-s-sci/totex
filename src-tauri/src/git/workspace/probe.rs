@@ -1,5 +1,6 @@
 //! What has to be true before an operation runs, and the worktree it runs in.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::git::cmd;
@@ -37,21 +38,36 @@ pub(super) fn resolve_commit(dir: &Path, oid: &str) -> Result<String, String> {
     .map_err(|_| "no-such-commit".to_string())
 }
 
-/// The worktree a branch is already checked out in, if any — spelled the way
-/// the app spells paths rather than the way git printed it, because this goes
-/// back to the window as a directory to open.
-pub(super) fn worktree_for(dir: &Path, branch: &str) -> Result<Option<String>, String> {
+/// Every branch this repository has checked out somewhere, and where.
+///
+/// One listing rather than one per branch: a round that walks every branch in a
+/// repository would otherwise run `worktree list` once for each of them, and
+/// the answer is the same listing every time. Paths are spelled the way the app
+/// spells them rather than the way git printed them, because they go back to
+/// the window as directories to open.
+pub(super) fn worktrees_by_branch(dir: &Path) -> Result<HashMap<String, PathBuf>, String> {
     let listing = cmd::run(dir, &["worktree", "list", "--porcelain"])?;
-    let wanted = format!("branch refs/heads/{branch}");
+    let mut found = HashMap::new();
     let mut path: Option<&str> = None;
     for line in listing.lines() {
         if let Some(rest) = line.strip_prefix("worktree ") {
             path = Some(rest);
-        } else if line.trim() == wanted {
-            return Ok(path.map(|path| cmd::path_of(dir, path).to_string_lossy().into_owned()));
+        } else if let (Some(branch), Some(at)) =
+            (line.trim().strip_prefix("branch refs/heads/"), path)
+        {
+            found
+                .entry(branch.to_string())
+                .or_insert_with(|| cmd::path_of(dir, at));
         }
     }
-    Ok(None)
+    Ok(found)
+}
+
+/// The worktree a branch is already checked out in, if any.
+pub(super) fn worktree_for(dir: &Path, branch: &str) -> Result<Option<String>, String> {
+    Ok(worktrees_by_branch(dir)?
+        .remove(branch)
+        .map(|path| path.to_string_lossy().into_owned()))
 }
 
 pub(super) fn is_clean(dir: &Path) -> Result<bool, String> {

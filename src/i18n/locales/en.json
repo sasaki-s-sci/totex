@@ -86,7 +86,6 @@
     "send": "Send",
     "point": "Move the selection",
     "pick": "Take this one too",
-    "compose": "Write at this answer",
     "take": "Answer"
   },
   "report": {
@@ -97,8 +96,11 @@
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
+    "follow": "Follow remotes",
+    "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",
-    "register": "Agent setup"
+    "register": "Agent setup",
+    "registerHint": "Written into each agent once, and read by every terminal it is run in."
   },
   "mcp": {
     "on": "On",
@@ -115,32 +117,16 @@
     "title": "Updates",
     "core": "persistent",
     "frontProgram": "ephemeral",
-    "sync": "sync",
+    "pin": "Pin the {{name}} version",
+    "pagesAt": "(pages {{version}})",
+    "programAt": "(program {{version}})",
+    "apply": "Apply",
+    "current": "Up to date",
+    "failed": "Failed, try again",
     "adjusting": "Adjusting to the selected versions…",
     "adjustFailed": "Could not adjust to the selected versions",
     "incompatible": "That version is unavailable or incompatible",
-    "take": "Take",
-    "taking": "Taking…",
-    "fetching": "Downloading…",
-    "current": "Up to date",
-    "reload": "Reload to finish",
-    "restart": "Restart to finish",
-    "inProgram": "Comes with the program",
-    "held": "Update with your package manager",
-    "failed": "Failed, try again",
-    "newest": "Newest release",
-    "pages": "Pages",
-    "program": "Program",
-    "drawn": "Drawn from {{version}}",
-    "running": "Running {{version}}",
-    "layer": "Application layer",
-    "answering": "Answering from {{version}}",
-    "moving": "{{from}} → {{to}}",
-    "cycle": {
-      "release": "Releases",
-      "layer": "Layer releases",
-      "front": "Page releases"
-    }
+    "held": "Update with your package manager"
   },
   "theme": {
     "system": "System",

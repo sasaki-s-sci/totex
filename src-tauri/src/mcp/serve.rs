@@ -53,10 +53,20 @@ const HANDOVER_PAUSE: Duration = Duration::from_millis(20);
 /// server was last switched off is holding the right one — and where the
 /// machine has since given that port to somebody else, the next free one is
 /// taken and the terminals from before are the ones that lose out.
+///
+/// With nothing to go back to it is `DOOR` that is asked for, which is the
+/// number written into the settings of an agent that can only be registered
+/// against a literal address. That registration is made once and read every
+/// time the agent starts, so the same port is asked for every time the server
+/// is stood — and where it cannot be had, any free one is taken and the agents
+/// registered against the number are the ones that lose out.
 pub fn listen<R: Runtime>(app: AppHandle<R>, wanted: u16) -> Result<Standing, String> {
     let listener = match again(wanted) {
         Some(listener) => listener,
-        None => TcpListener::bind((LOOPBACK, 0)).map_err(|error| error.to_string())?,
+        None => match TcpListener::bind((LOOPBACK, super::DOOR)) {
+            Ok(listener) => listener,
+            Err(_) => TcpListener::bind((LOOPBACK, 0)).map_err(|error| error.to_string())?,
+        },
     };
     let port = listener
         .local_addr()
