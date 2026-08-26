@@ -27,6 +27,11 @@ export const commitPart = onDemand(() =>
 export const worktreePart = onDemand(() =>
   import("./components/WorktreeMenu").then((part) => part.WorktreeMenu),
 );
+/** What a repository says can be run in it, which nothing asks for until the
+ *  key that asks for it is pressed. */
+export const tasksPart = onDemand(() =>
+  import("./components/TaskMenu").then((part) => part.TaskMenu),
+);
 export const settingsPart = onDemand(() =>
   import("./components/nodes/SettingsNode").then((part) => part.SettingsNode),
 );

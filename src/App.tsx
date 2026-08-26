@@ -17,9 +17,12 @@ import { useReports } from "./hooks/useReports";
 import { useServing } from "./hooks/useServing";
 import { useSessionKeys } from "./hooks/useSessionKeys";
 import { useSessions } from "./hooks/useSessions";
+import { useTaskKeys } from "./hooks/useTaskKeys";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import { warmInTurn } from "./lib/onDemand";
+import { startShell, writeShell } from "./lib/pty";
+import { type Session, shellSession } from "./lib/session";
 import { confirmFront, watchUpdateChoices } from "./lib/update";
 import {
   commitPart,
@@ -29,6 +32,7 @@ import {
   ROOTS_KEY,
   settingsPart,
   storedRoots,
+  tasksPart,
   worktreePart,
 } from "./parts";
 import { MODE_KEY, storedMode, theme } from "./theme";
@@ -102,6 +106,33 @@ function Window() {
   // showing. Held here rather than in the graph: it is about what is running,
   // not about anything drawn on the canvas.
   useSessionKeys({ sessions, showing, open: openSession });
+
+  // Ctrl and Alt and A, the key beside it: what the workspace's own runners say
+  // can be run in there.
+  const { asking: runnable, close: closeTasks } = useTaskKeys({ sessions, showing });
+
+  /**
+   * Runs one of them, which is a terminal of its own with the line typed into
+   * it.
+   *
+   * A second terminal rather than the one in the panel, for the reason Ctrl and
+   * A opens one: what is already running in there is somebody's -- an agent
+   * mid-question, a build, an editor -- and a line typed into that is a line
+   * typed into whatever it is doing. The line goes in once the shell is up,
+   * which `startShell` is what says: it is the same promise the session was
+   * opened on, so asking again is asking the first one whether it is finished.
+   */
+  const runTask = useCallback(
+    (session: Session, line: string) => {
+      closeTasks();
+      const next = shellSession(session.cwd, session.branch);
+      openSession(next);
+      void startShell(next)
+        .then(() => writeShell(next.id, `${line}\n`))
+        .catch(() => undefined);
+    },
+    [closeTasks, openSession],
+  );
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
@@ -196,6 +227,7 @@ function Window() {
   const SidePanel = panelPart.use(useEver(sessions.length > 0));
   const CommitMenu = commitPart.use(useEver(commitMenu !== null));
   const WorktreeMenu = worktreePart.use(useEver(worktreeMenu !== null));
+  const TaskMenu = tasksPart.use(useEver(runnable !== null));
 
   return (
     <Box
@@ -272,6 +304,8 @@ function Window() {
       {/* The window has no frame of its own, so the three moves it would have
           carried are drawn over the corner instead. */}
       <WindowControls />
+
+      {TaskMenu && <TaskMenu session={runnable} onClose={closeTasks} onRun={runTask} />}
 
       {CommitMenu && <CommitMenu target={commitMenu} onClose={() => setCommitMenu(null)} />}
       {WorktreeMenu && (

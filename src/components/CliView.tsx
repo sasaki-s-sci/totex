@@ -140,6 +140,20 @@ export function CliView({ session, shown, onEnded }: Props) {
       // cursor used to jump over.
       if (plain && event.ctrlKey && ARROWS.has(event.key)) return false;
 
+      // Ctrl and Alt and A, which asks this one's own workspace what its
+      // runners say can be run in it. Alt is held, so `plain` is false and none
+      // of the rules above has answered it: what the shell gives up is an
+      // escape and a letter, which is a line-editing key nobody has bound.
+      if (
+        event.ctrlKey &&
+        event.altKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "a"
+      ) {
+        return false;
+      }
+
       // Ctrl and A, which opens another terminal in this one's own workspace.
       // What the shell gives up is the jump to the start of the line — Home is
       // still there, and a second terminal beside this one is worth more than a
