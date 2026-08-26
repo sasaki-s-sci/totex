@@ -34,7 +34,6 @@ export function useCanvasActions({
   onReply,
   onPoint,
   onPick,
-  onCompose,
   onTake,
   onCloseFilePreview,
   onCloseSettings,
@@ -62,7 +61,6 @@ export function useCanvasActions({
   onReply: GraphActions["reply"];
   onPoint: GraphActions["point"];
   onPick: GraphActions["pick"];
-  onCompose: GraphActions["compose"];
   onTake: GraphActions["take"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
   onCloseSettings: GraphActions["closeSettings"];
@@ -92,7 +90,6 @@ export function useCanvasActions({
       reply: onReply,
       point: onPoint,
       pick: onPick,
-      compose: onCompose,
       take: onTake,
       closeFilePreview: onCloseFilePreview,
       closeSettings: onCloseSettings,
@@ -121,7 +118,6 @@ export function useCanvasActions({
       onReply,
       onPoint,
       onPick,
-      onCompose,
       onTake,
       onCloseFilePreview,
       onCloseSettings,

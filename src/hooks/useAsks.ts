@@ -5,7 +5,6 @@ import {
   type Ask,
   answerAsk,
   askingNow,
-  composeAsk,
   onAsking,
   pickAsk,
   pointAsk,
@@ -129,11 +128,12 @@ export function useAsks() {
   );
 
   /**
-   * Writes at one that asked for words, and takes the card with it.
+   * Answers one by writing at it, and takes the card with it.
    *
    * The same as taking an answer, because it is the same thing: the question is
-   * a turn, and it has been taken. What is written goes as it stands — a
-   * question wanting words has no list to be one of.
+   * a turn, and it has been taken. What is written is the whole of the answer,
+   * whether the question was a line on its own or the row of a list the agent's
+   * mark is standing in.
    */
   const reply = useCallback(
     (id: string, ask: Ask, text: string) => {
@@ -144,17 +144,15 @@ export function useAsks() {
   );
 
   /**
-   * Moves the agent's own mark, picks an answer up, or writes at the row the
-   * mark is standing in.
+   * Moves the agent's own mark, or picks one of the answers up.
    *
-   * The three that leave the question standing, which is the whole of what
+   * The two that leave the question standing, which is the whole of what
    * separates them from the two above: nothing is settled and nothing is taken
    * off the graph. What comes back is the agent's next drawing of the same
    * question, through the same event as every other drawing of it — the mark
-   * somewhere else, or a box filled in, or a row with words in it now — and
-   * the card follows that rather than anything guessed at here. A card that
-   * drew what it had asked for would be a card saying something the terminal
-   * had not done yet.
+   * somewhere else, or a box filled in — and the card follows that rather than
+   * anything guessed at here. A card that drew what it had asked for would be a
+   * card saying something the terminal had not done yet.
    */
   const point = useCallback((id: string, ask: Ask, key: string) => {
     void pointAsk(id, ask.seq, key).catch(() => undefined);
@@ -164,15 +162,11 @@ export function useAsks() {
     void pickAsk(id, ask.seq, key).catch(() => undefined);
   }, []);
 
-  const compose = useCallback((id: string, ask: Ask, text: string) => {
-    void composeAsk(id, ask.seq, text).catch(() => undefined);
-  }, []);
-
   /**
    * Takes the question where it stands, and takes the card with it.
    *
-   * The end of the two kinds of question a key does not answer — see `takeAsk`
-   * — and settled here for the same reason an answer is: the moment between a
+   * The end of the kind of question a key does not answer — see `takeAsk` —
+   * and settled here for the same reason an answer is: the moment between a
    * press and the agent's next frame is exactly how long a question that has
    * been taken must not still be standing on the graph.
    */
@@ -184,5 +178,5 @@ export function useAsks() {
     [settle],
   );
 
-  return { asks, answer, reply, point, pick, compose, take };
+  return { asks, answer, reply, point, pick, take };
 }

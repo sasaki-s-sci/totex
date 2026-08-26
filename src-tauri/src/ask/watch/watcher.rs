@@ -56,6 +56,23 @@ impl Watcher {
         self.asking.as_ref()
     }
 
+    /// How far into everything the session has said this screen has been fed,
+    /// which is how anything else tells whether the agent has drawn since.
+    pub fn drawn(&self) -> usize {
+        self.fed
+    }
+
+    /// Reads the screen again as it stands, without a word having been added to
+    /// it.
+    ///
+    /// For a press the agent did nothing about — see `look_again` beside the
+    /// acts. Everything else here reads because something arrived; this reads
+    /// because nothing did, and the same screen read twice is the same question
+    /// under the same name.
+    pub fn again(&mut self) -> Option<Option<Ask>> {
+        self.settle(read(&self.screen))
+    }
+
     /// Puts the question away once it has been answered. The agent would redraw
     /// without it a moment later, but a moment is exactly how long a card that
     /// has been pressed must not stay on the graph. False when it is no longer

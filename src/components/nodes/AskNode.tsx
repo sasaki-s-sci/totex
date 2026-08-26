@@ -1,11 +1,77 @@
-import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import KeyboardReturnIcon from "@mui/icons-material/KeyboardReturn";
 import type { NodeProps } from "@xyflow/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AskFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
+
+/**
+ * The one place a question is written at, wherever on the card it stands.
+ *
+ * Two of the four shapes are answered in words rather than by a press: a
+ * question that is nothing but a line to type at, and the row of a list the
+ * agent's own mark is standing in — the "and tell it what to do instead" every
+ * agent offers. The same row is drawn for both, in the place the question put
+ * it, because they are the same act: what is written, and the return that ends
+ * the question.
+ *
+ * What is typed goes nowhere until it is sent. A card that wrote every letter
+ * through to the session would be leaving an answer half given in the agent's
+ * own field, and would be renaming the question with every keystroke — the row
+ * it is typed into is one of the answers, and an answer that changes is a
+ * different question to answer.
+ */
+function AskWriting({
+  written,
+  onWrite,
+  onSend,
+  label,
+  className,
+  focus,
+}: {
+  written: string;
+  onWrite: (text: string) => void;
+  onSend: () => void;
+  /** What the agent itself has in the row, which is what is being written over. */
+  label: string;
+  className: string;
+  /** Whether this is a row that has just become a place to write. */
+  focus: boolean;
+}) {
+  const { t } = useTranslation();
+  const field = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // A row becomes a place to write because somebody walked the mark into it,
+    // here or at the terminal, and what they did that for was to write in it.
+    // Nothing is scrolled to: the canvas does not move under anybody for this.
+    if (focus) field.current?.focus({ preventScroll: true });
+  }, [focus]);
+
+  return (
+    <form
+      className={className}
+      onPointerDown={(event) => event.stopPropagation()}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSend();
+      }}
+    >
+      <input
+        ref={field}
+        className="ask__written nodrag nopan"
+        value={written}
+        aria-label={t("ask.write")}
+        placeholder={label}
+        onChange={(event) => onWrite(event.target.value)}
+      />
+      <button type="submit" className="ask__send nodrag nopan" aria-label={t("ask.send")}>
+        <KeyboardReturnIcon sx={{ fontSize: 13 }} />
+      </button>
+    </form>
+  );
+}
 
 /**
  * A question something running in a terminal has stopped to ask, and the answers
@@ -18,9 +84,9 @@ import { useGraphActions } from "../graphActions";
  *
  * Every answer is in two halves: the agent's own column does at that answer what
  * pressing that column does at the terminal — walks the mark to it, or picks it
- * up — and the words beside it take the answer. Two kinds of question carry a
- * row of their own under the answers, because two kinds are not over when an
- * answer is pressed.
+ * up — and the words beside it take the answer. The row the mark is standing in
+ * is drawn as a place to write when that is what the agent has made of it, and a
+ * list several answers are picked up from carries the return that ends it.
  *
  * The rule the whole card is built on: no press invents a keystroke. Each names
  * an act at the session, and what is shown is the agent's own next drawing of
@@ -35,14 +101,9 @@ import { useGraphActions } from "../graphActions";
 export function AskNode({ data }: NodeProps<AskFlowNode>) {
   const { t } = useTranslation();
   const { session, ask, card } = data;
-  const { answer, reply, point, pick, compose, take, showSession } = useGraphActions();
+  const { answer, reply, point, pick, take, showSession } = useGraphActions();
 
-  /** Whether the question carries a row of its own under the answers: a list
-   *  several answers are picked up from needs the return that ends it, and one
-   *  being written at needs the place to write. */
-  const working = ask.picking || ask.writing;
-
-  /** What has been written at a question that wants words, until it is sent. */
+  /** What has been written at the question, until it is sent. */
   const [written, setWritten] = useState("");
   // Emptied when the question changes, rather than when the card goes. A card
   // is one node for as long as its session has one to draw, so the answer half
@@ -82,28 +143,15 @@ export function AskNode({ data }: NodeProps<AskFlowNode>) {
       {card.question.length > 0 && <p className="ask__question">{card.question.join("\n")}</p>}
 
       {ask.taking === "words" ? (
-        /* A question with no answers under it is answered by writing one. The
-           return that submits it is the session's to send, so pressing it here
-           and pressing it in the terminal are the same press. */
-        <form
+        /* A question with no answers under it is answered by writing one. */
+        <AskWriting
           className="ask__field nopan"
-          onPointerDown={(event) => event.stopPropagation()}
-          onSubmit={(event) => {
-            event.preventDefault();
-            reply(session, ask, written);
-          }}
-        >
-          <input
-            className="ask__written nodrag nopan"
-            value={written}
-            aria-label={t("ask.write")}
-            placeholder={t("ask.write")}
-            onChange={(event) => setWritten(event.target.value)}
-          />
-          <button type="submit" className="ask__send nodrag nopan" aria-label={t("ask.send")}>
-            <KeyboardReturnIcon sx={{ fontSize: 13 }} />
-          </button>
-        </form>
+          written={written}
+          onWrite={setWritten}
+          onSend={() => reply(session, ask, written)}
+          label={t("ask.write")}
+          focus={false}
+        />
       ) : (
         <>
           {/* The answers, in the agent's own order, each of them in two parts.
@@ -146,62 +194,49 @@ export function AskNode({ data }: NodeProps<AskFlowNode>) {
                     <span className="ask__key">{choice.key}</span>
                   )}
                 </button>
-                <button
-                  type="button"
-                  className="ask__answer nopan"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    // On a list the answers are picked up from, pressing one
-                    // of them walks the mark there and stops: every key at
-                    // such a list is a picking up, and what ends it is the
-                    // return under the answers.
-                    if (ask.picking) point(session, ask, choice.key);
-                    else answer(session, ask, choice.key);
-                  }}
-                >
-                  {choice.lines.join("\n")}
-                </button>
+                {ask.writing && choice.selected ? (
+                  /* The agent has made this row a place to type, so it is drawn
+                     as one: the answer is written where it is being asked for
+                     rather than under the list, and it is the answer — the
+                     return that sends it is the one that ends the question. */
+                  <AskWriting
+                    className="ask__writing"
+                    written={written}
+                    onWrite={setWritten}
+                    onSend={() => reply(session, ask, written)}
+                    label={choice.lines.join(" ")}
+                    focus={true}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="ask__answer nopan"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      // On a list the answers are picked up from, pressing one
+                      // of them walks the mark there and stops: every key at
+                      // such a list is a picking up, and what ends it is the
+                      // return under the answers.
+                      if (ask.picking) point(session, ask, choice.key);
+                      else answer(session, ask, choice.key);
+                    }}
+                  >
+                    {choice.lines.join("\n")}
+                  </button>
+                )}
               </div>
             ))}
           </div>
 
-          {/* And the row that ends the two kinds of question no answer ends:
-              what is written at the row the mark is standing in, and the
-              return that takes the lot of it. */}
-          {working && (
+          {/* And the return that ends the one kind of question no answer ends:
+              a list the answers are picked up from, where every key is a picking
+              up and the answer is the return under the lot of them. */}
+          {ask.picking && (
             <div className="ask__work nopan" onPointerDown={(event) => event.stopPropagation()}>
-              {ask.writing && (
-                <form
-                  className="ask__writing"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    compose(session, ask, written);
-                    // The words are at the session now, and the row they went
-                    // into is the agent's to draw. What is left here is a draft
-                    // of something already sent.
-                    setWritten("");
-                  }}
-                >
-                  <input
-                    className="ask__written nodrag nopan"
-                    value={written}
-                    aria-label={t("ask.compose")}
-                    placeholder={t("ask.compose")}
-                    onChange={(event) => setWritten(event.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    className="ask__send nodrag nopan"
-                    aria-label={t("ask.send")}
-                  >
-                    <ArrowForwardIcon sx={{ fontSize: 13 }} />
-                  </button>
-                </form>
-              )}
               <button
                 type="button"
-                className={`ask__take nodrag nopan${ask.writing ? "" : " is-wide"}`}
+                className="ask__take nodrag nopan"
                 aria-label={t("ask.take")}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -209,7 +244,7 @@ export function AskNode({ data }: NodeProps<AskFlowNode>) {
                 }}
               >
                 <KeyboardReturnIcon sx={{ fontSize: 13 }} />
-                {!ask.writing && <span className="ask__taking">{t("ask.take")}</span>}
+                <span className="ask__taking">{t("ask.take")}</span>
               </button>
             </div>
           )}

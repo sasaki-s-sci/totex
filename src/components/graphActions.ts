@@ -133,14 +133,11 @@ export type GraphActions = {
   point: (session: Session, ask: Ask, key: string) => void;
   /** Pick one of the answers up, or put it down, on a list that takes several. */
   pick: (session: Session, ask: Ask, key: string) => void;
-  /** Write at the answer the mark is standing in, without ending the question. */
-  compose: (session: Session, ask: Ask, text: string) => void;
   /**
    * Take the question where it stands, with the return that ends it.
    *
-   * What answers the two kinds no key answers: a list the answers are picked up
-   * from, where every key is a picking up, and a list whose mark is standing in
-   * a row being written at, where a key would be a letter.
+   * What answers the one kind no key answers: a list the answers are picked up
+   * from, where every key is a picking up rather than an answer.
    */
   take: (session: Session, ask: Ask) => void;
   /** Take one file card off the canvas. */
@@ -197,7 +194,6 @@ const GraphActionsContext = createContext<GraphActions>({
   reply: () => {},
   point: () => {},
   pick: () => {},
-  compose: () => {},
   take: () => {},
   closeFilePreview: () => {},
   closeSettings: () => {},

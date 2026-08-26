@@ -75,14 +75,13 @@ export type GraphProps = {
   reports: ReadonlyMap<string, Report>;
   /** One of those answers was taken. */
   onAnswer: (session: Session, ask: Ask, key: string) => void;
-  /** Or, for a question with nothing to press, something was written at it. */
+  /** Or the answer was written: a question with nothing to press, or the row of
+   *  a list the agent's own mark is standing in. */
   onReply: (session: Session, ask: Ask, text: string) => void;
   /** The agent's own mark was walked to one of the answers, and stopped there. */
   onPoint: (session: Session, ask: Ask, key: string) => void;
   /** One of the answers was picked up, on a list that takes several. */
   onPick: (session: Session, ask: Ask, key: string) => void;
-  /** Words were written at the answer the mark is standing in. */
-  onCompose: (session: Session, ask: Ask, text: string) => void;
   /** The question was taken where it stands, by the return that ends it. */
   onTake: (session: Session, ask: Ask) => void;
   /**

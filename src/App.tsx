@@ -91,7 +91,7 @@ function Window() {
   // What any of them has stopped to ask, which the graph draws beside the
   // terminal doing the asking. A question is a turn nobody has taken: it is
   // worth seeing from the canvas, and worth being able to answer from there.
-  const { asks, answer, reply, point, pick, compose, take } = useAsks();
+  const { asks, answer, reply, point, pick, take } = useAsks();
 
   // And what any of them says it is working on, which is the other half of what
   // the graph can show about a running agent. Nothing is waiting on this one —
@@ -112,12 +112,11 @@ function Window() {
   // has to run whether or not that page has ever been opened.
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const { filePreviews, openFiles, closeFilePreview } = useFileDrops(main);
-  const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
+  const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, takeAsking } = useAskActions({
     answer,
     reply,
     point,
     pick,
-    compose,
     take,
   });
 
@@ -247,7 +246,6 @@ function Window() {
             onReply={replyToAsk}
             onPoint={pointAtAsk}
             onPick={pickInAsk}
-            onCompose={composeAtAsk}
             onTake={takeAsking}
             marks={marks}
             onSelect={pickCommit}

@@ -1,10 +1,10 @@
-//! The three acts on a question that leave it standing: every one of them is a
+//! The two acts on a question that leave it standing: both of them are a
 //! keystroke somebody would otherwise have gone to the terminal to send.
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 
-use super::AskState;
-use super::typing::{answer_at, said, standing, walking};
+use super::pressed;
+use super::typing::{answer_at, walking};
 use crate::pty;
 
 /// Walks the agent's own mark to one of the answers and leaves it there.
@@ -17,13 +17,9 @@ pub fn pty_point<R: Runtime>(
     seq: u64,
     key: String,
 ) -> Result<(), String> {
-    let typed = {
-        let state = app.state::<AskState>();
-        let watching = state.lock();
-        let asking = standing(&watching, &id, seq)?;
-        let at = answer_at(asking, &key)?;
-        walking(asking, at).ok_or("nowhere-to-walk")?
-    };
+    let (asking, _) = pressed(&app, &id, seq)?;
+    let at = answer_at(&asking, &key)?;
+    let typed = walking(&asking, at).ok_or("nowhere-to-walk")?;
 
     pty::pty_write(app, id, typed)
 }
@@ -38,38 +34,12 @@ pub fn pty_pick<R: Runtime>(
     seq: u64,
     key: String,
 ) -> Result<(), String> {
-    let typed = {
-        let state = app.state::<AskState>();
-        let watching = state.lock();
-        let asking = standing(&watching, &id, seq)?;
-        if !asking.picking {
-            return Err("asking-for-one".to_string());
-        }
-        let at = answer_at(asking, &key)?;
-        format!("{} ", walking(asking, at).ok_or("nowhere-to-walk")?)
-    };
+    let (asking, _) = pressed(&app, &id, seq)?;
+    if !asking.picking {
+        return Err("asking-for-one".to_string());
+    }
+    let at = answer_at(&asking, &key)?;
+    let typed = format!("{} ", walking(&asking, at).ok_or("nowhere-to-walk")?);
 
     pty::pty_write(app, id, typed)
-}
-
-/// Writes at the answer the mark is standing in, without ending the question:
-/// the "and tell it what to do instead" every agent offers. No return goes with
-/// it, because the return is the answer and the answer is a separate press.
-#[tauri::command]
-pub fn pty_compose<R: Runtime>(
-    app: AppHandle<R>,
-    id: String,
-    seq: u64,
-    text: String,
-) -> Result<(), String> {
-    {
-        let state = app.state::<AskState>();
-        let watching = state.lock();
-        let asking = standing(&watching, &id, seq)?;
-        if !asking.writing {
-            return Err("nowhere-to-write".to_string());
-        }
-    }
-
-    pty::pty_write(app, id, said(&text))
 }

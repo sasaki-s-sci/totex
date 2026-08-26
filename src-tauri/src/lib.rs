@@ -250,7 +250,6 @@ pub fn run() {
             ask::watch::answer::pty_take,
             ask::watch::adjust::pty_point,
             ask::watch::adjust::pty_pick,
-            ask::watch::adjust::pty_compose,
             mcp::mcp_serving,
             mcp::mcp_serve,
             mcp::mcp_stop,

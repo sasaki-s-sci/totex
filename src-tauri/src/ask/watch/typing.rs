@@ -1,9 +1,6 @@
 //! What is typed at a session to act on the question it is asking.
 
-use std::collections::HashMap;
-
 use super::super::{Ask, Taking};
-use super::Watcher;
 
 /// The keystrokes an answer is, rather than the answer: typing at it is the
 /// only way a terminal has of being told anything, and the four kinds of
@@ -36,23 +33,6 @@ pub(super) fn walking(ask: &Ask, at: usize) -> Option<String> {
     let here = ask.choices.iter().position(|choice| choice.selected)?;
     let step = if at > here { "\u{1b}[B" } else { "\u{1b}[A" };
     Some(step.repeat(at.abs_diff(here)))
-}
-
-/// The question a session is asking, if it is still the one being answered.
-/// What every act on a question is held to: a card is drawn from a reading
-/// already a moment old, and nothing meant for "may I delete this" may arrive at
-/// whatever the agent went on to ask instead.
-pub(super) fn standing<'a>(
-    watching: &'a HashMap<String, Watcher>,
-    id: &str,
-    seq: u64,
-) -> Result<&'a Ask, String> {
-    let watcher = watching.get(id).ok_or("no-session")?;
-    let asking = watcher.asking().ok_or("asking-nothing")?;
-    if asking.seq != seq {
-        return Err("asking-something-else".to_string());
-    }
-    Ok(asking)
 }
 
 /// Where in the list an answer stands, for the acts that walk to it.
