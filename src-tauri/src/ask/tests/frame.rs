@@ -152,6 +152,48 @@ fn the_caret_in_among_the_words_is_a_row_being_written_at() {
     assert!(found.choices[4].selected);
 }
 
+/// A question asked about something long, drawn the way an agent draws a
+/// command it wants to run: the rule that frames the whole of it stands as far
+/// above the question as the command is tall, which for a command of fourteen
+/// lines is seventeen rows up. What is being asked about is the one part of a
+/// question with no length to it, and a question is not turned into something
+/// else by the size of it.
+#[test]
+fn a_long_command_leaves_the_question_a_question() {
+    let rule = "\u{2500}".repeat(52);
+    let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+    drawn.push_str(&format!("{rule}\r\n"));
+    drawn.push_str(" Bash command\r\n");
+    for part in 1..=14 {
+        drawn.push_str(&format!("   \u{2502} rm -rf build/part{part} && \\\r\n"));
+    }
+    drawn.push_str("   Remove every build part\r\n");
+    drawn.push_str(" Do you want to proceed?\r\n");
+    drawn.push_str(" \u{276f} 1. Yes\r\n");
+    drawn.push_str("   2. Yes, and don't ask again for rm commands in\r\n");
+    drawn.push_str("      this project\r\n");
+    drawn.push_str("   3. No\r\n");
+    drawn.push_str(" Esc to cancel \u{b7} Tab to amend \u{b7} ctrl+e to explain\r\n");
+
+    let found = read(&screen_of(&drawn)).expect("a question about a long command");
+    assert_eq!(found.question, "Do you want to proceed?");
+    assert_eq!(found.taking, Taking::Key);
+    assert_eq!(
+        labels(&found),
+        vec![
+            "Yes",
+            "Yes, and don't ask again for rm commands in this project",
+            "No",
+        ]
+    );
+    // However far up the drawing goes, a card holds what a card holds.
+    assert_eq!(found.detail.len(), 6);
+    assert_eq!(
+        found.detail.last().map(String::as_str),
+        Some("Remove every build part")
+    );
+}
+
 #[test]
 fn a_diff_between_dashed_rules_is_what_the_question_is_about() {
     let rule = "\u{2500}".repeat(58);

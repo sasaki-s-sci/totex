@@ -9,11 +9,11 @@ use super::{Reading, choice::choice_of};
 
 /// How many lines above a question are kept as what it is about. The box holds
 /// a tool and its argument, never a document.
+///
+/// A limit on what is *kept*, and the only one there is: how far up the drawing
+/// a question stands in reaches is the agent's business, and a question is not
+/// less of one for being asked about something long.
 const DETAIL_LIMIT: usize = 6;
-
-/// How far above a question the top of its box is looked for. A taller box has
-/// scrolled its top off, and the lines above are as likely to be conversation.
-const BOX_LIMIT: usize = 16;
 
 /// How many lines of shortcuts — `esc to cancel` and its like — an agent may
 /// set under its own drawing and still be asking. A third means something has
@@ -76,14 +76,22 @@ fn asked_above(above: &[&str]) -> (Vec<String>, String, Framing) {
 
 /// What is set above a question, and what the whole of it is drawn in. The walk
 /// stops at a box or solid rule, but crosses dashed rules drawn inside it.
+///
+/// It goes to the top of the screen rather than a set way up, because how far
+/// above a question its frame stands is a fact about what is being asked rather
+/// than about the asking: a command of one line puts the rule six rows up and a
+/// command of twenty puts it twenty-five, and a question is not turned into
+/// something else by the length of what it is about. What is kept off the way
+/// is still `DETAIL_LIMIT`, so the card shows the same few lines either way, and
+/// what says a question is being asked rather than lying answered on the screen
+/// is what stands *under* the answers — see `last_thing`.
 fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
-    let floor = question.saturating_sub(BOX_LIMIT);
     let mut detail = Vec::new();
     let mut framing = Framing::Bare;
     let mut dashed = false;
     let mut walk = question;
 
-    while walk > floor {
+    while walk > 0 {
         walk -= 1;
         let line = above[walk];
         if is_dashed(line) {
@@ -110,7 +118,7 @@ fn detail_above(above: &[&str], question: usize) -> (Vec<String>, Framing) {
     }
 
     // Crossing a dashed rule means the question is framed even when its outer
-    // edge lies beyond the part of the screen worth walking.
+    // edge has gone off the top of the screen.
     if framing == Framing::Bare && dashed {
         framing = Framing::Ruled;
     }

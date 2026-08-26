@@ -40,6 +40,39 @@ fn a_numbered_list_with_the_conversation_under_it_is_not_a_question() {
     assert!(read(&screen_of(&text)).is_none());
 }
 
+/// The same thing on a screen an agent owns all of, where the drawing it rules
+/// off is a long way above whatever it has since written.
+///
+/// What is under the list is still the whole of the answer: three lines of
+/// what was being said, or the composer the agent goes back to waiting at.
+/// Either of them means the list was written rather than offered, and neither
+/// of them is any less true for the rule being twenty rows up.
+#[test]
+fn a_written_list_is_told_by_what_the_agent_went_on_to_draw() {
+    let rule = "\u{2500}".repeat(52);
+    let listed = |after: &str| {
+        let mut drawn = String::from("\u{1b}[?1049h\u{1b}[?25l\u{1b}[2J\u{1b}[H");
+        drawn.push_str(&format!("{rule}\r\n"));
+        for line in 0..20 {
+            drawn.push_str(&format!("⏺ a line of what was said, number {line}\r\n"));
+        }
+        drawn.push_str("Here are three ways to go about it:\r\n");
+        drawn.push_str("  1. Rewrite the reader\r\n");
+        drawn.push_str("  2. Patch the check\r\n");
+        drawn.push_str("  3. Leave it alone\r\n");
+        drawn.push_str(after);
+        drawn
+    };
+
+    for after in [
+        "One.\r\nTwo.\r\nThree.\r\n",
+        "\u{276f} Try \"fix the failing test\"\r\n",
+        "I would take the first.\r\n\u{276f} \r\n",
+    ] {
+        assert!(read(&screen_of(&listed(after))).is_none(), "{after:?}");
+    }
+}
+
 /// A list that does not count from one was written rather than offered.
 #[test]
 fn a_list_that_does_not_count_from_one_is_not_a_question() {
