@@ -1,8 +1,18 @@
-/** Declarative versions for the two independently moving parts of the app. */
+/**
+ * Which version each half of the app is on, and the one press that brings both
+ * of them forward.
+ *
+ * The section is drawn whenever the backend has answered at all, because the
+ * first thing it says is what this copy is — a version somebody can read off
+ * without having anything to do about it. Everything else is arranged around
+ * that: the pull-downs name where each half should be, the arrows say where
+ * that differs from where it is, and the button takes both halves there.
+ */
 
-import { Divider, FormControl, InputLabel, MenuItem, Select, Stack } from "@mui/material";
-import { useEffect, useId } from "react";
+import { Divider, Stack } from "@mui/material";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+
 import {
   askStanding,
   declare,
@@ -11,122 +21,33 @@ import {
   rungOf,
   stageOf,
   take,
-  type UpdateChoice,
   type UpdateStage,
   type UpdateState,
   useUpdate,
-  wanted,
 } from "../../lib/update";
 import { UpdateMark } from "../marks";
 import { PageButton, Row } from "./Row";
+import {
+  CORE_CYCLE,
+  coreStanding,
+  PROGRAM_CYCLE,
+  programStanding,
+  type Standing,
+} from "./updateReading";
+import { VersionRow } from "./VersionRow";
 
-const CORE_CYCLE = "layer";
-const PROGRAM_CYCLE = "release";
-const LATEST = "latest";
-
-/** One compact declaration: its name and version are both visible when shut. */
-function VersionSelect({
-  label,
-  value,
-  choices,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  choices: readonly UpdateChoice[];
-  disabled: boolean;
-  onChange: (version: string | null) => void;
-}) {
-  const labelId = useId();
-  const held =
-    value && value !== LATEST && !choices.some((choice) => choice.version === value) ? value : null;
-  return (
-    <FormControl size="small" sx={{ minWidth: 146 }}>
-      <InputLabel id={labelId} shrink>
-        {label}
-      </InputLabel>
-      <Select
-        labelId={labelId}
-        label={label}
-        value={value}
-        displayEmpty
-        disabled={disabled}
-        renderValue={(version) => version || "—"}
-        onChange={(event) => {
-          const version = event.target.value;
-          if (version === LATEST) onChange(null);
-          else if (choices.some((choice) => choice.version === version)) onChange(version);
-        }}
-      >
-        {!value && <MenuItem value="">—</MenuItem>}
-        <MenuItem value={LATEST}>{LATEST}</MenuItem>
-        {held && (
-          <MenuItem value={held} disabled>
-            {held}
-          </MenuItem>
-        )}
-        {choices.map((choice) => (
-          <MenuItem key={`${choice.cycle}:${choice.version}`} value={choice.version}>
-            {choice.version}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
-  );
-}
-
-/** The dedicated Core releases whose protocol is known. */
-function coreChoices(at: UpdateState): UpdateChoice[] {
-  return at.choices.filter(
-    (choice) => choice.cycle === CORE_CYCLE && choice.layerProtocol !== null,
-  );
-}
-
-/** Which Core declaration the first pull-down currently represents. */
-function selectedCore(at: UpdateState): UpdateChoice | null {
-  const rung = rungOf(at, "app");
-  if (!rung) return null;
-  const version = rung.cycle === CORE_CYCLE ? wanted(at, "app") : rung.at;
-  const released = coreChoices(at).find((choice) => choice.version === version);
-  if (released) return released;
-  if (version !== rung.at || rung.protocol === null) return null;
-  return {
-    cycle: CORE_CYCLE,
-    version,
-    layerProtocol: rung.protocol,
-    frontContract: null,
-  };
-}
-
-/** Front / Program releases compatible with the Core declaration. */
-function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoice[] {
-  if (core?.layerProtocol === null || core === null) return [];
-  const program = rungOf(at, "core");
-  return at.choices.filter(
-    (choice) =>
-      choice.cycle === PROGRAM_CYCLE &&
-      choice.layerProtocol === core.layerProtocol &&
-      choice.frontContract !== null &&
-      // A package-managed program stays where it is, so a selected front must
-      // also fit the program that is actually running. Where the program can
-      // move, its release carries the matching contract with it.
-      (program?.can ||
-        (program?.frontContract !== null &&
-          program?.frontContract !== undefined &&
-          choice.frontContract <= program.frontContract)),
-  );
-}
-
-function selectedVersion(at: UpdateState, layer: "app" | "core", cycle: string): string {
-  const rung = rungOf(at, layer);
-  if (!rung) return "";
-  if (rung.cycle !== cycle) return rung.at;
-  return rung.picked ?? LATEST;
-}
-
-/** The strongest state to draw for the one sync in flight. */
-function activity(at: UpdateState): { stage: UpdateStage; progress: number | null } {
+/**
+ * The strongest state to draw for the one sync in flight.
+ *
+ * `offering` is what the mark falls back to with nothing in flight: the arrow
+ * where there is something to take, and the tick where the page can say there
+ * is not. A tick is a claim, so it is only drawn once every half that can move
+ * has a release to be read against.
+ */
+function activity(
+  at: UpdateState,
+  offering: boolean,
+): { stage: UpdateStage; progress: number | null } {
   const layers = ["app", "core", "front"] as const;
   const presses = layers.map((layer) => ({ ...at.presses[layer], stage: stageOf(at, layer) }));
   const taking = presses.find((press) => press.stage === "taking");
@@ -137,7 +58,12 @@ function activity(at: UpdateState): { stage: UpdateStage; progress: number | nul
   if (presses.some((press) => press.stage === "held")) {
     return { stage: "held", progress: null };
   }
-  return { stage: "current", progress: null };
+  return { stage: offering ? "rest" : "current", progress: null };
+}
+
+/** Whether every half that can move has a release it could be moved to. */
+function resolved(halves: readonly Standing[]): boolean {
+  return halves.every((half) => !half.can || half.target !== null);
 }
 
 export function UpdateSection() {
@@ -148,25 +74,15 @@ export function UpdateSection() {
     void askStanding();
   }, []);
 
-  const core = selectedCore(at);
-  const cores = coreChoices(at);
-  const programs = programChoices(at, core);
-  const coreVersion = selectedVersion(at, "app", CORE_CYCLE);
-  const programVersion = selectedVersion(at, "core", PROGRAM_CYCLE);
+  const core = coreStanding(at);
+  const program = programStanding(at, core?.target ?? null);
   const moving = (["app", "core", "front"] as const).some(
     (layer) => stageOf(at, layer) === "taking",
   );
-  const mark = activity(at);
-  const program = rungOf(at, "core");
-  const programTarget =
-    program?.picked === null
-      ? programs[0]
-      : programs.find((choice) => choice.version === programVersion);
-  const available = core !== null && programTarget !== undefined;
 
   const finishProgram = async (version: string) => {
-    const program = rungOf(at, "core");
-    if (program?.can) {
+    const rung = rungOf(at, "core");
+    if (rung?.can) {
       const stage = await take("core", version);
       if (stage === "ready") {
         restart();
@@ -190,18 +106,42 @@ export function UpdateSection() {
     ]);
   };
 
+  if (!core || !program) return null;
+
+  // Until the release page has answered once, nothing is known — neither that
+  // there is something to take nor that there is not.
+  const asked = at.choices.length > 0;
+  const known = asked && resolved([core, program]);
+  const waiting = Boolean(core.to || program.to);
+  // What the button is holding out: something to take, or a question nobody
+  // has the answer to yet. Either way it is not a tick.
+  const offering = waiting || !known;
+  const mark = activity(at, offering);
+  // A press that failed is offered again whether or not anything is still out
+  // of place: the layer may well have arrived, and re-taking it is what says so
+  // and takes the red off the button.
+  const retry = mark.stage === "failed";
+
   const sync = async () => {
-    if (!core || !programTarget) return;
-    const stage = await take("app", core.version);
-    if (stage === "failed") return;
-    await finishProgram(programTarget.version);
+    if (core.can && core.target && (core.to || retry)) {
+      const stage = await take("app", core.target.version);
+      if (stage === "failed") return;
+    }
+    if (program.can && program.target && (program.to || retry)) {
+      await finishProgram(program.target.version);
+    }
   };
 
-  // A source build has no front or program to replace and no useful
-  // declaration to make. Package-managed copies still draw this row because
-  // they can move persistent and a compatible front independently.
-  const rungs = at.rungs;
-  if (rungs && !rungs.some((rung) => rung.can)) return null;
+  // One word for the press whatever the rows say, because it is one press: it
+  // puts this copy on the versions the rows are pointed at. Left alone they are
+  // both on `latest`, so that is the whole app brought up to date; a row pinned
+  // to a version makes the same press a move to that version, which may well be
+  // a step backwards. What it would do is on the rows, in the arrows.
+  const label = retry ? t("update.failed") : offering ? t("update.apply") : t("update.current");
+
+  // A copy the package manager owns can still bring its pages forward, and the
+  // program under them is not this window's to replace.
+  const packaged = rungOf(at, "core")?.can === false && rungOf(at, "front")?.can === true;
 
   return (
     <>
@@ -211,38 +151,41 @@ export function UpdateSection() {
         hint={
           moving
             ? t("update.adjusting")
-            : mark.stage === "failed"
+            : retry
               ? t("update.adjustFailed")
-              : mark.stage === "held"
+              : mark.stage === "held" || (asked && !known)
                 ? t("update.incompatible")
                 : undefined
         }
       >
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-          <VersionSelect
-            label={t("update.core")}
-            value={coreVersion}
-            choices={cores}
-            disabled={moving || cores.length === 0}
-            onChange={(version) => void chooseCore(version)}
-          />
-          <VersionSelect
-            label={t("update.frontProgram")}
-            value={programVersion}
-            choices={programs}
-            disabled={moving || programs.length === 0}
-            onChange={(version) => void chooseProgram(version)}
-          />
+        {/* A copy that can replace neither half of itself keeps its versions
+            and loses the press: what is left is a page saying what this is. */}
+        {(core.can || program.can) && (
           <PageButton
-            danger={mark.stage === "failed"}
-            disabled={moving || !available}
+            danger={retry}
+            disabled={moving || !(waiting || retry)}
             icon={<UpdateMark stage={mark.stage} progress={mark.progress} />}
             onClick={() => void sync()}
           >
-            {t("update.sync")}
+            {label}
           </PageButton>
-        </Stack>
+        )}
       </Row>
+      <Stack sx={{ gap: 0.5, pl: 1.5 }}>
+        <VersionRow
+          name={t("update.core")}
+          standing={core}
+          disabled={moving}
+          onChange={(version) => void chooseCore(version)}
+        />
+        <VersionRow
+          name={t("update.frontProgram")}
+          standing={program}
+          hint={packaged ? t("update.held") : undefined}
+          disabled={moving}
+          onChange={(version) => void chooseProgram(version)}
+        />
+      </Stack>
     </>
   );
 }
