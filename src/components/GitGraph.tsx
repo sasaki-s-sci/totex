@@ -173,7 +173,6 @@ export function GitGraph({
       graph,
       host,
       instance,
-      reading: filePreviews.length > 0,
       expand,
       onSelect,
       onOpenWork,

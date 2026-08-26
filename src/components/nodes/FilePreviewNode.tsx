@@ -87,7 +87,8 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
    *  the name in it is as much what the card is showing as the lines are. */
   const bar = useRef<HTMLElement>(null);
   // How large the reading is drawn, for every card at once. Ctrl and a plus or
-  // a minus is what changes it; `useReadingKeys` in the graph listens for them.
+  // a minus is what changes it, for as long as a card has the focus;
+  // `useReadingKeys` in the graph listens for them.
   const size = useReadingSize();
 
   // A reading drawn larger or smaller comes to a different size on the page, so
@@ -116,15 +117,33 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       className={`file-preview${data.collapsed ? " is-collapsed" : ""}${
         data.pinnedAt ? " is-pinned" : ""
       }`}
+      // A stop of the card's own, out of the way of tabbing: a reading that can
+      // be typed into takes the focus itself, and one that cannot has nothing
+      // inside it that would. Both are being read, and how large a reading is
+      // drawn is a question the card that has the focus answers.
+      tabIndex={-1}
       // Said once on the card, so that the gutter and the text are always the
       // same size as one another, and so that the size is the only thing the
       // stylesheet gives up.
       style={{ "--reading-size": `${size}px` } as CSSProperties}
+      onPointerDown={(event) => {
+        // A card pressed anywhere is the card in hand. The reading, a button in
+        // the header and the header being taken hold of would each leave the
+        // focus somewhere different — one of them nowhere at all — so the card
+        // takes it here, before any of that, and whatever inside it can hold
+        // the focus takes it from the card a moment later.
+        //
+        // Only when it is not already inside the card: a header pressed while
+        // the reading is being typed into would otherwise take the focus out of
+        // it, and out of a reading is where a file is written back to disk.
+        const card = event.currentTarget;
+        if (!card.contains(document.activeElement)) card.focus({ preventScroll: true });
+      }}
       onKeyDown={(event) => {
         // What every other window keeps a file with. There is nothing else to
         // press inside a card: one put away or clicked out of keeps itself,
         // and how large the reading is drawn is Ctrl and a plus or a minus,
-        // which the window listens for on every card's behalf.
+        // which the window listens for on behalf of the card that has the focus.
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
           void save();
