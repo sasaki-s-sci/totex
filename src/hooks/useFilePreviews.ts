@@ -16,7 +16,7 @@ import { useFilePreviewPlacing } from "./useFilePreviewPlacing";
 
 export { fileSize } from "./filePreviewBox";
 
-export type FilePreviewCanvas = {
+export type PageCanvas = {
   /** The canvas element, which pinned cards are placed in the pixels of. */
   host: RefObject<HTMLDivElement | null>;
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
@@ -27,10 +27,7 @@ export type FilePreviewCanvas = {
   flowReady: boolean;
 };
 
-export function useFilePreviews(
-  requests: readonly FilePreviewRequest[],
-  canvas: FilePreviewCanvas,
-) {
+export function useFilePreviews(requests: readonly FilePreviewRequest[], canvas: PageCanvas) {
   useFilePreviewPlacing(requests, canvas);
   return useFilePreviewCard(canvas);
 }

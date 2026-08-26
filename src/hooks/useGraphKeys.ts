@@ -4,6 +4,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { CliJumps } from "../components/cliJumps";
 import { type AppNode, commitNodeId } from "../lib/graph";
 import { first, history, jumpable, type Pickable, pickables, step } from "../lib/graphNav";
+import { terminal, typing } from "../lib/keys";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
   ArrowRight: { x: 1, y: 0 },
@@ -277,20 +278,4 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
 /** One of the ten keys a terminal can be reached by. */
 function numeric(event: KeyboardEvent): boolean {
   return event.key.length === 1 && event.key >= "0" && event.key <= "9";
-}
-
-/** Whether the keys are being typed into a terminal, which the window otherwise
- *  sees as a textarea like any other: the arrows are for leaving one. */
-function terminal(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.closest(".xterm") !== null;
-}
-
-/** Whether the keys belong to something being typed into. */
-function typing(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.isContentEditable ||
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement
-  );
 }

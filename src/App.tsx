@@ -14,11 +14,13 @@ import { useCanvasWork } from "./hooks/useCanvasWork";
 import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
 import { useReports } from "./hooks/useReports";
+import { useServing } from "./hooks/useServing";
+import { useSessionKeys } from "./hooks/useSessionKeys";
 import { useSessions } from "./hooks/useSessions";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import { warmInTurn } from "./lib/onDemand";
-import { confirmFront, watchVersions } from "./lib/update";
+import { confirmFront, watchUpdateChoices } from "./lib/update";
 import {
   commitPart,
   EMPTY_WORKSPACE,
@@ -63,6 +65,12 @@ function Window() {
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  // This lives with the window rather than inside the settings page: a
+  // remembered server must come back when the app starts, without waiting for
+  // its settings page to be opened first.
+  const mcp = useServing();
   const main = useRef<HTMLElement>(null);
   // What the window is doing to a branch, and what it was refused. Both are
   // drawn on the branch's own ring — see `useMarks`; nothing is written.
@@ -89,6 +97,11 @@ function Window() {
   // it is read rather than answered — and it is empty until the window is
   // standing a server for the agents to say it through.
   const reports = useReports();
+
+  // Ctrl and A, which puts another terminal in the workspace the panel is
+  // showing. Held here rather than in the graph: it is about what is running,
+  // not about anything drawn on the canvas.
+  useSessionKeys({ sessions, showing, open: openSession });
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
@@ -142,10 +155,10 @@ function Window() {
   // every window because none of them knows which front it was drawn from.
   useEffect(confirmFront, []);
 
-  // Which releases there are, kept up to date from here on: a list only asked
+  // Which compatible releases there are, kept up to date from here on: a list only asked
   // for when the pull-down is opened is a list that is empty at the moment
-  // somebody looks at it. See `watchVersions`.
-  useEffect(watchVersions, []);
+  // somebody looks at it. See `watchUpdateChoices`.
+  useEffect(watchUpdateChoices, []);
 
   // The menus the graph can open are fetched in the idle moments after the
   // window opens, so the first click does not have to wait for their chunks.
@@ -183,7 +196,6 @@ function Window() {
   const SidePanel = panelPart.use(useEver(sessions.length > 0));
   const CommitMenu = commitPart.use(useEver(commitMenu !== null));
   const WorktreeMenu = worktreePart.use(useEver(worktreeMenu !== null));
-  const SettingsDialog = settingsPart.use(useEver(settingsOpen));
 
   return (
     <Box
@@ -193,7 +205,7 @@ function Window() {
         initialFolders={initialFolders}
         onExpandedChange={setRoots}
         onFoldersChange={(folders) => localStorage.setItem(ROOTS_KEY, JSON.stringify(folders))}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={openSettings}
         onOpenFile={(path) => openFiles([path], null)}
         destination={folderDestination}
       />
@@ -244,6 +256,9 @@ function Window() {
             onEndSession={endSession}
             filePreviews={filePreviews}
             onCloseFilePreview={closeFilePreview}
+            settingsOpen={settingsOpen}
+            mcp={mcp}
+            onCloseSettings={closeSettings}
           />
         )}
       </Box>
@@ -264,9 +279,6 @@ function Window() {
           onOpen={openSession}
           onEndAttached={endSessionsIn}
         />
-      )}
-      {SettingsDialog && (
-        <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       )}
     </Box>
   );

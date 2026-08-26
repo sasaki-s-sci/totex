@@ -2,6 +2,7 @@
  * What the canvas is handed, and what it hands back.
  */
 
+import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
@@ -95,4 +96,8 @@ export type GraphProps = {
   /** Files asked for from the explorer or dropped onto the window. */
   filePreviews: readonly FilePreviewRequest[];
   onCloseFilePreview: (requestId: number) => void;
+  /** The window's one settings page, and the controls it draws. */
+  settingsOpen: boolean;
+  mcp: ServingControls;
+  onCloseSettings: () => void;
 };

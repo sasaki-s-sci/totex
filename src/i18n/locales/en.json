@@ -93,18 +93,28 @@
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
-    "mcp": "Agent reports",
-    "mcpHint": "Let the agents say what they are working on",
-    "register": "Agent setup",
-    "registerHint": "Point this machine's agent at the server"
+    "mcp": "MCP server",
+    "register": "Agent setup"
   },
   "mcp": {
+    "on": "On",
+    "off": "Off",
+    "checking": "Checking…",
+    "changing": "Changing…",
+    "failed": "Change failed",
     "register": "Set up",
     "registering": "Setting up…",
     "registered": "Done",
     "refused": "Failed"
   },
   "update": {
+    "title": "Updates",
+    "core": "persistent",
+    "frontProgram": "ephemeral",
+    "sync": "sync",
+    "adjusting": "Adjusting to the selected versions…",
+    "adjustFailed": "Could not adjust to the selected versions",
+    "incompatible": "That version is unavailable or incompatible",
     "take": "Take",
     "taking": "Taking…",
     "fetching": "Downloading…",

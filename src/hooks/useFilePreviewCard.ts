@@ -7,16 +7,10 @@ import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize, readableSize } from "./filePreviewBox";
-import type { FilePreviewCanvas } from "./useFilePreviews";
+import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
-export function useFilePreviewCard({
-  host,
-  instance,
-  standing,
-  nodes,
-  setNodes,
-}: FilePreviewCanvas) {
+export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }: PageCanvas) {
   /**
    * Writes one card's reading back to its file.
    *

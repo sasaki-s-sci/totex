@@ -93,18 +93,28 @@
     "title": "設定",
     "theme": "テーマ",
     "language": "言語",
-    "mcp": "エージェントの報告",
-    "mcpHint": "エージェントの作業内容をグラフに表示する",
-    "register": "エージェントの設定",
-    "registerHint": "このマシンのエージェントに接続先を書き込む"
+    "mcp": "MCPサーバー",
+    "register": "エージェントの設定"
   },
   "mcp": {
+    "on": "ON",
+    "off": "OFF",
+    "checking": "確認中…",
+    "changing": "切替中…",
+    "failed": "切替失敗",
     "register": "設定する",
     "registering": "設定中…",
     "registered": "設定済み",
     "refused": "失敗しました"
   },
   "update": {
+    "title": "Updates",
+    "core": "persistent",
+    "frontProgram": "ephemeral",
+    "sync": "sync",
+    "adjusting": "指定したバージョンに調整中…",
+    "adjustFailed": "指定したバージョンに調整できませんでした",
+    "incompatible": "利用できないか、互換性のないバージョンです",
     "take": "取得",
     "taking": "取得中…",
     "fetching": "ダウンロード中…",

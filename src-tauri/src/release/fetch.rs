@@ -1,5 +1,6 @@
 //! Reading a manifest off the release page, and asking a URL for bytes.
 
+use serde::Serialize;
 use tauri::{AppHandle, Runtime};
 
 use super::cycle::{Cycle, Cycles};
@@ -141,6 +142,73 @@ pub async fn update_versions<R: Runtime>(
         .collect()
 }
 
+/// One version that can be declared in the update settings, with the two
+/// agreements needed to keep the independent application layer compatible
+/// with the front and program selected beside it.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateChoice {
+    cycle: Cycles,
+    version: String,
+    layer_protocol: Option<u32>,
+    front_contract: Option<u32>,
+}
+
+fn update_choice(which: Cycles, version: String, manifest: super::Manifest) -> UpdateChoice {
+    let layer_protocol = manifest
+        .layers
+        .get(&super::target())
+        .map(|layer| layer.protocol);
+    let front_contract = manifest.front.map(|front| front.needs);
+    UpdateChoice {
+        cycle: which,
+        version,
+        layer_protocol,
+        front_contract,
+    }
+}
+
+/// The releases available to the two declarative update selectors.
+///
+/// The repository listing only says which versions exist. Compatibility lives
+/// in each release's manifest, so those small documents are read in parallel
+/// and only manifests that answer truthfully are offered to the window.
+#[tauri::command]
+pub async fn update_choices<R: Runtime>(
+    app: AppHandle<R>,
+    cycles: Vec<Cycles>,
+) -> Vec<UpdateChoice> {
+    let Ok((endpoint, _)) = declared(&app) else {
+        return Vec::new();
+    };
+    let Some(url) = listing_url(&endpoint) else {
+        return Vec::new();
+    };
+    let Ok(listing) = ask(&url, SMALL).await else {
+        return Vec::new();
+    };
+
+    let mut reading = Vec::new();
+    for which in cycles {
+        let cycle = which.cycle();
+        for version in versions(&listing, &cycle) {
+            let endpoint = endpoint.clone();
+            reading.push(tauri::async_runtime::spawn(async move {
+                let manifest = read(&endpoint, &cycle, Some(&version)).await.ok()?;
+                Some(update_choice(which, version, manifest))
+            }));
+        }
+    }
+
+    let mut found = Vec::new();
+    for reading in reading {
+        if let Ok(Some(choice)) = reading.await {
+            found.push(choice);
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::url::is_version;
@@ -265,6 +333,34 @@ mod tests {
             versions(listing, &Cycles::Front.cycle()),
             vec!["0.1.7".to_string()]
         );
+    }
+
+    #[test]
+    fn a_choice_carries_the_agreements_from_its_manifest() {
+        let mut layers = std::collections::HashMap::new();
+        layers.insert(
+            super::super::target(),
+            super::super::Layer {
+                protocol: 7,
+                url: String::new(),
+                signature: String::new(),
+            },
+        );
+        let manifest = super::super::Manifest {
+            version: "1.2.3".to_string(),
+            front: Some(super::super::Entry {
+                needs: 9,
+                url: String::new(),
+                signature: String::new(),
+            }),
+            layers,
+        };
+
+        let choice = update_choice(Cycles::Release, "1.2.3".to_string(), manifest);
+        assert_eq!(choice.cycle, Cycles::Release);
+        assert_eq!(choice.version, "1.2.3");
+        assert_eq!(choice.layer_protocol, Some(7));
+        assert_eq!(choice.front_contract, Some(9));
     }
 
     #[test]

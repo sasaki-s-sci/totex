@@ -143,6 +143,10 @@ pub struct Rung {
     pub cycle: Cycles,
     /// The version it is pointed at, if one has been named.
     pub picked: Option<String>,
+    /// The application-layer conversation this layer speaks, where it has one.
+    pub protocol: Option<u32>,
+    /// The newest front contract this program answers, on the program row.
+    pub front_contract: Option<u32>,
 }
 
 /// What the update rows are drawn from.
@@ -181,6 +185,8 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
             },
             cycle: kept.cycle(layer),
             picked: kept.picked(layer),
+            protocol: matches!(layer, Layer::App | Layer::Core).then_some(totex_layer::PROTOCOL),
+            front_contract: (layer == Layer::Core).then_some(crate::front::take::contract()),
         })
         .collect()
 }

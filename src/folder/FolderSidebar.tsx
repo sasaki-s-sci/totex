@@ -123,7 +123,7 @@ export function FolderSidebar({
     >
       {/* The column's header: the two marks that answer for the window itself
           rather than for any one folder in it — where a folder is added, and
-          everything the window is set to, which is a dialog and not a mark.
+          everything the window is set to, which opens as a page on the graph.
 
           They stand in the band along the top of the window — the strip the
           window's own three marks are already in, at the other end of it — so

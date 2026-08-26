@@ -11,7 +11,7 @@ import type { Workspace } from "./types/git";
  *
  * A window that has just opened is a column of folders: the canvas has read
  * nothing, no session is running, and no menu is open. The graph is requested
- * immediately so its canvas is always present; the terminal and dialogs stay
+ * immediately so its canvas is always present; terminals, menus and pages stay
  * on demand. Keeping them in separate chunks leaves all of them off the way to
  * the first column.
  */
@@ -28,9 +28,8 @@ export const worktreePart = onDemand(() =>
   import("./components/WorktreeMenu").then((part) => part.WorktreeMenu),
 );
 export const settingsPart = onDemand(() =>
-  import("./components/SettingsDialog").then((part) => part.SettingsDialog),
+  import("./components/nodes/SettingsNode").then((part) => part.SettingsNode),
 );
-
 export const ROOTS_KEY = "totex.roots";
 export const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };
 

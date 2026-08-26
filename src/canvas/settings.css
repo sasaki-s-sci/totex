@@ -1,0 +1,35 @@
+/** Settings drawn as an ordinary page on the graph. */
+
+/* Like a file page, its resize grips sit half outside its box. */
+.graph .react-flow__node-settings {
+  contain: layout;
+}
+
+.react-flow__resize-control.settings-page__edge {
+  border-color: transparent;
+}
+
+.react-flow__resize-control.settings-page__edge.left,
+.react-flow__resize-control.settings-page__edge.right {
+  width: 7px;
+}
+
+.react-flow__resize-control.settings-page__edge.top,
+.react-flow__resize-control.settings-page__edge.bottom {
+  height: 7px;
+}
+
+.react-flow__resize-control.settings-page__corner {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-page__body {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}

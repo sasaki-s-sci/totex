@@ -91,39 +91,28 @@ an installed copy updates itself from.
 
 ## Updating
 
-Three rows of the settings dialog, one per layer of the app, and each of them
-says which release it is pointed at and what a press of it would cost. The
-releases are listed in each row's pull-down, which the window keeps filled on a
-slow loop from the moment it opens, so a list is full when it is opened rather
-than after.
+One horizontal row on the settings page declares two versions. **persistent**
+is the small application layer that answers filesystem and workspace questions
+beside the window. **ephemeral** is one full release: the pages and the program
+that carries them are selected together because they are released and replaced
+together.
 
-**The window's own pages.** About a megabyte, checked against the same key the
-installers are signed with, and it ends in a reload. The program underneath is
-untouched, so every terminal it is holding stays open and is redrawn from its
-own backlog as the window comes back.
+Both are pull-downs, and each can declare either a named version or `latest`.
+**sync** adjusts both parts to their declarations; there is no separate Take
+button for either one. persistent swaps between two questions without reloading
+the window. ephemeral downloads the installer and finishes with the reload or
+restart it requires. A restart ends every terminal in the window.
 
-**The application layer.** The part of the program that answers everything the
-app asks of the machine — what is in this directory, what is in this file, where
-this window can be opened — which is a small program totex runs beside itself
-rather than something built into it. It ends in nothing: the new one is started,
-the old one is let go of between two questions, and the window is not reloaded.
-It is the cheapest of the three and the one that interrupts nothing at all.
+The ephemeral list contains only releases compatible with the selected
+persistent version. The compatibility numbers come from each release manifest,
+so an unknown combination is not offered. `latest` means the newest compatible
+version in that pull-down when **sync** is pressed.
 
-**The program.** That is the installer, and it ends in a restart — which ends
-every terminal with it. It is a row of its own because it is a different cost,
-and nobody should pay it by having pressed one of the others.
-
-A `.deb` or an `.rpm` is never offered the last: those files belong to the
-package manager, which is who brings them forward. It is offered the other two,
-so the window and the layer under it can be current while the program waits for
-the next `apt upgrade`.
-
-Any of the three can be pointed at any release, older or newer. The row says
-where it is going — `0.1.10 → 0.1.9` — because a version on its own does not
-say which way a press goes, and going back is as much of what naming a release
-is for as going forward. Pages older than the program are held in place by
-having been chosen; taking a program is what clears them away again, since the
-release a program comes out of carries its own.
+A `.deb` or an `.rpm` still leaves the program to its package manager. Its
+ephemeral selector therefore moves only the front, and lists only fronts
+that the installed program can run. persistent remains independently replaceable.
+Choosing an older version is a rollback and is handled exactly like choosing a
+newer one.
 
 Pages that cannot draw a window are dropped on the next start of the app, so one
 restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the
@@ -132,11 +121,9 @@ the pages built into it and throws away whatever had been taken. A layer that
 will not start needs no such thing — the copy built into the program answers
 instead, from the next question onwards.
 
-**Releases of one layer.** Each row can also be pointed at a cycle of releases
-of its own: `layer-v*` for the application layer, `front-v*` for the pages,
-alongside the `v*` releases that carry all three. What a row is left pointed at
-is remembered by the program rather than by the window, which is what makes it
-survive the reload, the swap and the restart that the three rows end in.
+persistent versions come from `layer-v*`; ephemeral versions come from the full
+`v*` release cycle. Both declarations are remembered by the program, so they
+survive the swap, reload, and restart used to reach them.
 
 ## Letting the agents say what they are working on
 
@@ -145,7 +132,7 @@ registered against it says what it is working on, and that is drawn on the
 graph beside the terminal it came from — a line, and how far through a plan it
 is — so it can be read without the terminal being opened.
 
-Two things have to be true, and they are the two rows the settings dialog gives
+Two things have to be true, and they are the two rows the settings page gives
 them.
 
 **The server has to be standing.** It is off until it is switched on, and what
@@ -160,7 +147,7 @@ variable rather than an address:
 claude mcp add --scope user --transport http totex '${TOTEX_MCP_URL}'
 ```
 
-The setup button in the dialog runs exactly that, here and in every WSL
+The setup button on the page runs exactly that, here and in every WSL
 distribution it can reach. Any other agent that expands environment variables
 in its own configuration is registered the same way — a streamable HTTP server
 pointed at `${TOTEX_MCP_URL}`:

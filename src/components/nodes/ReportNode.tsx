@@ -17,7 +17,7 @@ import { useGraphActions } from "../graphActions";
  * It only exists because somebody set it up. Nothing in a terminal reports by
  * itself — the app stands a server up beside the sessions and the agent has to
  * have been registered against it — so this card is the visible half of a
- * choice that was made in the settings dialog, and its absence is not a
+ * choice that was made on the settings page, and its absence is not a
  * failure. See `mcp` for what stands behind it.
  *
  * The words in it are already cut to width by the layout. Nothing is measured

@@ -1,24 +1,17 @@
-/**
- * Replacing the app with another release of it, a layer at a time.
- */
+/** Declarative versions for the two independently moving parts of the app. */
 
-import { Divider, ListSubheader, MenuItem, Select, Stack } from "@mui/material";
-import { useEffect } from "react";
+import { Divider, FormControl, InputLabel, MenuItem, Select, Stack } from "@mui/material";
+import { useEffect, useId } from "react";
 import { useTranslation } from "react-i18next";
-
 import {
   askStanding,
-  CYCLES,
-  type Cycle,
-  LAYERS,
-  type Layer,
-  pick,
-  type Rung,
+  declare,
   reload,
   restart,
   rungOf,
   stageOf,
   take,
+  type UpdateChoice,
   type UpdateStage,
   type UpdateState,
   useUpdate,
@@ -27,220 +20,229 @@ import {
 import { UpdateMark } from "../marks";
 import { PageButton, Row } from "./Row";
 
-/**
- * What each state of a row is, which is also what a press of it does.
- *
- * Three maps rather than one, because the three layers cost different things
- * and end in different words. Each carries a word for the endings the others
- * reach — a reload never finishes a program and a restart never finishes a page
- * — so that a row is a plain lookup rather than a lookup and a special case.
- */
-const WORDS = {
-  front: {
-    rest: "update.take",
-    taking: "update.taking",
-    current: "update.current",
-    swapped: "update.reload",
-    ready: "update.reload",
-    held: "update.inProgram",
-    failed: "update.failed",
-  },
-  app: {
-    rest: "update.take",
-    taking: "update.fetching",
-    // The layer's ending, and it is not a thing to press: by the time the row
-    // says this, the layer that was downloaded is the one answering.
-    current: "update.current",
-    swapped: "update.current",
-    ready: "update.current",
-    held: "update.inProgram",
-    failed: "update.failed",
-  },
-  core: {
-    rest: "update.take",
-    // Named apart from the pages' word for the same state: this is eighty
-    // megabytes and a ring that fills, and "downloading" is what that is.
-    taking: "update.fetching",
-    current: "update.current",
-    swapped: "update.restart",
-    ready: "update.restart",
-    held: "update.held",
-    failed: "update.failed",
-  },
-  // Kept as the literal keys they are, so that a name no locale carries does
-  // not compile.
-} as const satisfies Record<Layer, Record<UpdateStage, string>>;
+const CORE_CYCLE = "layer";
+const PROGRAM_CYCLE = "release";
+const LATEST = "latest";
 
-/** What each row is called, and what its version line says about it. */
-const NAMES = {
-  front: { label: "update.pages", at: "update.drawn" },
-  app: { label: "update.layer", at: "update.answering" },
-  core: { label: "update.program", at: "update.running" },
-} as const satisfies Record<Layer, { label: string; at: string }>;
-
-/**
- * One layer of a release, and the one press that brings it.
- *
- * The mark is kept here rather than replaced by a word, because it is the one
- * thing on the page saying what the words do not: a ring that turns while the
- * release page is being read, and fills as the download arrives.
- *
- * Red is kept for the two endings — a restart that takes every terminal with
- * it, and a press that did not work. A reload is neither, and a layer being
- * swapped is less than neither: the program under the window is the same
- * program, and everything running in it goes on running.
- */
-function LayerRow({ at, rung }: { at: UpdateState; rung: Rung }) {
-  const { t } = useTranslation();
-  const layer = rung.layer;
-  // A layer this copy cannot have is drawn at its ending rather than left out:
-  // being told the program belongs to a package manager is worth more than a
-  // row that is not there.
-  const stage = rung.can ? stageOf(at, layer) : "held";
-  const target = wanted(at, layer);
-
+/** One compact declaration: its name and version are both visible when shut. */
+function VersionSelect({
+  label,
+  value,
+  choices,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  choices: readonly UpdateChoice[];
+  disabled: boolean;
+  onChange: (version: string | null) => void;
+}) {
+  const labelId = useId();
+  const held =
+    value && value !== LATEST && !choices.some((choice) => choice.version === value) ? value : null;
   return (
-    <Row
-      label={t(NAMES[layer].label)}
-      hint={
-        // What is in place, and what a press would put there. Both, whenever
-        // they differ, because a version on its own says nothing about which
-        // way the press goes -- and going back is as much of what naming a
-        // release is for as going forward.
-        target && target !== rung.at
-          ? t("update.moving", { from: rung.at, to: target })
-          : t(NAMES[layer].at, { version: rung.at })
-      }
-    >
-      <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
-        {/* A layer this copy cannot replace has no release to be pointed at:
-            the row is here to say why not, and a pull-down of versions none of
-            which could be taken is a question nobody is being asked. */}
-        {rung.can && <Releases at={at} rung={rung} />}
-        <PageButton
-          danger={stage === "ready" || stage === "failed"}
-          disabled={stage === "taking" || stage === "held"}
-          icon={<UpdateMark stage={stage} progress={at.presses[layer].progress} />}
-          onClick={() => {
-            if (stage === "ready") restart();
-            else if (stage === "swapped") reload();
-            else void take(layer);
-          }}
-        >
-          {t(WORDS[layer][stage])}
-        </PageButton>
-      </Stack>
-    </Row>
-  );
-}
-
-/**
- * Which release one row is pointed at, out of every cycle that row may follow.
- *
- * One pull-down and not two. A cycle is not a thing anybody wants to choose —
- * what they want is a version, and which cycle it was cut on is a fact about
- * that version rather than a second decision. So the versions are grouped under
- * the cycle they came from, and taking one off the list says both.
- *
- * The list is filled on a slow loop from the moment the window opens — see
- * `watchVersions` — so it is full when it is opened rather than after. A window
- * that has never had one offers the newest release instead, which is what every
- * press meant before a version could be named at all.
- */
-function Releases({ at, rung }: { at: UpdateState; rung: Rung }) {
-  const { t } = useTranslation();
-  const layer = rung.layer;
-  const cycles = CYCLES[layer].filter(
-    (cycle) => cycle === "release" || at.versions[cycle].length > 0,
-  );
-  const taking = at.presses[layer].stage === "taking";
-  // The value is the cycle and the version together, because 0.1.9 of one cycle
-  // is not 0.1.9 of another and a list holding both would have two rows that
-  // are the same string.
-  const value = rung.picked ? `${rung.cycle}:${rung.picked}` : "";
-  // A row can be pointed at a release the list does not hold: what it is
-  // pointed at is remembered by the backend and survives a restart, and the
-  // list is filled by a poll of somebody else's server which may not have
-  // answered yet, or at all. A pull-down that cannot draw what it is set to
-  // draws nothing, which is a row that has quietly stopped saying what it would
-  // do — so what it is set to is always one of the things it can draw.
-  const held = at.versions[rung.cycle];
-  const kept = rung.picked && !held.includes(rung.picked) ? [rung.picked] : [];
-
-  return (
-    <Select
-      size="small"
-      value={value}
-      // "Whichever is newest" is a choice like any other and reads as one.
-      // Without this the row is blank until the list lands, which is the state
-      // every window opens in.
-      displayEmpty
-      disabled={taking}
-      onChange={(event) => {
-        const [cycle, version] = event.target.value.split(":");
-        void pick(layer, (cycle || "release") as Cycle, version || null);
-      }}
-      aria-label={t(NAMES[layer].label)}
-      sx={{ minWidth: 132 }}
-    >
-      {/* Whichever is newest, which is the one thing that can be asked for
-          without having been told which releases exist. */}
-      <MenuItem value="">{t("update.newest")}</MenuItem>
-      {kept.map((version) => (
-        <MenuItem key={`${rung.cycle}:${version}`} value={`${rung.cycle}:${version}`}>
-          {version}
-        </MenuItem>
-      ))}
-      {cycles.flatMap((cycle) => [
-        // A heading only where there is more than one cycle to tell apart:
-        // one list under one name is a name that says nothing.
-        ...(cycles.length > 1 && at.versions[cycle].length > 0
-          ? [<ListSubheader key={cycle}>{t(`update.cycle.${cycle}`)}</ListSubheader>]
-          : []),
-        ...at.versions[cycle].map((version) => (
-          <MenuItem key={`${cycle}:${version}`} value={`${cycle}:${version}`}>
-            {version}
+    <FormControl size="small" sx={{ minWidth: 146 }}>
+      <InputLabel id={labelId} shrink>
+        {label}
+      </InputLabel>
+      <Select
+        labelId={labelId}
+        label={label}
+        value={value}
+        displayEmpty
+        disabled={disabled}
+        renderValue={(version) => version || "—"}
+        onChange={(event) => {
+          const version = event.target.value;
+          if (version === LATEST) onChange(null);
+          else if (choices.some((choice) => choice.version === version)) onChange(version);
+        }}
+      >
+        {!value && <MenuItem value="">—</MenuItem>}
+        <MenuItem value={LATEST}>{LATEST}</MenuItem>
+        {held && (
+          <MenuItem value={held} disabled>
+            {held}
           </MenuItem>
-        )),
-      ])}
-    </Select>
+        )}
+        {choices.map((choice) => (
+          <MenuItem key={`${choice.cycle}:${choice.version}`} value={choice.version}>
+            {choice.version}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
   );
 }
 
-/**
- * The three rows, and the rule above them.
- *
- * The pages the window is drawn out of are a download of about a megabyte and a
- * reload. The application layer beside the program is a download of a few and
- * nothing at all — no reload, no restart, and every terminal in the window goes
- * on running. The program itself is a large download and a restart that ends
- * every one of them. They were always separate mechanisms — see
- * `src-tauri/src/front`, `src-tauri/src/app_layer` and `src-tauri/src/update` —
- * and this is the three of them said out loud, because the last cost is one
- * nobody should pay by having pressed one of the others.
- *
- * A row is drawn wherever the backend says there is one and left at its ending
- * where this copy cannot take it: a `.deb` and an `.rpm` are copies whose
- * program belongs to a package manager, and being told so is worth more than a
- * row that is not there. Where no layer can be replaced at all there are no
- * rows, and the rule above them belongs to them rather than to the page.
- */
+/** The dedicated Core releases whose protocol is known. */
+function coreChoices(at: UpdateState): UpdateChoice[] {
+  return at.choices.filter(
+    (choice) => choice.cycle === CORE_CYCLE && choice.layerProtocol !== null,
+  );
+}
+
+/** Which Core declaration the first pull-down currently represents. */
+function selectedCore(at: UpdateState): UpdateChoice | null {
+  const rung = rungOf(at, "app");
+  if (!rung) return null;
+  const version = rung.cycle === CORE_CYCLE ? wanted(at, "app") : rung.at;
+  const released = coreChoices(at).find((choice) => choice.version === version);
+  if (released) return released;
+  if (version !== rung.at || rung.protocol === null) return null;
+  return {
+    cycle: CORE_CYCLE,
+    version,
+    layerProtocol: rung.protocol,
+    frontContract: null,
+  };
+}
+
+/** Front / Program releases compatible with the Core declaration. */
+function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoice[] {
+  if (core?.layerProtocol === null || core === null) return [];
+  const program = rungOf(at, "core");
+  return at.choices.filter(
+    (choice) =>
+      choice.cycle === PROGRAM_CYCLE &&
+      choice.layerProtocol === core.layerProtocol &&
+      choice.frontContract !== null &&
+      // A package-managed program stays where it is, so a selected front must
+      // also fit the program that is actually running. Where the program can
+      // move, its release carries the matching contract with it.
+      (program?.can ||
+        (program?.frontContract !== null &&
+          program?.frontContract !== undefined &&
+          choice.frontContract <= program.frontContract)),
+  );
+}
+
+function selectedVersion(at: UpdateState, layer: "app" | "core", cycle: string): string {
+  const rung = rungOf(at, layer);
+  if (!rung) return "";
+  if (rung.cycle !== cycle) return rung.at;
+  return rung.picked ?? LATEST;
+}
+
+/** The strongest state to draw for the one sync in flight. */
+function activity(at: UpdateState): { stage: UpdateStage; progress: number | null } {
+  const layers = ["app", "core", "front"] as const;
+  const presses = layers.map((layer) => ({ ...at.presses[layer], stage: stageOf(at, layer) }));
+  const taking = presses.find((press) => press.stage === "taking");
+  if (taking) return taking;
+  if (presses.some((press) => press.stage === "failed")) {
+    return { stage: "failed", progress: null };
+  }
+  if (presses.some((press) => press.stage === "held")) {
+    return { stage: "held", progress: null };
+  }
+  return { stage: "current", progress: null };
+}
+
 export function UpdateSection() {
+  const { t } = useTranslation();
   const at = useUpdate();
 
   useEffect(() => {
     void askStanding();
   }, []);
 
-  const rungs = LAYERS.map((layer) => rungOf(at, layer)).filter((rung) => rung !== null);
-  if (rungs.length === 0 || !rungs.some((rung) => rung.can)) return null;
+  const core = selectedCore(at);
+  const cores = coreChoices(at);
+  const programs = programChoices(at, core);
+  const coreVersion = selectedVersion(at, "app", CORE_CYCLE);
+  const programVersion = selectedVersion(at, "core", PROGRAM_CYCLE);
+  const moving = (["app", "core", "front"] as const).some(
+    (layer) => stageOf(at, layer) === "taking",
+  );
+  const mark = activity(at);
+  const program = rungOf(at, "core");
+  const programTarget =
+    program?.picked === null
+      ? programs[0]
+      : programs.find((choice) => choice.version === programVersion);
+  const available = core !== null && programTarget !== undefined;
+
+  const finishProgram = async (version: string) => {
+    const program = rungOf(at, "core");
+    if (program?.can) {
+      const stage = await take("core", version);
+      if (stage === "ready") {
+        restart();
+        return;
+      }
+      if (stage === "failed") return;
+    }
+
+    const stage = await take("front", version);
+    if (stage === "swapped") reload();
+  };
+
+  const chooseCore = async (version: string | null) => {
+    await declare([{ layer: "app", cycle: CORE_CYCLE, version }]);
+  };
+
+  const chooseProgram = async (version: string | null) => {
+    await declare([
+      { layer: "front", cycle: PROGRAM_CYCLE, version },
+      { layer: "core", cycle: PROGRAM_CYCLE, version },
+    ]);
+  };
+
+  const sync = async () => {
+    if (!core || !programTarget) return;
+    const stage = await take("app", core.version);
+    if (stage === "failed") return;
+    await finishProgram(programTarget.version);
+  };
+
+  // A source build has no front or program to replace and no useful
+  // declaration to make. Package-managed copies still draw this row because
+  // they can move persistent and a compatible front independently.
+  const rungs = at.rungs;
+  if (rungs && !rungs.some((rung) => rung.can)) return null;
 
   return (
     <>
       <Divider />
-      {rungs.map((rung) => (
-        <LayerRow key={rung.layer} at={at} rung={rung} />
-      ))}
+      <Row
+        label={t("update.title")}
+        hint={
+          moving
+            ? t("update.adjusting")
+            : mark.stage === "failed"
+              ? t("update.adjustFailed")
+              : mark.stage === "held"
+                ? t("update.incompatible")
+                : undefined
+        }
+      >
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1 }}>
+          <VersionSelect
+            label={t("update.core")}
+            value={coreVersion}
+            choices={cores}
+            disabled={moving || cores.length === 0}
+            onChange={(version) => void chooseCore(version)}
+          />
+          <VersionSelect
+            label={t("update.frontProgram")}
+            value={programVersion}
+            choices={programs}
+            disabled={moving || programs.length === 0}
+            onChange={(version) => void chooseProgram(version)}
+          />
+          <PageButton
+            danger={mark.stage === "failed"}
+            disabled={moving || !available}
+            icon={<UpdateMark stage={mark.stage} progress={mark.progress} />}
+            onClick={() => void sync()}
+          >
+            {t("update.sync")}
+          </PageButton>
+        </Stack>
+      </Row>
     </>
   );
 }

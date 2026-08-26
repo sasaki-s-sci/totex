@@ -14,6 +14,7 @@ import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
 import { useHistoryDepth } from "../hooks/useHistoryDepth";
 import { useNodeGlide } from "../hooks/useNodeGlide";
+import { useSettingsPage } from "../hooks/useSettingsPage";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
 import { useCanvasActions } from "./canvasActions";
@@ -31,6 +32,7 @@ import {
 import { GraphMarksProvider } from "./graphMarks";
 import type { GraphProps } from "./graphProps";
 import { PinnedCards } from "./PinnedCards";
+import { SettingsControlsProvider } from "./settings/SettingsControls";
 
 export type { BranchPick, FetchRequest } from "./graphActions";
 export type { MergeRequest } from "./graphProps";
@@ -66,6 +68,9 @@ export function GitGraph({
   onEndSession,
   filePreviews,
   onCloseFilePreview,
+  settingsOpen,
+  mcp,
+  onCloseSettings,
 }: GraphProps) {
   // The graph React Flow is currently showing, which is what the next one is
   // built against.
@@ -122,6 +127,7 @@ export function GitGraph({
     pinDrag,
     pinnedFiles,
   } = useFilePreviews(filePreviews, { host, instance, standing, nodes, setNodes, flowReady });
+  useSettingsPage(settingsOpen, { host, instance, standing, nodes, setNodes, flowReady });
 
   // Re-framing is for a canvas that is no longer the one being looked at: a
   // repository appeared or went away. A commit landing must not move the
@@ -207,6 +213,7 @@ export function GitGraph({
     onCompose,
     onTake,
     onCloseFilePreview,
+    onCloseSettings,
     saveFilePreview,
     collapseFilePreview,
     fitFilePreview,
@@ -215,67 +222,69 @@ export function GitGraph({
 
   return (
     <GraphActionsProvider value={actions}>
-      <WorktreeStatusProvider value={worktreeStatus}>
-        <GraphMarksProvider value={marks}>
-          {/* The numbers the terminals are wearing, which is nothing at all
+      <SettingsControlsProvider controls={mcp}>
+        <WorktreeStatusProvider value={worktreeStatus}>
+          <GraphMarksProvider value={marks}>
+            {/* The numbers the terminals are wearing, which is nothing at all
             until Ctrl is held. Only the terminal marks read this, so the key
             costs a render of those and of nothing else on the canvas. */}
-          <CliJumpsProvider value={jumps}>
-            {/* `is-merging` and the two ends of a merge are written on here by
+            <CliJumpsProvider value={jumps}>
+              {/* `is-merging` and the two ends of a merge are written on here by
               `useBranchDrag` rather than handed down, so the class stays put
               across a render: React only writes an attribute whose prop changed,
               and this one never does. Which is why how far out the canvas is
               zoomed is said in an attribute of its own rather than in the class:
               a class React rewrote would take the merge's own marks with it. */}
-            <div ref={host} className="graph" data-coarse={coarse || undefined}>
-              {/* The canvas stays mounted while folders enter and leave it. Its
+              <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                {/* The canvas stays mounted while folders enter and leave it. Its
                 controlled nodes and repository-set framing already carry those
                 changes; replacing the instance would initialise an empty view
                 before the scanned nodes arrive. */}
-              <ReactFlow<AppNode, Edge>
-                nodes={shown}
-                nodeTypes={nodeTypes}
-                onNodesChange={onNodesChange}
-                onInit={(flow) => {
-                  instance.current = flow;
-                  setFlowReady(true);
-                  // The first frame is framed by `fitView` rather than by a move, so
-                  // the canvas has to be asked where it ended up.
-                  resolve(flow.getViewport().zoom);
-                }}
-                onMove={handleMove}
-                onNodeClick={handleNodeClick}
-                onNodeDragStart={takeGroup}
-                onNodeDrag={carryGroup}
-                onNodeDragStop={dropGroup}
-                onPaneClick={() => setSelectedCommit(null)}
-                nodesConnectable={false}
-                nodesDraggable
-                elevateNodesOnSelect={false}
-                // Commit history is the unbounded part and is one shared SVG;
-                // the small interactive node set stays mounted. React Flow's own
-                // per-frame visibility pass cost more than moving those nodes.
-                onlyRenderVisibleElements={false}
-                minZoom={MIN_ZOOM}
-                maxZoom={MAX_ZOOM}
-                proOptions={proOptions}
-                fitView
-              >
-                <GraphLines
-                  bands={graph.bands}
-                  reach={graph.reach}
-                  extent={graph.extent}
-                  nodes={lineNodes}
-                  selected={selectedCommit}
-                  picked={picked}
-                  onCommit={handleCommitClick}
-                />
-              </ReactFlow>
-              <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
-            </div>
-          </CliJumpsProvider>
-        </GraphMarksProvider>
-      </WorktreeStatusProvider>
+                <ReactFlow<AppNode, Edge>
+                  nodes={shown}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={onNodesChange}
+                  onInit={(flow) => {
+                    instance.current = flow;
+                    setFlowReady(true);
+                    // The first frame is framed by `fitView` rather than by a move, so
+                    // the canvas has to be asked where it ended up.
+                    resolve(flow.getViewport().zoom);
+                  }}
+                  onMove={handleMove}
+                  onNodeClick={handleNodeClick}
+                  onNodeDragStart={takeGroup}
+                  onNodeDrag={carryGroup}
+                  onNodeDragStop={dropGroup}
+                  onPaneClick={() => setSelectedCommit(null)}
+                  nodesConnectable={false}
+                  nodesDraggable
+                  elevateNodesOnSelect={false}
+                  // Commit history is the unbounded part and is one shared SVG;
+                  // the small interactive node set stays mounted. React Flow's own
+                  // per-frame visibility pass cost more than moving those nodes.
+                  onlyRenderVisibleElements={false}
+                  minZoom={MIN_ZOOM}
+                  maxZoom={MAX_ZOOM}
+                  proOptions={proOptions}
+                  fitView
+                >
+                  <GraphLines
+                    bands={graph.bands}
+                    reach={graph.reach}
+                    extent={graph.extent}
+                    nodes={lineNodes}
+                    selected={selectedCommit}
+                    picked={picked}
+                    onCommit={handleCommitClick}
+                  />
+                </ReactFlow>
+                <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
+              </div>
+            </CliJumpsProvider>
+          </GraphMarksProvider>
+        </WorktreeStatusProvider>
+      </SettingsControlsProvider>
     </GraphActionsProvider>
   );
 }

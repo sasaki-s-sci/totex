@@ -140,6 +140,14 @@ export function CliView({ session, shown, onEnded }: Props) {
       // cursor used to jump over.
       if (plain && event.ctrlKey && ARROWS.has(event.key)) return false;
 
+      // Ctrl and A, which opens another terminal in this one's own workspace.
+      // What the shell gives up is the jump to the start of the line — Home is
+      // still there, and a second terminal beside this one is worth more than a
+      // second way of reaching a column.
+      if (plain && event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "a") {
+        return false;
+      }
+
       return true;
     });
 

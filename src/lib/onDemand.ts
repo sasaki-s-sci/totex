@@ -9,7 +9,7 @@ type Drawable = ComponentType<any>;
  * Everything this window can show was in one file, and a window that has just
  * opened shows one of them: the folder column. A terminal is four hundred
  * kilobytes of emulator that most sessions never open, a canvas is a graph
- * engine, and each menu is a dialog — all of it fetched before the first pixel,
+ * engine, and each menu or page has controls — all fetched before the first pixel,
  * on the way to a column of folder names.
  *
  * So each of them is asked for instead, and `warm` is how they are paid for out
