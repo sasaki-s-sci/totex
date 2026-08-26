@@ -19,6 +19,9 @@ mod delta;
 mod discover;
 pub(crate) mod inspect;
 mod model;
+// Public for `generate_handler!` as well: what one file has become, which is
+// what a card on the canvas draws down its gutter.
+pub mod patch;
 pub(crate) mod scan;
 // Public so `generate_handler!` can name its command the same way it names
 // the other modules' commands.

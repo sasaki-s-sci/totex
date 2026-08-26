@@ -40,6 +40,7 @@ export function useCanvasActions({
   onCloseSettings,
   saveFilePreview,
   collapseFilePreview,
+  diffFilePreview,
   fitFilePreview,
   pinFilePreview,
 }: {
@@ -68,6 +69,7 @@ export function useCanvasActions({
   onCloseSettings: GraphActions["closeSettings"];
   saveFilePreview: GraphActions["saveFilePreview"];
   collapseFilePreview: GraphActions["collapseFilePreview"];
+  diffFilePreview: GraphActions["diffFilePreview"];
   fitFilePreview: GraphActions["fitFilePreview"];
   pinFilePreview: GraphActions["pinFilePreview"];
 }): GraphActions {
@@ -98,6 +100,7 @@ export function useCanvasActions({
       closeSettings: onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
+      diffFilePreview,
       fitFilePreview,
       pinFilePreview,
     }),
@@ -127,6 +130,7 @@ export function useCanvasActions({
       onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
+      diffFilePreview,
       fitFilePreview,
       pinFilePreview,
     ],

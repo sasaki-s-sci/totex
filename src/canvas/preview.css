@@ -161,3 +161,11 @@
   background: var(--mui-palette-action-hover);
   color: var(--mui-palette-text-primary);
 }
+
+/* A button that is not offering something but saying what the card is already
+   doing: the card is showing the patch, and pressing it again puts the file
+   back. The same ink everything else that means `this one` is lit in. */
+.file-preview__button.is-on {
+  background: var(--mui-palette-action-selected);
+  color: var(--mui-palette-primary-main);
+}

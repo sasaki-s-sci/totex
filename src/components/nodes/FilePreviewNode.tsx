@@ -1,4 +1,5 @@
 import CloseIcon from "@mui/icons-material/Close";
+import DifferenceIcon from "@mui/icons-material/Difference";
 import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
@@ -10,11 +11,12 @@ import {
   NodeResizer,
   ResizeControlVariant,
 } from "@xyflow/react";
-import { type CSSProperties, useLayoutEffect, useRef } from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../../hooks/useReadingSize";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
+import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
 import { useDraft } from "./preview/draft";
 import { widthWithout } from "./preview/measure";
 import { useReading } from "./preview/reading";
@@ -73,16 +75,30 @@ export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
  *  the two it is in is not something it has to know. */
 export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const { t } = useTranslation();
-  const { closeFilePreview, saveFilePreview, collapseFilePreview, fitFilePreview, pinFilePreview } =
-    useGraphActions();
+  const {
+    closeFilePreview,
+    saveFilePreview,
+    collapseFilePreview,
+    diffFilePreview,
+    fitFilePreview,
+    pinFilePreview,
+  } = useGraphActions();
   const detail = data.size === null ? null : formatSize(data.size);
   const view = useReading();
-  const { setBody, sheet, gutter, setPaper, across, down, move, onWheel, showCaret } = view;
-  const { editable, numbers, unsaved, refused, save, typing, onInput } = useDraft(
+  const { setBody, sheet, gutter, setPaper, across, down, move, home, onWheel, showCaret } = view;
+  const { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput } = useDraft(
     data,
     view,
     saveFilePreview,
   );
+  // What became of the file since the commit under it: the bars down the gutter,
+  // and the patch the header offers in place of the reading.
+  const diff = useFileDiff(data.path, data.text);
+  const runs = fileRuns(diff, lines);
+  const patch = data.view === "diff" ? patchOf(diff, reading) : "";
+  const tints = useMemo(() => tintRuns(patch), [patch]);
+  /** There is something in the card that can be moved about. */
+  const ready = data.state === "ready" && data.text !== null;
   /** The header, measured alongside the reading when the card is asked to fit:
    *  the name in it is as much what the card is showing as the lines are. */
   const bar = useRef<HTMLElement>(null);
@@ -99,6 +115,13 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     move(0, 0);
   }, [size, move]);
 
+  // A card turned over is holding something else of another length, and how far
+  // down the reading had been moved has nothing to do with what is there now.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: what these change is the length of what is in the card, which is measured rather than read
+  useLayoutEffect(() => {
+    home();
+  }, [data.view, patch, home]);
+
   /** Puts the card at the width of what is in it: the wider of the longest line
    *  of the reading and the header, whose name goes to an ellipsis long before
    *  the lines run out. The width and nothing else — no height fits a file. */
@@ -106,6 +129,16 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     const header = widthWithout(bar.current, "width", "max-content");
     const reading = widthWithout(sheet.current, "minWidth", "0");
     fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, reading) + BORDERS));
+  }
+
+  // What the card is holding only part of, which is a different part in each of
+  // the two: a file is read as far as a card is given, and a patch is printed as
+  // far as one is worth sending.
+  let footnote: string | null = null;
+  if (data.view === "diff") {
+    if (diff.truncated) footnote = t("filePreview.patchCut");
+  } else if (data.truncated) {
+    footnote = t("filePreview.truncated", { kilobytes: HEAD_KB });
   }
 
   // A file the card holds only the head of is read and never written: what is
@@ -162,6 +195,28 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           />
         )}
         {detail && <span className="file-preview__size">{detail}</span>}
+        {/* The patch, in place of the reading. Drawn only while there is one,
+            which is the same moment the gutter has bars in it: a file the
+            commit under it agrees with has nothing to turn over to. */}
+        {changed(diff) && (
+          <button
+            type="button"
+            className={`file-preview__button nodrag${data.view === "diff" ? " is-on" : ""}`}
+            aria-label={t(data.view === "diff" ? "filePreview.showFile" : "filePreview.showDiff", {
+              name: data.name,
+            })}
+            onClick={async (event) => {
+              event.stopPropagation();
+              // What is being typed is what the patch would be of, and the
+              // reading is taken down by the turn — so it goes to disk first,
+              // and what is on screen is what the patch is against.
+              await save();
+              diffFilePreview(data.requestId);
+            }}
+          >
+            <DifferenceIcon sx={{ fontSize: 12 }} />
+          </button>
+        )}
         {/* Pinned, the card leaves the canvas and is drawn over it: the graph
             is dragged, zoomed and laid out again underneath, and the reading
             stays where it was put. A pin driven in is a pin that is holding
@@ -239,26 +294,55 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           {data.state === "ready" && data.text === null && (
             <p className="file-preview__message">{t("filePreview.notText")}</p>
           )}
-          {data.state === "ready" && data.text !== null && (
-            <>
-              <div className="file-preview__code" ref={sheet}>
-                <pre className="file-preview__gutter" aria-hidden="true" ref={gutter}>
-                  {numbers}
-                </pre>
-                {/* Nothing is rendered into it: what it holds is written by
-                    the effect above and typed into by whoever is reading. */}
-                <pre
-                  className={`file-preview__text${editable ? " is-editable" : ""}`}
-                  ref={setPaper}
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  {...typing}
-                  onInput={onInput}
-                  onKeyUp={showCaret}
-                  onBlur={() => void save()}
-                />
+          {ready && data.view === "text" && (
+            <div className="file-preview__code" ref={sheet}>
+              {/* The numbers, and the bars saying what became of the lines
+                  beside them. Both stay where they are while the reading is
+                  moved across, so they are moved back as one. */}
+              <div className="file-preview__rule" aria-hidden="true" ref={gutter}>
+                <pre className="file-preview__gutter">{numbers}</pre>
+                {runs.map((run) => (
+                  <i
+                    key={`${run.mark}:${run.line}`}
+                    className={`file-preview__mark is-${run.mark}`}
+                    style={runBox(run.line - 1, run.lines)}
+                  />
+                ))}
               </div>
-              {/* How far down and across the reading has been moved. */}
+              {/* Nothing is rendered into it: what it holds is written by
+                  the effect above and typed into by whoever is reading. */}
+              <pre
+                className={`file-preview__text${editable ? " is-editable" : ""}`}
+                ref={setPaper}
+                suppressContentEditableWarning
+                spellCheck={false}
+                {...typing}
+                onInput={onInput}
+                onKeyUp={showCaret}
+                onBlur={() => void save()}
+              />
+            </div>
+          )}
+
+          {/* The patch, drawn the way the reading is: one block of text, with
+              what each line of it is said in a bar behind it rather than in an
+              element per line. */}
+          {ready && data.view === "diff" && (
+            <div className="file-preview__patch" ref={sheet}>
+              {tints.map((run) => (
+                <i
+                  key={`${run.tint}:${run.from}`}
+                  className={`file-preview__tint is-${run.tint}`}
+                  style={runBox(run.from, run.lines)}
+                />
+              ))}
+              <pre className="file-preview__text">{patch}</pre>
+            </div>
+          )}
+
+          {/* How far down and across what is in the card has been moved. */}
+          {ready && (
+            <>
               <i className="file-preview__reach file-preview__reach--y" ref={down} />
               <i className="file-preview__reach file-preview__reach--x" ref={across} />
             </>
@@ -266,11 +350,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         </div>
       )}
 
-      {!data.collapsed && data.truncated && (
-        <footer className="file-preview__footer">
-          {t("filePreview.truncated", { kilobytes: HEAD_KB })}
-        </footer>
-      )}
+      {!data.collapsed && footnote && <footer className="file-preview__footer">{footnote}</footer>}
     </article>
   );
 }

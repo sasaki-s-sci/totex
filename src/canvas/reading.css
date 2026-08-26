@@ -48,6 +48,19 @@
   align-items: stretch;
 }
 
+/* The two lengths a reading is laid out by, said once.
+
+   A reading is one block of text with no element per line in it, so anything
+   drawn against a particular line — the bars saying what became of it, the tint
+   behind a line of a patch — is placed by arithmetic rather than by measuring
+   something. These are the numbers that arithmetic is done in, and they are the
+   same ones the text itself is laid out by: a bar and its line cannot drift,
+   because neither of them was told a length the other was not. */
+.file-preview {
+  --reading-line: calc(var(--reading-size, 11px) * 1.55);
+  --reading-pad: 10px;
+}
+
 /* The size is the card's to say — Ctrl and a plus or a minus moves it, and
    `useReadingSize` holds where it has got to. The fallback here is what a
    reading was always drawn at, and what it is drawn at again if it is ever
@@ -55,9 +68,9 @@
 .file-preview__gutter,
 .file-preview__text {
   margin: 0;
-  padding: 10px 0;
+  padding: var(--reading-pad) 0;
   font:
-    var(--reading-size, 11px) / 1.55 ui-monospace,
+    var(--reading-size, 11px) / var(--reading-line, 17px) ui-monospace,
     "SFMono-Regular",
     Consolas,
     "Liberation Mono",
@@ -66,12 +79,98 @@
   white-space: pre;
 }
 
+/* The gutter and what stands beside it, held in one box because they move as
+   one: the whole of it is given the reading's sideways move back, so both the
+   numbers and the bars stay against the lines they are counting. */
+.file-preview__rule {
+  z-index: 1;
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: stretch;
+}
+
+/* What became of a run of lines, in the three colours the folder column draws
+   its rows in and a branch its rim: green for what has arrived, amber for what
+   has been rewritten, red for what has gone. Drawn against the numbers rather
+   than against the words, because what it is about is the line. */
+.file-preview__mark {
+  position: absolute;
+  right: 2px;
+  width: 3px;
+  border-radius: 2px;
+}
+
+.file-preview__mark.is-added {
+  background: var(--mui-palette-success-main);
+}
+
+.file-preview__mark.is-modified {
+  background: var(--mui-palette-warning-main);
+}
+
+/* Lines that went and left nothing to colour. There is no line of the file
+   there any more, so the mark stands in the gap they left: a wedge pointing at
+   where they were, no taller than the join it is on. */
+.file-preview__mark.is-deleted {
+  width: 0;
+  height: 0;
+  margin-top: -3px;
+  border-top: 3px solid transparent;
+  border-right: 4px solid var(--mui-palette-error-main);
+  border-bottom: 3px solid transparent;
+  background: none;
+}
+
+/* The patch: the same one block of text every reading in a card is, with what
+   each line of it is drawn behind it rather than around it — an element per
+   line of a patch is thousands of elements on a canvas counted in them. */
+.file-preview__patch {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Above the bars, so that what is being said is read over the colour saying
+   what kind of line it is rather than under it. */
+.file-preview__patch .file-preview__text {
+  position: relative;
+}
+
+.file-preview__tint {
+  position: absolute;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.file-preview__tint.is-added {
+  background: color-mix(in srgb, var(--mui-palette-success-main) 16%, transparent);
+}
+
+.file-preview__tint.is-deleted {
+  background: color-mix(in srgb, var(--mui-palette-error-main) 16%, transparent);
+}
+
+/* Where the patch starts again somewhere else in the file. Not one of the three
+   — nothing became of a line here — so it is the window's own emphasis, which
+   is what everything that is a place rather than a change is drawn in. */
+.file-preview__tint.is-hunk {
+  background: color-mix(in srgb, var(--mui-palette-primary-main) 12%, transparent);
+}
+
 /* The numbers stay where they are while the reading is moved sideways: a line
    is being counted from its own end, and a gutter that has slid off the left
    leaves nothing to count against. It is given the move back rather than being
-   made sticky, because nothing here is scrolling for sticky to hold against. */
+   made sticky, because nothing here is scrolling for sticky to hold against.
+
+   Standing over the text is `.file-preview__rule` above, and not this: the
+   numbers are a flex item, and a flex item given a layer of its own is one the
+   bars beside it are drawn under — which is a gutter with nothing in it. */
 .file-preview__gutter {
-  z-index: 1;
   flex: none;
   padding-right: 8px;
   padding-left: 10px;

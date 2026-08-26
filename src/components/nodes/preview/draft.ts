@@ -130,5 +130,5 @@ export function useDraft(
     }, 60);
   }, [cancelInputInspection, move, paper, showCaret]);
 
-  return { editable, lines, numbers, unsaved, refused, save, typing, onInput };
+  return { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput };
 }

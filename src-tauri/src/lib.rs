@@ -224,6 +224,7 @@ pub fn run() {
             git::git_version,
             git::repository_counts,
             git::changes::directory_changes,
+            git::patch::file_diff,
             git::session::scan_workspace,
             git::session::close_workspace,
             git::workspace::tree::create_workspace,

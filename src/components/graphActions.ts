@@ -158,6 +158,15 @@ export type GraphActions = {
   /** Put a file card's reading away, leaving its header, or take it back out. */
   collapseFilePreview: (requestId: number) => void;
   /**
+   * Show the patch in place of a card's reading, or put the reading back.
+   *
+   * The same card either way: what it is showing of its file, and not another
+   * card of it. Offered only where there is something to show — a file the
+   * commit under it agrees with has no patch, and the header says so by having
+   * nothing to press.
+   */
+  diffFilePreview: (requestId: number) => void;
+  /**
    * Put a file card at the width it asks for, as far as the canvas can show it.
    *
    * The width is worked out by the card, which is the only thing that can see
@@ -203,6 +212,7 @@ const GraphActionsContext = createContext<GraphActions>({
   closeSettings: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},
+  diffFilePreview: () => {},
   fitFilePreview: () => {},
   pinFilePreview: () => {},
 });

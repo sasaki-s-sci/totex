@@ -5,6 +5,7 @@
 
 import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
+import { refreshChanges } from "../folder/changes";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize, readableSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
@@ -33,13 +34,20 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
       if (!node || node.data.size === null || node.data.truncated) return false;
       try {
         const size = await writeFile(node.data.path, text, node.data.size);
+        // Every card on that file, not only the one that was typed into: a
+        // preview stands beside the card it is of, and what it is a preview of
+        // is what has just gone to disk.
         setNodes((current) =>
           current.map((one) =>
-            one.type === "file-preview" && one.data.requestId === requestId
+            one.type === "file-preview" && one.data.path === node.data.path
               ? { ...one, data: { ...one.data, text, size } }
               : one,
           ),
         );
+        // What git says about the folder this is in has just moved, and the
+        // clock that would notice is a slow one. The column redraws off the
+        // same reading, and so does the card's own gutter.
+        refreshChanges();
         return true;
       } catch {
         return false;
@@ -64,6 +72,26 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
             // shape has nothing here to be kept in step with.
             height: collapsed ? undefined : size.height,
           };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  /**
+   * Shows the patch in place of the reading, or puts the reading back.
+   *
+   * The card is the same card either way — the same file, the same box, the
+   * same place on the canvas — so this is what it is showing of it and not
+   * another card.
+   */
+  const diffFilePreview = useCallback(
+    (requestId: number) => {
+      setNodes((current) =>
+        current.map((node) => {
+          if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
+          const view = node.data.view === "diff" ? "text" : "diff";
+          return { ...node, data: { ...node.data, view } };
         }),
       );
     },
@@ -210,6 +238,7 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
   return {
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
     fitFilePreview,
     pinFilePreview,
     pinDrag,

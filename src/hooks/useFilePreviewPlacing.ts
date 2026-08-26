@@ -70,6 +70,7 @@ export function useFilePreviewPlacing(
           size: null,
           truncated: false,
           state: "loading",
+          view: "text",
           collapsed: false,
           box: FILE_PREVIEW_SIZE,
           pinnedAt: null,

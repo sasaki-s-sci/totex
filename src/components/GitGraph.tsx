@@ -123,6 +123,7 @@ export function GitGraph({
   const {
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
     fitFilePreview,
     pinFilePreview,
     pinDrag,
@@ -217,6 +218,7 @@ export function GitGraph({
     onCloseSettings,
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
     fitFilePreview,
     pinFilePreview,
   });
