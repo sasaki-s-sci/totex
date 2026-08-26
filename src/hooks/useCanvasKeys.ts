@@ -16,8 +16,6 @@ export type KeysCanvas = {
   graph: GraphResult;
   host: RefObject<HTMLDivElement | null>;
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
-  /** Whether there is a file card to read, which the size keys answer for. */
-  reading: boolean;
   expand: (repository: string) => void;
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
   onOpenWork: (request: WorkRequest) => void;
@@ -29,7 +27,6 @@ export function useCanvasKeys({
   graph,
   host,
   instance,
-  reading,
   expand,
   onSelect,
   onOpenWork,
@@ -132,8 +129,8 @@ export function useCanvasKeys({
     selected: selectedCommit,
   });
 
-  // Ctrl and a plus or a minus, for as long as there is a file card to read.
-  useReadingKeys(reading);
+  // Ctrl and a plus or a minus, answered by whichever file card has the focus.
+  useReadingKeys();
 
   return { picked, jumps, selectedCommit, setSelectedCommit, handleCommitClick, handleNodeClick };
 }

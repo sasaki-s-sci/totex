@@ -65,6 +65,19 @@
   color: var(--mui-palette-text-primary);
 }
 
+/* The card that has the focus, which is the one the size keys answer to — Ctrl
+   and a plus or a minus is read for whichever card is in hand. Said in the
+   border the card already has rather than in a ring outside it: a card stands
+   among everything else drawn on the canvas, and one more edge out there is one
+   more thing to read. The engine's own outline goes for the same reason; the
+   border says it once. Written on the node as well, which is where the focus
+   lands when a card on the canvas is reached by tabbing rather than pressed. */
+.file-preview:focus-within,
+.react-flow__node-file-preview:focus-within .file-preview {
+  border-color: var(--mui-palette-primary-main);
+  outline: none;
+}
+
 .file-preview__header {
   display: flex;
   min-height: 20px;
@@ -147,4 +160,12 @@
 .file-preview__button:hover {
   background: var(--mui-palette-action-hover);
   color: var(--mui-palette-text-primary);
+}
+
+/* A button that is not offering something but saying what the card is already
+   doing: the card is showing the patch, and pressing it again puts the file
+   back. The same ink everything else that means `this one` is lit in. */
+.file-preview__button.is-on {
+  background: var(--mui-palette-action-selected);
+  color: var(--mui-palette-primary-main);
 }

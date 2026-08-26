@@ -30,6 +30,11 @@ export const worktreePart = onDemand(() =>
 export const settingsPart = onDemand(() =>
   import("./components/nodes/SettingsNode").then((part) => part.SettingsNode),
 );
+/** What draws a markdown file as a page: a parser and a sanitiser, and neither
+ *  of them anything the window needs until a preview is asked for. */
+export const markdownPart = onDemand(() =>
+  import("./components/nodes/preview/MarkdownReading").then((part) => part.MarkdownReading),
+);
 export const ROOTS_KEY = "totex.roots";
 export const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };
 

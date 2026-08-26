@@ -29,7 +29,7 @@ export function useReading() {
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   const [paper, setPaper] = useState<HTMLPreElement | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
-  const gutter = useRef<HTMLPreElement>(null);
+  const gutter = useRef<HTMLDivElement>(null);
   const across = useRef<HTMLElement>(null);
   const down = useRef<HTMLElement>(null);
   const at = useRef({ x: 0, y: 0 });

@@ -1,11 +1,19 @@
 /**
  * The two things that can be picked up on the canvas: a branch dragged onto
- * another to merge it, and a whole folder carried somewhere else.
+ * another to merge it — or onto its own remote end, to bring it level with
+ * what is out there — and a whole folder carried somewhere else.
  */
 
 import type { Edge, OnNodeDrag, ReactFlowInstance, XYPosition } from "@xyflow/react";
 import { type RefObject, useCallback, useRef } from "react";
-import { type AppNode, COMMIT_STEP, type GraphResult, gridMove, HEAD_SIZE } from "../lib/graph";
+import {
+  type AppNode,
+  COMMIT_STEP,
+  type GraphResult,
+  gridMove,
+  HEAD_SIZE,
+  type Origin,
+} from "../lib/graph";
 import type { Repository } from "../types/git";
 import { useBranchDrag } from "./useBranchDrag";
 
@@ -17,6 +25,7 @@ export type DragCanvas = {
   setNodes: (update: (current: AppNode[]) => AppNode[]) => void;
   placeFolder: (root: string, at: XYPosition) => void;
   onMerge: (request: { repository: Repository; source: string; target: string }) => void;
+  onSync: (request: { repository: Repository; branch: string; origin: Origin }) => void;
 };
 
 export function useCanvasDrag({
@@ -27,7 +36,25 @@ export function useCanvasDrag({
   setNodes,
   placeFolder,
   onMerge,
+  onSync,
 }: DragCanvas) {
+  /**
+   * The remote end of the branch in hand, which is the one place a drag can be
+   * let go that does not mean a merge.
+   *
+   * Read off the head's own data rather than worked out here: which remote a
+   * branch is paired with is the graph's answer, given once where the column is
+   * dealt, and a second guess at it in the middle of a drag is a second answer.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
+  const originOf = useCallback((repository: Repository, branch: string): Origin | null => {
+    for (const node of standing.current) {
+      if (node.type !== "head" || node.data.repository.id !== repository.id) continue;
+      if (node.data.name === branch) return node.data.origin;
+    }
+    return null;
+  }, []);
+
   /**
    * Which head a screen point is inside, using graph geometry only.
    *
@@ -45,6 +72,8 @@ export function useCanvasDrag({
       );
       if (!band) return null;
 
+      const origin = originOf(repository, source)?.head ?? null;
+
       let found: string | null = null;
       let nearest = Number.POSITIVE_INFINITY;
       for (const node of standing.current) {
@@ -55,8 +84,9 @@ export function useCanvasDrag({
           // Nothing can be merged into a branch that is somewhere else: git
           // merges into a checked-out branch, and a remote-tracking ref is
           // neither. The head is drawn and pressable; it is simply never a
-          // place a drag can land.
-          node.data.kind === "remote"
+          // place a drag can land — with the one exception of the branch's own
+          // remote end, where letting go is not a merge but a sync.
+          (node.data.kind === "remote" && node.data.name !== origin)
         ) {
           continue;
         }
@@ -71,7 +101,7 @@ export function useCanvasDrag({
       }
       return found;
     },
-    [],
+    [originOf],
   );
 
   // Which branch is in hand and which one it is over goes onto the canvas
@@ -80,11 +110,21 @@ export function useCanvasDrag({
     host,
     useCallback(
       (repository: Repository, source: string, target: string) => {
-        onMerge({ repository, source, target });
+        // Where it was let go is what it meant. Its own remote end is the one
+        // destination that is not another branch to merge in: the branch is
+        // being laid back over what the remote has, which asks that remote for
+        // what it has now and then takes as much of it as will go.
+        const origin = originOf(repository, source);
+        if (origin && target === origin.head) onSync({ repository, branch: source, origin });
+        else onMerge({ repository, source, target });
       },
-      [onMerge],
+      [onMerge, onSync, originOf],
     ),
     headUnder,
+    useCallback(
+      (repository: Repository, branch: string) => originOf(repository, branch)?.head ?? null,
+      [originOf],
+    ),
   );
 
   /**

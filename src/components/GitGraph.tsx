@@ -35,7 +35,7 @@ import { PinnedCards } from "./PinnedCards";
 import { SettingsControlsProvider } from "./settings/SettingsControls";
 
 export type { BranchPick, FetchRequest } from "./graphActions";
-export type { MergeRequest } from "./graphProps";
+export type { MergeRequest, SyncRequest } from "./graphProps";
 
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
@@ -62,11 +62,13 @@ export function GitGraph({
   onPickBranch,
   onCloseRepository,
   onMerge,
+  onSync,
   onFetch,
   onShowSession,
   onJumpSession,
   onEndSession,
   filePreviews,
+  onPreviewFile,
   onCloseFilePreview,
   settingsOpen,
   mcp,
@@ -122,11 +124,17 @@ export function GitGraph({
   const {
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
     pinDrag,
     pinnedFiles,
-  } = useFilePreviews(filePreviews, { host, instance, standing, nodes, setNodes, flowReady });
+  } = useFilePreviews(
+    filePreviews,
+    { host, instance, standing, nodes, setNodes, flowReady },
+    onPreviewFile,
+  );
   useSettingsPage(settingsOpen, { host, instance, standing, nodes, setNodes, flowReady });
 
   // Re-framing is for a canvas that is no longer the one being looked at: a
@@ -172,7 +180,6 @@ export function GitGraph({
       graph,
       host,
       instance,
-      reading: filePreviews.length > 0,
       expand,
       onSelect,
       onOpenWork,
@@ -188,6 +195,7 @@ export function GitGraph({
     setNodes,
     placeFolder,
     onMerge,
+    onSync,
   });
 
   const actions = useCanvasActions({
@@ -216,6 +224,8 @@ export function GitGraph({
     onCloseSettings,
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
   });

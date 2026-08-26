@@ -105,7 +105,7 @@ function Window() {
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
-  const { filePreviews, openFiles, closeFilePreview } = useFileDrops(main);
+  const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops(main);
   const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
     answer,
     reply,
@@ -182,7 +182,7 @@ function Window() {
     [folders],
   );
 
-  const { openWork, browseWorktree, pickCommit, merge, fetch } = useCanvasWork({
+  const { openWork, browseWorktree, pickCommit, merge, sync, fetch } = useCanvasWork({
     openSession,
     fail,
     hold,
@@ -250,11 +250,13 @@ function Window() {
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}
             onCloseRepository={closeRepository}
             onMerge={merge}
+            onSync={sync}
             onFetch={fetch}
             onShowSession={showSession}
             onJumpSession={jumpSession}
             onEndSession={endSession}
             filePreviews={filePreviews}
+            onPreviewFile={previewFile}
             onCloseFilePreview={closeFilePreview}
             settingsOpen={settingsOpen}
             mcp={mcp}

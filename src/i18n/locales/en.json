@@ -154,12 +154,16 @@
     "pin": "Pin {{name}}",
     "unpin": "Unpin {{name}}",
     "fitWidth": "Fit {{name}} to its width",
+    "showDiff": "Show what has changed in {{name}}",
+    "showFile": "Show {{name}} itself",
+    "preview": "Preview {{name}}",
     "expand": "Open {{name}}",
     "collapse": "Fold {{name}} away",
     "close": "Close {{name}}",
     "loading": "Loading…",
     "failed": "The file cannot be read",
     "notText": "Not previewable as text",
-    "truncated": "Showing the first {{kilobytes}} KB"
+    "truncated": "Showing the first {{kilobytes}} KB",
+    "patchCut": "Showing the first part of the patch"
   }
 }

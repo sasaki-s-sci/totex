@@ -154,12 +154,16 @@
     "pin": "{{name}}をピン留めする",
     "unpin": "{{name}}のピンを外す",
     "fitWidth": "{{name}}の幅を合わせる",
+    "showDiff": "{{name}}の変更点を表示",
+    "showFile": "{{name}}のファイルを表示",
+    "preview": "{{name}}をプレビュー",
     "expand": "{{name}}を開く",
     "collapse": "{{name}}をたたむ",
     "close": "{{name}}を閉じる",
     "loading": "読み込み中…",
     "failed": "ファイルを読み込めません",
     "notText": "テキストとしてプレビューできません",
-    "truncated": "先頭 {{kilobytes}} KB を表示"
+    "truncated": "先頭 {{kilobytes}} KB を表示",
+    "patchCut": "差分の先頭のみ表示"
   }
 }

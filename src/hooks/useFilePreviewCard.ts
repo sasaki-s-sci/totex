@@ -5,12 +5,17 @@
 
 import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
+import { refreshChanges } from "../folder/changes";
+import { previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize, readableSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
-export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }: PageCanvas) {
+export function useFilePreviewCard(
+  { host, instance, standing, nodes, setNodes }: PageCanvas,
+  previewFile: (path: string, beside: number) => void,
+) {
   /**
    * Writes one card's reading back to its file.
    *
@@ -33,13 +38,20 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
       if (!node || node.data.size === null || node.data.truncated) return false;
       try {
         const size = await writeFile(node.data.path, text, node.data.size);
+        // Every card on that file, not only the one that was typed into: a
+        // preview stands beside the card it is of, and what it is a preview of
+        // is what has just gone to disk.
         setNodes((current) =>
           current.map((one) =>
-            one.type === "file-preview" && one.data.requestId === requestId
+            one.type === "file-preview" && one.data.path === node.data.path
               ? { ...one, data: { ...one.data, text, size } }
               : one,
           ),
         );
+        // What git says about the folder this is in has just moved, and the
+        // clock that would notice is a slow one. The column redraws off the
+        // same reading, and so does the card's own gutter.
+        refreshChanges();
         return true;
       } catch {
         return false;
@@ -68,6 +80,50 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
       );
     },
     [setNodes],
+  );
+
+  /**
+   * Shows the patch in place of the reading, or puts the reading back.
+   *
+   * The card is the same card either way — the same file, the same box, the
+   * same place on the canvas — so this is what it is showing of it and not
+   * another card. A preview is the other kind: it stands beside its file
+   * rather than in place of it, which is what `previewFilePreview` opens.
+   */
+  const diffFilePreview = useCallback(
+    (requestId: number) => {
+      setNodes((current) =>
+        current.map((node) => {
+          if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
+          // A card that is already a page of its file has no reading to turn
+          // over: the file it is drawn from is the card beside it.
+          if (node.data.view === "markdown") return node;
+          const view = node.data.view === "diff" ? "text" : "diff";
+          return { ...node, data: { ...node.data, view } };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  /**
+   * Opens a rendering of one card's file beside it.
+   *
+   * Refused for a card that is already a page — a preview of a preview is the
+   * card it is standing on — and for a file there is no drawing of, which is
+   * everything but markdown for now.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
+  const previewFilePreview = useCallback(
+    (requestId: number) => {
+      const node = standing.current.find(
+        (candidate): candidate is FilePreviewFlowNode =>
+          candidate.type === "file-preview" && candidate.data.requestId === requestId,
+      );
+      if (!node || node.data.view === "markdown" || !previewable(node.data.path)) return;
+      previewFile(node.data.path, requestId);
+    },
+    [previewFile],
   );
 
   /**
@@ -210,6 +266,8 @@ export function useFilePreviewCard({ host, instance, standing, nodes, setNodes }
   return {
     saveFilePreview,
     collapseFilePreview,
+    diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
     pinDrag,
