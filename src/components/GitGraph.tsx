@@ -68,6 +68,7 @@ export function GitGraph({
   onJumpSession,
   onEndSession,
   filePreviews,
+  onPreviewFile,
   onCloseFilePreview,
   settingsOpen,
   mcp,
@@ -124,11 +125,16 @@ export function GitGraph({
     saveFilePreview,
     collapseFilePreview,
     diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
     pinDrag,
     pinnedFiles,
-  } = useFilePreviews(filePreviews, { host, instance, standing, nodes, setNodes, flowReady });
+  } = useFilePreviews(
+    filePreviews,
+    { host, instance, standing, nodes, setNodes, flowReady },
+    onPreviewFile,
+  );
   useSettingsPage(settingsOpen, { host, instance, standing, nodes, setNodes, flowReady });
 
   // Re-framing is for a canvas that is no longer the one being looked at: a
@@ -219,6 +225,7 @@ export function GitGraph({
     saveFilePreview,
     collapseFilePreview,
     diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
   });

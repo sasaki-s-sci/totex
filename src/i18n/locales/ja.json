@@ -156,6 +156,7 @@
     "fitWidth": "{{name}}の幅を合わせる",
     "showDiff": "{{name}}の変更点を表示",
     "showFile": "{{name}}のファイルを表示",
+    "preview": "{{name}}をプレビュー",
     "expand": "{{name}}を開く",
     "collapse": "{{name}}をたたむ",
     "close": "{{name}}を閉じる",

@@ -95,8 +95,8 @@ export type FilePreviewNodeData = {
   truncated: boolean;
   state: "loading" | "ready" | "failed";
   /**
-   * What the card is showing of it: the file, or the patch against the commit
-   * under it.
+   * What the card is showing of it: the file, the patch against the commit
+   * under it, or the file drawn as the page it is written to be.
    *
    * Kept here rather than in the card, because a card that is pinned over the
    * window is a card drawn again somewhere else — and what it was showing is

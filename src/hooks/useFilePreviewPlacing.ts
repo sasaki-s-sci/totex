@@ -11,12 +11,16 @@ import { readFileHead } from "../folder/api";
 import { baseName } from "../folder/format";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { FILE_PREVIEW_SIZE, FILE_PREVIEW_Z, fileNodeId } from "./filePreviewBox";
+import { FILE_PREVIEW_SIZE, FILE_PREVIEW_Z, fileNodeId, fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
+
+/** The gap left between a card and the one opened beside it, so that the two
+ *  read as two cards rather than as one split down the middle. */
+const BESIDE_GAP = 12;
 
 export function useFilePreviewPlacing(
   requests: readonly FilePreviewRequest[],
-  { host, instance, setNodes, flowReady }: PageCanvas,
+  { host, instance, standing, setNodes, flowReady }: PageCanvas,
 ) {
   // bounded by the backend even for very large files.
   const placedFiles = useRef(new Set<number>());
@@ -42,26 +46,41 @@ export function useFilePreviewPlacing(
     const flow = instance.current;
     const additions: FilePreviewFlowNode[] = fresh.map((preview) => {
       placedFiles.current.add(preview.id);
+      // A card opened from another one stands beside it, at its size and on
+      // whichever layer it is standing on. Everything else is placed where it
+      // was dropped, or in the middle of what the canvas is showing.
+      const from = standing.current.find(
+        (node): node is FilePreviewFlowNode =>
+          node.type === "file-preview" && node.data.requestId === preview.beside,
+      );
       const stagger = (placedFiles.current.size - 1) % 8;
       const screen = preview.at ?? {
         x: (bounds?.left ?? 0) + (bounds?.width ?? FILE_PREVIEW_SIZE.width) / 2 + stagger * 16,
         y: (bounds?.top ?? 0) + (bounds?.height ?? FILE_PREVIEW_SIZE.height) / 2 + stagger * 16,
       };
       const point = flow.screenToFlowPosition(screen);
+      const box = from ? fileSize(from) : FILE_PREVIEW_SIZE;
+      const corner = from
+        ? { x: from.position.x + box.width + BESIDE_GAP, y: from.position.y }
+        : { x: point.x - box.width / 2, y: point.y - 17 };
+      // A preview of a card that has been pinned off the canvas is pinned
+      // beside it, in the pane's own pixels: the two are being read against
+      // each other, and one of them left the canvas.
+      const pinnedAt = from?.data.pinnedAt
+        ? { x: from.data.pinnedAt.x + box.width + BESIDE_GAP, y: from.data.pinnedAt.y }
+        : null;
       return {
         id: fileNodeId(preview.id),
         type: "file-preview",
-        position: {
-          x: point.x - FILE_PREVIEW_SIZE.width / 2,
-          y: point.y - 17,
-        },
+        position: corner,
+        hidden: pinnedAt !== null,
         draggable: true,
         dragHandle: ".file-preview__header",
         zIndex: FILE_PREVIEW_Z,
         // Written on the node rather than into its style: a dragged edge is a
         // dimension change, and the node's own width wins over both.
-        width: FILE_PREVIEW_SIZE.width,
-        height: FILE_PREVIEW_SIZE.height,
+        width: box.width,
+        height: box.height,
         data: {
           requestId: preview.id,
           path: preview.path,
@@ -70,10 +89,10 @@ export function useFilePreviewPlacing(
           size: null,
           truncated: false,
           state: "loading",
-          view: "text",
+          view: preview.view ?? "text",
           collapsed: false,
-          box: FILE_PREVIEW_SIZE,
-          pinnedAt: null,
+          box,
+          pinnedAt,
         },
       };
     });
@@ -117,5 +136,5 @@ export function useFilePreviewPlacing(
           );
         });
     }
-  }, [requests, flowReady, setNodes, host, instance]);
+  }, [requests, flowReady, setNodes, host, instance, standing]);
 }

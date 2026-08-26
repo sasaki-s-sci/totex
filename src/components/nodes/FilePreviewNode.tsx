@@ -3,6 +3,7 @@ import DifferenceIcon from "@mui/icons-material/Difference";
 import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
+import PreviewIcon from "@mui/icons-material/Preview";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import {
@@ -14,7 +15,9 @@ import {
 import { type CSSProperties, useLayoutEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../../hooks/useReadingSize";
+import { previewable } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
+import { markdownPart } from "../../parts";
 import { useGraphActions } from "../graphActions";
 import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
 import { useDraft } from "./preview/draft";
@@ -80,6 +83,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     saveFilePreview,
     collapseFilePreview,
     diffFilePreview,
+    previewFilePreview,
     fitFilePreview,
     pinFilePreview,
   } = useGraphActions();
@@ -92,11 +96,15 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     saveFilePreview,
   );
   // What became of the file since the commit under it: the bars down the gutter,
-  // and the patch the header offers in place of the reading.
-  const diff = useFileDiff(data.path, data.text);
+  // and the patch the header offers in place of the reading. A card drawing a
+  // page of its file is not the one asking — the file it is a page of is the
+  // card standing beside it, and that one has the question.
+  const diff = useFileDiff(data.view === "markdown" ? null : data.path, data.text);
   const runs = fileRuns(diff, lines);
   const patch = data.view === "diff" ? patchOf(diff, reading) : "";
   const tints = useMemo(() => tintRuns(patch), [patch]);
+  // What draws a page, fetched the first time one is opened and never before.
+  const Markdown = markdownPart.use(data.view === "markdown");
   /** There is something in the card that can be moved about. */
   const ready = data.state === "ready" && data.text !== null;
   /** The header, measured alongside the reading when the card is asked to fit:
@@ -117,10 +125,12 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
 
   // A card turned over is holding something else of another length, and how far
   // down the reading had been moved has nothing to do with what is there now.
+  // The page is the same again: it is drawn into the card by the part above, so
+  // what it comes to is only known once that part is in hand.
   // biome-ignore lint/correctness/useExhaustiveDependencies: what these change is the length of what is in the card, which is measured rather than read
   useLayoutEffect(() => {
     home();
-  }, [data.view, patch, home]);
+  }, [data.view, patch, Markdown, home]);
 
   /** Puts the card at the width of what is in it: the wider of the longest line
    *  of the reading and the header, whose name goes to an ellipsis long before
@@ -173,6 +183,15 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         if (!card.contains(document.activeElement)) card.focus({ preventScroll: true });
       }}
       onKeyDown={(event) => {
+        // The file beside itself, drawn as the page it is written to be. Taken
+        // from the paste it would otherwise be inside a reading, which is the
+        // one place this press already means anything — and taken with what is
+        // being typed, because a page is drawn from the file on disk.
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") {
+          event.preventDefault();
+          void save().then(() => previewFilePreview(data.requestId));
+          return;
+        }
         // What every other window keeps a file with. There is nothing else to
         // press inside a card: one put away or clicked out of keeps itself,
         // and how large the reading is drawn is Ctrl and a plus or a minus,
@@ -198,7 +217,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         {/* The patch, in place of the reading. Drawn only while there is one,
             which is the same moment the gutter has bars in it: a file the
             commit under it agrees with has nothing to turn over to. */}
-        {changed(diff) && (
+        {data.view !== "markdown" && changed(diff) && (
           <button
             type="button"
             className={`file-preview__button nodrag${data.view === "diff" ? " is-on" : ""}`}
@@ -215,6 +234,23 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             }}
           >
             <DifferenceIcon sx={{ fontSize: 12 }} />
+          </button>
+        )}
+        {/* The file drawn as the page it is written to be, beside the file
+            itself — the same as Ctrl, Shift and V. Beside rather than in place
+            of, because the two are read against each other. */}
+        {data.view !== "markdown" && previewable(data.path) && (
+          <button
+            type="button"
+            className="file-preview__button nodrag"
+            aria-label={t("filePreview.preview", { name: data.name })}
+            onClick={async (event) => {
+              event.stopPropagation();
+              await save();
+              previewFilePreview(data.requestId);
+            }}
+          >
+            <PreviewIcon sx={{ fontSize: 12 }} />
           </button>
         )}
         {/* Pinned, the card leaves the canvas and is drawn over it: the graph
@@ -337,6 +373,16 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
                 />
               ))}
               <pre className="file-preview__text">{patch}</pre>
+            </div>
+          )}
+
+          {ready && data.view === "markdown" && (
+            <div className="file-preview__page" ref={sheet}>
+              {Markdown ? (
+                <Markdown text={reading ?? ""} />
+              ) : (
+                <p className="file-preview__message">{t("filePreview.loading")}</p>
+              )}
             </div>
           )}
 

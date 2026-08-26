@@ -167,6 +167,16 @@ export type GraphActions = {
    */
   diffFilePreview: (requestId: number) => void;
   /**
+   * Open a rendering of a card's file beside it — Ctrl, Shift and V, or the
+   * button on its header.
+   *
+   * Beside rather than in place of, because the two are read against each
+   * other: a page is what the file says, and the file is where it is written.
+   * One preview to a file, and nothing at all for a file there is no drawing
+   * of.
+   */
+  previewFilePreview: (requestId: number) => void;
+  /**
    * Put a file card at the width it asks for, as far as the canvas can show it.
    *
    * The width is worked out by the card, which is the only thing that can see
@@ -213,6 +223,7 @@ const GraphActionsContext = createContext<GraphActions>({
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},
   diffFilePreview: () => {},
+  previewFilePreview: () => {},
   fitFilePreview: () => {},
   pinFilePreview: () => {},
 });

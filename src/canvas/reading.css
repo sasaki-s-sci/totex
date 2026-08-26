@@ -162,6 +162,16 @@
   background: color-mix(in srgb, var(--mui-palette-primary-main) 12%, transparent);
 }
 
+/* A file drawn as the page it is written to be. As wide as the card and no
+   wider: a page is read down rather than across, so nothing in it may set a
+   width the card would then have to be moved sideways across. */
+.file-preview__page {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  padding: var(--reading-pad) 12px;
+}
+
 /* The numbers stay where they are while the reading is moved sideways: a line
    is being counted from its own end, and a gutter that has slid off the left
    leaves nothing to count against. It is given the move back rather than being

@@ -1,0 +1,168 @@
+/**
+ * A markdown file drawn as the page it is written to be.
+ *
+ * Everything here is set against one rule the card imposes: a page is read down
+ * and never across. Nothing in it may be wider than the card — a long line of
+ * code, a wide table, an image out of a repository — because the way a card
+ * reaches what it cannot show is by being moved, and a page that had to be moved
+ * sideways to be read would not be a page. So what would be wide wraps, and what
+ * cannot wrap is held to the width there is.
+ */
+
+.markdown {
+  /* A shade larger than a reading, which is what the difference is: a reading is
+     lines of a file and this is prose. */
+  font-size: calc(var(--reading-size, 11px) + 1px);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  /* React Flow says `user-select: none` on every node it draws, and a page
+     nobody can take a sentence out of is a page nobody can quote. */
+  user-select: text;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 1.4em 0 0.6em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: 1.7em;
+}
+
+.markdown h2 {
+  font-size: 1.4em;
+}
+
+.markdown h3 {
+  font-size: 1.2em;
+}
+
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 1em;
+}
+
+/* The two headings a page opens on are a title, and a title with a rule under
+   it is what a document looks like rather than what a card does. */
+.markdown h1,
+.markdown h2 {
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--mui-palette-divider);
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown table,
+.markdown pre {
+  margin: 0 0 0.8em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown li {
+  margin: 0.2em 0;
+}
+
+.markdown li > input {
+  margin-right: 0.4em;
+}
+
+/* A link is drawn and says where it goes, and goes nowhere: this window is not
+   a browser. Its address is on it as the title, which is where the pointer
+   finds it. See `MarkdownReading`, which is what takes the address off. */
+.markdown a {
+  color: var(--mui-palette-primary-main);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown code {
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  background: var(--mui-palette-action-hover);
+  font:
+    calc(var(--reading-size, 11px) * 0.95) / 1.5 ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+/* Wrapped rather than reached across. A block of code is the one thing on a
+   page that is written to be as wide as it likes, and the card has no sideways
+   for it to be that wide in. */
+.markdown pre {
+  padding: 0.6em 0.8em;
+  border-radius: 5px;
+  background: var(--mui-palette-action-hover);
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.markdown blockquote {
+  padding-left: 0.8em;
+  border-left: 3px solid var(--mui-palette-divider);
+  color: var(--mui-palette-text-secondary);
+}
+
+.markdown hr {
+  height: 0;
+  margin: 1.2em 0;
+  border: 0;
+  border-top: 1px solid var(--mui-palette-divider);
+}
+
+/* Held to the card, and every column to a share of it: a table is the other
+   thing on a page that would rather be as wide as it likes. */
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.markdown th,
+.markdown td {
+  padding: 0.3em 0.5em;
+  border: 1px solid var(--mui-palette-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: var(--mui-palette-action-hover);
+  font-weight: 600;
+}
+
+/* An image out of a repository is not one this window can fetch — a card is
+   served from the app rather than from the folder the file is in — so what is
+   drawn is whatever the file said instead of it. Held to the card either way. */
+.markdown img {
+  max-width: 100%;
+  height: auto;
+}

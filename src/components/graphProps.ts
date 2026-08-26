@@ -108,6 +108,14 @@ export type GraphProps = {
   onEndSession: (session: Session) => void;
   /** Files asked for from the explorer or dropped onto the window. */
   filePreviews: readonly FilePreviewRequest[];
+  /**
+   * A card's file is to be drawn as a page, beside the card it is of.
+   *
+   * The window's, rather than the canvas's own, because a card standing on the
+   * canvas is a card the window was asked for: what the canvas decides is where
+   * it goes, which is what `beside` carries.
+   */
+  onPreviewFile: (path: string, beside: number) => void;
   onCloseFilePreview: (requestId: number) => void;
   /** The window's one settings page, and the controls it draws. */
   settingsOpen: boolean;

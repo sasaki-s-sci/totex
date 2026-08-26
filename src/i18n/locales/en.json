@@ -156,6 +156,7 @@
     "fitWidth": "Fit {{name}} to its width",
     "showDiff": "Show what has changed in {{name}}",
     "showFile": "Show {{name}} itself",
+    "preview": "Preview {{name}}",
     "expand": "Open {{name}}",
     "collapse": "Fold {{name}} away",
     "close": "Close {{name}}",

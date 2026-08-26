@@ -105,7 +105,7 @@ function Window() {
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
-  const { filePreviews, openFiles, closeFilePreview } = useFileDrops(main);
+  const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops(main);
   const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
     answer,
     reply,
@@ -256,6 +256,7 @@ function Window() {
             onJumpSession={jumpSession}
             onEndSession={endSession}
             filePreviews={filePreviews}
+            onPreviewFile={previewFile}
             onCloseFilePreview={closeFilePreview}
             settingsOpen={settingsOpen}
             mcp={mcp}
