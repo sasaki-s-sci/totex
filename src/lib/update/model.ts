@@ -1,20 +1,17 @@
 /**
- * What a release is to this window: which layers can be replaced, what the last
- * press on each did, and which release it did it about.
+ * What a release is to this window: its physical layers, compatibility, and
+ * the last sync made to each.
  */
 
 /**
  * Where one layer of the app is in being replaced.
  *
- * The app is three layers and they are not taken together, because they cost
- * different things. The pages the window is drawn out of are a small download
- * and a reload; the application layer beside the program is a small download
- * and nothing at all; the program itself is a large one and a restart that ends
- * every terminal in the window. So there are three rows, each with its own walk
- * from the offer to the ending, and none of them is done because another was.
+ * The backend still replaces three physical layers: the pages, the application
+ * layer, and the program. The settings expose the first and last as ephemeral,
+ * and the independent application layer as persistent.
  *
- * `rest` is the offer to take whichever release the row is pointed at. What a
- * press ends in is the backend's to say: `swapped` for pages that are unpacked
+ * `rest` is a declaration with no adjustment in flight. What an adjustment
+ * ends in is the backend's to say: `swapped` for pages that are unpacked
  * and pointed at, `ready` for a program that is installed, `current` where that
  * release is what is already here — which is also where the application layer
  * lands, because a layer that has been taken is already answering — and `held`
@@ -27,11 +24,8 @@
  */
 export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 
-/** Which layer of the app a row is about. */
+/** Which physical layer of the app an adjustment is about. */
 export type Layer = "front" | "app" | "core";
-
-/** The three of them, in the order the rows are drawn: cheapest first. */
-export const LAYERS: Layer[] = ["front", "app", "core"];
 
 /**
  * Which cycle of releases a row is looking at.
@@ -43,20 +37,7 @@ export const LAYERS: Layer[] = ["front", "app", "core"];
  */
 export type Cycle = "release" | "layer" | "front";
 
-/**
- * Which cycles each layer may follow.
- *
- * The program is on the app's own and nowhere else: what replaces it is an
- * installer, and installers are what a release of the app is. The other two are
- * a directory and a small program, which a release of their own can carry.
- */
-export const CYCLES: Record<Layer, Cycle[]> = {
-  front: ["release", "front"],
-  app: ["release", "layer"],
-  core: ["release"],
-};
-
-/** One row, as the backend has it: what is in place, and what it is pointed at. */
+/** One physical layer, as the backend has it. */
 export type Rung = {
   layer: Layer;
   /** The version in place now — being drawn, answering, or running. */
@@ -67,6 +48,18 @@ export type Rung = {
   cycle: Cycle;
   /** The version it is pointed at, where one was named. */
   picked: string | null;
+  /** The application-layer conversation this layer speaks, where it has one. */
+  protocol: number | null;
+  /** The newest front contract this program answers, on the program row. */
+  frontContract: number | null;
+};
+
+/** One release and the compatibility agreements written into its manifest. */
+export type UpdateChoice = {
+  cycle: Cycle;
+  version: string;
+  layerProtocol: number | null;
+  frontContract: number | null;
 };
 
 /**
@@ -88,10 +81,12 @@ export type Press = {
 };
 
 export type UpdateState = {
-  /** The three rows as the backend last said them; null until it was asked. */
+  /** The three physical layers as the backend last said them. */
   rungs: Rung[] | null;
   /** The releases each cycle has, newest first, as the last poll found them. */
   versions: Record<Cycle, string[]>;
-  /** What the last press on each row did. */
+  /** The releases whose manifests were read, with their compatibility terms. */
+  choices: UpdateChoice[];
+  /** What the last sync of each physical layer did. */
   presses: Record<Layer, Press>;
 };

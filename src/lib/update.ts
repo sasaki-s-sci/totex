@@ -1,10 +1,10 @@
 /**
- * Replacing the app with a newer release, one half at a time.
+ * Declaring the two versions the app should be adjusted to.
  *
- * The pages the window is drawn out of are a small download and a reload; the
- * program under them is a large one and a restart that ends every terminal in
- * the window. So there are two rows, each with its own walk from the offer to
- * the ending, and neither is done because the other was.
+ * Core is the independently released application layer. Front / Program is a
+ * full app release, filtered to the ones that speak the selected Core's
+ * protocol. The backend still takes the three physical layers one at a time;
+ * the settings present them as the two declarations a person actually makes.
  */
 
 export * from "./update/model";

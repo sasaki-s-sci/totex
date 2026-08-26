@@ -31,11 +31,10 @@
 //!
 //! A manifest says what one release is; it does not say which releases exist.
 //! That is the repository's own listing, and it is the one thing here that is
-//! read without anybody having pressed anything — see [`update_versions`], which
-//! is asked on a slow loop so that the list of versions is filled before it is
-//! opened rather than after. It is therefore also the one thing allowed to fail
-//! in silence: a rate limit on an address anybody can read leaves the list as it
-//! was, and every press still works with no list at all.
+//! read without a version being selected — see [`fetch::update_choices`], which
+//! is asked on a slow loop and reads each listed release's compatibility terms
+//! before offering it. It is therefore also allowed to fail in silence: a rate
+//! limit leaves the declarations with the choices they already had.
 
 use std::time::Duration;
 

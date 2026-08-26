@@ -29,7 +29,8 @@ const SPIN = {
 } as const;
 
 /**
- * Where one half of the app is in being replaced, as one mark on one button.
+ * Where one part of the app is in being adjusted, as one mark beside its
+ * version declarations.
  *
  * Six drawings, one press between them, the way `MaximiseMark` is one button
  * for both of its moves: an arrow down for the offer to take a release, a ring
@@ -37,17 +38,15 @@ const SPIN = {
  * download has said how long it is, a tick for nothing to do, two arrows round
  * a circle for the reload that finishes the pages, and one arrow round a circle
  * for the restart that finishes the program. A failure is the arrow again, in
- * red — see the update rows of `SettingsDialog`, which is what colours it: what
- * went wrong is not a thing this window has a word for, and pressing again is
- * the whole of what can be done about it.
+ * red — see the update row of the settings page, which is what colours it.
  *
  * The last is the arrow struck through: a release this half cannot take. The
  * two circles are told apart by how many arrows are in them, which is also how
  * much of the app each of them replaces.
  *
- * The arrow is the download and not a version number, because the version is
- * said in the pull-down above the row: the mark is what the press is doing
- * about it.
+ * The arrow is the download and not a version number, because the versions are
+ * said by the two pull-downs: the mark is what the automatic adjustment is
+ * doing about them.
  */
 export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: number | null }) {
   if (stage === "taking" && progress === null) {

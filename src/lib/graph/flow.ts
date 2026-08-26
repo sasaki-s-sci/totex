@@ -17,6 +17,7 @@ export type FolderFlowNode = Node<FolderNodeData, "folder">;
 export type RepoMarkFlowNode = Node<RepoMarkData, "repo-mark">;
 export type CliFlowNode = Node<CliNodeData, "cli">;
 export type FilePreviewFlowNode = Node<FilePreviewNodeData, "file-preview">;
+export type SettingsFlowNode = Node<{ page: "settings" }, "settings">;
 export type AppNode =
   | CommitFlowNode
   | BranchHeadFlowNode
@@ -27,7 +28,8 @@ export type AppNode =
   | CliFlowNode
   | AskFlowNode
   | ReportFlowNode
-  | FilePreviewFlowNode;
+  | FilePreviewFlowNode
+  | SettingsFlowNode;
 
 /**
  * One line of the graph: the two marks it joins, and how it gets from one to

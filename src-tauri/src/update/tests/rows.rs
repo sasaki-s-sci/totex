@@ -5,14 +5,14 @@ use crate::update::Layer;
 
 use super::{TempDir, asked, window};
 
-/// The names the settings dialog sends -- see `src/lib/update` and
+/// The names the settings page sends -- see `src/lib/update` and
 /// `src/components/settings/UpdateSection.tsx`.
 pub(super) const SENT: [&str; 6] = [
     "update_standing",
     "update_take",
     "update_pick",
     "update_follow",
-    "update_versions",
+    "update_choices",
     "confirm_front",
 ];
 
@@ -50,7 +50,7 @@ fn a_window_is_told_about_three_layers_and_what_each_is_at() {
     let (_app, view) = window(temp.path());
 
     let rungs = asked(&view, "update_standing", serde_json::json!({}))
-        .expect("the rows the settings dialog draws");
+        .expect("the rows the settings page draws");
     let rungs = rungs.as_array().expect("one entry per layer");
     assert_eq!(rungs.len(), 3);
     assert_eq!(rungs[0]["layer"], "front");
@@ -61,6 +61,9 @@ fn a_window_is_told_about_three_layers_and_what_each_is_at() {
     // or a restart, so it is the one worth reading off a row at all.
     assert_eq!(rungs[1]["at"], totex_layer::VERSION);
     assert_eq!(rungs[2]["at"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(rungs[1]["protocol"], totex_layer::PROTOCOL);
+    assert_eq!(rungs[2]["protocol"], totex_layer::PROTOCOL);
+    assert_eq!(rungs[2]["frontContract"], crate::front::take::contract());
     for rung in rungs {
         assert_eq!(
             rung["cycle"], "release",
@@ -127,7 +130,7 @@ fn a_press_reaches_the_layer_it_names() {
 }
 
 #[test]
-fn the_versions_of_every_cycle_are_asked_for_in_one_go() {
+fn compatible_choices_are_asked_for_in_one_go() {
     let temp = TempDir::new("versions");
     let (_app, view) = window(temp.path());
 
@@ -136,8 +139,8 @@ fn the_versions_of_every_cycle_are_asked_for_in_one_go() {
     // that still works, pointed at whatever the release page says is newest.
     let found = asked(
         &view,
-        "update_versions",
-        serde_json::json!({ "cycles": ["release", "layer", "front"] }),
+        "update_choices",
+        serde_json::json!({ "cycles": ["release", "layer"] }),
     )
     .expect("asking is not a failure");
     assert!(found.as_array().is_some_and(|found| found.is_empty()));

@@ -217,6 +217,7 @@ pub fn run() {
             update::update_pick,
             update::update_follow,
             release::fetch::update_versions,
+            release::fetch::update_choices,
             front::take::confirm_front,
             derived::rederive,
             fs_watch::watch_directories,

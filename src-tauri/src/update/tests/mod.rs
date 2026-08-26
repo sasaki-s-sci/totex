@@ -145,6 +145,7 @@ pub(super) fn window(home: &Path) -> (App<MockRuntime>, tauri::WebviewWindow<Moc
             crate::update::update_pick,
             crate::update::update_follow,
             crate::release::fetch::update_versions,
+            crate::release::fetch::update_choices,
             crate::front::take::confirm_front,
         ])
         .build(context)

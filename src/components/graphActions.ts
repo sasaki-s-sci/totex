@@ -145,6 +145,8 @@ export type GraphActions = {
   take: (session: Session, ask: Ask) => void;
   /** Take one file card off the canvas. */
   closeFilePreview: (requestId: number) => void;
+  /** Take the settings page off the canvas. */
+  closeSettings: () => void;
   /**
    * Write one file card's reading back to its file, and say whether it went.
    *
@@ -198,6 +200,7 @@ const GraphActionsContext = createContext<GraphActions>({
   compose: () => {},
   take: () => {},
   closeFilePreview: () => {},
+  closeSettings: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},
   fitFilePreview: () => {},

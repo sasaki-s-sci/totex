@@ -37,6 +37,7 @@ export function useCanvasActions({
   onCompose,
   onTake,
   onCloseFilePreview,
+  onCloseSettings,
   saveFilePreview,
   collapseFilePreview,
   fitFilePreview,
@@ -64,6 +65,7 @@ export function useCanvasActions({
   onCompose: GraphActions["compose"];
   onTake: GraphActions["take"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
+  onCloseSettings: GraphActions["closeSettings"];
   saveFilePreview: GraphActions["saveFilePreview"];
   collapseFilePreview: GraphActions["collapseFilePreview"];
   fitFilePreview: GraphActions["fitFilePreview"];
@@ -93,6 +95,7 @@ export function useCanvasActions({
       compose: onCompose,
       take: onTake,
       closeFilePreview: onCloseFilePreview,
+      closeSettings: onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
       fitFilePreview,
@@ -121,6 +124,7 @@ export function useCanvasActions({
       onCompose,
       onTake,
       onCloseFilePreview,
+      onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
       fitFilePreview,

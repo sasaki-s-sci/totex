@@ -5,6 +5,14 @@ import { install, serve, servingNow, stopServing } from "../lib/mcp";
 /** Where the choice is kept, so that it outlives the window. */
 const KEY = "totex.mcp.serving";
 
+export type ServingControls = {
+  serving: boolean;
+  activity: "checking" | "idle" | "changing" | "failed";
+  change: (next: boolean) => void;
+  installing: "rest" | "working" | "done" | "failed";
+  register: () => void;
+};
+
 /**
  * Whether the server is standing, and the two things that can be done about it.
  *
@@ -19,10 +27,11 @@ const KEY = "totex.mcp.serving";
  * machine that they did not ask for — and until an agent has been registered
  * against it there is nothing at the other end to say anything anyway.
  */
-export function useServing() {
+export function useServing(): ServingControls {
   const [serving, setServing] = useState(false);
+  const [activity, setActivity] = useState<ServingControls["activity"]>("checking");
   /** What the last press did, for the mark to draw. */
-  const [installing, setInstalling] = useState<"rest" | "working" | "done" | "failed">("rest");
+  const [installing, setInstalling] = useState<ServingControls["installing"]>("rest");
 
   useEffect(() => {
     let alive = true;
@@ -30,19 +39,24 @@ export function useServing() {
     // What is actually up, not what was wanted: a window that was reloaded is
     // in front of a server this process already stood, and the two answers only
     // differ while one of them is a lie.
-    servingNow()
-      .then((port) => {
+    const restore = async () => {
+      try {
+        const port = await servingNow();
         if (!alive) return;
         if (port !== null) {
           setServing(true);
-          return;
-        }
-        if (!wanted()) return;
-        return serve().then(() => {
+        } else if (wanted()) {
+          await serve();
           if (alive) setServing(true);
-        });
-      })
-      .catch(() => undefined);
+        }
+      } catch {
+        if (alive) setActivity("failed");
+        return;
+      }
+      if (alive) setActivity("idle");
+    };
+
+    void restore();
 
     return () => {
       alive = false;
@@ -50,13 +64,29 @@ export function useServing() {
   }, []);
 
   /** Stands it up, or takes it down, and remembers which was asked for. */
-  const toggle = useCallback(() => {
-    setServing((current) => {
-      const next = !current;
-      remember(next);
-      void (next ? serve() : stopServing()).catch(() => undefined);
-      return next;
-    });
+  const change = useCallback((next: boolean) => {
+    remember(next);
+    setServing(next);
+    setActivity("changing");
+
+    const settle = async () => {
+      try {
+        await (next ? serve() : stopServing());
+        setActivity("idle");
+      } catch {
+        // An invoke can fail after the command reached the program. Ask the
+        // server itself before drawing a state that may be the opposite of the
+        // one it is actually in.
+        try {
+          setServing((await servingNow()) !== null);
+        } catch {
+          setServing(!next);
+        }
+        setActivity("failed");
+      }
+    };
+
+    void settle();
   }, []);
 
   /**
@@ -74,7 +104,7 @@ export function useServing() {
       .catch(() => setInstalling("failed"));
   }, []);
 
-  return { serving, toggle, installing, register };
+  return { serving, activity, change, installing, register };
 }
 
 function wanted(): boolean {

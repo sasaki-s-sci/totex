@@ -1,11 +1,11 @@
 /**
- * What a press on one of the three rows does, up to whatever finishes it.
+ * Adjusting one of the three physical layers to its declared version.
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { relaunch } from "@tauri-apps/plugin-process";
-import type { Layer } from "./model";
-import { askStanding, settlePress, state, wanted } from "./store";
+import type { Layer, UpdateStage } from "./model";
+import { askStanding, rungOf, settlePress, state, wanted } from "./store";
 
 /**
  * Says that this window has finished drawing itself.
@@ -65,21 +65,25 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
 const ENDING = { front: "swapped", app: "current", core: "ready" } as const;
 
 /**
- * The whole of what one row does, up to whatever finishes it.
+ * Takes one physical layer to its declaration and returns the ending so the
+ * settings can finish a reload or restart during sync.
  *
- * The ending is not part of the press for two of the three. This app holds
- * terminals with agents running in them, and reaching the point where they are
- * interrupted is nobody's business but the person's who started them — so a
- * press brings the release, and the press after it is what finishes.
+ * The backend keeps taking and finishing separate: installing a program and
+ * relaunching a process are different operations. Sync calls the second
+ * immediately when the first reaches it.
  */
-export async function take(layer: Layer): Promise<void> {
-  if (state.presses[layer].stage === "taking") return;
-  const version = wanted(state, layer);
-  settlePress(layer, { stage: "taking", progress: null, version });
+export async function take(layer: Layer, target?: string | null): Promise<UpdateStage> {
+  if (state.presses[layer].stage === "taking") return "taking";
+  const version = target === undefined ? wanted(state, layer) : target;
+  const declaration = rungOf(state, layer)?.picked ?? null;
+  settlePress(layer, { stage: "taking", progress: null, version: declaration });
 
   try {
     const took = await asked(layer, version);
-    settlePress(layer, { stage: took === "taken" ? ENDING[layer] : took, progress: null });
+    const stage = took === "taken" ? ENDING[layer] : took;
+    settlePress(layer, { stage, progress: null });
+    await askStanding(true);
+    return stage;
   } catch {
     // Nothing is said about which of the several things went wrong — no
     // release under that tag, no network, a signature that did not verify. The
@@ -89,6 +93,7 @@ export async function take(layer: Layer): Promise<void> {
   // What is in place may have moved without anything else saying so, which is
   // the application layer's whole point.
   await askStanding(true);
+  return "failed";
 }
 
 /**

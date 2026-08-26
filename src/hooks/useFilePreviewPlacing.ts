@@ -12,11 +12,11 @@ import { baseName } from "../folder/format";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { FILE_PREVIEW_SIZE, FILE_PREVIEW_Z, fileNodeId } from "./filePreviewBox";
-import type { FilePreviewCanvas } from "./useFilePreviews";
+import type { PageCanvas } from "./useFilePreviews";
 
 export function useFilePreviewPlacing(
   requests: readonly FilePreviewRequest[],
-  { host, instance, setNodes, flowReady }: FilePreviewCanvas,
+  { host, instance, setNodes, flowReady }: PageCanvas,
 ) {
   // bounded by the backend even for very large files.
   const placedFiles = useRef(new Set<number>());

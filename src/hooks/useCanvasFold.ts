@@ -187,14 +187,18 @@ export function useCanvasFold({
     applied.current = graph;
     const from = new Map(standing.current.map((node) => [node.id, node.position] as const));
     setNodes((current) => {
-      const files = current.filter((node) => node.type === "file-preview");
-      const history = current.filter((node) => node.type !== "file-preview");
+      const pages = current.filter(
+        (node) => node.type === "file-preview" || node.type === "settings",
+      );
+      const history = current.filter(
+        (node) => node.type !== "file-preview" && node.type !== "settings",
+      );
       const merged = reconcile(history, graph.nodes, before?.nodes, (rebuilt, holding) => ({
         ...rebuilt,
         selected: holding.selected,
         measured: holding.measured,
       }));
-      return [...merged, ...files];
+      return [...merged, ...pages];
     });
 
     // A pull is under way, and the band it is in was laid out again for this

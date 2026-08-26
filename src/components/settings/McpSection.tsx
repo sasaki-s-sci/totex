@@ -2,10 +2,10 @@
  * The door the agents say what they are working on through.
  */
 
-import { Divider, Switch } from "@mui/material";
+import { Divider, Stack, Switch, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
-import { useServing } from "../../hooks/useServing";
+import type { ServingControls } from "../../hooks/useServing";
 import { PageButton, Row } from "./Row";
 
 /** What each state of the setup button is. */
@@ -33,24 +33,43 @@ const REGISTER = {
  * row the window reserves. What they turn on is drawn on the canvas: a card
  * beside a terminal, saying what the agent in it is working on.
  */
-export function McpSection() {
+export function McpSection({ controls }: { controls: ServingControls }) {
   const { t } = useTranslation();
-  const { serving, toggle, installing, register } = useServing();
+  const { serving, activity, change, installing, register } = controls;
+  const status =
+    activity === "idle"
+      ? serving
+        ? "mcp.on"
+        : "mcp.off"
+      : activity === "checking"
+        ? "mcp.checking"
+        : activity === "changing"
+          ? "mcp.changing"
+          : "mcp.failed";
 
   return (
     <>
       <Divider />
-      <Row label={t("settings.mcp")} hint={t("settings.mcpHint")}>
-        {/* The name is drawn beside it rather than tied to it, so the box
-            says what it is for itself to anything reading the page aloud. */}
-        <Switch
-          size="small"
-          checked={serving}
-          onChange={toggle}
-          slotProps={{ input: { "aria-label": t("settings.mcp") } }}
-        />
+      <Row label={t("settings.mcp")}>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 0.5 }}>
+          <Typography
+            variant="caption"
+            sx={{ color: activity === "failed" ? "error.main" : "text.secondary" }}
+          >
+            {t(status)}
+          </Typography>
+          {/* The name is drawn beside it rather than tied to it, so the box
+              says what it is for itself to anything reading the page aloud. */}
+          <Switch
+            size="small"
+            checked={serving}
+            disabled={activity === "checking" || activity === "changing"}
+            onChange={(_, checked) => change(checked)}
+            slotProps={{ input: { "aria-label": t("settings.mcp") } }}
+          />
+        </Stack>
       </Row>
-      <Row label={t("settings.register")} hint={t("settings.registerHint")}>
+      <Row label={t("settings.register")}>
         <PageButton
           danger={installing === "failed"}
           disabled={installing === "working"}
