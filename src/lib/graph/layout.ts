@@ -9,6 +9,7 @@ import { Lines } from "./lines";
 import {
   type BandLines,
   type BranchHeadFlowNode,
+  branchPitch,
   CHIP_STEP,
   COLUMN_WIDTH,
   COMMIT_STEP,
@@ -138,8 +139,18 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
 
   /** The line each row of the history is drawn along: evenly spaced. */
   const historyLine = (row: number) => top + row * COMMIT_STEP.y;
-  /** Branch nodes use their own evenly spaced 50px Grid rows. */
-  const branchLine = Array.from({ length: rows }, (_, row) => historyLine(row));
+  /**
+   * And each row of the branch column: the same grid row as the history beside
+   * it, until what is running in one of them asks for more room than the lane
+   * between two branches holds — and then the rest of the column drops a whole
+   * grid row rather than sliding by whatever the stack overflowed by.
+   */
+  const branchLine: number[] = [];
+  for (let row = 0; row < rows; row++) {
+    branchLine.push(
+      row === 0 ? historyLine(0) : branchLine[row - 1] + branchPitch(stacks[row - 1], stacks[row]),
+    );
+  }
 
   /** The left edge of a column of the history, the name's own cell cleared. */
   const columnX = (column: number) => NAME_COLUMN * COLUMN_WIDTH + column * COMMIT_STEP.x;
