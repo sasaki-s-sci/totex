@@ -57,6 +57,7 @@ export function placeBranches(
         kind: ref.kind,
         name: ref.name,
         hasRemote: ref.hasRemote,
+        pair: ref.pair,
         together: ref.together,
         fetch: ref.fetch,
         cwd: ref.cwd,
@@ -201,6 +202,7 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
         // A local branch and its remote-tracking counterpart are separate refs,
         // but the local ring still says when the branch also exists elsewhere.
         hasRemote: remote || pair !== undefined,
+        pair: pair?.other.name ?? null,
         together: pair?.together === true,
         fetch: fetchOf(branch, pair),
         head: branch.isHead,
@@ -219,6 +221,7 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
       shared: worktree.id,
       group: worktree.name,
       hasRemote: false,
+      pair: null,
       together: false,
       fetch: null,
       head: false,

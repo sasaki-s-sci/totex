@@ -75,10 +75,22 @@ pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
         if output.code == 127 {
             return Err("git-missing".to_string());
         }
-        // git's own words, whatever they are, and nothing added to them: the
-        // window never draws this, and whatever reads it wants git and not us.
+        // git's own words, whatever they are, and nothing added to them:
+        // whatever reads this wants git and not us. Almost every caller matches
+        // on them; the one that shows them is a branch that would not come
+        // together with its remote end, where only git knows what is in the way.
+        //
+        // Falling back to stdout because a few of git's refusals are written
+        // there rather than to stderr -- a merge that stopped on a conflict says
+        // which files it stopped in on stdout -- and an empty refusal is one
+        // nobody can act on.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(stderr.trim().to_string());
+        let said = stderr.trim();
+        if !said.is_empty() {
+            return Err(said.to_string());
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return Err(stdout.trim().to_string());
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())

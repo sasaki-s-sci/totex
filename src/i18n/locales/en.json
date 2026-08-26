@@ -93,6 +93,8 @@
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
+    "follow": "Follow remotes",
+    "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",
     "register": "Agent setup"
   },

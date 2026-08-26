@@ -20,3 +20,11 @@
 .graph .head.is-merge-target .head__ring {
   box-shadow: var(--clearance), var(--halo-selected);
 }
+
+/* A remote end can be aimed at too, by the one branch that follows it: dropped
+   there, the branch in hand comes up to whatever is out there. The ring is the
+   dashed one rather than the solid one, so it is lit by its own rule — the same
+   halo, on the only other thing this drag can land on. */
+.graph .head.is-merge-target .head__origin {
+  box-shadow: var(--clearance), var(--halo-selected);
+}

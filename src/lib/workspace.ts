@@ -82,6 +82,48 @@ export function fetchBranch(repoId: string, remote: string, branch: string): Pro
   return invoke("fetch_branch", { repoId, remote, branch });
 }
 
+/**
+ * What came of taking a branch up to the remote end it follows.
+ *
+ * A refusal arrives as an answer rather than as a failure: the remote was
+ * asked, git read both ends, and this is what it said about the two of them.
+ * The words are git's own and they are shown — see `useMarks`, where every
+ * other refusal in the window is a red ring and nothing else.
+ */
+export type Followed = {
+  /** Git's own words for what it would not do, or null where it did it. */
+  refused: string | null;
+};
+
+/**
+ * Brings one branch up to the remote end it follows: fetch, then merge that end
+ * into the branch, in the branch's own worktree.
+ *
+ * `remoteBranch` is the name the remote knows it by — `main`, not
+ * `origin/main` — because the remote is named beside it.
+ */
+export function followBranch(
+  repoId: string,
+  branch: string,
+  remote: string,
+  remoteBranch: string,
+): Promise<Followed> {
+  return invoke("follow_branch", { repoId, branch, remote, remoteBranch });
+}
+
+/**
+ * Asks every remote of one repository, and takes the branches that were only
+ * behind up to what came back.
+ *
+ * The automatic round, and fast-forward only: a branch with commits of its own
+ * is two ends that have parted, and joining those is a decision rather than
+ * something a timer does. Nothing is reported and nothing can fail — a remote
+ * that would not answer is a branch left where it was.
+ */
+export function followRepository(repoId: string): Promise<void> {
+  return invoke("follow_repository", { repoId });
+}
+
 /** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });

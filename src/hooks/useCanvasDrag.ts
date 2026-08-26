@@ -1,11 +1,20 @@
 /**
- * The two things that can be picked up on the canvas: a branch dragged onto
- * another to merge it, and a whole folder carried somewhere else.
+ * What can be picked up on the canvas: a branch dragged onto another to merge
+ * it or onto its own remote end to come up to it, and a whole folder carried
+ * somewhere else.
  */
 
 import type { Edge, OnNodeDrag, ReactFlowInstance, XYPosition } from "@xyflow/react";
 import { type RefObject, useCallback, useRef } from "react";
-import { type AppNode, COMMIT_STEP, type GraphResult, gridMove, HEAD_SIZE } from "../lib/graph";
+import type { FollowRequest, MergeRequest } from "../components/graphProps";
+import {
+  type AppNode,
+  COMMIT_STEP,
+  type GraphResult,
+  gridMove,
+  HEAD_SIZE,
+  REMOTE_HEAD_SIZE,
+} from "../lib/graph";
 import type { Repository } from "../types/git";
 import { useBranchDrag } from "./useBranchDrag";
 
@@ -16,7 +25,8 @@ export type DragCanvas = {
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
   setNodes: (update: (current: AppNode[]) => AppNode[]) => void;
   placeFolder: (root: string, at: XYPosition) => void;
-  onMerge: (request: { repository: Repository; source: string; target: string }) => void;
+  onMerge: (request: MergeRequest) => void;
+  onFollow: (request: FollowRequest) => void;
 };
 
 export function useCanvasDrag({
@@ -27,6 +37,7 @@ export function useCanvasDrag({
   setNodes,
   placeFolder,
   onMerge,
+  onFollow,
 }: DragCanvas) {
   /**
    * Which head a screen point is inside, using graph geometry only.
@@ -52,11 +63,13 @@ export function useCanvasDrag({
           node.type !== "head" ||
           node.data.repository.id !== repository.id ||
           node.data.name === source ||
-          // Nothing can be merged into a branch that is somewhere else: git
-          // merges into a checked-out branch, and a remote-tracking ref is
-          // neither. The head is drawn and pressable; it is simply never a
+          // A remote end is a landing only for the branch that follows it,
+          // where the drop means bringing that branch up to what is out there.
+          // Every other remote head is a ref this machine cannot move anything
+          // into — git merges into a checked-out branch, and a remote-tracking
+          // ref is not one — so it is drawn and pressable and simply never a
           // place a drag can land.
-          node.data.kind === "remote"
+          (node.data.kind === "remote" && node.data.pair !== source)
         ) {
           continue;
         }
@@ -65,7 +78,11 @@ export function useCanvasDrag({
           y: band.position.y + node.position.y + COMMIT_STEP.y / 2,
         };
         const away = Math.hypot(point.x - centre.x, point.y - centre.y);
-        if (away > HEAD_SIZE / 2 || away >= nearest) continue;
+        // Each ring is aimed at by the size it is drawn at: the remote's is the
+        // larger of the two, and a target smaller than the mark under the
+        // pointer is a drop that reads as having landed and did not.
+        const reach = (node.data.kind === "remote" ? REMOTE_HEAD_SIZE : HEAD_SIZE) / 2;
+        if (away > reach || away >= nearest) continue;
         nearest = away;
         found = node.data.name;
       }
@@ -74,18 +91,31 @@ export function useCanvasDrag({
     [],
   );
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
+  const dropped = useCallback(
+    (repository: Repository, source: string, target: string) => {
+      // Which of the two the drop was is a fact about the head it landed on,
+      // and `headUnder` answers with a name because that is what the canvas is
+      // styled from. Looking the node back up costs one pass over the graph,
+      // once, at the moment the hand lets go.
+      const landed = standing.current.find(
+        (node) =>
+          node.type === "head" &&
+          node.data.repository.id === repository.id &&
+          node.data.name === target,
+      );
+      if (landed?.type === "head" && landed.data.kind === "remote" && landed.data.fetch) {
+        onFollow({ repository, branch: source, fetch: landed.data.fetch });
+        return;
+      }
+      onMerge({ repository, source, target });
+    },
+    [onFollow, onMerge],
+  );
+
   // Which branch is in hand and which one it is over goes onto the canvas
   // itself; nothing here is drawn from it, so nothing here has to re-render.
-  const dragBranch = useBranchDrag(
-    host,
-    useCallback(
-      (repository: Repository, source: string, target: string) => {
-        onMerge({ repository, source, target });
-      },
-      [onMerge],
-    ),
-    headUnder,
-  );
+  const dragBranch = useBranchDrag(host, dropped, headUnder);
 
   /**
    * The group in hand, and where everything in it was standing when it was

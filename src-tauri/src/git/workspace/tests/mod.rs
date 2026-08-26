@@ -3,6 +3,7 @@
 
 mod borrow;
 mod branch;
+mod follow;
 mod history;
 mod place;
 mod status;

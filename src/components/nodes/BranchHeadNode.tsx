@@ -1,10 +1,11 @@
+import Tooltip from "@mui/material/Tooltip";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import { useFetchPull } from "../../hooks/useFetchPull";
 import { type BranchHeadFlowNode, HEAD_SIZE, REMOTE_HEAD_SIZE } from "../../lib/graph";
 import { dirtyCount } from "../../lib/workspace";
 import { useGraphActions } from "../graphActions";
-import { branchMark, useGraphMark } from "../graphMarks";
+import { branchMark, useGraphMark, useGraphNote } from "../graphMarks";
 import { CliMark } from "../marks";
 import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
@@ -46,10 +47,14 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const state = !cwd ? "is-unopened" : dirty ? "is-dirty" : null;
   const key = branchMark(repository.id, name);
   const mark = useGraphMark(key);
+  // What the refusal said, for the one that says anything: a branch that would
+  // not come up to its remote end, in git's own words. Null the rest of the
+  // time, which is what keeps the popper out of the graph entirely.
+  const note = useGraphNote(key);
   const doing = mark === "busy" ? " is-busy" : mark === "failed" ? " is-failed" : "";
   const ink = !cwd ? dashes() : dirty && !doing ? rimOf(status) : null;
 
-  return (
+  const head = (
     <div
       className={`cell head${provisional ? " is-provisional" : ""}`}
       data-repository={repository.id}
@@ -116,6 +121,32 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
         </>
       )}
     </div>
+  );
+
+  // Drawn over the window rather than on the canvas, and only while there is
+  // something to read. A word on the canvas is a word at whatever zoom the
+  // graph happens to be at — a sentence from git would be a grey smudge from
+  // any distance — and a tooltip mounted on every head in the repository would
+  // be a popper per branch for the one branch in a thousand that ever needs one.
+  return note === null ? (
+    head
+  ) : (
+    <Tooltip
+      open
+      title={note}
+      placement="top"
+      arrow
+      disableHoverListener
+      disableFocusListener
+      disableTouchListener
+      slotProps={{
+        // git lays its refusals out in lines and indents the files it names
+        // under them, and that shape is half of what the message says.
+        tooltip: { sx: { maxWidth: 420, whiteSpace: "pre-wrap" } },
+      }}
+    >
+      {head}
+    </Tooltip>
   );
 }
 

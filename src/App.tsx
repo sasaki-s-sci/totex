@@ -10,6 +10,7 @@ import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { type FolderDestination, FolderSidebar } from "./folder/FolderSidebar";
 import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
+import { useAutoFollow } from "./hooks/useAutoFollow";
 import { useCanvasWork } from "./hooks/useCanvasWork";
 import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
@@ -105,6 +106,11 @@ function Window() {
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
   const gitMissing = useGitMissing(roots);
+  // Every branch kept up with its remote on a slow loop, while the settings
+  // page's one checkbox says to. Held with the window rather than with the
+  // graph: it is about repositories and not about what is drawn of them, and it
+  // has to run whether or not that page has ever been opened.
+  useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const { filePreviews, openFiles, closeFilePreview } = useFileDrops(main);
   const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, composeAtAsk, takeAsking } = useAskActions({
     answer,
@@ -182,7 +188,7 @@ function Window() {
     [folders],
   );
 
-  const { openWork, browseWorktree, pickCommit, merge, fetch } = useCanvasWork({
+  const { openWork, browseWorktree, pickCommit, merge, follow, fetch } = useCanvasWork({
     openSession,
     fail,
     hold,
@@ -250,6 +256,7 @@ function Window() {
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}
             onCloseRepository={closeRepository}
             onMerge={merge}
+            onFollow={follow}
             onFetch={fetch}
             onShowSession={showSession}
             onJumpSession={jumpSession}

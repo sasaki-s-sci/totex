@@ -6,7 +6,7 @@ import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
-import type { CommitFlowNode } from "../lib/graph";
+import type { CommitFlowNode, Fetch } from "../lib/graph";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
@@ -17,6 +17,23 @@ export type MergeRequest = {
   repository: Repository;
   source: string;
   target: string;
+};
+
+/**
+ * A branch to be taken up to the remote end it follows, and that end.
+ *
+ * The other thing a drag can land on. Dropping one branch on another merges the
+ * one in hand into the one it landed on, because the branch that moves is the
+ * one that was standing still; dropping a branch on its own remote end is the
+ * opposite — nothing on a remote moves from here, so what the gesture can only
+ * mean is the branch in hand coming up to it.
+ */
+export type FollowRequest = {
+  repository: Repository;
+  /** The local branch, which is the end that moves. */
+  branch: string;
+  /** The end it followed onto: the remote, and the name that remote knows it by. */
+  fetch: Fetch;
 };
 
 export type GraphProps = {
@@ -83,6 +100,8 @@ export type GraphProps = {
   /** The × beside a repository's name: it leaves the canvas. */
   onCloseRepository: (repository: Repository) => void;
   onMerge: (request: MergeRequest) => void;
+  /** A branch was carried onto its own remote end: bring it up to what is there. */
+  onFollow: (request: FollowRequest) => void;
   /** A branch's remote end was pulled: ask that remote for the rest of it. */
   onFetch: (request: FetchRequest) => void;
   onShowSession: (session: Session) => void;

@@ -233,6 +233,8 @@ pub fn run() {
             git::workspace::status::workspace_statuses,
             git::workspace::history::merge_branch,
             git::remote::fetch_branch,
+            git::workspace::follow::follow_branch,
+            git::workspace::follow::follow_repository,
             git::workspace::history::revert_commit,
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,

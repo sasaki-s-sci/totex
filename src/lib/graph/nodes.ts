@@ -74,6 +74,18 @@ export type BranchHeadData = {
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
   /**
+   * The head at the other end of this branch, by the name it is drawn under:
+   * the remote end a local ref follows, or the local end a remote ref is the
+   * other half of. Null where the branch has only the one end.
+   *
+   * What the canvas needs it for is the drop: a local head carried onto its own
+   * remote end asks for what is out there, and every other remote head on the
+   * band is a head that drop means nothing on. Pairing is by name and is worked
+   * out once for the whole repository — see `pairsOf` — so this is that answer
+   * carried rather than the same guess made again on every drag frame.
+   */
+  pair: string | null;
+  /**
    * The paired local and remote refs stand on the same commit. They remain two
    * nodes, but share a grid point and split their coincident edges vertically.
    */

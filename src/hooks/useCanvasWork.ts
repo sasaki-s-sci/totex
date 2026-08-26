@@ -1,6 +1,6 @@
 /**
  * What a mark on the canvas asks the window for: a terminal in a branch, a
- * commit's menu, a merge, and a fetch.
+ * commit's menu, a merge, a branch brought up to its remote end, and a fetch.
  *
  * Every one of them is held still, because the graph's actions are context: a
  * callback rebuilt on every render is every node on the canvas told that
@@ -9,12 +9,12 @@
 
 import { useCallback } from "react";
 import type { CommitTarget } from "../components/CommitMenu";
-import type { FetchRequest, MergeRequest } from "../components/GitGraph";
+import type { FetchRequest, FollowRequest, MergeRequest } from "../components/GitGraph";
 import type { WorkRequest } from "../components/graphActions";
 import { branchMark } from "../components/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
-import { fetchBranch, mergeBranch, openWorkspace } from "../lib/workspace";
+import { fetchBranch, followBranch, mergeBranch, openWorkspace } from "../lib/workspace";
 import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";
@@ -119,6 +119,33 @@ export function useCanvasWork({
     [fail, hold, release],
   );
 
+  /**
+   * A branch carried onto its own remote end: ask that remote, then bring the
+   * branch up to what came back.
+   *
+   * The branch in hand is the one that moves and therefore the one that waits,
+   * which is the other way round from a merge. Its ring is also where the
+   * refusal is drawn — and this is the one refusal in the window that arrives
+   * with something to read, because what stopped it is which files git found in
+   * the way. See `useMarks`.
+   */
+  const follow = useCallback(
+    ({ repository, branch, fetch }: FollowRequest) => {
+      const key = branchMark(repository.id, branch);
+      hold(key);
+      followBranch(repository.id, branch, fetch.remote, fetch.branch)
+        .then(({ refused }) => {
+          release(key);
+          if (refused) fail(key, refused);
+        })
+        .catch(() => {
+          release(key);
+          fail(key);
+        });
+    },
+    [fail, hold, release],
+  );
+
   const fetch = useCallback(
     ({ repository, branch, fetch }: FetchRequest) => {
       // The head the pull was made on is the one that waits: on a branch at
@@ -139,5 +166,5 @@ export function useCanvasWork({
 
   /** Something the whole window depends on is not answering. */
 
-  return { openWork, browseWorktree, pickCommit, merge, fetch };
+  return { openWork, browseWorktree, pickCommit, merge, follow, fetch };
 }

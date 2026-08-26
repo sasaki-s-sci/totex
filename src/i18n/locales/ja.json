@@ -93,6 +93,8 @@
     "title": "設定",
     "theme": "テーマ",
     "language": "言語",
+    "follow": "リモートに追従",
+    "followHint": "数分おきに fetch し、遅れているだけのブランチをリモートの先まで進めます。",
     "mcp": "MCPサーバー",
     "register": "エージェントの設定"
   },
