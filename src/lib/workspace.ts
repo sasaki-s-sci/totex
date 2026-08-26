@@ -25,6 +25,27 @@ export type WorktreeStatus = {
   modified: number;
 };
 
+/**
+ * How far a branch was brought level with the remote end of itself.
+ *
+ * Counted in commits rather than said in words: what happened is already on the
+ * canvas, since the branch has moved along its remote's line and the gap that
+ * is left is the gap that is drawn. This is only enough to tell the two kinds
+ * of nothing apart — a branch that took nothing because there was nothing to
+ * take is at rest, and one that took nothing because the first commit would not
+ * go is a refusal, and only the second turns a ring red.
+ *
+ * Mirrors `Sync` in `src-tauri/src/git/workspace/history.rs`.
+ */
+export type Sync = {
+  /** Commits taken from the remote end onto the branch. */
+  taken: number;
+  /** Commits the remote still has that the branch now does not. */
+  left: number;
+  /** What is left was stopped by a conflict rather than never being there. */
+  blocked: boolean;
+};
+
 /** Whether there is anything uncommitted here at all, counted in files. */
 export function dirtyCount(status: WorktreeStatus): number {
   return status.added + status.deleted + status.modified;
@@ -85,6 +106,19 @@ export function fetchBranch(repoId: string, remote: string, branch: string): Pro
 /** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });
+}
+
+/**
+ * Brings a branch level with its remote, as far as it can go unattended.
+ *
+ * The fetch and the merge in one, because they are one thing to whoever asked:
+ * what the remote has now, taken up to the first commit that would have to be
+ * settled by hand. Stopping short is an outcome rather than a failure — see
+ * `Sync`, which is how the window tells that apart from a branch that was
+ * already level.
+ */
+export function syncBranch(repoId: string, remote: string, branch: string): Promise<Sync> {
+  return invoke("sync_branch", { repoId, remote, branch });
 }
 
 export function revertCommit(repoId: string, branch: string, oid: string): Promise<void> {

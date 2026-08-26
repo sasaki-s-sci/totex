@@ -35,7 +35,7 @@ import { PinnedCards } from "./PinnedCards";
 import { SettingsControlsProvider } from "./settings/SettingsControls";
 
 export type { BranchPick, FetchRequest } from "./graphActions";
-export type { MergeRequest } from "./graphProps";
+export type { MergeRequest, SyncRequest } from "./graphProps";
 
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
@@ -62,6 +62,7 @@ export function GitGraph({
   onPickBranch,
   onCloseRepository,
   onMerge,
+  onSync,
   onFetch,
   onShowSession,
   onJumpSession,
@@ -188,6 +189,7 @@ export function GitGraph({
     setNodes,
     placeFolder,
     onMerge,
+    onSync,
   });
 
   const actions = useCanvasActions({

@@ -1,5 +1,6 @@
 /**
- * While a merge is being aimed.
+ * While a branch is in hand: the merge being aimed, and the branch's own remote
+ * end standing ready for it.
  */
 
 /* The whole canvas says a merge is in hand. */
@@ -7,7 +8,15 @@
   cursor: grabbing;
 }
 
-/* Only the two ends change while a merge is aimed. Fading the whole SVG made
+/* The remote ring reads as a handle where it can be pulled. With a branch in
+   hand it is a destination instead, and it says the same thing every other head
+   says while a merge is being aimed. */
+.graph.is-merging .head__origin {
+  cursor: grabbing;
+}
+
+/* Only the rings that mean something change while a merge is aimed. Fading the
+   whole SVG made
    Chromium allocate and rasterise a graph-sized composited layer at pointer
    down — the pause before the drag moved, and the same texture blur that the
    old pan promotion caused. Two rings carry the same message without touching
@@ -18,5 +27,27 @@
 }
 
 .graph .head.is-merge-target .head__ring {
+  box-shadow: var(--clearance), var(--halo-selected);
+}
+
+/* The branch's own remote end, which is the one place a branch can be let go
+   that does not mean a merge: laid over it, the branch takes what the remote
+   has. Lit from the moment the branch is picked up rather than only once the
+   pointer arrives — nothing else on the canvas offers this, so the offer is
+   what says it is there — and lit in the halo the canvas wears for something
+   live, leaving the halo for something picked to mean what it means everywhere
+   else, which is that letting go here would do it.
+
+   Only the two ends that have parted are ever offered. Ends drawn on one point
+   are already level and a ring cannot be laid over the one it is standing on;
+   the pull on the remote ring is what asks whether they still are. */
+.graph .head.is-merge-origin .head__origin {
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.graph .head.is-merge-target .head__origin {
+  /* Solid for the length of the aim. The dashes are what says the ref is
+     somewhere else, and letting go here is the offer to stop it being. */
+  border-style: solid;
   box-shadow: var(--clearance), var(--halo-selected);
 }

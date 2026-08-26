@@ -6,7 +6,7 @@ import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
-import type { CommitFlowNode } from "../lib/graph";
+import type { CommitFlowNode, Origin } from "../lib/graph";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
@@ -17,6 +17,14 @@ export type MergeRequest = {
   repository: Repository;
   source: string;
   target: string;
+};
+
+/** A branch to be brought level with its remote, and where that remote end is. */
+export type SyncRequest = {
+  repository: Repository;
+  /** The local branch, which is the end that moves and the mark that waits. */
+  branch: string;
+  origin: Origin;
 };
 
 export type GraphProps = {
@@ -83,6 +91,11 @@ export type GraphProps = {
   /** The × beside a repository's name: it leaves the canvas. */
   onCloseRepository: (repository: Repository) => void;
   onMerge: (request: MergeRequest) => void;
+  /**
+   * A branch was laid over its own remote end: ask that remote what it has now,
+   * and take as much of it as goes without anything to settle by hand.
+   */
+  onSync: (request: SyncRequest) => void;
   /** A branch's remote end was pulled: ask that remote for the rest of it. */
   onFetch: (request: FetchRequest) => void;
   onShowSession: (session: Session) => void;

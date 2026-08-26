@@ -1,7 +1,7 @@
 import type { Branch, Repository } from "../../types/git";
 import { groupBy } from "../collections";
 import type { Placed } from "./history";
-import type { BranchHeadData, Fetch } from "./model";
+import type { BranchHeadData, Fetch, Origin } from "./model";
 
 /**
  * The branch half of a band: a column of names, read downwards.
@@ -59,6 +59,7 @@ export function placeBranches(
         hasRemote: ref.hasRemote,
         together: ref.together,
         fetch: ref.fetch,
+        origin: ref.origin,
         cwd: ref.cwd,
       },
       from,
@@ -174,6 +175,16 @@ function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
   return null;
 }
 
+/** The remote end a local branch can be laid over, which is the whole of what
+ *  the pairing is worth to the local end. Only where the two have parted: two
+ *  ends drawn on one grid point are already level, and a mark cannot be laid
+ *  over the one it is standing on — the fetch on the remote ring is what asks
+ *  whether they still are. */
+function originOf(branch: Branch, pair: Pairing | undefined): Origin | null {
+  if (branch.kind !== "local" || pair === undefined || pair.together) return null;
+  return { head: pair.other.name, remote: pair.remote, branch: branch.logicalName };
+}
+
 /** The names pointing at one commit. A branch is checked out in at most one
  *  worktree, so only a detached one is named after itself. */
 function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
@@ -203,6 +214,7 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
         hasRemote: remote || pair !== undefined,
         together: pair?.together === true,
         fetch: fetchOf(branch, pair),
+        origin: originOf(branch, pair),
         head: branch.isHead,
         cwd: checkout?.path ?? null,
       },
@@ -221,6 +233,7 @@ function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
       hasRemote: false,
       together: false,
       fetch: null,
+      origin: null,
       head: false,
       cwd: worktree.path,
     }));

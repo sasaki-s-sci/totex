@@ -1,6 +1,6 @@
 /**
  * What a mark on the canvas asks the window for: a terminal in a branch, a
- * commit's menu, a merge, and a fetch.
+ * commit's menu, a merge, a sync, and a fetch.
  *
  * Every one of them is held still, because the graph's actions are context: a
  * callback rebuilt on every render is every node on the canvas told that
@@ -9,12 +9,12 @@
 
 import { useCallback } from "react";
 import type { CommitTarget } from "../components/CommitMenu";
-import type { FetchRequest, MergeRequest } from "../components/GitGraph";
+import type { FetchRequest, MergeRequest, SyncRequest } from "../components/GitGraph";
 import type { WorkRequest } from "../components/graphActions";
 import { branchMark } from "../components/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
-import { fetchBranch, mergeBranch, openWorkspace } from "../lib/workspace";
+import { fetchBranch, mergeBranch, openWorkspace, syncBranch } from "../lib/workspace";
 import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";
@@ -119,6 +119,35 @@ export function useCanvasWork({
     [fail, hold, release],
   );
 
+  /**
+   * Brings a branch level with its remote, as far as it goes on its own.
+   *
+   * The local end is what moves, so the local end is the mark that waits — the
+   * same rule the merge follows, and the branch that was in hand either way.
+   *
+   * Stopping part of the way is not a refusal. The graph says what happened on
+   * its own: the branch has moved along its remote's line and the two ends are
+   * still drawn apart, which is a conflict waiting in the commits that are
+   * left. Only a sync that could take nothing at all goes red, because there
+   * the graph has nothing to show and the ring is the whole of the answer.
+   */
+  const sync = useCallback(
+    ({ repository, branch, origin }: SyncRequest) => {
+      const key = branchMark(repository.id, branch);
+      hold(key);
+      syncBranch(repository.id, origin.remote, origin.branch)
+        .then((brought) => {
+          release(key);
+          if (brought.taken === 0 && brought.blocked) fail(key);
+        })
+        .catch(() => {
+          release(key);
+          fail(key);
+        });
+    },
+    [fail, hold, release],
+  );
+
   const fetch = useCallback(
     ({ repository, branch, fetch }: FetchRequest) => {
       // The head the pull was made on is the one that waits: on a branch at
@@ -139,5 +168,5 @@ export function useCanvasWork({
 
   /** Something the whole window depends on is not answering. */
 
-  return { openWork, browseWorktree, pickCommit, merge, fetch };
+  return { openWork, browseWorktree, pickCommit, merge, sync, fetch };
 }

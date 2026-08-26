@@ -182,7 +182,7 @@ function Window() {
     [folders],
   );
 
-  const { openWork, browseWorktree, pickCommit, merge, fetch } = useCanvasWork({
+  const { openWork, browseWorktree, pickCommit, merge, sync, fetch } = useCanvasWork({
     openSession,
     fail,
     hold,
@@ -250,6 +250,7 @@ function Window() {
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}
             onCloseRepository={closeRepository}
             onMerge={merge}
+            onSync={sync}
             onFetch={fetch}
             onShowSession={showSession}
             onJumpSession={jumpSession}
