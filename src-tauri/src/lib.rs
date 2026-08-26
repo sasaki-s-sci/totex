@@ -9,6 +9,7 @@ mod mcp;
 mod pty;
 mod release;
 mod stream;
+mod tasks;
 mod update;
 
 /// The application layer, as this program carries it.
@@ -238,6 +239,7 @@ pub fn run() {
             git::workspace::history::revert_commit,
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,
+            tasks::directory_tasks,
             pty::spawn::pty_open,
             pty::control::pty_sessions,
             pty::control::pty_attach,

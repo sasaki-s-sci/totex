@@ -75,6 +75,10 @@
     "open": "Shell",
     "end": "End"
   },
+  "tasks": {
+    "find": "What to run",
+    "empty": "Nothing here says what it can run"
+  },
   "ask": {
     "asking": "is asking",
     "open": "Open the terminal",
