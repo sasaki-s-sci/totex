@@ -27,7 +27,11 @@ export type PageCanvas = {
   flowReady: boolean;
 };
 
-export function useFilePreviews(requests: readonly FilePreviewRequest[], canvas: PageCanvas) {
+export function useFilePreviews(
+  requests: readonly FilePreviewRequest[],
+  canvas: PageCanvas,
+  previewFile: (path: string, beside: number) => void,
+) {
   useFilePreviewPlacing(requests, canvas);
-  return useFilePreviewCard(canvas);
+  return useFilePreviewCard(canvas, previewFile);
 }

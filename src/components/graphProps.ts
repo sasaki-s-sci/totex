@@ -6,7 +6,7 @@ import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
-import type { CommitFlowNode, Fetch } from "../lib/graph";
+import type { CommitFlowNode, Origin } from "../lib/graph";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
@@ -19,21 +19,12 @@ export type MergeRequest = {
   target: string;
 };
 
-/**
- * A branch to be taken up to the remote end it follows, and that end.
- *
- * The other thing a drag can land on. Dropping one branch on another merges the
- * one in hand into the one it landed on, because the branch that moves is the
- * one that was standing still; dropping a branch on its own remote end is the
- * opposite — nothing on a remote moves from here, so what the gesture can only
- * mean is the branch in hand coming up to it.
- */
-export type FollowRequest = {
+/** A branch to be brought level with its remote, and where that remote end is. */
+export type SyncRequest = {
   repository: Repository;
-  /** The local branch, which is the end that moves. */
+  /** The local branch, which is the end that moves and the mark that waits. */
   branch: string;
-  /** The end it followed onto: the remote, and the name that remote knows it by. */
-  fetch: Fetch;
+  origin: Origin;
 };
 
 export type GraphProps = {
@@ -99,8 +90,11 @@ export type GraphProps = {
   /** The × beside a repository's name: it leaves the canvas. */
   onCloseRepository: (repository: Repository) => void;
   onMerge: (request: MergeRequest) => void;
-  /** A branch was carried onto its own remote end: bring it up to what is there. */
-  onFollow: (request: FollowRequest) => void;
+  /**
+   * A branch was laid over its own remote end: ask that remote what it has now,
+   * and take as much of it as goes without anything to settle by hand.
+   */
+  onSync: (request: SyncRequest) => void;
   /** A branch's remote end was pulled: ask that remote for the rest of it. */
   onFetch: (request: FetchRequest) => void;
   onShowSession: (session: Session) => void;
@@ -113,6 +107,14 @@ export type GraphProps = {
   onEndSession: (session: Session) => void;
   /** Files asked for from the explorer or dropped onto the window. */
   filePreviews: readonly FilePreviewRequest[];
+  /**
+   * A card's file is to be drawn as a page, beside the card it is of.
+   *
+   * The window's, rather than the canvas's own, because a card standing on the
+   * canvas is a card the window was asked for: what the canvas decides is where
+   * it goes, which is what `beside` carries.
+   */
+  onPreviewFile: (path: string, beside: number) => void;
   onCloseFilePreview: (requestId: number) => void;
   /** The window's one settings page, and the controls it draws. */
   settingsOpen: boolean;

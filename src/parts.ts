@@ -27,8 +27,18 @@ export const commitPart = onDemand(() =>
 export const worktreePart = onDemand(() =>
   import("./components/WorktreeMenu").then((part) => part.WorktreeMenu),
 );
+/** What a repository says can be run in it, which nothing asks for until the
+ *  key that asks for it is pressed. */
+export const tasksPart = onDemand(() =>
+  import("./components/TaskMenu").then((part) => part.TaskMenu),
+);
 export const settingsPart = onDemand(() =>
   import("./components/nodes/SettingsNode").then((part) => part.SettingsNode),
+);
+/** What draws a markdown file as a page: a parser and a sanitiser, and neither
+ *  of them anything the window needs until a preview is asked for. */
+export const markdownPart = onDemand(() =>
+  import("./components/nodes/preview/MarkdownReading").then((part) => part.MarkdownReading),
 );
 export const ROOTS_KEY = "totex.roots";
 export const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };

@@ -26,15 +26,6 @@ export type GraphMark = "busy" | "failed" | null;
  */
 export type GraphMarks = {
   get: (key: string) => GraphMark;
-  /**
-   * What a refusal said, where it said anything: git's own words for two ends
-   * that would not come together.
-   *
-   * Almost every refusal has none. The window already knew why — a worktree
-   * with work in it, a branch that is not there — and the red ring is the whole
-   * of the answer. This is for the one case where only git has read both sides.
-   */
-  note: (key: string) => string | null;
   subscribe: (key: string, changed: () => void) => () => void;
 };
 
@@ -45,7 +36,6 @@ export function branchMark(repositoryId: string, branch: string): string {
 
 export const NO_MARKS: GraphMarks = {
   get: () => null,
-  note: () => null,
   subscribe: () => () => {},
 };
 
@@ -60,16 +50,5 @@ export function useGraphMark(key: string): GraphMark {
     [key, marks],
   );
   const snapshot = useCallback(() => marks.get(key), [key, marks]);
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
-}
-
-/** The words a refusal came with, and null for the refusals that came without. */
-export function useGraphNote(key: string): string | null {
-  const marks = useContext(GraphMarksContext);
-  const subscribe = useCallback(
-    (changed: () => void) => marks.subscribe(key, changed),
-    [key, marks],
-  );
-  const snapshot = useCallback(() => marks.note(key), [key, marks]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }

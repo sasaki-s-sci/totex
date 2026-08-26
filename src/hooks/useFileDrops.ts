@@ -26,6 +26,22 @@ export function useFileDrops(main: RefObject<HTMLElement | null>) {
     ]);
   }, []);
 
+  /**
+   * Opens a rendering of one file beside the card it is of.
+   *
+   * One preview to a file: a second press over a card whose file is already
+   * being drawn somewhere is answered by the card that is already standing,
+   * rather than by another one of it.
+   */
+  const previewFile = useCallback((path: string, beside: number) => {
+    const id = nextFilePreview.current++;
+    setFilePreviews((current) =>
+      current.some((preview) => preview.view === "markdown" && preview.path === path)
+        ? current
+        : [...current, { id, path, at: null, view: "markdown", beside }],
+    );
+  }, []);
+
   const closeFilePreview = useCallback((requestId: number) => {
     setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
   }, []);
@@ -70,5 +86,5 @@ export function useFileDrops(main: RefObject<HTMLElement | null>) {
     };
   }, [openFiles]);
 
-  return { filePreviews, openFiles, closeFilePreview };
+  return { filePreviews, openFiles, previewFile, closeFilePreview };
 }

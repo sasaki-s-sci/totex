@@ -6,34 +6,18 @@ import type { GraphMark, GraphMarks } from "../components/graphMarks";
 const HOLD_MS = 2400;
 
 /**
- * How long one that came with words stays, which is long enough to read them.
- *
- * A red ring is taken in at a glance and a sentence from git is not, so the two
- * are not owed the same moment. Still an ending rather than something to be
- * dismissed: the graph says its piece and goes back to being the graph.
- */
-const READ_MS = 9000;
-
-/**
  * The window's answer to a failure, which is to show it where it happened.
  *
- * Almost nothing is said about it. A branch whose merge would not go through
- * goes red for a moment and is then a branch again, which is what happened: the
- * graph did not move, and the mark that was pressed is the one that answers.
- * What can be refused for a reason the window can know beforehand is not
- * offered at all — see the menus, where those items are simply not pressable.
- *
- * The exception is a refusal that arrived with words. A branch carried onto its
- * remote end and refused there was refused for a reason nothing in this window
- * had read: which files are in the way, or that the two ends have parted. Only
- * git knows, git says so in a sentence, and that sentence is carried through
- * here to be drawn beside the ring — see `useGraphNote`.
+ * Nothing is said about it. A branch whose merge would not go through goes red
+ * for a moment and is then a branch again, which is what happened: the graph
+ * did not move, and the mark that was pressed is the one that answers. What can
+ * be refused for a reason the window can know beforehand is not offered at all
+ * — see the menus, where those items are simply not pressable.
  */
 export function useMarks() {
   const state = useRef({
     failed: new Set<string>(),
     busy: new Set<string>(),
-    notes: new Map<string, string>(),
     listeners: new Map<string, Set<() => void>>(),
   });
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
@@ -51,25 +35,17 @@ export function useMarks() {
   }, []);
 
   const fail = useCallback(
-    /** `note` is what was said about it, for the refusals that said anything. */
-    (key: string, note?: string) => {
+    (key: string) => {
       state.current.failed.add(key);
-      const said = note?.trim();
-      if (said) state.current.notes.set(key, said);
-      else state.current.notes.delete(key);
       emit(key);
       const running = timers.current.get(key);
       if (running) clearTimeout(running);
       timers.current.set(
         key,
-        setTimeout(
-          () => {
-            timers.current.delete(key);
-            const cleared = state.current.failed.delete(key);
-            if (state.current.notes.delete(key) || cleared) emit(key);
-          },
-          said ? READ_MS : HOLD_MS,
-        ),
+        setTimeout(() => {
+          timers.current.delete(key);
+          if (state.current.failed.delete(key)) emit(key);
+        }, HOLD_MS),
       );
     },
     [emit],
@@ -98,9 +74,6 @@ export function useMarks() {
         if (state.current.busy.has(key)) return "busy";
         if (state.current.failed.has(key)) return "failed";
         return null;
-      },
-      note(key): string | null {
-        return state.current.notes.get(key) ?? null;
       },
       subscribe(key, changed) {
         const listeners = state.current.listeners.get(key) ?? new Set();

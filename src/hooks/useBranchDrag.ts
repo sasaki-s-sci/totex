@@ -3,10 +3,25 @@ import { type RefObject, useCallback, useEffect, useRef } from "react";
 import type { Repository } from "../types/git";
 
 /** A branch being dragged, and the head it is currently over. */
-export type Drag = { repository: Repository; branch: string; over: string | null };
+export type Drag = {
+  repository: Repository;
+  branch: string;
+  /**
+   * Its own remote end, which is offered from the moment it is picked up
+   * rather than only once the pointer arrives there.
+   *
+   * It is the one place on the canvas where letting go does not mean a merge,
+   * so it is worth saying that it is there — and saying it costs the eye one
+   * ring on a drag that goes somewhere else. Null on a branch that is on no
+   * remote, and on one whose two ends are already standing together.
+   */
+  origin: string | null;
+  over: string | null;
+};
 
 /**
- * Dragging one branch head onto another, which is how a merge is asked for.
+ * Dragging one branch head onto another, which is how a merge is asked for —
+ * and onto its own remote end, which is how a branch is brought level with it.
  *
  * Written onto the canvas rather than kept in state: what a drag has to say is
  * which branch is in hand and which one it is over, and the stylesheet is the
@@ -42,6 +57,7 @@ export function useBranchDrag(
   host: RefObject<HTMLDivElement | null>,
   onDrop: (repository: Repository, source: string, target: string) => void,
   headUnder: (repository: Repository, source: string, x: number, y: number) => string | null,
+  originUnder: (repository: Repository, branch: string) => string | null,
 ) {
   const frame = useRef(0);
 
@@ -54,8 +70,10 @@ export function useBranchDrag(
       const canvas = host.current;
       if (!canvas) return;
       canvas.classList.toggle("is-merging", drag !== null);
-      for (const marked of canvas.querySelectorAll(".is-merge-source, .is-merge-target")) {
-        marked.classList.remove("is-merge-source", "is-merge-target");
+      for (const marked of canvas.querySelectorAll(
+        ".is-merge-source, .is-merge-target, .is-merge-origin",
+      )) {
+        marked.classList.remove("is-merge-source", "is-merge-target", "is-merge-origin");
       }
       // There is no value an attribute can hold that means it is not there, so
       // the end of a drag takes them off rather than blanking them.
@@ -65,6 +83,9 @@ export function useBranchDrag(
         for (const head of canvas.querySelectorAll<HTMLElement>(".head[data-branch]")) {
           if (head.dataset.repository !== drag.repository.id) continue;
           if (head.dataset.branch === drag.branch) head.classList.add("is-merge-source");
+          if (drag.origin && head.dataset.branch === drag.origin) {
+            head.classList.add("is-merge-origin");
+          }
           if (drag.over && head.dataset.branch === drag.over) head.classList.add("is-merge-target");
         }
       } else {
@@ -86,7 +107,10 @@ export function useBranchDrag(
       // No pointer capture: the move and release are tracked on the window, so
       // capture buys nothing — and it throws outright for any pointer the
       // browser does not consider active, which would leave the drag unarmed.
-      show({ repository, branch, over: null });
+      // Where its remote end is standing is asked once, here: the graph does
+      // not move while a branch is in hand.
+      const origin = originUnder(repository, branch);
+      show({ repository, branch, origin, over: null });
 
       // Where the pointer got to, and what it was last over. Both are held here
       // rather than in state: they are read again on the next frame, not drawn.
@@ -99,7 +123,7 @@ export function useBranchDrag(
         // The same answer is not news, and the canvas is styled from this.
         if (under === over) return;
         over = under;
-        show({ repository, branch, over });
+        show({ repository, branch, origin, over });
       };
 
       const move = (moved: PointerEvent) => {
@@ -125,7 +149,7 @@ export function useBranchDrag(
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     },
-    [headUnder, onDrop, show],
+    [headUnder, onDrop, originUnder, show],
   );
 
   return start;

@@ -9,7 +9,6 @@
 use std::path::{Path, PathBuf};
 
 use super::super::follow::{Behind, behind_branches, forward};
-use super::super::probe::{in_branch_worktree, run_or_abort};
 use super::head_of;
 use crate::git::tests::{TempDir, commit, git};
 
@@ -156,45 +155,4 @@ fn a_worktree_with_work_in_it_is_left_where_it_is() {
     );
     assert_eq!(head_of(&here, "main"), moved, "main is not at the remote");
     assert!(here.join("two.txt").exists(), "the files did not follow");
-}
-
-/// The merge a drop asks for, refused: what comes back has to be git's own
-/// words, because those words are the whole of what the window can show. Git
-/// writes some of a stopped merge to stdout and the rest to stderr — see
-/// `cmd::run`, which is where the two are put back together.
-#[test]
-fn a_refusal_comes_back_in_gits_own_words() {
-    let temp = TempDir::new("refused");
-    let Pair { here, there } = pair(&temp, &[]);
-
-    // The same file, written differently at both ends: a merge git cannot do
-    // on its own.
-    git(&there, &["checkout", "--quiet", "main"]);
-    commit(&there, "one.txt", "theirs");
-    git(&there, &["push", "--quiet", "origin", "main"]);
-    commit(&here, "one.txt", "mine");
-    crate::git::remote::fetch_at(&here, "origin", "main").expect("fetch");
-
-    let refused = in_branch_worktree(&here, "main", "follow", |dir| {
-        Ok(run_or_abort(
-            dir,
-            &["merge", "--no-edit", "refs/remotes/origin/main"],
-            &["merge", "--abort"],
-        )
-        .err())
-    })
-    .expect("the merge ran")
-    .expect("the merge was refused");
-
-    assert!(!refused.is_empty(), "the refusal said nothing");
-    assert!(
-        refused.to_lowercase().contains("conflict"),
-        "git's words did not survive: {refused}"
-    );
-    // And the worktree is back where it was, rather than left half merged.
-    assert_eq!(
-        std::fs::read_to_string(here.join("one.txt")).expect("read"),
-        "mine",
-        "the aborted merge was left in the worktree"
-    );
 }

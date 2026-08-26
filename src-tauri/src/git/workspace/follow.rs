@@ -1,92 +1,22 @@
-//! Bringing a branch up to the remote end it follows.
+//! Keeping every branch up with the remote end it follows, while the window is
+//! left open.
 //!
-//! Two ways in, and they are deliberately not the same operation. A branch
-//! dropped onto its remote end by hand is somebody asking for what is out
-//! there, so it is a merge: what fast-forwards fast-forwards, what has to be
-//! joined is joined, and what git will not do comes back in git's own words.
-//! The automatic round is nobody asking for anything, so it takes only the
+//! Nobody's press, which is the whole of what shapes it. The gesture that
+//! brings one branch level with its remote is `sync_branch`, over in `history`:
+//! somebody asking for what is out there, on the branch they asked it on, and
+//! there to be told how far it got. This is a timer instead, over every branch
+//! at once, in a window that may not be being looked at. So it takes only the
 //! branches that were purely behind and leaves every other one exactly where it
-//! was — a window that made merge commits while it was not being looked at
-//! would be a window nobody could leave open.
+//! was -- a window that made merge commits while nobody was watching would be a
+//! window nobody could leave open.
 
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
 use tauri::AppHandle;
 
-use super::probe::{
-    branch_tip, in_branch_worktree, is_clean, run_or_abort, validate_branch, worktrees_by_branch,
-};
+use super::probe::{is_clean, worktrees_by_branch};
 use crate::git::cmd;
-use crate::git::remote::fetch_at;
 use crate::git::session::{report_all, repository_dir};
-
-/// What came of taking one branch up to the remote end it follows.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Followed {
-    /// Git's own words for what it would not do, or `None` where it did it.
-    ///
-    /// The one refusal in this app that is shown rather than matched on.
-    /// Everything else a branch can be refused is refused for a reason the
-    /// window already knew — see `probe` — and the ring going red says all
-    /// there is to say. Two ends that will not come together is not one of
-    /// those: only git has read both of them, and only git can name the files
-    /// standing in the way.
-    pub refused: Option<String>,
-}
-
-/// Brings one branch up to the remote end it follows.
-///
-/// The remote is asked first and every time. What a branch is behind is
-/// whatever is out there now, not whatever this machine last heard, and a drop
-/// that merged a week-old remote-tracking ref would be a gesture that quietly
-/// meant something else.
-///
-/// `remote_branch` is the name that remote knows the branch by — `main`, not
-/// `origin/main` — because the remote is named beside it.
-#[tauri::command]
-pub async fn follow_branch(
-    app: AppHandle,
-    repo_id: String,
-    branch: String,
-    remote: String,
-    remote_branch: String,
-) -> Result<Followed, String> {
-    off_thread!({
-        let repo = repository_dir(&app, &repo_id)?;
-        let branch = branch.trim().to_string();
-        validate_branch(&repo, &branch)?;
-        let tip = branch_tip(&repo, &branch)?;
-
-        fetch_at(&repo, &remote, &remote_branch)?;
-
-        // Named in full rather than as `origin/main`: a remote-tracking ref and
-        // a local branch can be spelled the same way, and this one has just
-        // been fetched precisely because the two ends differ. The same two
-        // names the fetch was made with, so what is merged is what was asked
-        // for — both were checked on the way through `fetch_at`.
-        let source = format!("refs/remotes/{}/{}", remote.trim(), remote_branch.trim());
-        let end = cmd::run(&repo, &["rev-parse", "--verify", &source])
-            .map(|out| out.trim().to_string())
-            .map_err(|_| "no-such-remote-branch".to_string())?;
-
-        // Answered here rather than by git, because the asking is what costs: a
-        // branch with no worktree is given a whole scratch checkout to run a
-        // merge in, and this is the case where that merge would print one line
-        // and change nothing.
-        if end == tip || contains(&repo, &tip, &end) {
-            return Ok(Followed { refused: None });
-        }
-
-        let refused = in_branch_worktree(&repo, &branch, "follow", |dir| {
-            Ok(run_or_abort(dir, &["merge", "--no-edit", &source], &["merge", "--abort"]).err())
-        })?;
-
-        report_all(&app)?;
-        Ok(Followed { refused })
-    })
-}
 
 /// What a branch that moved on its own says in its reflog.
 const NOTE: &str = "totex: followed the remote";
@@ -223,13 +153,4 @@ pub(super) fn forward(repo: &Path, behind: &Behind, checkout: Option<&PathBuf>) 
         )
         .is_ok(),
     }
-}
-
-/// Whether `holder` already has `commit` behind it.
-///
-/// A failure reads as "no", which is the safe way round: the answer is only
-/// used to skip asking git for a merge, and a merge nobody needed says so in
-/// one line.
-fn contains(repo: &Path, holder: &str, commit: &str) -> bool {
-    cmd::run(repo, &["merge-base", "--is-ancestor", commit, holder]).is_ok()
 }

@@ -57,6 +57,23 @@ export type Fetch = {
 };
 
 /**
+ * The remote end of a branch, as the local end sees it.
+ *
+ * The counterpart of `Fetch`, carried by the other one of the pair and for the
+ * other gesture. A fetch is asked for from the remote end because that is the
+ * ref it moves; bringing the branch level with what came down moves the local
+ * end, so it is the local end that says where its own remote end is standing.
+ */
+export type Origin = {
+  /** The remote head's name, which is the mark the branch can be let go on. */
+  head: string;
+  /** The remote to ask. */
+  remote: string;
+  /** The name that remote knows the branch by. */
+  branch: string;
+};
+
+/**
  * Where a branch or workspace is, at the end of the line from the commit its
  * ref points at.
  *
@@ -74,24 +91,20 @@ export type BranchHeadData = {
   /** This ref exists on at least one remote, rather than only on this machine. */
   hasRemote: boolean;
   /**
-   * The head at the other end of this branch, by the name it is drawn under:
-   * the remote end a local ref follows, or the local end a remote ref is the
-   * other half of. Null where the branch has only the one end.
-   *
-   * What the canvas needs it for is the drop: a local head carried onto its own
-   * remote end asks for what is out there, and every other remote head on the
-   * band is a head that drop means nothing on. Pairing is by name and is worked
-   * out once for the whole repository — see `pairsOf` — so this is that answer
-   * carried rather than the same guess made again on every drag frame.
-   */
-  pair: string | null;
-  /**
    * The paired local and remote refs stand on the same commit. They remain two
    * nodes, but share a grid point and split their coincident edges vertically.
    */
   together: boolean;
   /** What this head can ask a remote for, and null where nothing can be asked. */
   fetch: Fetch | null;
+  /**
+   * The remote end this branch can be laid over, for the local end alone.
+   *
+   * Null on a branch this machine is the only one to have, and null on the
+   * remote end itself — a remote-tracking ref is not somewhere git can merge
+   * into, so it has nowhere of its own to be brought level with.
+   */
+  origin: Origin | null;
   /** The worktree this is checked out in, which a shell can be opened in. */
   cwd: string | null;
   /**

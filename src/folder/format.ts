@@ -6,3 +6,13 @@ export function baseName(path: string): string {
   const name = cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
   return name || path;
 }
+
+/** The folder a path is in, or null for a root, which is in none. Spelled the
+ *  way the path was: what git is asked about a file is asked in this. */
+export function folderOf(path: string): string | null {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (cut < 0) return null;
+  // A path whose only separator is the leading one is inside the root itself.
+  return trimmed.slice(0, cut) || trimmed.slice(0, cut + 1);
+}

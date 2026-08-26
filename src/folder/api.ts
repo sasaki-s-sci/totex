@@ -190,6 +190,48 @@ export function directoryChanges(paths: string[]): Promise<Record<string, Answer
 }
 
 /**
+ * Where a file stands with the repository around it, as far as one is watching.
+ *
+ * `same` covers a file git was told to ignore as well as one the commit under
+ * it agrees with: neither has anything for a card to draw.
+ */
+export type Standing = "unknown" | "same" | "changed" | "untracked";
+
+/**
+ * One run of lines of the file as it now stands, and what became of them.
+ *
+ * Runs rather than lines, because the gutter is drawn in bars: a hundred
+ * changed lines in a row is one bar. A deletion covers no lines at all —
+ * nothing of it is left in the file — and stands at the gap above `line`.
+ */
+export interface DiffRun {
+  line: number;
+  lines: number;
+  mark: Change;
+}
+
+/** What git has to say about the one file a card is holding. */
+export interface FileDiff {
+  standing: Standing;
+  /** The hunks as git printed them, with the header naming the file taken off. */
+  patch: string;
+  /** The patch ran past what a card is given and was cut short. */
+  truncated: boolean;
+  runs: DiffRun[];
+}
+
+/**
+ * What became of one file since the commit under it.
+ *
+ * Never a failure: a file outside a repository is the ordinary case here — the
+ * canvas opens files from anywhere — and comes back as `unknown` rather than as
+ * an error.
+ */
+export function fileDiff(path: string): Promise<FileDiff> {
+  return invoke<FileDiff>("file_diff", { path });
+}
+
+/**
  * Watches exactly these directories, and stops watching everything else.
  *
  * The whole set every time rather than one path at a time: the panes know what

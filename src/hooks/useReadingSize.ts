@@ -1,4 +1,6 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+
+import { reading } from "../lib/keys";
 
 /** The smallest and largest a reading is still worth drawing at, in pixels. */
 const SMALLEST = 8;
@@ -85,34 +87,33 @@ function stepOf(event: KeyboardEvent): number {
 }
 
 /**
- * Ctrl and a plus or a minus, while there is a file card on the canvas.
+ * Ctrl and a plus or a minus, while a file card has the focus.
  *
- * Listened for on the window rather than on the card, because a card that is
- * only being read holds no focus to hang a handler off — its reading answers to
- * a click only where the file can be typed into. Every card is drawn at the one
- * size anyway, so which of them the press was meant for is not a question that
- * has to be answered.
+ * The press is for the card, so the card is what has to be holding the focus:
+ * a window with a file open somewhere on the canvas is not a window that is
+ * reading it, and a terminal being typed into is not resized by this. What
+ * counts as the card having the focus is `reading` in `lib/keys`, which is also
+ * what the card is given a stop of its own for.
  *
- * The press is taken whether or not there is a card to resize, and taken first,
- * because both of these belong to the webview until something says otherwise
- * and what it does with them is nothing this window offers. A plus is Ctrl and
- * a shifted semicolon on a Japanese keyboard, which is what WebKit opens its
+ * Which card has it is not a question that has to be answered. Every card is
+ * drawn at the one size — it is the reader's eyesight being answered and not
+ * this file's — so only whether one of them has it matters.
+ *
+ * Listened for on the window, and taken whether or not a card answers it,
+ * because both presses belong to the webview until something says otherwise and
+ * what it does with them is nothing this window offers. A plus is Ctrl and a
+ * shifted semicolon on a Japanese keyboard, which is what WebKit opens its
  * symbol chooser on; a minus scales the whole window on Windows. Refusing the
  * default is what keeps the two presses to the reading and nothing else.
  */
-export function useReadingKeys(open: boolean) {
-  // Read by a listener that is registered once, so a card opening or closing
-  // does not cost a pair of them.
-  const wanted = useRef(open);
-  wanted.current = open;
-
+export function useReadingKeys() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const by = stepOf(event);
       if (by === 0) return;
       event.preventDefault();
-      if (wanted.current) resize(by);
+      if (reading(event.target)) resize(by);
     };
 
     // Captured on the way down: whatever is being typed into — a terminal, a

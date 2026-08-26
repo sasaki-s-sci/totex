@@ -9,6 +9,7 @@ mod mcp;
 mod pty;
 mod release;
 mod stream;
+mod tasks;
 mod update;
 
 /// The application layer, as this program carries it.
@@ -224,6 +225,7 @@ pub fn run() {
             git::git_version,
             git::repository_counts,
             git::changes::directory_changes,
+            git::patch::file_diff,
             git::session::scan_workspace,
             git::session::close_workspace,
             git::workspace::tree::create_workspace,
@@ -232,12 +234,13 @@ pub fn run() {
             git::workspace::tree::delete_branch,
             git::workspace::status::workspace_statuses,
             git::workspace::history::merge_branch,
+            git::workspace::history::sync_branch,
             git::remote::fetch_branch,
-            git::workspace::follow::follow_branch,
             git::workspace::follow::follow_repository,
             git::workspace::history::revert_commit,
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,
+            tasks::directory_tasks,
             pty::spawn::pty_open,
             pty::control::pty_sessions,
             pty::control::pty_attach,

@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::host::Host;
+use crate::host::{Host, Output};
 use crate::wsl;
 
 /// How every git this app runs is told to behave.
@@ -54,8 +54,11 @@ fn native_argument(host: &Host, argument: &str) -> String {
     }
 }
 
-/// Runs git inside `dir` and returns stdout.
-pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
+/// Runs git inside `dir` and hands back everything it said.
+///
+/// Where both of the calls below start: which git runs is decided from the
+/// directory, and so is the spelling of every argument that names a path.
+fn exec(dir: &Path, args: &[&str]) -> Result<Output, String> {
     let host = Host::of(dir);
     let here = host.native(dir);
     let safe = safe_directory(&here);
@@ -67,7 +70,12 @@ pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
     let mut argv = vec!["git", "-c", safe.as_str(), "-C", here.as_str()];
     argv.extend(arguments.iter().map(String::as_str));
 
-    let output = host.exec(None, &ENVIRONMENT, &argv).map_err(missing)?;
+    host.exec(None, &ENVIRONMENT, &argv).map_err(missing)
+}
+
+/// Runs git inside `dir` and returns stdout.
+pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
+    let output = exec(dir, args)?;
     if !output.ok() {
         // A shell that could not find git says so with the code a shell uses
         // for it, which is how a distribution with no git installed reads the
@@ -75,22 +83,10 @@ pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
         if output.code == 127 {
             return Err("git-missing".to_string());
         }
-        // git's own words, whatever they are, and nothing added to them:
-        // whatever reads this wants git and not us. Almost every caller matches
-        // on them; the one that shows them is a branch that would not come
-        // together with its remote end, where only git knows what is in the way.
-        //
-        // Falling back to stdout because a few of git's refusals are written
-        // there rather than to stderr -- a merge that stopped on a conflict says
-        // which files it stopped in on stdout -- and an empty refusal is one
-        // nobody can act on.
+        // git's own words, whatever they are, and nothing added to them: the
+        // window never draws this, and whatever reads it wants git and not us.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let said = stderr.trim();
-        if !said.is_empty() {
-            return Err(said.to_string());
-        }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        return Err(stdout.trim().to_string());
+        return Err(stderr.trim().to_string());
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
@@ -100,6 +96,26 @@ pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// Used for lookups that are legitimately absent, such as `refs/remotes/origin/HEAD`.
 pub fn try_run(dir: &Path, args: &[&str]) -> Option<String> {
     run(dir, args).ok()
+}
+
+/// Runs git for an answer it gives in its exit code, and hands back that code
+/// along with whatever it said about it.
+///
+/// [`run`] reads a non-zero exit as a failure, because that is what it nearly
+/// always is: git was asked for something and would not do it. One question is
+/// not like that. Whether a merge would conflict is answered by `merge-tree`
+/// refusing, and there the refusal is the answer rather than an error — so the
+/// code has to come back rather than be turned into one. A git that could not
+/// be run at all is still an error, because that is not an answer to anything.
+pub fn code(dir: &Path, args: &[&str]) -> Result<(i32, String), String> {
+    let output = exec(dir, args)?;
+    if output.code == 127 {
+        return Err("git-missing".to_string());
+    }
+    Ok((
+        output.code,
+        String::from_utf8_lossy(&output.stderr).trim().to_string(),
+    ))
 }
 
 /// A path git printed, in the spelling the rest of the app stores.
