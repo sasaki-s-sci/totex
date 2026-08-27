@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use super::super::operate::copy_into;
 use super::super::read::{read_directory, read_file_head, write_file};
 use super::wsl_dir;
 use crate::host::Host;
@@ -83,4 +84,88 @@ fn a_card_reads_and_writes_a_file_inside_the_distribution() {
     // The reading the card holds is stale now, so its write is refused.
     assert!(write_file(&file, "mine\n", head.size).is_err());
     assert!(read_file_head(&dir).is_err(), "a folder is not a card");
+}
+
+#[test]
+fn a_drop_crosses_between_this_machine_and_the_distribution() {
+    let Some(dir) = wsl_dir("drop") else {
+        return;
+    };
+    let root = super::temp_dir("drop-across");
+    let source = root.join("shot.png");
+    std::fs::write(&source, b"pixels").expect("fill a file");
+
+    // Out of this machine and into the distribution, which is the drag out of
+    // Explorer onto a folder inside one.
+    let landed = copy_into(&[source.to_string_lossy().into_owned()], &dir).expect("the drop lands");
+    assert_eq!(landed.len(), 1);
+    assert!(landed[0].starts_with(r"\\wsl.localhost\"), "{}", landed[0]);
+    let host = Host::of(Path::new(&dir));
+    assert_eq!(
+        host.read(Path::new(&landed[0])),
+        Ok(b"pixels".to_vec()),
+        "the bytes arrived whole"
+    );
+    assert!(source.is_file(), "the file dropped is still there");
+
+    // And back the other way, onto a folder on this machine.
+    let back = root.join("kept");
+    std::fs::create_dir(&back).expect("make the folder");
+    let returned = copy_into(&[landed[0].clone()], &back.to_string_lossy()).expect("it comes back");
+    assert_eq!(
+        std::fs::read(&returned[0]).ok(),
+        Some(b"pixels".to_vec()),
+        "and back again whole"
+    );
+
+    // The second of the same name is told from the first, on either side.
+    let twice = copy_into(&[source.to_string_lossy().into_owned()], &dir).expect("the drop lands");
+    assert!(twice[0].ends_with("shot copy.png"), "{}", twice[0]);
+    std::fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
+fn a_folder_the_distribution_copies_for_itself_keeps_its_links_as_links() {
+    let Some(dir) = wsl_dir("drop-links") else {
+        return;
+    };
+    let host = Host::of(Path::new(&dir));
+    host.exec(
+        Some(Path::new(&dir)),
+        &[],
+        &[
+            "sh",
+            "-c",
+            "mkdir assets; printf one > assets/read.me; \
+             ln -s \"$PWD/assets\" assets/itself; ln -s \"$PWD/assets/read.me\" assets/again",
+        ],
+    )
+    .expect("a shell");
+
+    // Across to this machine, which the distribution can name, so `cp` makes
+    // the whole copy — links and all. The walk is the other answer, and
+    // `download`'s own test is what pins that one; see this module's `copy`.
+    let root = super::temp_dir("drop-links");
+    let landed = copy_into(&[format!(r"{dir}\assets")], &root.to_string_lossy())
+        .expect("the folder comes across");
+    let inside = Path::new(&landed[0]);
+    assert_eq!(
+        std::fs::read(inside.join("read.me")).ok(),
+        Some(b"one".to_vec())
+    );
+    // A link to the folder holding it would have stopped the walk. It does not
+    // stop `cp`, and what arrives is the link.
+    assert!(
+        std::fs::symlink_metadata(inside.join("itself"))
+            .expect("the link is there")
+            .is_symlink(),
+        "a link to a folder comes across as a link"
+    );
+    assert!(
+        std::fs::symlink_metadata(inside.join("again"))
+            .expect("the link is there")
+            .is_symlink(),
+        "and so does a link to a file"
+    );
+    std::fs::remove_dir_all(root).expect("clean temp dir");
 }

@@ -1,17 +1,16 @@
 /**
- * The file cards the window is holding, and the native drops that open them.
+ * The file cards the window is holding, and the ways one is asked for.
  *
- * Native file drops do not become browser drop events in a Tauri webview, so
- * they are listened for at the window boundary and turned into the CSS
- * coordinates React Flow expects. A drop over the explorer stays the explorer's;
- * only the canvas takes a card.
+ * A card is opened from a row in the column, from another card, or by dropping
+ * a file on the canvas — which is `useNativeDrops`, since a native drop is a
+ * point on the window before it is anything else and the canvas is only one of
+ * the things that can be under it.
  */
 
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { FilePreviewRequest } from "../lib/filePreview";
 
-export function useFileDrops(main: RefObject<HTMLElement | null>) {
+export function useFileDrops() {
   const [filePreviews, setFilePreviews] = useState<FilePreviewRequest[]>([]);
   const nextFilePreview = useRef(0);
 
@@ -45,46 +44,6 @@ export function useFileDrops(main: RefObject<HTMLElement | null>) {
   const closeFilePreview = useCallback((requestId: number) => {
     setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
   }, []);
-
-  // Native file drops do not become browser drop events in a Tauri webview.
-  // Listen at the window boundary, then turn the physical point into the CSS
-  // coordinates React Flow expects. Drops over the explorer stay the
-  // explorer's; only the canvas accepts a preview card.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the ref is the window's own and never changes identity
-  useEffect(() => {
-    const appWindow = getCurrentWindow();
-    let cancelled = false;
-    let stop: (() => void) | null = null;
-
-    void appWindow
-      .onDragDropEvent(async ({ payload }) => {
-        if (payload.type !== "drop" || payload.paths.length === 0) return;
-        const scale = await appWindow.scaleFactor();
-        if (cancelled) return;
-        const at = { x: payload.position.x / scale, y: payload.position.y / scale };
-        const bounds = main.current?.getBoundingClientRect();
-        if (
-          !bounds ||
-          at.x < bounds.left ||
-          at.x > bounds.right ||
-          at.y < bounds.top ||
-          at.y > bounds.bottom
-        ) {
-          return;
-        }
-        openFiles(payload.paths, at);
-      })
-      .then((unlisten) => {
-        if (cancelled) unlisten();
-        else stop = unlisten;
-      })
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, [openFiles]);
 
   return { filePreviews, openFiles, previewFile, closeFilePreview };
 }

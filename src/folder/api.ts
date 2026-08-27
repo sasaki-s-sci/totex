@@ -131,6 +131,34 @@ export function deleteFile(path: string): Promise<void> {
 }
 
 /**
+ * Puts a copy of one file or folder where this machine keeps its downloads,
+ * and answers with where it went.
+ *
+ * Where the window is running, not where the file is: a path inside a WSL
+ * distribution lands in the host's own downloads folder, which is the one place
+ * every other program on that machine can open it from. The whole of a folder
+ * comes with it.
+ */
+export function downloadEntry(path: string): Promise<string> {
+  return invoke<string>("fs_download", { path });
+}
+
+/**
+ * Copies everything in `paths` into the folder `into`, and answers with where
+ * each of them landed.
+ *
+ * What a drop on a folder is, and it is a copy every time: what was dropped
+ * stays where it was, and a name the folder is already using is given the same
+ * `copy` spelling a duplicate gets rather than being written over. Either end
+ * can be inside a WSL distribution — something dragged out of Explorer onto a
+ * folder in one is the ordinary case, and the copy is made inside the
+ * distribution so that what lands there belongs to the account working in it.
+ */
+export function copyInto(paths: string[], into: string): Promise<string[]> {
+  return invoke<string[]>("fs_copy_into", { paths, into });
+}
+
+/**
  * How many repositories each of these folders holds — itself, or under it.
  *
  * The number on the graph mark. Every folder can be put on the graph, so this

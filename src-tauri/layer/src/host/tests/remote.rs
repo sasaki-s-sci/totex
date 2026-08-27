@@ -112,3 +112,34 @@ fn the_home_of_the_distribution_is_the_one_inside_it() {
     assert!(host.native(&home).starts_with('/'));
     assert!(host.is_dir(&home));
 }
+
+#[test]
+fn puts_bytes_down_inside_the_distribution_and_sweeps_them_up_again() {
+    let Some(host) = reachable() else {
+        return;
+    };
+    let dir = scratch(&host, "put");
+    let file = host.join(&dir, "shot.png");
+
+    // Bytes rather than text: this is the far half of a copy out of somewhere
+    // the distribution cannot be handed, and what comes that way is a file of
+    // any kind. A NUL and a high byte are what a `printf` of it would lose.
+    let bytes = [0u8, 0x89, b'P', b'N', b'G', 0x1a, 0xff];
+    host.write_new(&file, &bytes).expect("put the bytes down");
+    assert_eq!(host.read(&file), Ok(bytes.to_vec()));
+    assert_eq!(host.stat(&file).expect("a stat").size, bytes.len() as u64);
+
+    // And it replaces nothing: the name was chosen against a listing, and a file
+    // that arrived since is one this was never asked to write over.
+    assert_eq!(
+        host.write_new(&file, b"other"),
+        Err("already-exists".to_string())
+    );
+
+    let folder = host.join(&dir, "half-copied");
+    host.create_dir(&folder).expect("make the folder");
+    host.write_new(&host.join(&folder, "inside"), b"one")
+        .expect("fill it");
+    host.remove_all(&folder);
+    assert!(!host.exists(&folder), "the sweep took the folder with it");
+}

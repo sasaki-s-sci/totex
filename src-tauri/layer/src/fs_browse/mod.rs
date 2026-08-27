@@ -11,6 +11,8 @@
 //! in a listing; reaching in is the same reading the distribution's own tools
 //! would get.
 
+mod copy;
+mod download;
 pub mod model;
 mod operate;
 mod path;
@@ -20,8 +22,9 @@ mod roots;
 #[cfg(test)]
 mod tests;
 
+pub use download::download;
 pub use model::{FileHead, Listing, Place, Root};
-pub use operate::{create_entry, delete_file, duplicate_file, read_file, rename_file};
+pub use operate::{copy_into, create_entry, delete_file, duplicate_file, read_file, rename_file};
 pub use path::{describe_folders, home_dir, resolve_folder};
 pub use read::{read_directory, read_file_head, write_file};
 pub use roots::list_roots;

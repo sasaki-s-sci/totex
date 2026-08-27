@@ -67,3 +67,32 @@ export const FIRST_ROWS = 80;
 
 /** How many more arrive each time the end of the rows comes into view. */
 export const MORE_ROWS = 160;
+
+/**
+ * What a folder is drawn as while it is the one a drop would land in.
+ *
+ * The accent the scheme is written in, around the row rather than through it:
+ * the name keeps whatever colour git gave it, and what is being said is about
+ * the folder as a place rather than about the file it is named after. A row
+ * that is also the selected one is both, which is what the two being drawn
+ * differently is for.
+ */
+export const TAKING_DROP = {
+  bgcolor: "action.hover",
+  outline: "1px solid",
+  outlineColor: "primary.main",
+  outlineOffset: "-1px",
+} as const;
+
+/**
+ * And what it is drawn as when it would not take what was dropped on it.
+ *
+ * The same ring in the colour a mark takes when it was refused after it was
+ * pressed — the one failure the window draws — and it fades on its own rather
+ * than waiting to be answered. See `useDrops`.
+ */
+export const REFUSED_DROP = {
+  outline: "1px solid",
+  outlineColor: "error.main",
+  outlineOffset: "-1px",
+} as const;

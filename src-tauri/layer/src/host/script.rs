@@ -29,3 +29,14 @@ pub(super) const WRITE: &str = r#"
 [ "$(wc -c <"$1")" = "$2" ] || exit 4
 printf '%s' "$3" | base64 -d >"$1"
 "#;
+
+/// Bytes into a file that is not there, refusing to replace one that is.
+///
+/// The far end of a copy out of somewhere this machine cannot hand to `cp` —
+/// another distribution, or a disk it has no name for inside this one. The
+/// bytes ride inside the command for the same reason [`WRITE`]'s do.
+pub(super) const PUT: &str = r#"
+[ -e "$1" ] && exit 3
+[ -L "$1" ] && exit 3
+printf '%s' "$2" | base64 -d >"$1"
+"#;

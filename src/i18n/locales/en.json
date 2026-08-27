@@ -30,6 +30,7 @@
     "copy": "Copy",
     "duplicate": "Duplicate",
     "download": "Download",
+    "downloaded": "Copied to {{path}}",
     "copyPath": "Copy path",
     "copyRelativePath": "Copy relative path",
     "rename": "Rename",

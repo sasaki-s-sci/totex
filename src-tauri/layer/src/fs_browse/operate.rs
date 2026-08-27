@@ -1,6 +1,11 @@
-//! Explicit operations requested from a file row's context menu.
+//! Explicit operations on what a path names: the ones a file row's context
+//! menu offers, and the one a folder is asked for by being dropped on.
 
+use std::path::{Path, PathBuf};
+
+use super::copy::{copy_tree, sweep};
 use super::path::resolve;
+use crate::host::Host;
 
 /// Reads a complete file for copying or downloading.
 pub fn read_file(raw_path: &str) -> Result<Vec<u8>, String> {
@@ -40,14 +45,96 @@ pub fn duplicate_file(raw_path: &str) -> Result<String, String> {
     }
     let parent = host.parent(&path).ok_or_else(|| "no-parent".to_string())?;
     let name = host.name(&path);
+    let candidate = unused_name(&host, &parent, &name)?;
+    host.copy_file(&path, &candidate)?;
+    Ok(candidate.to_string_lossy().into_owned())
+}
+
+/// The first spelling of `name` that nothing in `parent` is already using.
+///
+/// The name itself where it is free, and the same name with a copy number after
+/// it where it is not — so a file that lands beside one it is named after is
+/// told from it by the way a copy is always told from an original here. Shared
+/// with [`copy_into`] and [`super::download`], which are the other two things
+/// that have to put something somewhere without replacing what is there.
+pub(super) fn unused_name(host: &Host, parent: &Path, name: &str) -> Result<PathBuf, String> {
+    let first = host.join(parent, name);
+    if !host.exists(&first) {
+        return Ok(first);
+    }
     for number in 1..=10_000 {
-        let candidate = host.join(&parent, &copy_name(&name, number));
+        let candidate = host.join(parent, &copy_name(name, number));
         if !host.exists(&candidate) {
-            host.copy_file(&path, &candidate)?;
-            return Ok(candidate.to_string_lossy().into_owned());
+            return Ok(candidate);
         }
     }
     Err("no-copy-name".to_string())
+}
+
+/// Copies everything in `raw_sources` into `raw_into`, and answers with where
+/// each of them landed.
+///
+/// What a drop on a folder is, and it is a copy every time: what was dropped
+/// stays where it was, and nothing already in the folder is replaced — a file
+/// landing beside one of its own name is told from it by the same `copy` name a
+/// duplicate gets. Which machines the two ends are on is not the drop's
+/// business; that is [`super::copy`]'s, and dragging something out of Explorer
+/// onto a folder inside a distribution is the ordinary case it is there for.
+///
+/// One at a time, and it stops at the first that will not go. A drop is usually
+/// one thing, and where it is several, a half-done copy standing in the folder
+/// with an error beside it is worse than a short one: what did land is named in
+/// the answer, and what did not is the error.
+pub fn copy_into(raw_sources: &[String], raw_into: &str) -> Result<Vec<String>, String> {
+    let (to, into) = resolve(raw_into)?;
+    if !to.is_dir(&into) {
+        return Err("no-such-folder".to_string());
+    }
+    let mut landed = Vec::with_capacity(raw_sources.len());
+    for raw in raw_sources {
+        landed.push(copy_one(raw, &to, &into)?);
+    }
+    Ok(landed)
+}
+
+/// One of them, into a folder that has already been settled.
+fn copy_one(raw_source: &str, to: &Host, into: &Path) -> Result<String, String> {
+    let (from, source) = resolve(raw_source)?;
+    let stat = from
+        .stat(&source)
+        .ok_or_else(|| "no-such-file".to_string())?;
+    let name = from.name(&source);
+    if name.is_empty() {
+        return Err("no-name".to_string());
+    }
+    // A folder cannot be dropped into itself, or into anything it holds: the
+    // copy would be inside what is being copied, and the walk would keep finding
+    // more of it to do.
+    if stat.is_dir && &from == to && holds(to, &source, into) {
+        return Err("into-itself".to_string());
+    }
+    let target = unused_name(to, into, &name)?;
+    match copy_tree(&from, &source, &stat, to, &target) {
+        Ok(()) => Ok(target.to_string_lossy().into_owned()),
+        Err(error) => {
+            sweep(to, &target);
+            Err(error)
+        }
+    }
+}
+
+/// Whether `path` is `folder` itself or something under it, as the machine
+/// holding both of them spells them.
+fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
+    let separator = if host.is_remote() || !cfg!(windows) {
+        '/'
+    } else {
+        '\\'
+    };
+    let folder = host.native(folder);
+    let folder = folder.trim_end_matches(separator);
+    let path = host.native(path);
+    path == folder || path.starts_with(&format!("{folder}{separator}"))
 }
 
 /// Gives one file another name in the same directory.
