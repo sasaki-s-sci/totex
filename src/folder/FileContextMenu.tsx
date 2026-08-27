@@ -22,12 +22,20 @@ import {
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createEntry, deleteFile, duplicateFile, type FsEntry, readFile, renameFile } from "./api";
+import { createEntry, deleteFile, downloadEntry, duplicateFile, readFile, renameFile } from "./api";
 
 export type FileMenuTarget = {
-  entry: FsEntry;
-  /** The directory whose listing carries the file. */
-  parent: string;
+  /** What was right-clicked: a row, or the folder a pane is standing in. */
+  path: string;
+  name: string;
+  /** True when the target is a folder, which is offered less than a file is.
+   *  Making an entry inside one is the whole of what the layer underneath will
+   *  do with a directory: copying, renaming and removing one are refused
+   *  there, so they are not offered here either. */
+  isDir: boolean;
+  /** Where a new file or folder is made — inside the folder that was
+   *  right-clicked, or beside the file, in the directory listing it. */
+  into: string;
   /** The pane's own folder, which relative paths are measured from. */
   root: string;
   at: { x: number; y: number };
@@ -40,13 +48,16 @@ type Props = {
   onClose: () => void;
 };
 
-/** The operations offered by a file row at the point it was right-clicked. */
+/** The operations offered by a row — or by the folder a pane is showing — at
+ *  the point it was right-clicked. */
 export function FileContextMenu({ target, onClose }: Props) {
   const { t } = useTranslation();
   const [dialog, setDialog] = useState<DialogMode | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  /** Where a download put its copy, which is the one answer worth reading. */
+  const [went, setWent] = useState<string | null>(null);
 
   // Nothing from one file's menu belongs to the next one opened.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the target itself is the opening
@@ -55,23 +66,39 @@ export function FileContextMenu({ target, onClose }: Props) {
     setName("");
     setBusy(null);
     setFailed(false);
+    setWent(null);
   }, [target]);
 
   if (!target) return null;
-  const { entry, parent, root } = target;
+  const { path, isDir, into, root } = target;
 
   const openName = (mode: Exclude<DialogMode, "delete">) => {
     setFailed(false);
-    setName(mode === "rename" ? entry.name : mode === "new-folder" ? t("file.newFolderName") : "");
+    setName(mode === "rename" ? target.name : mode === "new-folder" ? t("file.newFolderName") : "");
     setDialog(mode);
   };
 
-  const run = async (label: string, action: () => Promise<unknown>) => {
+  /**
+   * One press, and what became of it.
+   *
+   * The menu shuts on its way out, because what was asked for has happened and
+   * the row it happened to is behind it. `tell` is the exception: an operation
+   * whose answer is worth reading keeps the menu open to say it, and is closed
+   * by the person who read it.
+   */
+  const run = async (
+    label: string,
+    action: () => Promise<unknown>,
+    tell?: (answer: unknown) => string,
+  ) => {
     setBusy(label);
     setFailed(false);
+    setWent(null);
     try {
-      await action();
-      onClose();
+      const answer = await action();
+      if (!tell) return onClose();
+      setWent(tell(answer));
+      setBusy(null);
     } catch {
       setFailed(true);
       setBusy(null);
@@ -103,60 +130,87 @@ export function FileContextMenu({ target, onClose }: Props) {
           disabled={busy !== null}
           onClick={() => openName("new-folder")}
         />
+        {/* What is read out of the file: its contents, a copy of it, and the
+            file itself. A folder is none of these — and each item stands on
+            its own rather than in a fragment, which a menu cannot step
+            through. */}
+        {!isDir && <Divider />}
+        {!isDir && (
+          <FileItem
+            icon={<ContentCopyIcon />}
+            label={t("file.copy")}
+            disabled={busy !== null}
+            onClick={() => void run("copy", () => copyContents(path))}
+          />
+        )}
+        {!isDir && (
+          <FileItem
+            icon={<FileCopyOutlinedIcon />}
+            label={t("file.duplicate")}
+            disabled={busy !== null}
+            onClick={() => void run("duplicate", () => duplicateFile(path))}
+          />
+        )}
         <Divider />
-        <FileItem
-          icon={<ContentCopyIcon />}
-          label={t("file.copy")}
-          disabled={busy !== null}
-          onClick={() => void run("copy", () => copyContents(entry.path))}
-        />
-        <FileItem
-          icon={<FileCopyOutlinedIcon />}
-          label={t("file.duplicate")}
-          disabled={busy !== null}
-          onClick={() => void run("duplicate", () => duplicateFile(entry.path))}
-        />
+        {/* A folder comes down whole, so this is offered whatever was
+            right-clicked. Where it lands is said rather than assumed: on a
+            path inside a distribution the copy crosses to the machine the
+            window is running on, which is not where the row is. */}
         <FileItem
           icon={<DownloadOutlinedIcon />}
           label={t("file.download")}
           disabled={busy !== null}
-          onClick={() => void run("download", () => download(entry.path, entry.name))}
+          onClick={() =>
+            void run(
+              "download",
+              () => downloadEntry(path),
+              (where) => String(where),
+            )
+          }
         />
         <Divider />
         <FileItem
           icon={<RouteOutlinedIcon />}
           label={t("file.copyPath")}
           disabled={busy !== null}
-          onClick={() => void run("copy-path", () => copyText(entry.path))}
+          onClick={() => void run("copy-path", () => copyText(path))}
         />
         <FileItem
           icon={<RouteOutlinedIcon />}
           label={t("file.copyRelativePath")}
           disabled={busy !== null}
-          onClick={() =>
-            void run("copy-relative-path", () => copyText(relativePath(root, entry.path)))
-          }
+          onClick={() => void run("copy-relative-path", () => copyText(relativePath(root, path)))}
         />
-        <Divider />
-        <FileItem
-          icon={<DriveFileRenameOutlineIcon />}
-          label={t("file.rename")}
-          disabled={busy !== null}
-          onClick={() => openName("rename")}
-        />
-        <FileItem
-          icon={<DeleteOutlinedIcon />}
-          label={t("file.delete")}
-          disabled={busy !== null}
-          colour="error.main"
-          onClick={() => {
-            setFailed(false);
-            setDialog("delete");
-          }}
-        />
-        {failed && (
-          <MenuItem disabled>
-            <ListItemText secondary={t("file.failed")} />
+        {/* What is done to the file itself. A folder is left alone: the layer
+            refuses to rename or remove one, and an item that always fails is
+            worse than no item. */}
+        {!isDir && <Divider />}
+        {!isDir && (
+          <FileItem
+            icon={<DriveFileRenameOutlineIcon />}
+            label={t("file.rename")}
+            disabled={busy !== null}
+            onClick={() => openName("rename")}
+          />
+        )}
+        {!isDir && (
+          <FileItem
+            icon={<DeleteOutlinedIcon />}
+            label={t("file.delete")}
+            disabled={busy !== null}
+            colour="error.main"
+            onClick={() => {
+              setFailed(false);
+              setDialog("delete");
+            }}
+          />
+        )}
+        {(failed || went) && (
+          <MenuItem disabled sx={{ whiteSpace: "normal" }}>
+            <ListItemText
+              secondary={failed ? t("file.failed") : t("file.downloaded", { path: went })}
+              slotProps={{ secondary: { sx: { wordBreak: "break-all" } } }}
+            />
           </MenuItem>
         )}
       </Menu>
@@ -198,7 +252,7 @@ export function FileContextMenu({ target, onClose }: Props) {
       </Dialog>
 
       <Dialog open={dialog === "delete"} onClose={busy ? undefined : () => setDialog(null)}>
-        <DialogTitle>{t("file.deleteTitle", { name: entry.name })}</DialogTitle>
+        <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
         <DialogContent>
           <DialogContentText>{t("file.deleteBody")}</DialogContentText>
           {failed && <DialogContentText color="error">{t("file.failed")}</DialogContentText>}
@@ -210,7 +264,7 @@ export function FileContextMenu({ target, onClose }: Props) {
           <Button
             color="error"
             disabled={busy !== null}
-            onClick={() => void run("delete", () => deleteFile(entry.path))}
+            onClick={() => void run("delete", () => deleteFile(path))}
           >
             {t("file.delete")}
           </Button>
@@ -223,8 +277,8 @@ export function FileContextMenu({ target, onClose }: Props) {
     if (!dialog || dialog === "delete" || !wanted) return;
     await run(dialog, () =>
       dialog === "rename"
-        ? renameFile(entry.path, wanted)
-        : createEntry(parent, wanted, dialog === "new-folder"),
+        ? renameFile(path, wanted)
+        : createEntry(into, wanted, dialog === "new-folder"),
     );
   }
 }
@@ -271,19 +325,6 @@ async function copyText(text: string) {
     field.remove();
     if (!copied) throw new Error("clipboard-unavailable");
   }
-}
-
-async function download(path: string, name: string) {
-  const bytes = new Uint8Array(await readFile(path));
-  const url = URL.createObjectURL(new Blob([bytes.buffer]));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = name;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /** A path as it stands under the pane root, with separators left native. */

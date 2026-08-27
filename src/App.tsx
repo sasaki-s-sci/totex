@@ -12,6 +12,7 @@ import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
 import { useAutoFollow } from "./hooks/useAutoFollow";
 import { useCanvasWork } from "./hooks/useCanvasWork";
+import { useDrops } from "./hooks/useDrops";
 import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
 import { useReports } from "./hooks/useReports";
@@ -142,7 +143,10 @@ function Window() {
   // graph: it is about repositories and not about what is drawn of them, and it
   // has to run whether or not that page has ever been opened.
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
-  const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops(main);
+  const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops();
+  // Everything dropped on the window, wherever it was dragged from: a folder
+  // in the column takes a copy, and the canvas opens a card. See `useDrops`.
+  const drops = useDrops(main, openFiles);
   const { answerAsk, replyToAsk, pointAtAsk, pickInAsk, takeAsking } = useAskActions({
     answer,
     reply,
@@ -244,6 +248,7 @@ function Window() {
         onFoldersChange={(folders) => localStorage.setItem(ROOTS_KEY, JSON.stringify(folders))}
         onOpenSettings={openSettings}
         onOpenFile={(path) => openFiles([path], null)}
+        drops={drops}
         destination={folderDestination}
       />
 

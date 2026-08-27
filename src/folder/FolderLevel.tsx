@@ -1,14 +1,22 @@
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack } from "@mui/material";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderMark, GraphMark, JumpMark, MarkButton } from "../components/marks";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { FsEntry, Listing } from "./api";
-import { FileContextMenu, type FileMenuTarget } from "./FileContextMenu";
+import { DROP_INTO } from "./dropInto";
+import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
-import { CHANGE_COLOUR, ICON, IGNORED_COLOUR, LEVEL_STEP, ROW_INDENT } from "./rows";
+import {
+  CHANGE_COLOUR,
+  ICON,
+  IGNORED_COLOUR,
+  LEVEL_STEP,
+  REFUSED_DROP,
+  ROW_INDENT,
+  TAKING_DROP,
+} from "./rows";
 import { useLevel } from "./useLevel";
 
 interface LevelProps {
@@ -19,10 +27,18 @@ interface LevelProps {
   depth: number;
   graphed: readonly string[];
   selected: string | null;
+  /** The folder a drop is landing in, and the one that would not take one.
+   *  Either is a folder anywhere in the column, so every level is told both
+   *  and the one row that is it draws itself as it. */
+  dropping: string | null;
+  refused: string | null;
   onOpen: (entry: FsEntry) => void;
   onNavigate: (path: string) => void;
   onToggleGraph: (path: string) => void;
   onOpenFile?: (path: string) => void;
+  /** A row was right-clicked. The menu itself belongs to the column, so that
+   *  one of them is open at a time however deep the rows go. */
+  onMenu: (target: FileMenuTarget) => void;
   /** What this directory answered, for a caller that needs to know. */
   onListing?: (listing: Listing) => void;
 }
@@ -41,14 +57,16 @@ export function Level({
   depth,
   graphed,
   selected,
+  dropping,
+  refused,
   onOpen,
   onNavigate,
   onToggleGraph,
   onOpenFile,
+  onMenu,
   onListing,
 }: LevelProps) {
   const { t } = useTranslation();
-  const [menu, setMenu] = useState<FileMenuTarget | null>(null);
   const {
     failed,
     expanded,
@@ -90,12 +108,26 @@ export function Level({
         const change = changes.get(entry.name);
         const dim = allIgnored || ignored.has(entry.name);
         const colour = change ? CHANGE_COLOUR[change] : dim ? IGNORED_COLOUR : undefined;
+        // Where a drop on this row lands: inside the folder it names, or in the
+        // directory listing it when it names a file — the same place its
+        // context menu makes a new file. So a file's row is a destination too,
+        // and the folder that would take it is the one that draws itself as
+        // taking it, which is a row above this one or the pane's own heading.
+        const into = entry.isDir ? entry.path : path;
+        const mark = !entry.isDir
+          ? null
+          : entry.path === dropping
+            ? TAKING_DROP
+            : entry.path === refused
+              ? REFUSED_DROP
+              : null;
         return (
           <Box key={entry.path}>
             <ListItemButton
               selected={entry.path === selected}
               draggable={!entry.isDir}
-              sx={{ pl: indent, pr: 0.5, gap: 0.5 }}
+              {...{ [DROP_INTO]: into }}
+              sx={{ pl: indent, pr: 0.5, gap: 0.5, ...mark }}
               onDragStart={(event) => {
                 if (entry.isDir) return;
                 event.dataTransfer.effectAllowed = "copy";
@@ -109,13 +141,19 @@ export function Level({
                 onOpenFile?.(entry.path);
               }}
               onContextMenu={(event) => {
-                if (entry.isDir) return;
                 event.preventDefault();
+                // The row answers for itself rather than letting the folder
+                // around it answer: the menu is asked of what was pointed at.
                 event.stopPropagation();
                 onOpen(entry);
-                setMenu({
-                  entry,
-                  parent: path,
+                onMenu({
+                  path: entry.path,
+                  name: entry.name,
+                  isDir: entry.isDir,
+                  // A folder is made into, and a file is made beside — which is
+                  // the directory listing it, the one these rows are. The same
+                  // folder a drop on this row lands in.
+                  into,
                   root,
                   at: { x: event.clientX, y: event.clientY },
                 });
@@ -196,10 +234,13 @@ export function Level({
                 depth={depth + 1}
                 graphed={graphed}
                 selected={selected}
+                dropping={dropping}
+                refused={refused}
                 onOpen={onOpen}
                 onNavigate={onNavigate}
                 onToggleGraph={onToggleGraph}
                 onOpenFile={onOpenFile}
+                onMenu={onMenu}
               />
             )}
           </Box>
@@ -211,7 +252,6 @@ export function Level({
           view when its rows arrive has not crossed anything, and an observer
           left on it would never speak again. */}
       {rest > 0 && <MoreRows key={shown} indent={indent} onSeen={drawMore} />}
-      <FileContextMenu target={menu} onClose={() => setMenu(null)} />
     </>
   );
 }

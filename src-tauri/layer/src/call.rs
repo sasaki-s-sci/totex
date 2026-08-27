@@ -55,6 +55,8 @@ pub const ANSWERS: &[&str] = &[
     "fs_duplicate_file",
     "fs_rename_file",
     "fs_delete_file",
+    "fs_download",
+    "fs_copy_into",
 ];
 
 /// Answers one question, or says that it is not one of this layer's.
@@ -91,6 +93,10 @@ pub fn answer(command: &str, with: Value) -> Option<Result<Value, String>> {
         "fs_delete_file" => {
             read::<Path>(with).and_then(|at| said(fs_browse::delete_file(&at.path)?))
         }
+        "fs_download" => read::<Path>(with).and_then(|at| said(fs_browse::download(&at.path)?)),
+        "fs_copy_into" => {
+            read::<Dropped>(with).and_then(|at| said(fs_browse::copy_into(&at.paths, &at.into)?))
+        }
         _ => return None,
     })
 }
@@ -113,6 +119,13 @@ fn said<T: serde::Serialize>(answer: T) -> Result<Value, String> {
 #[derive(Deserialize)]
 struct Path {
     path: String,
+}
+
+/// What was dropped, and the folder it was dropped on.
+#[derive(Deserialize)]
+struct Dropped {
+    paths: Vec<String>,
+    into: String,
 }
 
 #[derive(Deserialize)]

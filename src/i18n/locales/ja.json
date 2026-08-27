@@ -30,6 +30,7 @@
     "copy": "コピー",
     "duplicate": "複製",
     "download": "ダウンロード",
+    "downloaded": "{{path}} にコピーしました",
     "copyPath": "パスをコピー",
     "copyRelativePath": "相対パスをコピー",
     "rename": "名前を変更",

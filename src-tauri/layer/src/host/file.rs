@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use super::Host;
-use super::script::{HEAD, WRITE};
+use super::script::{HEAD, PUT, WRITE};
 use crate::wsl;
 
 impl Host {
@@ -185,6 +185,59 @@ impl Host {
                 } else {
                     Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
                 }
+            }
+        }
+    }
+
+    /// Writes bytes to a file that is not there, refusing to replace one that
+    /// is.
+    ///
+    /// What [`copy_file`](Self::copy_file) is when the two ends are on
+    /// different machines: the bytes have already been read out of the far one,
+    /// and this is the half that puts them down. Whole rather than in pieces,
+    /// because a command is one crossing and a file arriving in fragments would
+    /// be one per fragment — see `fs_browse::copy`, which is what decides that
+    /// a copy has to come this way at all.
+    pub fn write_new(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
+        match self {
+            Self::Local => {
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(path)
+                    .map_err(|error| error.to_string())?;
+                file.write_all(bytes).map_err(|error| error.to_string())
+            }
+            Self::Wsl(distro) => {
+                let payload = wsl::encode(bytes);
+                let output = wsl::script(distro, None, PUT, &[&self.native(path), &payload])?;
+                match output.code {
+                    0 => Ok(()),
+                    3 => Err("already-exists".to_string()),
+                    _ => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                }
+            }
+        }
+    }
+
+    /// Removes one path and everything under it, saying nothing about how it
+    /// went.
+    ///
+    /// The sweep after a copy that failed part way, which is the only thing that
+    /// asks for this: what is being removed is what this program was in the
+    /// middle of writing, and the error worth answering with is the one that
+    /// stopped it rather than anything about the tidying up. Nothing else in the
+    /// app removes a directory — see [`remove_file`](Self::remove_file), which
+    /// refuses one.
+    pub fn remove_all(&self, path: &Path) {
+        match self {
+            Self::Local => {
+                let _ = std::fs::remove_file(path);
+                let _ = std::fs::remove_dir_all(path);
+            }
+            Self::Wsl(distro) => {
+                let _ = wsl::exec(distro, None, &[], &["rm", "-rf", "--", &self.native(path)]);
             }
         }
     }

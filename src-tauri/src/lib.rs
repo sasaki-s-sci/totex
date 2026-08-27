@@ -133,6 +133,20 @@ fn fs_delete_file(layer: State<'_, Arc<Layers>>, path: String) -> Result<(), Str
     layer.ask("fs_delete_file", json!({ "path": path }))
 }
 
+#[tauri::command(async)]
+fn fs_download(layer: State<'_, Arc<Layers>>, path: String) -> Result<String, String> {
+    layer.ask("fs_download", json!({ "path": path }))
+}
+
+#[tauri::command(async)]
+fn fs_copy_into(
+    layer: State<'_, Arc<Layers>>,
+    paths: Vec<String>,
+    into: String,
+) -> Result<Vec<String>, String> {
+    layer.ask("fs_copy_into", json!({ "paths": paths, "into": into }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Before anything builds a window: the window this app draws is undecorated,
@@ -213,6 +227,8 @@ pub fn run() {
             fs_duplicate_file,
             fs_rename_file,
             fs_delete_file,
+            fs_download,
+            fs_copy_into,
             update::update_standing,
             update::update_take,
             update::update_pick,

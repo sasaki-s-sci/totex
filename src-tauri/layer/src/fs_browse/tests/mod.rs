@@ -1,5 +1,7 @@
 //! A temp directory on this machine, and one inside a distribution.
 
+mod copy;
+mod download;
 mod operate;
 mod path;
 mod read;

@@ -4,9 +4,12 @@ import { useTranslation } from "react-i18next";
 import { CloseMark, DisclosureMark, GraphMark, MarkButton, UpMark } from "../components/marks";
 import type { FsEntry, Listing } from "./api";
 import { useRepositoryCounts } from "./counts";
+import { DROP_INTO } from "./dropInto";
+import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import { baseName } from "./format";
 import { ROOT_ICONS } from "./roots";
+import { REFUSED_DROP, TAKING_DROP } from "./rows";
 
 export interface FolderPaneProps {
   /** The folder the pane is showing. It asks to be moved; it does not move. */
@@ -17,12 +20,19 @@ export interface FolderPaneProps {
   /** The folders this pane has put on the graph, so every row it draws can say
    *  whether it is one of them. */
   graphed: readonly string[];
+  /** The folder a drop is landing in, and the one that would not take one.
+   *  Both are the column's answer, and every pane draws whichever of its own
+   *  folders is named — its heading included. */
+  dropping: string | null;
+  refused: string | null;
   onNavigate: (path: string) => void;
   onToggleOpen: () => void;
   /** Puts one folder on the graph or takes it off. The only way onto it. */
   onToggleGraph: (path: string) => void;
   /** Opens a file from its row as a card on the canvas. */
   onOpenFile?: (path: string) => void;
+  /** Something in the pane was right-clicked. The column holds the menu. */
+  onMenu: (target: FileMenuTarget) => void;
   onClose: () => void;
 }
 
@@ -48,10 +58,13 @@ export function FolderPane({
   path,
   open: showing,
   graphed,
+  dropping,
+  refused,
   onNavigate,
   onToggleOpen,
   onToggleGraph,
   onOpenFile,
+  onMenu,
   onClose,
 }: FolderPaneProps) {
   const { t } = useTranslation();
@@ -75,7 +88,25 @@ export function FolderPane({
   }
 
   return (
-    <Box component="section" sx={{ pb: 0.5 }}>
+    /* Anything in the pane that is not a row answers for the pane's own folder:
+       its heading, and the space under the last row. A row stops the press
+       before it gets here, so what a right-click offers is always what it was
+       aimed at — and there is nowhere in the column that offers nothing. */
+    <Box
+      component="section"
+      sx={{ pb: 0.5 }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu({
+          path,
+          name,
+          isDir: true,
+          into: path,
+          root: path,
+          at: { x: event.clientX, y: event.clientY },
+        });
+      }}
+    >
       {/* The folder the pane is showing, and the things that can be done to it.
           Marks and nothing else are drawn: the name is the pane's heading, not
           a bar across the top of one.
@@ -88,6 +119,7 @@ export function FolderPane({
           the rows go behind it. */}
       <Stack
         direction="row"
+        {...{ [DROP_INTO]: path }}
         sx={{
           position: "sticky",
           top: 0,
@@ -98,6 +130,7 @@ export function FolderPane({
           pt: 0.5,
           pl: 1,
           pr: 0.5,
+          ...(path === dropping ? TAKING_DROP : path === refused ? REFUSED_DROP : null),
         }}
       >
         <Box
@@ -155,10 +188,13 @@ export function FolderPane({
           depth={0}
           graphed={graphed}
           selected={selected}
+          dropping={dropping}
+          refused={refused}
           onOpen={open}
           onNavigate={onNavigate}
           onToggleGraph={onToggleGraph}
           onOpenFile={onOpenFile}
+          onMenu={onMenu}
           onListing={setRoot}
         />
       )}

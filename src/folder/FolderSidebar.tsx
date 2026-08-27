@@ -1,10 +1,15 @@
 import { Box, Divider, Stack } from "@mui/material";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AddMark, MarkButton, SettingsMark } from "../components/marks";
 import { ResizeGrip } from "../components/useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET } from "../components/WindowControls";
+import type { Drops } from "../hooks/useDrops";
+import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import { DROP_INTO, folderUnder } from "./dropInto";
+import { FileContextMenu, type FileMenuTarget } from "./FileContextMenu";
 import { FolderPane } from "./FolderPane";
+import { baseName } from "./format";
 import { RootsMenu } from "./RootsMenu";
 import { usePanes } from "./usePanes";
 
@@ -42,6 +47,16 @@ export interface FolderSidebarProps {
   onOpenSettings?: () => void;
   /** A file was opened from one of the explorer rows. */
   onOpenFile?: (path: string) => void;
+  /**
+   * Everything dropped on the window, which the column is one half of.
+   *
+   * Held above the column rather than in it because the other half is the
+   * canvas, and because what arrives out of Explorer arrives at the window
+   * rather than at anything drawn in it — see `useDrops`. What the column adds
+   * is the near half of the same gesture: a row dragged out of one folder and
+   * onto another, which is a browser drag and lands the same copy.
+   */
+  drops: Drops;
   /** A graph node asked to move its owning pane to a folder. */
   destination?: FolderDestination | null;
 }
@@ -81,6 +96,7 @@ export function FolderSidebar({
   onFoldersChange,
   onOpenSettings,
   onOpenFile,
+  drops,
   destination,
 }: FolderSidebarProps) {
   const { t } = useTranslation();
@@ -106,10 +122,48 @@ export function FolderSidebar({
     dropPlace,
     keepTyped,
   } = usePanes(initialFolders ?? [], onFoldersChange, onExpandedChange, destination);
+  // What was last right-clicked, wherever in the column that was. One menu for
+  // the whole column rather than one per level: two of them open at once is
+  // two answers to a question that was asked once.
+  const [menu, setMenu] = useState<FileMenuTarget | null>(null);
+  // The folder the space under the panes belongs to, which is the one the last
+  // of them is showing — the same folder the rows immediately above it are in.
+  const under = panes.at(-1)?.path ?? null;
+
+  /** Whether a browser drag is one of the column's own rows, which is the only
+   *  kind it takes: anything else dragged over it is not the column's. */
+  const carrying = (transfer: DataTransfer) => transfer.types.includes(FILE_DRAG_TYPE);
 
   return (
     <Box
       ref={sidebar}
+      /* A row dragged out of one folder and onto another. The same hit test the
+         native drop uses, so a drag from Explorer and a drag from two rows up
+         land in the same folder and light the same one on the way. */
+      onDragOver={(event) => {
+        if (!carrying(event.dataTransfer)) return;
+        const folder = folderUnder(event.clientX, event.clientY);
+        drops.mark(folder);
+        if (!folder) return;
+        // Copy, and only ever copy: the row is still the file's own place and
+        // what is being made is another one of it.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }}
+      onDragLeave={(event) => {
+        // Fired for every row the pointer crosses inside the column as well as
+        // for leaving it, so what is answered is only the second.
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drops.mark(null);
+      }}
+      onDrop={(event) => {
+        if (!carrying(event.dataTransfer)) return;
+        const path = event.dataTransfer.getData(FILE_DRAG_TYPE);
+        const folder = folderUnder(event.clientX, event.clientY);
+        drops.mark(null);
+        if (!path || !folder) return;
+        event.preventDefault();
+        drops.take([path], folder);
+      }}
       sx={{
         position: "relative",
         width,
@@ -218,10 +272,13 @@ export function FolderSidebar({
               path={pane.path}
               open={pane.open}
               graphed={pane.graphed}
+              dropping={drops.into}
+              refused={drops.refused}
               onNavigate={(path) => update(pane.id, { path })}
               onToggleOpen={() => update(pane.id, { open: !pane.open })}
               onToggleGraph={(path) => toggleGraph(pane.id, path)}
               onOpenFile={onOpenFile}
+              onMenu={setMenu}
               onClose={() =>
                 setPanes((current) => current.filter((candidate) => candidate.id !== pane.id))
               }
@@ -234,8 +291,33 @@ export function FolderSidebar({
             double click to fill the screen. Only the blank space — a press
             inside an element carrying this attribute is a press on the window,
             so a row under one would be a row that cannot be clicked. */}
-        <Box data-tauri-drag-region sx={{ flex: 1, minHeight: 48 }} />
+        <Box
+          data-tauri-drag-region
+          {...(under ? { [DROP_INTO]: under } : null)}
+          sx={{ flex: 1, minHeight: 48 }}
+          onContextMenu={
+            under
+              ? (event) => {
+                  event.preventDefault();
+                  setMenu({
+                    path: under,
+                    name: baseName(under),
+                    isDir: true,
+                    into: under,
+                    root: under,
+                    at: { x: event.clientX, y: event.clientY },
+                  });
+                }
+              : undefined
+          }
+        />
       </Box>
+
+      {/* Whatever was right-clicked, answered in one place: a row, the folder a
+          pane is showing, or the space under the last of them. The column's own
+          rather than any one pane's, because the space below the panes is the
+          column's and belongs to no pane at all. */}
+      <FileContextMenu target={menu} onClose={() => setMenu(null)} />
 
       {/* The grip between the two panes. */}
       <ResizeGrip label={t("resize.width")} {...grip} />
