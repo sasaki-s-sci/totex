@@ -56,14 +56,48 @@ export function rungOf(at: UpdateState, layer: Layer): Rung | null {
   return at.rungs?.find((rung) => rung.layer === layer) ?? null;
 }
 
+/** Whether one version is a later release than another. */
+function ahead(one: string, than: string): boolean {
+  const left = one.split(".").map(Number);
+  const right = than.split(".").map(Number);
+  for (let part = 0; part < Math.max(left.length, right.length); part += 1) {
+    const a = left[part] ?? 0;
+    const b = right[part] ?? 0;
+    // Not `>`, so that a version that is not three numbers -- which is nothing
+    // the release page offers, and could still be what this copy calls itself
+    // -- never claims to be ahead of one that is.
+    if (a !== b) return a > b;
+  }
+  return false;
+}
+
+/** The newer of two versions, either of which may be missing. */
+export function newer(one: string | null, other: string | null): string | null {
+  if (one === null) return other;
+  if (other === null) return one;
+  return ahead(other, one) ? other : one;
+}
+
 /**
  * Which release one row is pointed at: the one named, or the newest of the
  * cycle it is following.
+ *
+ * What is in place counts as one of the releases that cycle offers, so that
+ * following it is a declaration to keep up rather than a declaration to move.
+ * The three cycles are numbered apart from one another — a layer cut on its own
+ * is at 0.1.11 while the app is at 0.1.17 — and without this the newest layer
+ * there is reads as a step backwards from the layer inside the release that is
+ * already here, which is exactly what it is not.
+ *
+ * A version named outright is left alone whichever way it points. That is what
+ * naming one is for: the row that cannot go backwards is the row nobody told
+ * where to go.
  */
 export function wanted(at: UpdateState, layer: Layer): string | null {
   const rung = rungOf(at, layer);
   if (!rung) return null;
-  return rung.picked ?? at.versions[rung.cycle][0] ?? null;
+  if (rung.picked !== null) return rung.picked;
+  return newer(at.versions[rung.cycle][0] ?? null, rung.at);
 }
 
 /**
