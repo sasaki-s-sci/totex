@@ -154,21 +154,20 @@ const WIDE = 6;
 
 /**
  * A branch's name, cut to what its own line has room for, with what the branch
- * is to the repository set after it in brackets.
+ * is to the repository set on a line of its own above it.
  *
  * Measured by eye rather than by the browser: laying the text out to find its
  * width would cost a reflow per branch, and being a character out only moves
  * where a name that was going to be cut short gets cut.
  *
- * The note is taken out of the room before the name is, and is never itself
- * cut: it is the shorter half and the one that says something the name cannot,
- * so a long branch name loses its own last letters rather than the word that
- * says the repository is standing on it.
+ * The note is off the name's line rather than after it, so the two never share
+ * the one stretch of curve: the name keeps the whole of the room, and the note
+ * — the shorter half, and the one that says something the name cannot — is
+ * never cut to make space for it.
  */
 export function labelOf(name: string, note: string | null, from: Point, to: Point): Label {
   const span = Math.hypot(to.x - from.x, to.y - from.y);
-  const tail = note === null ? "" : ` (${note})`;
-  const room = span - DOT_CLEARANCE - HEAD_CLEARANCE - widthOf(tail);
+  const room = span - DOT_CLEARANCE - HEAD_CLEARANCE;
 
   let width = 0;
   let kept = "";
@@ -183,8 +182,9 @@ export function labelOf(name: string, note: string | null, from: Point, to: Poin
   }
 
   return {
-    full: `${name}${tail}`,
-    text: `${text}${tail}`,
+    full: note === null ? name : `${name} (${note})`,
+    text,
+    note,
     // Set against the far end, where the curve has flattened out, and stopped
     // short of the head so the ring cannot cover the last letters. The straight
     // run stands in for the curve's own length, which is the longer of the two —
@@ -196,13 +196,4 @@ export function labelOf(name: string, note: string | null, from: Point, to: Poin
 /** Rough advance of one character at the name's size. */
 function advanceOf(character: string): number {
   return (character.codePointAt(0) ?? 0) > 0x7f ? WIDE : NARROW;
-}
-
-/** Rough width of a run of text at the name's size, measured the same way. */
-function widthOf(text: string): number {
-  let width = 0;
-  for (const character of text) {
-    width += advanceOf(character);
-  }
-  return width;
 }

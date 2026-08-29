@@ -20,7 +20,7 @@ export type PlacedRef = {
   from: number;
   /** Its row, counted from the top of the column. */
   row: number;
-  /** What this branch is to the repository, set after its name; see `noteOf`. */
+  /** What this branch is to the repository, set above its name; see `noteOf`. */
   note: string | null;
 };
 
@@ -93,10 +93,10 @@ function byName(left: string, right: string): number {
 }
 
 /**
- * What a branch is to the repository, set after its name in brackets: the one it
+ * What a branch is to the repository, set on a line above its name: the one it
  * is standing on, and the one it treats as its default. Nearly every branch is
- * neither and is left as its name alone, because a bracket on everything is a
- * bracket on nothing. A branch that is both reads as one bracket saying both.
+ * neither and is left as its name alone, because a note on everything is a note
+ * on nothing. A branch that is both reads as one line saying both.
  *
  * `fallback` is the default as git reports it — a full ref name, so it matches
  * `refName` rather than the shortened name that is drawn.
