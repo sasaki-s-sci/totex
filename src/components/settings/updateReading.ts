@@ -10,7 +10,14 @@
  * above them are both asking.
  */
 
-import { rungOf, type UpdateChoice, type UpdateState, wanted } from "../../lib/update";
+import {
+  newer,
+  type Rung,
+  rungOf,
+  type UpdateChoice,
+  type UpdateState,
+  wanted,
+} from "../../lib/update";
 
 /** The cycle the application layer is cut on, which is its own. */
 export const CORE_CYCLE = "layer";
@@ -48,6 +55,8 @@ export type Standing = {
   to: string | null;
   /** What the pull-down is on: a version, `latest`, or "" before rungs land. */
   picked: string;
+  /** Which release `latest` is on today, so the word can be read as a version. */
+  latest: string | null;
   /** The releases this declaration can be pointed at. */
   choices: UpdateChoice[];
   /** The release it resolves to, or null where nothing compatible was found. */
@@ -79,14 +88,44 @@ function selectedCore(at: UpdateState): UpdateChoice | null {
   };
 }
 
+/**
+ * Whether the program and the application layer would still be talking to one
+ * another once this release had been taken.
+ *
+ * Both halves are what would be in place afterwards rather than what is in
+ * place now. The program is this release's where a copy can replace its
+ * program, and the one running where it cannot. The layer is the one the Core
+ * row names — and where it names none, this release's own, which a program out
+ * of that same release speaks by construction.
+ *
+ * Asked of what is running now on both sides, this refused every release that
+ * ever raised the protocol: a copy of 0.1.16 speaks 1, the release that follows
+ * it speaks 2, and the one release that copy had to be able to take was the one
+ * release it could not see. A release moves all three layers at once, which is
+ * what makes it a release rather than three of them.
+ */
+function talks(
+  choice: UpdateChoice,
+  core: UpdateChoice,
+  program: Rung | null,
+  named: boolean,
+): boolean {
+  const speaks = program?.can ? choice.layerProtocol : (program?.protocol ?? null);
+  const heard = named ? core.layerProtocol : choice.layerProtocol;
+  return speaks !== null && speaks === heard;
+}
+
 /** Front / Program releases compatible with the Core declaration. */
 function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoice[] {
   if (core?.layerProtocol === null || core === null) return [];
   const program = rungOf(at, "core");
+  // Whether the Core row is on a layer of its own, which is the one case where
+  // what would be answering afterwards is not what the release carries.
+  const named = rungOf(at, "app")?.cycle === CORE_CYCLE;
   return at.choices.filter(
     (choice) =>
       choice.cycle === PROGRAM_CYCLE &&
-      choice.layerProtocol === core.layerProtocol &&
+      talks(choice, core, program, named) &&
       choice.frontContract !== null &&
       // A package-managed program stays where it is, so a selected front must
       // also fit the program that is actually running. Where the program can
@@ -116,6 +155,12 @@ export function coreStanding(at: UpdateState): Standing | null {
     aside: null,
     to: rung.can && target && target.version !== rung.at ? target.version : null,
     picked: selectedVersion(at, "app", CORE_CYCLE),
+    // What this row means by `latest` however it is set now, because pressing
+    // the word is also what moves the row onto the layer's own cycle. Read the
+    // same way `wanted` reads it, the layer in place included: a cycle whose
+    // newest release is older than the layer this release carries is a cycle
+    // with nothing in it to take.
+    latest: newer(at.versions[CORE_CYCLE][0] ?? null, rung.at),
     // Listed whether or not this copy can take one: the row says what the
     // releases are either way, and `can` is what decides whether it can be
     // pointed at one of them.
@@ -156,6 +201,10 @@ export function programStanding(at: UpdateState, core: UpdateChoice | null): Sta
     to:
       can && target && moves.some((version) => version !== target.version) ? target.version : null,
     picked,
+    // The newest release this half could be moved to rather than the newest
+    // there is: a release the program underneath cannot answer is not one
+    // `latest` would ever land on.
+    latest: choices[0]?.version ?? null,
     choices,
     target,
     can,

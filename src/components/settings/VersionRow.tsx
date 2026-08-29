@@ -65,6 +65,31 @@ function VersionMove({ standing }: { standing: Standing }) {
 }
 
 /**
+ * `latest` as it reads in the pull-down: the release it is on today, with the
+ * word itself behind it in the small grey.
+ *
+ * The word on its own says nothing about where it points, and where a row is
+ * following a cycle of its own that is how it comes to read as a step backwards
+ * without ever saying so — the newest release of one cycle is not the newest
+ * number on the page. The version is what is actually being chosen, so it is set
+ * as one; the word is only why it will move again on its own, so it is set as a
+ * footnote to it.
+ *
+ * There is no version to show before the release page has answered once, which
+ * leaves the word standing alone — which is what it meant then anyway.
+ */
+function Latest({ version }: { version: string | null }) {
+  return (
+    <Stack component="span" direction="row" sx={{ alignItems: "baseline", gap: 0.5, minWidth: 0 }}>
+      {version && <span>{version}</span>}
+      <Typography component="span" variant="caption" sx={{ color: "text.secondary" }}>
+        {LATEST}
+      </Typography>
+    </Stack>
+  );
+}
+
+/**
  * Which release this half is pointed at: `latest`, or one named outright.
  *
  * `latest` is a declaration rather than a version — it is followed wherever it
@@ -84,7 +109,7 @@ function VersionSelect({
   disabled: boolean;
   onChange: (version: string | null) => void;
 }) {
-  const { can, picked, choices } = standing;
+  const { can, picked, choices, latest } = standing;
   const held =
     picked && picked !== LATEST && !choices.some((choice) => choice.version === picked)
       ? picked
@@ -100,7 +125,7 @@ function VersionSelect({
       // nothing would act on is a control that does nothing, and the row says
       // why beside it.
       disabled={disabled || !can || choices.length === 0}
-      renderValue={(version) => version || "—"}
+      renderValue={(version) => (version === LATEST ? <Latest version={latest} /> : version || "—")}
       onChange={(event) => {
         const version = event.target.value;
         if (version === LATEST) onChange(null);
@@ -110,7 +135,9 @@ function VersionSelect({
       sx={{ minWidth: PICK }}
     >
       {!picked && <MenuItem value="">—</MenuItem>}
-      <MenuItem value={LATEST}>{LATEST}</MenuItem>
+      <MenuItem value={LATEST}>
+        <Latest version={latest} />
+      </MenuItem>
       {held && (
         <MenuItem value={held} disabled>
           {held}
