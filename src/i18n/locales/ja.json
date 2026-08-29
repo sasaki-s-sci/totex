@@ -37,6 +37,7 @@
     "delete": "削除",
     "deleteTitle": "{{name}} を削除しますか？",
     "deleteBody": "このファイルは完全に削除されます。",
+    "deleteFolderBody": "このフォルダと中身はすべて完全に削除されます。",
     "cancel": "キャンセル",
     "confirm": "OK",
     "failed": "操作を完了できませんでした"

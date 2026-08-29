@@ -157,7 +157,8 @@ pub fn rename_file(raw_path: &str, raw_name: &str) -> Result<String, String> {
     Ok(destination.to_string_lossy().into_owned())
 }
 
-/// Removes exactly one file. Directories are deliberately refused here.
+/// Removes exactly one file. Directories are refused here — see
+/// [`delete_folder`], which is the name the other one is asked for by.
 pub fn delete_file(raw_path: &str) -> Result<(), String> {
     let (host, path) = resolve(raw_path)?;
     let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
@@ -165,6 +166,35 @@ pub fn delete_file(raw_path: &str) -> Result<(), String> {
         return Err("is-a-directory".to_string());
     }
     host.remove_file(&path)
+}
+
+/// Removes one folder and everything under it. Files are refused here.
+///
+/// A name of its own rather than [`delete_file`] taught to take a directory,
+/// and the two are apart for what is under the folder: a file is the whole of
+/// what removing a file takes away, and a folder is a tree nobody can see the
+/// end of from the row they right-clicked. So it is asked for deliberately,
+/// answered deliberately, and the window says which of the two it is about to
+/// ask for before it asks.
+///
+/// A link to a folder is a name and nothing else: the name goes, and the folder
+/// on the far side of it stays where it was. A root has no parent, and emptying
+/// a disk is not one of the things a row in a listing offers.
+pub fn delete_folder(raw_path: &str) -> Result<(), String> {
+    let (host, path) = resolve(raw_path)?;
+    let stat = host
+        .stat(&path)
+        .ok_or_else(|| "no-such-folder".to_string())?;
+    if !stat.is_dir {
+        return Err("not-a-directory".to_string());
+    }
+    if host.parent(&path).is_none() {
+        return Err("no-parent".to_string());
+    }
+    if stat.is_symlink {
+        return host.remove_link(&path);
+    }
+    host.remove_dir_all(&path)
 }
 
 fn valid_name(raw: &str) -> Result<&str, String> {

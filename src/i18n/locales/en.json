@@ -37,6 +37,7 @@
     "delete": "Delete",
     "deleteTitle": "Delete {{name}}?",
     "deleteBody": "This file will be permanently deleted.",
+    "deleteFolderBody": "This folder and everything in it will be permanently deleted.",
     "cancel": "Cancel",
     "confirm": "OK",
     "failed": "Could not complete the operation"

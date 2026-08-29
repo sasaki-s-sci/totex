@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use super::super::operate::copy_into;
+use super::super::operate::{copy_into, delete_folder};
 use super::super::read::{read_directory, read_file_head, write_file};
 use super::wsl_dir;
 use crate::host::Host;
@@ -168,4 +168,49 @@ fn a_folder_the_distribution_copies_for_itself_keeps_its_links_as_links() {
         "and so does a link to a file"
     );
     std::fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
+fn a_folder_inside_a_distribution_goes_with_everything_under_it() {
+    let Some(dir) = wsl_dir("folder-deletion") else {
+        return;
+    };
+    let host = Host::of(Path::new(&dir));
+    host.exec(
+        Some(Path::new(&dir)),
+        &[],
+        &[
+            "sh",
+            "-c",
+            "mkdir -p project/inside; printf one > project/notes.txt; \
+             printf two > project/inside/deep.txt; printf three > beside.txt; \
+             ln -s \"$PWD/project\" shortcut",
+        ],
+    )
+    .expect("a shell");
+    let project = format!(r"{dir}\project");
+    let beside = format!(r"{dir}\beside.txt");
+    let shortcut = format!(r"{dir}\shortcut");
+
+    // The link first, which is a name and nothing else: it goes, and the folder
+    // it pointed at is still there to be deleted on its own.
+    delete_folder(&shortcut).expect("delete the link");
+    assert!(
+        host.stat(Path::new(&shortcut)).is_none(),
+        "the name is gone"
+    );
+    assert!(host.is_dir(Path::new(&project)), "and the folder is not");
+
+    delete_folder(&project).expect("delete the folder");
+    assert!(
+        host.stat(Path::new(&project)).is_none(),
+        "the tree went with it"
+    );
+    assert_eq!(
+        host.read(Path::new(&beside)),
+        Ok(b"three".to_vec()),
+        "and nothing beside it moved"
+    );
+    assert!(delete_folder(&project).is_err(), "it is gone for good");
+    assert!(delete_folder(&beside).is_err(), "a file is not a folder");
 }

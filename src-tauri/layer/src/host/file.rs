@@ -227,9 +227,9 @@ impl Host {
     /// The sweep after a copy that failed part way, which is the only thing that
     /// asks for this: what is being removed is what this program was in the
     /// middle of writing, and the error worth answering with is the one that
-    /// stopped it rather than anything about the tidying up. Nothing else in the
-    /// app removes a directory — see [`remove_file`](Self::remove_file), which
-    /// refuses one.
+    /// stopped it rather than anything about the tidying up. A folder somebody
+    /// asked for the removal of goes through
+    /// [`remove_dir_all`](Self::remove_dir_all) instead, which answers.
     pub fn remove_all(&self, path: &Path) {
         match self {
             Self::Local => {
@@ -272,6 +272,47 @@ impl Host {
                     Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
                 }
             }
+        }
+    }
+
+    /// Removes one directory and everything under it, and says how it went.
+    ///
+    /// One command however much is under it, on either machine: the machine
+    /// holding the folder already knows how to take a tree apart, and a walk
+    /// driven from here would be one crossing per file inside a distribution.
+    /// What [`remove_all`](Self::remove_all) is when somebody is waiting for
+    /// the answer — which is every time a person asked for the removal.
+    ///
+    /// A folder that is not there is an error rather than a silence, so `rm`
+    /// is asked without `-f`.
+    pub fn remove_dir_all(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::remove_dir_all(path).map_err(|error| error.to_string()),
+            Self::Wsl(distro) => {
+                let output = wsl::exec(distro, None, &[], &["rm", "-r", "--", &self.native(path)])?;
+                if output.ok() {
+                    Ok(())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                }
+            }
+        }
+    }
+
+    /// Removes a link, and not what is on the far side of it.
+    ///
+    /// A link to a folder is a name and nothing else: taking the name away
+    /// leaves the folder it pointed at where it was, which is what a file
+    /// manager does with one and what deleting the row that draws it has to
+    /// mean. Both calls are tried on this machine because Windows makes a link
+    /// to a folder a folder-shaped thing, which the call that removes a file
+    /// will not take; `rm` never follows a link it was handed the name of.
+    pub fn remove_link(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => std::fs::remove_file(path)
+                .or_else(|_| std::fs::remove_dir(path))
+                .map_err(|error| error.to_string()),
+            Self::Wsl(_) => self.remove_file(path),
         }
     }
 

@@ -55,6 +55,7 @@ pub const ANSWERS: &[&str] = &[
     "fs_duplicate_file",
     "fs_rename_file",
     "fs_delete_file",
+    "fs_delete_folder",
     "fs_download",
     "fs_copy_into",
 ];
@@ -92,6 +93,9 @@ pub fn answer(command: &str, with: Value) -> Option<Result<Value, String>> {
         }
         "fs_delete_file" => {
             read::<Path>(with).and_then(|at| said(fs_browse::delete_file(&at.path)?))
+        }
+        "fs_delete_folder" => {
+            read::<Path>(with).and_then(|at| said(fs_browse::delete_folder(&at.path)?))
         }
         "fs_download" => read::<Path>(with).and_then(|at| said(fs_browse::download(&at.path)?)),
         "fs_copy_into" => {

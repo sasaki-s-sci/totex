@@ -24,7 +24,9 @@ mod tests;
 
 pub use download::download;
 pub use model::{FileHead, Listing, Place, Root};
-pub use operate::{copy_into, create_entry, delete_file, duplicate_file, read_file, rename_file};
+pub use operate::{
+    copy_into, create_entry, delete_file, delete_folder, duplicate_file, read_file, rename_file,
+};
 pub use path::{describe_folders, home_dir, resolve_folder};
 pub use read::{read_directory, read_file_head, write_file};
 pub use roots::list_roots;
