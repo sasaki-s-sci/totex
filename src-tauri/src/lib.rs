@@ -133,6 +133,13 @@ fn fs_delete_file(layer: State<'_, Arc<Layers>>, path: String) -> Result<(), Str
     layer.ask("fs_delete_file", json!({ "path": path }))
 }
 
+/// The folder itself and everything under it, which is why it is asked for by a
+/// name of its own rather than by handing a folder to the one above.
+#[tauri::command(async)]
+fn fs_delete_folder(layer: State<'_, Arc<Layers>>, path: String) -> Result<(), String> {
+    layer.ask("fs_delete_folder", json!({ "path": path }))
+}
+
 #[tauri::command(async)]
 fn fs_download(layer: State<'_, Arc<Layers>>, path: String) -> Result<String, String> {
     layer.ask("fs_download", json!({ "path": path }))
@@ -227,6 +234,7 @@ pub fn run() {
             fs_duplicate_file,
             fs_rename_file,
             fs_delete_file,
+            fs_delete_folder,
             fs_download,
             fs_copy_into,
             update::update_standing,

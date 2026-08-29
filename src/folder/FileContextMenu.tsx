@@ -22,16 +22,24 @@ import {
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { createEntry, deleteFile, downloadEntry, duplicateFile, readFile, renameFile } from "./api";
+import {
+  createEntry,
+  deleteFile,
+  deleteFolder,
+  downloadEntry,
+  duplicateFile,
+  readFile,
+  renameFile,
+} from "./api";
 
 export type FileMenuTarget = {
   /** What was right-clicked: a row, or the folder a pane is standing in. */
   path: string;
   name: string;
   /** True when the target is a folder, which is offered less than a file is.
-   *  Making an entry inside one is the whole of what the layer underneath will
-   *  do with a directory: copying, renaming and removing one are refused
-   *  there, so they are not offered here either. */
+   *  Copying one and renaming one are refused by the layer underneath, so they
+   *  are not offered here either. Removing one is its own operation, and is
+   *  offered — see `deleteFolder`, which is what says how much it takes. */
   isDir: boolean;
   /** Where a new file or folder is made — inside the folder that was
    *  right-clicked, or beside the file, in the directory listing it. */
@@ -71,6 +79,11 @@ export function FileContextMenu({ target, onClose }: Props) {
 
   if (!target) return null;
   const { path, isDir, into, root } = target;
+  /* The folder a pane is standing in is not offered for removal: the pane is
+     standing in it, and what it would be left showing is a folder that is not
+     there. It is a row in the pane above, where deleting it is deleting
+     something you are looking at rather than something you are inside. */
+  const removable = !isDir || path !== root;
 
   const openName = (mode: Exclude<DialogMode, "delete">) => {
     setFailed(false);
@@ -181,10 +194,11 @@ export function FileContextMenu({ target, onClose }: Props) {
           disabled={busy !== null}
           onClick={() => void run("copy-relative-path", () => copyText(relativePath(root, path)))}
         />
-        {/* What is done to the file itself. A folder is left alone: the layer
-            refuses to rename or remove one, and an item that always fails is
-            worse than no item. */}
-        {!isDir && <Divider />}
+        {/* What is done to the entry itself. Renaming is a file's alone — the
+            layer refuses to rename a folder, and an item that always fails is
+            worse than no item. Removing is offered on both, and what the two
+            take away is said in the asking rather than here. */}
+        {removable && <Divider />}
         {!isDir && (
           <FileItem
             icon={<DriveFileRenameOutlineIcon />}
@@ -193,7 +207,7 @@ export function FileContextMenu({ target, onClose }: Props) {
             onClick={() => openName("rename")}
           />
         )}
-        {!isDir && (
+        {removable && (
           <FileItem
             icon={<DeleteOutlinedIcon />}
             label={t("file.delete")}
@@ -254,7 +268,12 @@ export function FileContextMenu({ target, onClose }: Props) {
       <Dialog open={dialog === "delete"} onClose={busy ? undefined : () => setDialog(null)}>
         <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
         <DialogContent>
-          <DialogContentText>{t("file.deleteBody")}</DialogContentText>
+          {/* A folder takes everything under it with it, which is the whole of
+              what somebody is agreeing to here and is not visible from the row
+              they pressed. So the two are asked differently. */}
+          <DialogContentText>
+            {isDir ? t("file.deleteFolderBody") : t("file.deleteBody")}
+          </DialogContentText>
           {failed && <DialogContentText color="error">{t("file.failed")}</DialogContentText>}
         </DialogContent>
         <DialogActions>
@@ -264,7 +283,9 @@ export function FileContextMenu({ target, onClose }: Props) {
           <Button
             color="error"
             disabled={busy !== null}
-            onClick={() => void run("delete", () => deleteFile(path))}
+            onClick={() =>
+              void run("delete", () => (isDir ? deleteFolder(path) : deleteFile(path)))
+            }
           >
             {t("file.delete")}
           </Button>

@@ -131,6 +131,21 @@ export function deleteFile(path: string): Promise<void> {
 }
 
 /**
+ * Removes one folder and everything under it.
+ *
+ * Asked for by a name of its own rather than by handing a folder to the call
+ * above: what a file's removal takes away is the file, and what this takes away
+ * is a tree nobody can see the end of from the row they right-clicked. So the
+ * two are told apart here, in the dialog that asks, and again in the layer that
+ * answers — each refuses what the other is for.
+ *
+ * A link to a folder loses the link alone: what it pointed at stays where it is.
+ */
+export function deleteFolder(path: string): Promise<void> {
+  return invoke<void>("fs_delete_folder", { path });
+}
+
+/**
  * Puts a copy of one file or folder where this machine keeps its downloads,
  * and answers with where it went.
  *
