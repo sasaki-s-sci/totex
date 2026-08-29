@@ -129,6 +129,37 @@ export function CliView({ session, shown, onEnded }: Props) {
         return false;
       }
 
+      // Ctrl and C over a selection, which everywhere else on the desktop is
+      // the copy. In here it is also the interrupt, and what tells the two
+      // apart is whether anything is selected at all: nothing selected is the
+      // press left to xterm, which sends the interrupt as it always has. The
+      // selection is dropped as it is taken, so the press after a copy is the
+      // interrupt again rather than a second copy of the same rows.
+      //
+      // Ctrl and Shift and C is the copy whether or not the interrupt would
+      // have been wanted — the one to reach for while something is running.
+      if (
+        plain &&
+        event.ctrlKey &&
+        event.key.toLowerCase() === "c" &&
+        (event.shiftKey || terminal.hasSelection())
+      ) {
+        event.preventDefault();
+        const selected = terminal.getSelection();
+        if (selected) void navigator.clipboard.writeText(selected).catch(() => undefined);
+        terminal.clearSelection();
+        return false;
+      }
+
+      // Ctrl and V, with Shift or without, which xterm would send as the ^V
+      // nobody has typed on purpose. Refused without refusing the press itself:
+      // a Ctrl+V nothing cancelled is pasted by the window into the terminal's
+      // own field, and what arrives there is a paste the terminal already reads
+      // — bracketed the way the shell asked for it, with the line endings a
+      // shell can take. Asking the clipboard for the text ourselves would be
+      // the same paste with a permission prompt in front of it.
+      if (plain && event.ctrlKey && event.key.toLowerCase() === "v") return false;
+
       // Ctrl and a number, which is how one terminal is left for another: the
       // window answers it, so the shell must not. A few of these are control
       // characters nobody has typed on purpose in years.
