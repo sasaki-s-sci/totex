@@ -99,6 +99,20 @@ function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<strin
               be pointed at — which is why a named line is the one kind that is
               not batched with its neighbours. */}
           <path id={line.id} d={pathOf([line], standing)} {...stroke(line.stroke)} />
+          {line.name?.note && (
+            /* What the branch is to the repository, riding the same curve a
+               line above the name: it ends where the name ends, so the two
+               read as one block set against the head. */
+            <text className="edge__name edge__note" dy={-12}>
+              <textPath
+                href={`#${line.id}`}
+                startOffset={`${line.name.at * 100}%`}
+                textAnchor="end"
+              >
+                {line.name.note}
+              </textPath>
+            </text>
+          )}
           {line.name && (
             <text className="edge__name" dy={-5}>
               <title>{line.name.full}</title>

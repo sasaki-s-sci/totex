@@ -81,7 +81,8 @@ export function onStack(node: string): LineEnd {
 }
 
 /**
- * A branch's name, set along the line that runs out to it.
+ * A branch's name, set along the line that runs out to it, over what the branch
+ * is to the repository.
  *
  * Cut to length and placed here rather than where it is drawn: how much of a
  * name fits is a sum about the line's length, and the canvas should be handed
@@ -92,6 +93,8 @@ export type Label = {
   full: string;
   /** As much of it as the line has room for. */
   text: string;
+  /** What the branch is to the repository, set on its own line above the name. */
+  note: string | null;
   /** How far along the line it is set, as a fraction. */
   at: number;
 };
