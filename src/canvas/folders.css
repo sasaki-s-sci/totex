@@ -9,40 +9,39 @@
   position: relative;
 }
 
-/* The folder's name, set against the mark that leads its row rather than
-   against the history a repository's name leads: what follows a folder's name
-   is its own button, and what the name belongs to is the mark before it. */
-.folder__label {
-  justify-content: flex-start;
-  padding-right: 0;
-  padding-left: 6px;
-}
-
 /* The folder itself: where the lines out to its repositories leave from, and
    the one thing on this canvas the hand can move. Everything under a folder
    travels with it, so this is the whole column's handle — which is what the
-   cursor says, and the only thing that says it. */
+   cursor says, and the only thing that says it.
+
+   The square the mark is drawn in and no more of the row than that. It used to
+   answer down the row's whole height, which is room the name is standing in
+   now: a handle reaching up into the name's own line would take presses meant
+   for the button that opens the folder, and a press that missed the name would
+   carry the column off instead. */
 .folder__grip {
   position: absolute;
-  top: 0;
+  top: 50%;
   display: flex;
   width: 22px;
-  height: 100%;
+  height: 22px;
   align-items: center;
   justify-content: center;
   color: var(--mark);
   cursor: grab;
   pointer-events: all;
+  transform: translateY(-50%);
 }
 
 .folder__grip:active {
   cursor: grabbing;
 }
 
-/* The name is the control. Set in the same cell a repository's name takes and
-   drawn the same way, because the two are one column of names down the left of
-   the canvas — but this one is pressed to open the folder out, so it takes the
-   pointer back from the band and lights under the cursor. */
+/* The name is the control. Set over its own mark the way a repository's name is
+   set over the mark its band opens with, and drawn the same way, because the two
+   are one column of names down the left of the canvas — but this one is pressed
+   to open the folder out, so it takes the pointer back from the band and lights
+   under the cursor. */
 .folder__name {
   display: flex;
   min-width: 0;

@@ -16,9 +16,8 @@ import {
   type CollapseFlowNode,
   type CommitFlowNode,
   gridRows,
-  LANE_HEIGHT,
   MIN_BAND_WIDTH,
-  NAME_COLUMN,
+  NAME_HEIGHT,
   type RepositoryNodeData,
   rowReach,
   SESSION_WIDTH,
@@ -133,9 +132,9 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   }
 
   // Both halves hang from the trunk's line, half a lane down the band. Half a
-  // lane, because that is what the repository's name needs under it and what a
-  // workspace stack on that line reaches up by — whichever is the more.
-  const top = gridRows(Math.max(LANE_HEIGHT / 2, rows > 0 ? rowReach(stacks[0]) : 0));
+  // lane, because that is the room the repository's name asks for above it and
+  // what a workspace stack on that line reaches up by — whichever is the more.
+  const top = gridRows(Math.max(NAME_HEIGHT, rows > 0 ? rowReach(stacks[0]) : 0));
 
   /** The line each row of the history is drawn along: evenly spaced. */
   const historyLine = (row: number) => top + row * COMMIT_STEP.y;
@@ -152,8 +151,10 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     );
   }
 
-  /** The left edge of a column of the history, the name's own cell cleared. */
-  const columnX = (column: number) => NAME_COLUMN * COLUMN_WIDTH + column * COMMIT_STEP.x;
+  /** The left edge of a column of the history, which the band opens on: the
+   *  name is set over the first of them rather than in a cell before it, so
+   *  nothing stands between the folder's line and the history it arrives at. */
+  const columnX = (column: number) => column * COMMIT_STEP.x;
   // Where every branch's own mark stands, which is what everything hanging off
   // one is measured from: the ring itself rather than the edge of its cell, so
   // that the terminals beside a branch read as that branch's own and not as a
@@ -163,12 +164,6 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // The terminals stack out past the ring, in a column of their own that no
   // line of the history ever crosses.
   const working = ring + CHIP_STEP;
-
-  // The mark the band opens with, which is what the name is set beside: the
-  // fold where there is history behind it, and the oldest commit drawn where
-  // there is not. Both stand in the first column of the history.
-  const opening = history.hidden > 0 ? 0 : (history.placed.at(-1)?.row ?? 0);
-  const nameLine = historyLine(opening);
 
   const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[] = [];
   const drawn = new Lines();
@@ -189,7 +184,6 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     columnX,
     historyLine,
     branchLine,
-    nameLine,
     heads,
     ring,
     working,
@@ -203,11 +197,15 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // the history and the branch column reaches furthest down.
   const bottom = gridRows(
     Math.max(
-      nameLine + LANE_HEIGHT / 2,
       historyLine(Math.max(history.depth - 1, 0)) + COMMIT_STEP.y / 2,
       rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0,
     ),
   );
+
+  // Where the terminals stand is part of the band whether or not anything is
+  // standing there: the room belongs to the repository, and a band that widened
+  // the moment a terminal opened in it would move every repository beside it.
+  const width = Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2);
 
   return {
     repository,
@@ -215,17 +213,20 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       repository,
       label: {
         x: 0,
-        y: nameLine - LANE_HEIGHT / 2,
-        width: NAME_COLUMN * COLUMN_WIDTH,
-        height: LANE_HEIGHT,
+        // The band's own first line, which is where the fold stands and where
+        // the topmost branch is: the name is set in the air over it, at the
+        // left edge of the band, so it heads the whole of what is under it
+        // rather than labelling the one row it happens to be level with.
+        y: top - NAME_HEIGHT,
+        // As far as the column the terminals stand in, which is the one thing
+        // that can reach up into this line: a stack centred on the topmost
+        // branch opens out above that branch as well as below it.
+        width: working - SESSION_WIDTH / 2,
+        height: NAME_HEIGHT,
       },
     },
     style: {
-      // Where the terminals stand is part of the band whether or not anything
-      // is standing there: the room belongs to the repository the way the name
-      // column does, and a band that widened the moment a terminal opened in it
-      // would move every repository beside it.
-      width: Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2),
+      width,
       height: bottom,
     },
     nodes,

@@ -25,8 +25,6 @@ export type Frame = {
   /** The branch column's grid rows: the history's own lattice, opened out a
    *  row at a time wherever a stack of terminals asks for the room. */
   branchLine: readonly number[];
-  /** Where the name of a repository with nothing folded away stands. */
-  nameLine: number;
   /** The left edge of a branch's cell, and the middle of its ring. */
   heads: number;
   ring: number;

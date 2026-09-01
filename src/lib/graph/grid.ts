@@ -113,15 +113,20 @@ export const COMMIT_CELL = {
   pointerEvents: "none",
 } as const;
 export const HEAD_CELL = COMMIT_CELL;
-/** Enough for the repository's own name, however short its history is. */
+/** Enough that a repository with almost no history is still read as a band and
+ *  not as a mark with a line into it. */
 export const MIN_BAND_WIDTH = 240;
 /**
- * The repository's name takes the column before the mark its band opens with —
- * the first commit drawn, or the fold standing in for the history behind it —
- * and is set on that mark's own line: another cell in the same grid, so the
- * name reads as the start of the history rather than as a caption over it.
+ * The room a name is set in, on the line above the mark it belongs to.
+ *
+ * Half a lane, which is the air a row of the grid already carries over its own
+ * line. A folder's name stands over the mark that is the folder, and a
+ * repository's over the mark its band opens with — the first commit drawn, or
+ * the fold standing in for the history behind it — so a name is read on the way
+ * into the thing it names rather than off to one side of it, and neither of
+ * them takes a column of the grid away from what it heads.
  */
-export const NAME_COLUMN = 1;
+export const NAME_HEIGHT = LANE_HEIGHT / 2;
 /** Vertical air between repository bands: two graph rows. */
 export const REPO_GAP_Y = COMMIT_STEP.y * 2;
 /**
@@ -132,7 +137,7 @@ export const REPO_GAP_Y = COMMIT_STEP.y * 2;
  * The eye runs down one edge: every repository in a folder begins at this
  * column, whether it is folded into a single mark or opened out into a band.
  */
-export const FOLDER_INSET = NAME_COLUMN * COLUMN_WIDTH;
+export const FOLDER_INSET = COLUMN_WIDTH;
 /**
  * The square the folder's own mark answers in, at the head of its row.
  *
