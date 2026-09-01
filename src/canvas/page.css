@@ -1,0 +1,146 @@
+/**
+ * The panel a page is drawn in.
+ *
+ * A file's card and the settings page are one box with one bar across the top,
+ * and this is that box: the paper, the edges it is resized by, the bar and the
+ * marks in it. What each kind of page carries in the bar and holds in the body
+ * is its own — `preview.css` and `settings.css` — and neither of them draws
+ * chrome of its own.
+ */
+
+/* The paint half of `contain` is left off here alone: a page's grips sit on its
+   edges, half of each one outside the box, and contained paint would clip away
+   the half that is easiest to aim at. There are a handful of pages against a
+   cell per commit, so what the layout half buys is untouched. */
+.graph .react-flow__node-file-preview,
+.graph .react-flow__node-settings {
+  contain: layout;
+}
+
+/* Nothing is drawn for a grip. What says a page can be resized is the cursor
+   over the edge it already has — the same answer the panels give. Written
+   against the engine's own class as well, which is what its blue line and its
+   blue corner squares are set on. */
+.react-flow__resize-control.page__edge {
+  border-color: transparent;
+}
+
+.react-flow__resize-control.page__edge.left,
+.react-flow__resize-control.page__edge.right {
+  width: 7px;
+}
+
+.react-flow__resize-control.page__edge.top,
+.react-flow__resize-control.page__edge.bottom {
+  height: 7px;
+}
+
+.react-flow__resize-control.page__corner {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.page {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 7px;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--mui-shadows-4);
+  color: var(--mui-palette-text-primary);
+}
+
+.page__header {
+  display: flex;
+  min-height: 20px;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px 0 6px;
+  border-bottom: 1px solid var(--mui-palette-divider);
+  background: color-mix(
+    in srgb,
+    var(--mui-palette-background-paper) 88%,
+    var(--mui-palette-primary-main)
+  );
+  cursor: grab;
+  user-select: none;
+}
+
+.page__header:active {
+  cursor: grabbing;
+}
+
+/* A pinned page is lifted a little further off what is behind it, because what
+   is behind it is now the whole canvas rather than the cell it was standing on.
+   Its bar is still the handle: the pin takes it out of what the graph is doing,
+   not out of the reader's hands. */
+.page.is-pinned {
+  box-shadow: var(--mui-shadows-8);
+}
+
+.page.is-collapsed .page__header {
+  border-bottom: 0;
+}
+
+.page__name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* How the body is filled is the page's own answer: a reading is clipped and
+   moved about, a column of settings is scrolled. Neither is said here, because
+   the two are not the same kind of box — see the head of `index.css` for why a
+   reading may not be a scroller. */
+.page__body {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+}
+
+.page__footer {
+  flex: none;
+  padding: 4px 10px;
+  border-top: 1px solid var(--mui-palette-divider);
+  color: var(--mui-palette-text-secondary);
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.page__tool {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+}
+
+.page__tool:hover {
+  background: var(--mui-palette-action-hover);
+  color: var(--mui-palette-text-primary);
+}
+
+/* A mark that is not offering something but saying what the page is already
+   doing: the card is showing the patch, and pressing it again puts the file
+   back. The same ink everything else that means `this one` is lit in. */
+.page__tool.is-on {
+  background: var(--mui-palette-action-selected);
+  color: var(--mui-palette-primary-main);
+}

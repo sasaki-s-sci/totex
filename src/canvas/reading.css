@@ -8,10 +8,7 @@
    this file has it. `clip` rather than `hidden`, because a hidden box is still
    a scroller to the engine: it can be scrolled from script, and it is composited
    for it. What is in the box is moved by `FilePreviewNode` instead. */
-.file-preview__body {
-  position: relative;
-  min-height: 0;
-  flex: 1;
+.file-preview .page__body {
   overflow: clip;
 }
 
@@ -165,7 +162,7 @@
 /* A file drawn as the page it is written to be. As wide as the card and no
    wider: a page is read down rather than across, so nothing in it may set a
    width the card would then have to be moved sideways across. */
-.file-preview__page {
+.file-preview__markdown {
   box-sizing: border-box;
   width: 100%;
   min-height: 100%;
@@ -271,13 +268,6 @@
 
 .file-preview__message.is-error {
   color: var(--mui-palette-error-main);
-}
-
-.file-preview__footer {
-  flex: none;
-  padding: 4px 10px;
-  border-top: 1px solid var(--mui-palette-divider);
-  text-align: right;
 }
 
 /* Where the cursor keys have walked to, while Ctrl is held: the mark itself,

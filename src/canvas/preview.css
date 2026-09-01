@@ -1,5 +1,9 @@
 /**
- * The card a file is drawn in: where it stands, and its header.
+ * What is a file's alone in the card it is drawn in: where a pinned one stands,
+ * and the two things its bar says about the file that no other page has to say.
+ *
+ * The card itself — paper, edges, bar, marks — is `page.css`, and what is in it
+ * is `reading.css`.
  */
 
 /* Where a pinned card stands: over the canvas, in the pane's own pixels, out of
@@ -18,110 +22,24 @@
   pointer-events: auto;
 }
 
-/* The paint half is left off here alone: a card's grips sit on its edges, half
-   of each one outside the box, and contained paint would clip away the half
-   that is easiest to aim at. There are a handful of cards against a cell per
-   commit, so what the rule above buys is untouched. */
-.graph .react-flow__node-file-preview {
-  contain: layout;
-}
-
-/* Nothing is drawn for a grip. What says a card can be resized is the cursor
-   over the edge it already has — the same answer the panels give. Written
-   against the engine's own class as well, which is what its blue line and its
-   blue corner squares are set on. */
-.react-flow__resize-control.file-preview__edge {
-  border-color: transparent;
-}
-
-.react-flow__resize-control.file-preview__edge.left,
-.react-flow__resize-control.file-preview__edge.right {
-  width: 7px;
-}
-
-.react-flow__resize-control.file-preview__edge.top,
-.react-flow__resize-control.file-preview__edge.bottom {
-  height: 7px;
-}
-
-.react-flow__resize-control.file-preview__corner {
-  width: 11px;
-  height: 11px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.file-preview {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--mui-palette-divider);
-  border-radius: 7px;
-  background: var(--mui-palette-background-paper);
-  box-shadow: var(--mui-shadows-4);
-  color: var(--mui-palette-text-primary);
-}
-
 /* The card that has the focus, which is the one the size keys answer to — Ctrl
    and a plus or a minus is read for whichever card is in hand. Said in the
    border the card already has rather than in a ring outside it: a card stands
    among everything else drawn on the canvas, and one more edge out there is one
    more thing to read. The engine's own outline goes for the same reason; the
    border says it once. Written on the node as well, which is where the focus
-   lands when a card on the canvas is reached by tabbing rather than pressed. */
+   lands when a card on the canvas is reached by tabbing rather than pressed.
+
+   A file's and not every page's: what the light means is that this is the card
+   the reading keys are about, and the settings page has no reading. */
 .file-preview:focus-within,
 .react-flow__node-file-preview:focus-within .file-preview {
   border-color: var(--mui-palette-primary-main);
   outline: none;
 }
 
-.file-preview__header {
-  display: flex;
-  min-height: 20px;
-  flex: none;
-  align-items: center;
-  gap: 4px;
-  padding: 0 2px 0 6px;
-  border-bottom: 1px solid var(--mui-palette-divider);
-  background: color-mix(
-    in srgb,
-    var(--mui-palette-background-paper) 88%,
-    var(--mui-palette-primary-main)
-  );
-  cursor: grab;
-  user-select: none;
-}
-
-.file-preview__header:active {
-  cursor: grabbing;
-}
-
-/* A pinned card is lifted a little further off what is behind it, because what
-   is behind it is now the whole canvas rather than the cell it was standing on.
-   Its header is still the handle: the pin takes the card out of what the graph
-   is doing, not out of the reader's hands. */
-.file-preview.is-pinned {
-  box-shadow: var(--mui-shadows-8);
-}
-
-.file-preview.is-collapsed .file-preview__header {
-  border-bottom: 0;
-}
-
-.file-preview__name {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* There is more in the card than the file holds. A dot, because the header has
-   no room for a word and the window does not use them anyway; red once a write
+/* There is more in the card than the file holds. A dot, because the bar has no
+   room for a word and the window does not use them anyway; red once a write
    has been refused, which is the same red as everything else that would not go
    through. */
 .file-preview__unsaved {
@@ -136,36 +54,8 @@
   background: var(--mui-palette-error-main);
 }
 
-.file-preview__size,
-.file-preview__footer {
+.file-preview__size {
   color: var(--mui-palette-text-secondary);
   font-size: 10px;
   white-space: nowrap;
-}
-
-.file-preview__button {
-  display: grid;
-  width: 16px;
-  height: 16px;
-  flex: none;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--mui-palette-text-secondary);
-  cursor: pointer;
-}
-
-.file-preview__button:hover {
-  background: var(--mui-palette-action-hover);
-  color: var(--mui-palette-text-primary);
-}
-
-/* A button that is not offering something but saying what the card is already
-   doing: the card is showing the patch, and pressing it again puts the file
-   back. The same ink everything else that means `this one` is lit in. */
-.file-preview__button.is-on {
-  background: var(--mui-palette-action-selected);
-  color: var(--mui-palette-primary-main);
 }

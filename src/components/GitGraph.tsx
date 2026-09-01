@@ -190,7 +190,8 @@ export function GitGraph({
     });
 
   // And what each of those numbers is standing beside, taken at the press and
-  // held for as long as the key is. The numbers are what a key would reach; the
+  // held for as long as the key is — or kept on all the time, where the window
+  // has been told to in settings. The numbers are what a key would reach; the
   // lines are which terminal is which.
   const typed = useCliTyped(jumps !== null, asks, reports);
 
@@ -246,8 +247,9 @@ export function GitGraph({
             costs a render of those and of nothing else on the canvas. */}
             <CliJumpsProvider value={jumps}>
               {/* And what each of them was last told to do, which is the other
-              half of the same key: the number says which mark a press would
-              reach, and the line says which terminal that mark is. */}
+              half of the same key — or standing on its own, where the lines
+              have been asked for outright: the number says which mark a press
+              would reach, and the line says which terminal that mark is. */}
               <CliTypedProvider value={typed}>
                 {/* `is-merging` and the two ends of a merge are written on here by
                 `useBranchDrag` rather than handed down, so the class stays put

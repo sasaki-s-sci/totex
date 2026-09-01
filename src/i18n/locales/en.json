@@ -18,6 +18,7 @@
     "up": "Up",
     "enter": "Go to",
     "graph": "Graph",
+    "door": "Agents report from {{space}}",
     "move": "Move",
     "shell": "Shell"
   },
@@ -98,6 +99,8 @@
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",
+    "said": "Keep the lines on",
+    "saidHint": "Show what each terminal was last told to run beside its mark, rather than only while Ctrl is held.",
     "follow": "Follow remotes",
     "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",

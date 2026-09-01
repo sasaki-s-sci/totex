@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 
 use tauri::{AppHandle, Manager, Runtime};
@@ -31,7 +32,11 @@ pub fn dressing<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Vec<(Str
 }
 
 /// A session's own door, as the address it is reached at and as the token that
-/// address is made of.
+/// address is made of, or nothing where this session is to have none.
+///
+/// Three things have to agree, and each of them says a different kind of no: no
+/// server was asked for, no route from where this shell is standing, and no
+/// wish for one in the folder it is standing in.
 fn door<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Option<(String, String)> {
     // Read and let go of before anything else happens: what follows can ask a
     // distribution a question, and every other door would wait on the answer.
@@ -41,6 +46,13 @@ fn door<R: Runtime>(app: &AppHandle<R>, id: &str, cwd: &str) -> Option<(String, 
         (standing.as_ref()?.port, state.keys.clone())
     };
     let host = reachable(cwd)?;
+    // What the folder itself says, which is the one answer that is nobody's
+    // guess: the switch above says there may be a door, `reachable` says it can
+    // be got at from here, and this says whether anybody working here wanted
+    // one. A space that has never been asked wants one — see `space::Settings`.
+    if !crate::space::settings(Path::new(cwd)).mcp {
+        return None;
+    }
     let token = token(&keys, id);
     Some((format!("http://{host}:{port}/s/{token}"), token))
 }

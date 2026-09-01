@@ -214,15 +214,21 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       label: {
         x: 0,
         // The band's own first line, which is where the fold stands and where
-        // the topmost branch is: the name is set in the air over it, at the
-        // left edge of the band, so it heads the whole of what is under it
-        // rather than labelling the one row it happens to be level with.
+        // the topmost branch is: the name is set in the air over it, so that it
+        // heads the whole of what is under it rather than labelling the one row
+        // it happens to be level with.
         y: top - NAME_HEIGHT,
         // As far as the column the terminals stand in, which is the one thing
         // that can reach up into this line: a stack centred on the topmost
         // branch opens out above that branch as well as below it.
         width: working - SESSION_WIDTH / 2,
         height: NAME_HEIGHT,
+        // The column the band opens on, which the name is centred in: the mark
+        // standing there is the middle of it, and a name set at the left edge
+        // of the box read as heading the row rather than that mark. A name too
+        // long for the column keeps to the left of it and runs out to the
+        // right, because the left is the side the folder's line arrives on.
+        column: COMMIT_STEP.x,
       },
     },
     style: {

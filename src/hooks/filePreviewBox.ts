@@ -1,22 +1,13 @@
 /**
- * What a file card is: the size it stands at, the layer it stands on, and the
- * name its node goes under.
+ * What a file card is: the size it stands at, and the name its node goes under.
+ * The layer every page stands on is `PAGE_Z`, beside the rest of what places
+ * one.
  */
 
 import { MIN_HEIGHT, MIN_WIDTH } from "../components/nodes/FilePreviewNode";
 import type { FilePreviewBox, FilePreviewFlowNode } from "../lib/graph";
 
 export const FILE_PREVIEW_SIZE = { width: 360, height: 240 } as const;
-
-/**
- * The layer a file card stands on.
- *
- * A file is opened onto the graph, not into it: whatever it is dropped over, it
- * is the thing being read. React Flow draws a node nested in another a step
- * above the one it sits in, so a repository's own marks came out over a card
- * left standing on the band. Well clear of that stack of steps.
- */
-export const FILE_PREVIEW_Z = 1_100;
 
 export function fileNodeId(requestId: number): string {
   return `file-preview:${requestId}`;

@@ -1,7 +1,15 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CloseMark, GraphMark, MarkButton, PaneFolderMark, UpMark } from "../components/marks";
+import {
+  CloseMark,
+  DoorMark,
+  GraphMark,
+  MarkButton,
+  PaneFolderMark,
+  UpMark,
+} from "../components/marks";
+import { useSpace } from "../lib/space";
 import type { FsEntry, Listing } from "./api";
 import { useRepositoryCounts } from "./counts";
 import { DROP_INTO } from "./dropInto";
@@ -74,6 +82,10 @@ export function FolderPane({
   // How many repositories are in the pane's own folder, for the mark on its
   // heading.
   const repositories = useRepositoryCounts([path]).get(path) ?? 0;
+  // What the space this pane is standing in says, for the other mark. Rarely
+  // this folder: a pane opened inside a checkout is standing in the space at
+  // its root, which is why the mark says which folder it answers for.
+  const { standing, tell } = useSpace(path);
 
   const name = root?.path === path ? root.name : baseName(path);
   const parent = root?.path === path ? root.parent : null;
@@ -178,6 +190,22 @@ export function FolderPane({
         {showing && parent && (
           <MarkButton label={t("folder.up")} onClick={() => onNavigate(parent)}>
             <UpMark />
+          </MarkButton>
+        )}
+        {/* What the space is, rather than what the folder holds -- so it is on
+            the heading and on no row beneath it. A row is a folder somebody may
+            open; the heading is where a terminal is actually started, and the
+            space is the thing that terminal stands in.
+
+            Held back until the space has answered. The mark is a claim about
+            somebody's project and the only honest way to draw one before the
+            disk has been read is not to. */}
+        {standing && (
+          <MarkButton
+            label={t("folder.door", { space: baseName(standing.space) })}
+            onClick={() => tell({ ...standing.settings, mcp: !standing.settings.mcp })}
+          >
+            <DoorMark on={standing.settings.mcp} />
           </MarkButton>
         )}
         {/* Last in the row, which is where the same offer stands on every

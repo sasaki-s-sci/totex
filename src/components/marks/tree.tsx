@@ -130,3 +130,24 @@ export function FolderMark({ on, size = ROW_SIZE }: { on: boolean; size?: number
  * and are the smallest thing on it; in a menu they stand at the size the rest
  * of that row is set at.
  */
+
+/**
+ * Whether an agent started in this folder's space is handed the window's door.
+ *
+ * A doorway, because that is what it is: the terminal is opened in the space,
+ * and this says whether what runs there is told where to say what it is doing.
+ * The handle fills when it is — the same way `ExpandMark`'s ring does, so the
+ * two marks a heading carries answer in the same voice.
+ *
+ * Drawn on every heading rather than only where a space has said something.
+ * The mark is the offer as much as the answer, and a folder that has never been
+ * asked is exactly the one where nobody would think to look for a place to ask.
+ */
+export function DoorMark({ on }: { on: boolean }) {
+  return (
+    <Frame>
+      <path d="M6.5 20.5 V4.5 H17.5 V20.5" />
+      <circle cx="14.6" cy="12.6" r="1.6" fill={on ? "currentColor" : "none"} />
+    </Frame>
+  );
+}

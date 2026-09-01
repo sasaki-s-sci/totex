@@ -4,8 +4,10 @@
 //! installed, so the tests that ask them skip themselves where they are not —
 //! what they are for is that the words this app asks in are the words those
 //! programs answer to, which nothing but the programs can say. The Makefile
-//! reading is ours from end to end and is tested against text alone.
+//! reading and the lines a space keeps are ours from end to end, and are tested
+//! against text alone.
 
+mod commands;
 mod make;
 mod runners;
 

@@ -8,6 +8,7 @@ mod git;
 mod mcp;
 mod pty;
 mod release;
+mod space;
 mod stream;
 mod tasks;
 mod update;
@@ -274,6 +275,8 @@ pub fn run() {
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,
             tasks::directory_tasks,
+            space::space_standing,
+            space::space_tell,
             pty::spawn::pty_open,
             pty::control::pty_sessions,
             pty::control::pty_attach,

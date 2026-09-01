@@ -2,18 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import type { SettingsFlowNode } from "../lib/graph";
+import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
 const SETTINGS_PAGE_SIZE = { width: 760, height: 390 } as const;
 const SETTINGS_PAGE_ID = "settings";
-const SETTINGS_PAGE_Z = 1_100;
 
 /**
  * Keeps the window's one settings page on the canvas while it is open.
  *
  * Like a file page, it opens in the middle of the viewport and belongs to the
- * canvas from then on. Its position and resized box are React Flow's to keep;
- * only closing it takes it out.
+ * canvas from then on — same panel, same layer, same handle, and `pagePlacing`
+ * is where all three are said. Its position and resized box are React Flow's to
+ * keep; only closing it takes it out.
  */
 export function useSettingsPage(
   open: boolean,
@@ -35,21 +36,14 @@ export function useSettingsPage(
     placed.current = true;
     const flow = instance.current;
     const bounds = host.current?.getBoundingClientRect();
-    const centre = flow.screenToFlowPosition({
-      x: (bounds?.left ?? 0) + (bounds?.width ?? SETTINGS_PAGE_SIZE.width) / 2,
-      y: (bounds?.top ?? 0) + (bounds?.height ?? SETTINGS_PAGE_SIZE.height) / 2,
-    });
 
     const page: SettingsFlowNode = {
       id: SETTINGS_PAGE_ID,
       type: "settings",
-      position: {
-        x: centre.x - SETTINGS_PAGE_SIZE.width / 2,
-        y: centre.y - 17,
-      },
+      position: pageCorner(flow, canvasMiddle(bounds, SETTINGS_PAGE_SIZE), SETTINGS_PAGE_SIZE),
       draggable: true,
-      dragHandle: ".file-preview__header",
-      zIndex: SETTINGS_PAGE_Z,
+      dragHandle: PAGE_HANDLE,
+      zIndex: PAGE_Z,
       width: SETTINGS_PAGE_SIZE.width,
       height: SETTINGS_PAGE_SIZE.height,
       data: { page: "settings" },
