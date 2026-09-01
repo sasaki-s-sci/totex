@@ -56,14 +56,22 @@ export function GraphMark({ on, count }: { on: boolean; count: number }) {
 }
 
 /**
- * A chevron: down over rows that are showing, right over rows that are folded
- * away. Nothing to do with the graph — this one only says whether the folder's
- * contents are on screen, which is the whole of what the heading's click does.
+ * The folder a pane is showing: the same folder, filled.
+ *
+ * The one folder in the column that is not a row. It is where the pane is
+ * standing, and every row under it is something it holds — so it is drawn as
+ * the solid one and the rows stay hollow, and a heading is told from the names
+ * beneath it by the drawing rather than by anything set around it.
+ *
+ * It says nothing about whether those rows are showing. A chevron stood here
+ * once, and a chevron is an offer to unfold a step of a tree: where the pane is
+ * standing is not one of those steps, and the rows arriving or going is already
+ * the whole of what the heading's click has to say.
  */
-export function DisclosureMark({ on }: { on: boolean }) {
+export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
   return (
-    <Frame>
-      <path d={on ? "M6 9.5 L12 15.5 L18 9.5" : "M9.5 6 L15.5 12 L9.5 18"} />
+    <Frame size={size}>
+      <path d="M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z" fill="currentColor" />
     </Frame>
   );
 }
