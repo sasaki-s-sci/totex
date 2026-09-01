@@ -186,6 +186,7 @@ export function GitGraph({
       onOpenWork,
       onShowSession,
       onJumpSession,
+      onEndSession,
     });
 
   // And what each of those numbers is standing beside, taken at the press and
