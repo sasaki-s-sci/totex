@@ -1,14 +1,13 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CloseMark, DisclosureMark, GraphMark, MarkButton, UpMark } from "../components/marks";
+import { CloseMark, GraphMark, MarkButton, PaneFolderMark, UpMark } from "../components/marks";
 import type { FsEntry, Listing } from "./api";
 import { useRepositoryCounts } from "./counts";
 import { DROP_INTO } from "./dropInto";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import { baseName } from "./format";
-import { ROOT_ICONS } from "./roots";
 import { REFUSED_DROP, TAKING_DROP } from "./rows";
 
 export interface FolderPaneProps {
@@ -152,9 +151,18 @@ export function FolderPane({
             textAlign: "left",
           }}
         >
-          <DisclosureMark on={showing} />
-          {distro && <DistroMark distro={distro} />}
-          <Typography variant="body2" noWrap>
+          {/* A folder, filled, and never anything else: the rows below draw
+              the same folder hollow, so the heading is the solid one. It does
+              not answer for whether those rows are showing — that was a
+              chevron, and a chevron over a heading is an offer to unfold a step
+              of a tree, which is not what the folder a pane is standing in is.
+
+              Which machine the folder is on hangs off the name rather than
+              standing beside it as a second mark: `/home/a` means one thing in
+              one distribution and another in the next, and a heading is one
+              folder and one drawing of it. */}
+          <PaneFolderMark />
+          <Typography variant="body2" noWrap title={distro ?? undefined}>
             {name}
           </Typography>
         </Box>
@@ -200,17 +208,4 @@ export function FolderPane({
       )}
     </Box>
   );
-}
-
-/**
- * The mark for a folder that lives inside a WSL distribution.
- *
- * The same mark the rail puts beside that distribution's own row, so a pane
- * showing one of its folders is recognisably the same place the pane was
- * started from. It carries the distribution's name rather than saying it: the
- * window draws marks, and a name is only wanted when somebody asks for it.
- */
-function DistroMark({ distro }: { distro: string }) {
-  const Icon = ROOT_ICONS["wsl-distro"];
-  return <Icon titleAccess={distro} sx={{ flex: "none", fontSize: 14, color: "text.secondary" }} />;
 }
