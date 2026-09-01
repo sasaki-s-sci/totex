@@ -281,6 +281,7 @@ pub fn run() {
             pty::control::pty_resize,
             pty::control::pty_close,
             ask::watch::pty_asking,
+            ask::watch::pty_typed,
             ask::watch::answer::pty_answer,
             ask::watch::answer::pty_reply,
             ask::watch::answer::pty_take,

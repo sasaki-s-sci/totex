@@ -5,7 +5,7 @@
 pub const MARKERS: [char; 6] = ['❯', '>', '▶', '›', '»', '●'];
 /// What a shell ends its prompt with: a line opening with one of these is
 /// somewhere to type rather than something being asked.
-const SIGILS: [char; 3] = ['$', '%', '#'];
+pub const SIGILS: [char; 3] = ['$', '%', '#'];
 /// The sides of a box, which are drawing rather than text.
 pub const SIDES: [char; 4] = ['│', '┃', '║', '▌'];
 /// What a box begins with, on the line above everything it holds.

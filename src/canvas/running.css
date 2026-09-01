@@ -132,3 +132,45 @@
 .cli:hover .cli__end:hover {
   color: var(--mui-palette-error-main);
 }
+
+/* What this terminal was last told to do, while Ctrl is held.
+
+   The other half of what the key puts on a stack. The number in the glyph says
+   which mark a press would reach; this says which terminal that mark is, which
+   the glyph cannot — every one of them is the same glyph, and what tells them
+   apart is what somebody set each of them going on. Both come and go with the
+   key, and neither is ever drawn without the other.
+
+   It stands where a card would, out past the mark that ends the session, and it
+   is drawn only for a terminal that has no card: a question the session stopped
+   to ask, or what it says it is working on, is in that place already and says
+   more than a line could. Out of the flow entirely — the stack is spaced by the
+   marks, and a line that pushed anything sideways would be a stack that moved
+   whenever somebody pressed the key it is read with.
+
+   Faint, small, and in the terminal's own face. Faint because it is a label on
+   something rather than a thing in its own right, and the mark it hangs off is
+   drawn in the same ink; in the terminal's face because what it holds came off
+   a terminal, and a command set in the canvas's own type is a command being
+   quoted rather than shown. What will not fit is cut where the room runs out:
+   the whole of it is in the session, which is one press away. */
+.cli__said {
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  /* Clear of the mark that ends the session, which stands in the same place and
+     is drawn only under the pointer. */
+  margin-left: 15px;
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--mui-palette-text-disabled);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translateY(-50%);
+  /* Words to be read past, never to be pressed: the mark beside it is what
+     answers, and the terminal itself is where the rest of this is. */
+  pointer-events: none;
+}

@@ -1,6 +1,6 @@
 //! One session's screen, and the question standing on it.
 
-use super::super::{Ask, Reading, Screen, read};
+use super::super::{Ask, Reading, Screen, read, typed};
 
 /// Fed everything the session says whether or not a terminal is being drawn for
 /// it — a session nobody has opened is exactly the one whose question the graph
@@ -8,6 +8,16 @@ use super::super::{Ask, Reading, Screen, read};
 pub struct Watcher {
     pub(super) screen: Screen,
     asking: Option<Ask>,
+    /// The last thing typed at this session, kept rather than read when asked
+    /// for.
+    ///
+    /// Held because the screen forgets: a turn an agent was handed scrolls off
+    /// the top the moment it starts working, and what somebody wants to know
+    /// looking at a stack of marks is what each of those terminals was asked to
+    /// do — which for a busy one is no longer drawn anywhere. So every run of
+    /// output is read for one, and the last one there was stands until another
+    /// takes its place. A session that has never been typed at has none.
+    typed: Option<String>,
     /// How far into everything the session has said this screen has been fed.
     ///
     /// For the moment this is rebuilt: the screen is taken from the backlog in
@@ -23,6 +33,7 @@ impl Watcher {
         Self {
             screen: Screen::new(rows, cols),
             asking: None,
+            typed: None,
             fed: 0,
         }
     }
@@ -36,6 +47,7 @@ impl Watcher {
         }
         self.fed = at + data.len();
         self.screen.feed(data);
+        self.remember();
         self.settle(read(&self.screen))
     }
 
@@ -45,6 +57,10 @@ impl Watcher {
     pub(super) fn replay(&mut self, text: &str, upto: usize) {
         self.screen.feed(text);
         self.asking = read(&self.screen).map(Ask::of);
+        // Whatever is on the screen this backlog leaves, and no more: the runs
+        // it was made of went by in one, so there is nothing here to have
+        // watched somebody type.
+        self.remember();
         self.fed = upto;
     }
 
@@ -54,6 +70,25 @@ impl Watcher {
 
     pub fn asking(&self) -> Option<&Ask> {
         self.asking.as_ref()
+    }
+
+    /// The last thing typed at this session, or nothing where none of it was
+    /// ever drawn.
+    pub fn typed(&self) -> Option<&str> {
+        self.typed.as_deref()
+    }
+
+    /// Takes what is being typed off the screen as it stands, and keeps it.
+    ///
+    /// Kept only when there is something to keep. A composer emptied by the
+    /// return that sent it says nothing about what was sent, and a shell
+    /// standing at a fresh prompt says nothing about the command that has just
+    /// finished — so the reading that found nothing leaves the last one that
+    /// found something where it is.
+    fn remember(&mut self) {
+        if let Some(said) = typed(&self.screen) {
+            self.typed = Some(said);
+        }
     }
 
     /// How far into everything the session has said this screen has been fed,

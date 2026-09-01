@@ -13,6 +13,11 @@
 //! unmistakably a question being put and leaves every idle shell prompt and
 //! empty composer alone, because a card that stood on those would stop meaning
 //! that somebody's turn has stopped.
+//!
+//! One smaller thing is read off the same screen and kept beside the question:
+//! the last thing typed at the session — see `typed`. It is not a question and
+//! nothing waits on it; it is here because this is where a session's screen is
+//! already held, and reading it anywhere else would be holding a second one.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -22,6 +27,7 @@ mod choice;
 mod glyph;
 mod read;
 mod screen;
+mod typed;
 pub mod watch;
 
 #[cfg(test)]
@@ -29,6 +35,7 @@ mod tests;
 
 pub use read::read;
 pub use screen::Screen;
+pub use typed::typed;
 
 /// One question, as it can be answered from anywhere the window draws it.
 #[derive(Clone, Debug, PartialEq, Serialize)]

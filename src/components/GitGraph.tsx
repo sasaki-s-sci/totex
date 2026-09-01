@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasDrag } from "../hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
 import { useCanvasKeys } from "../hooks/useCanvasKeys";
+import { useCliTyped } from "../hooks/useCliTyped";
 import { useFilePreviews } from "../hooks/useFilePreviews";
 import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
@@ -19,6 +20,7 @@ import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
 import { useCanvasActions } from "./canvasActions";
 import { CliJumpsProvider } from "./cliJumps";
+import { CliTypedProvider } from "./cliTyped";
 import { GraphLines } from "./GraphLines";
 import { GraphActionsProvider } from "./graphActions";
 import {
@@ -186,6 +188,11 @@ export function GitGraph({
       onJumpSession,
     });
 
+  // And what each of those numbers is standing beside, taken at the press and
+  // held for as long as the key is. The numbers are what a key would reach; the
+  // lines are which terminal is which.
+  const typed = useCliTyped(jumps !== null, asks, reports);
+
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,
     standing,
@@ -237,58 +244,63 @@ export function GitGraph({
             until Ctrl is held. Only the terminal marks read this, so the key
             costs a render of those and of nothing else on the canvas. */}
             <CliJumpsProvider value={jumps}>
-              {/* `is-merging` and the two ends of a merge are written on here by
-              `useBranchDrag` rather than handed down, so the class stays put
-              across a render: React only writes an attribute whose prop changed,
-              and this one never does. Which is why how far out the canvas is
-              zoomed is said in an attribute of its own rather than in the class:
-              a class React rewrote would take the merge's own marks with it. */}
-              <div ref={host} className="graph" data-coarse={coarse || undefined}>
-                {/* The canvas stays mounted while folders enter and leave it. Its
-                controlled nodes and repository-set framing already carry those
-                changes; replacing the instance would initialise an empty view
-                before the scanned nodes arrive. */}
-                <ReactFlow<AppNode, Edge>
-                  nodes={shown}
-                  nodeTypes={nodeTypes}
-                  onNodesChange={onNodesChange}
-                  onInit={(flow) => {
-                    instance.current = flow;
-                    setFlowReady(true);
-                    // The first frame is framed by `fitView` rather than by a move, so
-                    // the canvas has to be asked where it ended up.
-                    resolve(flow.getViewport().zoom);
-                  }}
-                  onMove={handleMove}
-                  onNodeClick={handleNodeClick}
-                  onNodeDragStart={takeGroup}
-                  onNodeDrag={carryGroup}
-                  onNodeDragStop={dropGroup}
-                  onPaneClick={() => setSelectedCommit(null)}
-                  nodesConnectable={false}
-                  nodesDraggable
-                  elevateNodesOnSelect={false}
-                  // Commit history is the unbounded part and is one shared SVG;
-                  // the small interactive node set stays mounted. React Flow's own
-                  // per-frame visibility pass cost more than moving those nodes.
-                  onlyRenderVisibleElements={false}
-                  minZoom={MIN_ZOOM}
-                  maxZoom={MAX_ZOOM}
-                  proOptions={proOptions}
-                  fitView
-                >
-                  <GraphLines
-                    bands={graph.bands}
-                    reach={graph.reach}
-                    extent={graph.extent}
-                    nodes={lineNodes}
-                    selected={selectedCommit}
-                    picked={picked}
-                    onCommit={handleCommitClick}
-                  />
-                </ReactFlow>
-                <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
-              </div>
+              {/* And what each of them was last told to do, which is the other
+              half of the same key: the number says which mark a press would
+              reach, and the line says which terminal that mark is. */}
+              <CliTypedProvider value={typed}>
+                {/* `is-merging` and the two ends of a merge are written on here by
+                `useBranchDrag` rather than handed down, so the class stays put
+                across a render: React only writes an attribute whose prop changed,
+                and this one never does. Which is why how far out the canvas is
+                zoomed is said in an attribute of its own rather than in the class:
+                a class React rewrote would take the merge's own marks with it. */}
+                <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                  {/* The canvas stays mounted while folders enter and leave it. Its
+                  controlled nodes and repository-set framing already carry those
+                  changes; replacing the instance would initialise an empty view
+                  before the scanned nodes arrive. */}
+                  <ReactFlow<AppNode, Edge>
+                    nodes={shown}
+                    nodeTypes={nodeTypes}
+                    onNodesChange={onNodesChange}
+                    onInit={(flow) => {
+                      instance.current = flow;
+                      setFlowReady(true);
+                      // The first frame is framed by `fitView` rather than by a move, so
+                      // the canvas has to be asked where it ended up.
+                      resolve(flow.getViewport().zoom);
+                    }}
+                    onMove={handleMove}
+                    onNodeClick={handleNodeClick}
+                    onNodeDragStart={takeGroup}
+                    onNodeDrag={carryGroup}
+                    onNodeDragStop={dropGroup}
+                    onPaneClick={() => setSelectedCommit(null)}
+                    nodesConnectable={false}
+                    nodesDraggable
+                    elevateNodesOnSelect={false}
+                    // Commit history is the unbounded part and is one shared SVG;
+                    // the small interactive node set stays mounted. React Flow's own
+                    // per-frame visibility pass cost more than moving those nodes.
+                    onlyRenderVisibleElements={false}
+                    minZoom={MIN_ZOOM}
+                    maxZoom={MAX_ZOOM}
+                    proOptions={proOptions}
+                    fitView
+                  >
+                    <GraphLines
+                      bands={graph.bands}
+                      reach={graph.reach}
+                      extent={graph.extent}
+                      nodes={lineNodes}
+                      selected={selectedCommit}
+                      picked={picked}
+                      onCommit={handleCommitClick}
+                    />
+                  </ReactFlow>
+                  <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
+                </div>
+              </CliTypedProvider>
             </CliJumpsProvider>
           </GraphMarksProvider>
         </WorktreeStatusProvider>

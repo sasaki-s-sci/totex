@@ -32,3 +32,15 @@
 .graph .react-flow__node-collapse {
   contain: layout;
 }
+
+/* And a terminal's mark, which while Ctrl is held carries the line saying what
+   it was last told to do — out past the glyph, into the room beside the stack
+   where a card would stand. The paint half would cut that off at the width of
+   the mark. There is one of these per terminal that is actually running, so
+   this gives up no more than the rule above it does. See `.cli__said`.
+
+   Here rather than in `running.css`, which is imported before this file and so
+   cannot outrank it. */
+.graph .react-flow__node-cli {
+  contain: layout;
+}
