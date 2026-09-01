@@ -2,6 +2,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import { Popover, Stack, TextField } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { type Session, shellSession } from "../lib/session";
 import {
   branchTaken,
   createWorkspace,
@@ -23,6 +24,8 @@ export type CommitTarget = {
 type Props = {
   target: CommitTarget | null;
   onClose: () => void;
+  /** Open a terminal in the worktree the new branch was given. */
+  onOpen: (session: Session) => void;
 };
 
 /**
@@ -42,10 +45,13 @@ type Props = {
  * is in the box could not be cut.
  *
  * The branch is made in its own worktree, so nothing here checks anything out.
+ * A terminal opens in that worktree as the menu goes, and the panel comes up
+ * holding it: cutting a branch is starting work in it, and the shell it is
+ * worked in is what the branch's own mark would have been pressed for next.
  * What is left — a name git refuses after all — turns the tick red, and the
  * menu stays where it is.
  */
-export function CommitMenu({ target, onClose }: Props) {
+export function CommitMenu({ target, onClose, onOpen }: Props) {
   const { t } = useTranslation();
   /** What the branch would be called, or null before any box has been opened. */
   const [name, setName] = useState<string | null>(null);
@@ -129,6 +135,11 @@ export function CommitMenu({ target, onClose }: Props) {
   );
 
   async function submit() {
-    await run("create", () => createWorkspace(repository.id, wanted, commit.id));
+    const workspace = await run("create", () => createWorkspace(repository.id, wanted, commit.id));
+    // After the menu has gone rather than before: a popover on its way out puts
+    // the keyboard back where it found it, which is the terminal this one was
+    // opened from — and the terminal being opened here is the one that should
+    // have it.
+    if (workspace) onOpen(shellSession(workspace.path, workspace.branch));
   }
 }

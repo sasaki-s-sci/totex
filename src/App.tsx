@@ -316,7 +316,11 @@ function Window() {
 
       {TaskMenu && <TaskMenu session={runnable} onClose={closeTasks} onRun={runTask} />}
 
-      {CommitMenu && <CommitMenu target={commitMenu} onClose={() => setCommitMenu(null)} />}
+      {/* A branch cut from a commit comes up with a terminal already in it, so
+          the menu is handed the same opener the branch heads use. */}
+      {CommitMenu && (
+        <CommitMenu target={commitMenu} onClose={() => setCommitMenu(null)} onOpen={openSession} />
+      )}
       {WorktreeMenu && (
         <WorktreeMenu
           target={worktreeMenu}

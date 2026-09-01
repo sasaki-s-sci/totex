@@ -13,6 +13,14 @@ import { useCallback, useState } from "react";
  * see the box in `WorktreeMenu` — and that question is not this hook's to hold:
  * it outlives the menu it was asked from, and this is reset when the menu is.
  *
+ * What the operation answered comes back to whoever asked for it, and a refusal
+ * answers with nothing, there being nothing to carry on with. It comes back
+ * after the menu has closed: whatever is done with it is done to a window the
+ * menu has already left. That is what the terminal a new branch comes up
+ * with depends on — a closing popover hands the keyboard back to wherever it
+ * took it from, and a terminal opened before that would have it taken away
+ * again.
+ *
  * Both of the graph's menus work this way, which is the reason this is not
  * written in either of them.
  */
@@ -23,15 +31,17 @@ export function useMenuAction(onClose: () => void) {
   const [failed, setFailed] = useState<string | null>(null);
 
   const run = useCallback(
-    async (label: string, action: () => Promise<unknown>) => {
+    async <T>(label: string, action: () => Promise<T>): Promise<T | null> => {
       setBusy(label);
       setFailed(null);
       try {
-        await action();
+        const done = await action();
         onClose();
+        return done;
       } catch {
         setFailed(label);
         setBusy(null);
+        return null;
       }
     },
     [onClose],
