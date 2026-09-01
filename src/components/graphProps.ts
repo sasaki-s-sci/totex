@@ -7,6 +7,7 @@ import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
+import type { CliPlace } from "../lib/graphNav";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
@@ -105,6 +106,14 @@ export type GraphProps = {
    */
   onJumpSession: (session: Session) => void;
   onEndSession: (session: Session) => void;
+  /**
+   * The terminals as the canvas numbers them, whenever that reading changes.
+   *
+   * Said rather than asked for: the numbers come out of where the marks ended
+   * up, so the canvas is the only side that knows them — and the panel, which
+   * draws the same run in its band, is on the other side of the window.
+   */
+  onCliRun: (run: readonly CliPlace[]) => void;
   /** Files asked for from the explorer or dropped onto the window. */
   filePreviews: readonly FilePreviewRequest[];
   /**

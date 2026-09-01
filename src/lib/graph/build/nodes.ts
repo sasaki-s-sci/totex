@@ -68,6 +68,7 @@ export function cliNode(
     held.data.session === data.session &&
     held.data.showing === data.showing &&
     held.data.ordinal === data.ordinal &&
+    held.data.group === data.group &&
     (held.parentId ?? null) === band &&
     held.position.x === x &&
     held.position.y === y

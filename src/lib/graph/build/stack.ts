@@ -53,6 +53,8 @@ export function rowStack(
     open: ReadonlyMap<string, Session[]>;
     /** Where a line from one of these lands: the row's mark, or its far end. */
     socket: LineEnd;
+    /** The row itself, which is the place every terminal here is standing in. */
+    group: string;
     /** How far out from that end its line starts, which is half of any mark. */
     lead: number;
     /** The stack's own column, and the line of the row it hangs on. */
@@ -64,7 +66,7 @@ export function rowStack(
   },
   draw: Draw,
 ): RowStack {
-  const { open, socket, lead, at, showing, asks, reports } = where;
+  const { open, socket, lead, at, showing, asks, reports, group } = where;
   const drawn: RowStack = {
     nodes: [],
     lines: [],
@@ -90,6 +92,7 @@ export function rowStack(
           session,
           showing: session.id === showing,
           ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
+          group,
         },
         null,
         at.x,

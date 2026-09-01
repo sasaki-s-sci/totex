@@ -159,6 +159,8 @@ export function folderGroup(
           // Past the last of the row's buttons rather than on any of them: the
           // row is the place, and there is no mark on it that is the directory.
           socket: inBand(id, FOLDER_ROW_WIDTH, LANE_HEIGHT / 2),
+          // And that row is the one place all of them are standing in.
+          group: id,
           lead: REACH_TRIM,
           at: {
             x: head.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2,

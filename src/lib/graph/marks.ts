@@ -50,6 +50,16 @@ export type CliNodeData = {
   showing: boolean;
   /** Which of the directory's sessions it is, when there is more than one. */
   ordinal: number | null;
+  /**
+   * The row it is hanging on: a repository's band, a folded repository's mark,
+   * or a folder's own row.
+   *
+   * Nothing on the mark is drawn from this. It is here because the panel's
+   * strip reads the terminals off what is drawn — the same order the numbers
+   * are given out in — and what it cannot work out from a session alone is
+   * which of them are standing in the same place. See `cliRun`.
+   */
+  group: string;
 };
 
 /**
