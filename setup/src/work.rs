@@ -4,7 +4,7 @@
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex};
 
-use crate::{Poke, Told, WM_TOLD, WM_VERSIONS, install, release, web};
+use crate::{HINT, Poke, Told, WM_TOLD, WM_VERSIONS, install, release, web};
 
 /// Says a thing, and pokes the window into drawing it.
 pub(crate) fn say(told: &Arc<Mutex<Told>>, poke: Poke, what: &str) {
@@ -75,21 +75,48 @@ pub(crate) fn fetch(
 /// Nothing waits on this and nothing fails without it: the box takes a typed
 /// version whether this answers or not, which is what keeps a rate limit on an
 /// address anybody can read from being something that stops an install.
+///
+/// It does not fail in silence, though, which it used to. A window offering one
+/// entry is what a machine that cannot reach the release page looks like and it
+/// is also what a bug in this looks like, and there was no way to tell them
+/// apart from the outside -- so whatever went wrong is put where the window
+/// says things, next to the sentence saying a version can still be typed.
 pub(crate) fn which_versions(poke: Poke, told: Arc<Mutex<Told>>) {
-    let Ok(listing) = web::get(
+    let found = web::get(
         &release::listing_url(),
         release::LISTING_MOST,
         Some("Accept: application/vnd.github+json\r\n"),
         |_, _| {},
-    ) else {
-        return;
+    )
+    .map(|listing| release::versions(&listing));
+
+    let versions = match found {
+        Ok(versions) if !versions.is_empty() => versions,
+        Ok(_) => return grumble(poke, &told, "the release page lists no versions"),
+        Err(why) => return grumble(poke, &told, &why),
     };
-    let versions = release::versions(&listing);
-    if versions.is_empty() {
-        return;
-    }
+
     told.lock()
         .unwrap_or_else(|held| held.into_inner())
         .versions = versions;
     poke.tell(WM_VERSIONS);
+}
+
+/// Says why the list is empty, unless there is something better on the window.
+///
+/// An install that is already under way owns what the window says: this is the
+/// slower of the two things that start when the window opens, and it losing a
+/// race is not a reason to write over the other one's account of itself.
+fn grumble(poke: Poke, told: &Arc<Mutex<Told>>, why: &str) {
+    let quiet = {
+        let told = told.lock().unwrap_or_else(|held| held.into_inner());
+        !told.working && told.status == HINT
+    };
+    if quiet {
+        say(
+            told,
+            poke,
+            &format!("{HINT} The releases could not be listed — {why}"),
+        );
+    }
 }

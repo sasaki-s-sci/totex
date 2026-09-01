@@ -132,6 +132,15 @@ pub fn get(
         match number(request.0, WINHTTP_QUERY_STATUS_CODE) {
             Some(200) => {}
             Some(404) => return Err(format!("{url} is not there")),
+            // What an address anybody can read says when it has been read too
+            // often from one place. Worth its own sentence: it is the one
+            // answer here that is not a machine or an address being wrong, and
+            // the only thing to do about it is wait or type the version in.
+            Some(status @ (403 | 429)) => {
+                return Err(format!(
+                    "{url} answered {status}, which is how it says it has been asked too often"
+                ));
+            }
             Some(status) => return Err(format!("{url} answered {status}")),
             None => return Err(why(&format!("{url} answered nothing this understands"))),
         }
