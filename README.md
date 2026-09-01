@@ -123,8 +123,12 @@ together.
 Both are pull-downs, and each can declare either a named version or `latest`.
 **sync** adjusts both parts to their declarations; there is no separate Take
 button for either one. persistent swaps between two questions without reloading
-the window. ephemeral downloads the installer and finishes with the reload or
-restart it requires. A restart ends every terminal in the window.
+the window. ephemeral downloads the release and stops there — nothing in the
+window goes away, every terminal in it goes on running, and the row says the
+next start. Closing totex is what puts the release in, and the copy opened
+after that is the one it makes. So every terminal in the window is still the
+price of a new program; it is just paid at a moment somebody chose, on a window
+they had already finished with.
 
 The ephemeral list contains only releases compatible with the selected
 persistent version. The compatibility numbers come from each release manifest,
@@ -133,7 +137,8 @@ version in that pull-down when **sync** is pressed.
 
 A `.deb` or an `.rpm` still leaves the program to its package manager. Its
 ephemeral selector therefore moves only the front, and lists only fronts
-that the installed program can run. persistent remains independently replaceable.
+that the installed program can run, so its sync ends in a reload rather than in
+anything to be closed. persistent remains independently replaceable.
 Choosing an older version is a rollback and is handled exactly like choosing a
 newer one.
 

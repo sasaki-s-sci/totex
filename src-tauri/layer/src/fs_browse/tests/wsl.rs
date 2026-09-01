@@ -1,5 +1,8 @@
-//! The same reading and writing, of a path inside a distribution. Skipped where
-//! there is no WSL to reach.
+//! The same reading and writing, of a path inside a distribution.
+//!
+//! Skipped where there is no WSL to reach, and the skip is declared: off
+//! Windows these carry `#[ignore]` so the run says they did not happen. See
+//! `crate::wsl::tests` for the whole of why.
 
 use std::path::Path;
 
@@ -9,8 +12,10 @@ use super::wsl_dir;
 use crate::host::Host;
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_folder_inside_a_distribution_is_listed_from_inside_it() {
     let Some(dir) = wsl_dir("listing") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let host = Host::of(Path::new(&dir));
@@ -49,8 +54,10 @@ fn a_folder_inside_a_distribution_is_listed_from_inside_it() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_climbing_path_inside_a_distribution_is_folded_before_it_is_read() {
     let Some(dir) = wsl_dir("climb") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let listing = read_directory(&format!(r"{dir}\one\.."), false).expect("a listing");
@@ -58,8 +65,10 @@ fn a_climbing_path_inside_a_distribution_is_folded_before_it_is_read() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_card_reads_and_writes_a_file_inside_the_distribution() {
     let Some(dir) = wsl_dir("card") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let host = Host::of(Path::new(&dir));
@@ -87,8 +96,10 @@ fn a_card_reads_and_writes_a_file_inside_the_distribution() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_drop_crosses_between_this_machine_and_the_distribution() {
     let Some(dir) = wsl_dir("drop") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let root = super::temp_dir("drop-across");
@@ -125,8 +136,10 @@ fn a_drop_crosses_between_this_machine_and_the_distribution() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_folder_the_distribution_copies_for_itself_keeps_its_links_as_links() {
     let Some(dir) = wsl_dir("drop-links") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let host = Host::of(Path::new(&dir));
@@ -171,8 +184,10 @@ fn a_folder_the_distribution_copies_for_itself_keeps_its_links_as_links() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_folder_inside_a_distribution_goes_with_everything_under_it() {
     let Some(dir) = wsl_dir("folder-deletion") else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let host = Host::of(Path::new(&dir));

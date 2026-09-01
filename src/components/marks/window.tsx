@@ -37,8 +37,9 @@ const SPIN = {
  * while it is being taken, the same ring filling instead of turning once the
  * download has said how long it is, a tick for nothing to do, two arrows round
  * a circle for the reload that finishes the pages, and one arrow round a circle
- * for the restart that finishes the program. A failure is the arrow again, in
- * red — see the update row of the settings page, which is what colours it.
+ * for a program that is down and goes in when the app is closed. A failure is
+ * the arrow again, in red — see the update row of the settings page, which is
+ * what colours it.
  *
  * The last is the arrow struck through: a release this half cannot take. The
  * two circles are told apart by how many arrows are in them, which is also how
@@ -105,7 +106,8 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
     return (
       <Frame>
         {/* Three quarters of a ring again, but stopped and with a head on it:
-            the waiting is over and the last of it is a press away. */}
+            the waiting is over, and what is left is not a press — the release
+            goes in on the way out of the app. */}
         <path d="M19.5 12 A7.5 7.5 0 1 1 12 4.5" />
         <path d="M9.8 2.3 L12 4.5 L9.8 6.7" />
       </Frame>

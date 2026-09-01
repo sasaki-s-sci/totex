@@ -60,9 +60,9 @@ export function Row({
  *
  * Quiet: the window is a tool and nothing in it shouts, so a button that offers
  * something reads as the same grey the names beside it are set in, and answers
- * the pointer rather than the room. Red is kept for the two endings — a restart
- * that takes every terminal with it, and a press that did not work — which is
- * the same thing red says everywhere else in the window.
+ * the pointer rather than the room. Red is kept for the one ending worth it — a
+ * press that did not work — which is the same thing red says everywhere else in
+ * the window.
  */
 export function PageButton({
   danger,
@@ -71,7 +71,7 @@ export function PageButton({
   onClick,
   children,
 }: {
-  /** Red at rest: for the press that ends something, and the one that failed. */
+  /** Red at rest: for the press that failed, which is the one that says so. */
   danger?: boolean;
   disabled?: boolean;
   /** The one mark the page draws, where a word cannot say what it says. */

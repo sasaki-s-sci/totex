@@ -3,7 +3,7 @@
 ; A copy of tauri's own installer.nsi, taken verbatim from
 ; https://raw.githubusercontent.com/tauri-apps/tauri/tauri-cli-v2.11.4/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi
 ; and then cut down. Every line that differs from upstream is marked "totex:",
-; and there are twelve of them; `curl <the url above> | diff - installer.nsi`
+; and there are thirteen of them; `curl <the url above> | diff - installer.nsi`
 ; should show nothing else, and is what to run when the pinned tauri moves.
 ;
 ; What they make is a two-page installer that asks two things: where the app
@@ -11,12 +11,13 @@
 ; and finish are gone -- they carry no answer worth the page -- and the one
 ; that is left closes itself and opens the app.
 ;
-; What is *not* changed is what /P means. The updater plugin runs this very
-; installer with `/P /UPDATE /R` behind the app's back, and passive there has
-; to keep meaning what upstream means by it: no page at all, including the
-; directory one. So the pages above are skipped by hand rather than by
-; turning passive on, which would have put a folder picker in front of every
-; automatic update.
+; What is *not* changed is what /P and /S mean. The updater plugin runs this
+; very installer behind the app's back -- `/S /UPDATE /R`, since the app
+; declares the quiet install mode, so that putting a release in is nothing
+; anybody has to watch happen -- and both flags have to keep meaning what
+; upstream means by them: no page at all, including the directory one. So the
+; pages above are skipped by hand rather than by turning passive on, which
+; would have put a folder picker in front of every automatic update.
 ;
 ; It is still the whole of tauri's installer underneath. Uninstalling a wix
 ; build first, refusing to write over a running totex, fetching WebView2,
@@ -847,6 +848,15 @@ Section Install
 SectionEnd
 
 Function .onInstSuccess
+  ; totex: an update is put in on the way out of the app -- the release is
+  ; downloaded while the window is open and goes in when it is closed, see
+  ; src-tauri/src/update/waiting.rs -- so the app this would open again is one
+  ; somebody has just closed. The updater plugin puts /R on the command line
+  ; itself and there is no mode of it that leaves it off, so it is turned down
+  ; here, where /UPDATE says who is asking.
+  ${If} $UpdateMode = 1
+    Return
+  ${EndIf}
   ; totex: the finish page went with the rest of them, and its `Run` tick --
   ; on by default -- went with it, so opening the app is done here instead.
   ; Somebody who double-clicked an installer wanted the window, and the window

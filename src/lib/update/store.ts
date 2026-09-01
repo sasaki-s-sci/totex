@@ -10,7 +10,7 @@
  * layers are replaced while the app is running and neither of them is a place
  * anything can be kept. A row left on a version is on it again after the reload
  * that finishes the pages, after the layer underneath has been swapped, and
- * after the restart that finishes the program.
+ * after the next start of the app, which is where a taken program arrives.
  */
 
 import { invoke } from "@tauri-apps/api/core";

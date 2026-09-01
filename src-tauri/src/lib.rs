@@ -26,7 +26,7 @@ pub use totex_layer::{fs_browse, host, sync, wsl};
 use std::sync::Arc;
 
 use serde_json::json;
-use tauri::State;
+use tauri::{Manager, State};
 
 use app_layer::Layers;
 use fs_browse::{FileData, FileHead, Listing, Place, Root};
@@ -163,6 +163,22 @@ fn fs_copy_into(
     layer.ask("fs_copy_into", json!({ "paths": paths, "into": into }))
 }
 
+/// Whatever is left to do on the way out, which is one thing.
+///
+/// A release taken while the window was open is put in here, because the
+/// installer that puts it there is the thing that would otherwise have closed
+/// the window — see `update::waiting`. On Windows this call does not come back.
+#[cfg(desktop)]
+fn on_the_way_out<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: &tauri::RunEvent) {
+    if matches!(event, tauri::RunEvent::Exit) {
+        app.state::<Arc<update::Waiting>>().go_in();
+    }
+}
+
+/// And nothing at all where there is no updater to have taken one.
+#[cfg(not(desktop))]
+fn on_the_way_out<R: tauri::Runtime>(_app: &tauri::AppHandle<R>, _event: &tauri::RunEvent) {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Before anything builds a window: the window this app draws is undecorated,
@@ -199,13 +215,16 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
 
-    // Only a desktop build has anything to replace: the two plugins behind the
-    // settings dialog's update button are the download-and-swap and the restart
-    // that follows it, and neither exists on a phone.
+    // Only a desktop build has anything to replace: the plugin behind the
+    // settings dialog's update button is the download-and-swap, and it does not
+    // exist on a phone. Nor does anywhere to stand a release that has come down
+    // and is waiting for this app to be closed — see `update::waiting`.
     #[cfg(desktop)]
     let builder = builder
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build());
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Arc::new(update::Waiting::prepare(
+            &context.config().identifier,
+        )));
 
     builder
         .manage(serving)
@@ -297,6 +316,10 @@ pub fn run() {
             mcp::mcp_setups,
             mcp::mcp_install,
         ])
-        .run(context)
-        .expect("error while running tauri application");
+        .build(context)
+        .expect("error while building tauri application")
+        // Built and then run rather than run outright, for the sake of the one
+        // event this app has anything to say about. Nothing else about the
+        // loop is any different for it.
+        .run(|app, event| on_the_way_out(app, &event));
 }
