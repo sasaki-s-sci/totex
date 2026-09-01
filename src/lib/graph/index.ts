@@ -50,7 +50,6 @@ export {
   LANE_HEIGHT,
   LINE_COLOR,
   type LineEnd,
-  NAME_COLUMN,
   type Origin,
   onCell,
   REMOTE_HEAD_SIZE,

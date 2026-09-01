@@ -19,7 +19,7 @@ import type { Frame } from "./frame";
 const HISTORY_STROKE = { colour: LINE_COLOR, width: 1.2, opacity: 0.82 };
 
 export function drawCommits(frame: Frame) {
-  const { repository, history, dots, columnX, historyLine, nameLine, drawn, nodes } = frame;
+  const { repository, history, dots, columnX, historyLine, drawn, nodes } = frame;
 
   for (const [position, entry] of history.placed.entries()) {
     const node: CommitFlowNode = {
@@ -90,7 +90,10 @@ export function drawCommits(frame: Frame) {
       type: "collapse",
       parentId: repository.id,
       extent: "parent",
-      position: { x: columnX(0), y: nameLine - COMMIT_STEP.y / 2 },
+      // The band's own first line, at the head of the first column: the fold
+      // is where the history carries on past what is drawn, and the
+      // repository's name is set in the air directly over it.
+      position: { x: columnX(0), y: historyLine(0) - COMMIT_STEP.y / 2 },
       data: { repository, hidden: history.hidden },
       style: COMMIT_CELL,
       draggable: false,

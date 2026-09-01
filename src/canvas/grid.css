@@ -35,21 +35,35 @@
   background: transparent;
 }
 
-/* The name sits in the cell before the mark the band opens with — the first
-   commit drawn, or the fold where the history carries on past it — level with
-   that mark and set against it, so the eye runs straight from the name into the
-   history. */
+/* A name on the canvas, on the line above the mark it belongs to: a folder's
+   over the mark that is the folder, a repository's over the mark its band opens
+   with — the first commit drawn, or the fold where the history carries on past
+   it. Both are set at the left of that mark's own column and sat on the line
+   itself, so the eye runs down from the name into what it heads, and the two
+   read as one column of names down the left of everything.
+
+   The room under the text is what keeps it clear of the mark it is over: the
+   fold is a pill and a folder's mark is a glyph, and both stand a few pixels
+   above their own line. */
 .band__name {
   position: absolute;
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 14px;
+  /* The box is the room the layout gave it, room under the text included: the
+     padding is what holds the name clear of its mark, and a box that grew by it
+     would put the text back on the mark's own line. */
+  box-sizing: border-box;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 2px;
+  padding-bottom: 12px;
+  padding-left: 6px;
   overflow: hidden;
 }
 
-/* The mark that takes the repository off the canvas, standing in the room the
-   name's own cell has spare rather than between the name and its history.
+/* The mark that takes the repository off the canvas, after the name rather than
+   before it: the name is set over the history now, so nothing stands between
+   the two, and the left of the name's own line is where the folder's line
+   arrives.
 
    The band takes no pointer and everything in it inherits that, so the mark is
    where it comes back — `nopan` beside it in the markup, because pressing a

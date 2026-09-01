@@ -3,21 +3,20 @@ import {
   CELL_STYLE,
   CHIP_STEP,
   CLI_STEP,
-  COLUMN_WIDTH,
   type Draw,
-  FOLDER_MARK,
+  FOLDER_INSET,
   type FolderFlowNode,
   type FolderNodeData,
   LANE_HEIGHT,
-  NAME_COLUMN,
+  NAME_HEIGHT,
   REPO_MARK_WIDTH,
   type RepoMarkFlowNode,
   SESSION_WIDTH,
 } from "./model";
 
 /**
- * A folder drawn as the head of a column: its name, its own mark, and a line out
- * of that mark to every repository it holds.
+ * A folder drawn as the head of a column: its name, its own mark under it, and a
+ * line out of that mark to every repository it holds.
  *
  * Reading the group is reading down a column: a repository per row, every one
  * joined back to the folder's mark, and never one to be found somewhere else. A
@@ -30,17 +29,15 @@ import {
 /** How wide the row's own button is, which is what the row has to hold. */
 const TOOLS_WIDTH = 40;
 
-/** Where the folder's own mark stands: at the head of its row, before the name.
+/** Where the folder's own mark stands: at the head of its row, under the name.
  *  Every line down to a repository leaves from here, and leaving from the left
- *  of the name gives those lines room to be a fan. */
+ *  of the column gives those lines room to be a fan. */
 export const FOLDER_MARK_X = 0;
-/** The name, in what is left of the column the mark leads. */
-const LABEL_X = FOLDER_MARK_X + FOLDER_MARK;
 /**
  * Where the row's own button stands: at the column the repositories under it
- * begin at, so the row ends where their names do.
+ * begin at, so the row ends where their marks do.
  */
-const TOOLS_X = NAME_COLUMN * COLUMN_WIDTH;
+const TOOLS_X = FOLDER_INSET;
 /** How wide the row is: what it holds, and nothing beyond it. */
 export const FOLDER_ROW_WIDTH = TOOLS_X + TOOLS_WIDTH;
 
@@ -77,7 +74,10 @@ export function folderRow(
   const data: FolderNodeData = {
     root,
     name,
-    label: { x: LABEL_X, y: 0, width: TOOLS_X - LABEL_X, height: LANE_HEIGHT },
+    // The whole row's width, on the line above it: nothing else is drawn up
+    // there, so the name is not cut short by the mark it stands over or by the
+    // button at the far end of the row.
+    label: { x: FOLDER_MARK_X, y: 0, width: FOLDER_ROW_WIDTH, height: NAME_HEIGHT },
     open,
     mark: FOLDER_MARK_X,
     tools: TOOLS_X,
