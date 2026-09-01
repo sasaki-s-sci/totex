@@ -78,11 +78,21 @@
 /* Whichever of the two the ring is drawn with — the border, or the ink of a
    branch that has no worktree — takes the same breath. Neither is `currentcolor`
    itself: that is what the mix is made of, and a colour that moved would take
-   the dot the remote mark is drawn in with it. */
+   the dot the remote mark is drawn in with it.
+
+   The ink takes it as its own opacity rather than as the mix the border takes,
+   because the mix is one an SVG paint cannot be walked to: a `stroke` keyframed
+   to a `color-mix` holding `currentcolor` kills the WebView's renderer outright
+   the frame the animation starts on a ring with ink under it, and the window is
+   then the browser's own crash page. That is every sync begun on a branch with
+   work in its copy, which is where it was found — the ring goes busy, the ink is
+   still under it for the frame the class lands in, and the window goes. The two
+   are the same fade either way: the colour at 35% of itself, and the colour
+   drawn at 35%. */
 @keyframes mark-working {
   50% {
     border-color: color-mix(in srgb, currentcolor 35%, transparent);
-    stroke: color-mix(in srgb, currentcolor 35%, transparent);
+    stroke-opacity: 0.35;
   }
 }
 
