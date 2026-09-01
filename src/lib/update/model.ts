@@ -12,15 +12,17 @@
  *
  * `rest` is a declaration with no adjustment in flight. What an adjustment
  * ends in is the backend's to say: `swapped` for pages that are unpacked
- * and pointed at, `ready` for a program that is installed, `current` where that
+ * and pointed at, `ready` for a program that is down, `current` where that
  * release is what is already here — which is also where the application layer
  * lands, because a layer that has been taken is already answering — and `held`
  * where this layer cannot bring it.
  *
- * `ready` is only ever reached on macOS and Linux. The Windows installers are
- * run over the top of a closed app, so installing there ends this process and
- * the installer opens the new one: the window goes away and comes back, and
- * nothing is left waiting for a press.
+ * `ready` is the one that is not about this window at all. A program cannot be
+ * put in underneath a window that is open, so what a press does is bring it
+ * down; putting it in is the app being closed, which is a moment the person
+ * picks. So the row says the next start rather than offering a press: this copy
+ * goes on as it was, with every terminal in it, and the copy that opens next is
+ * the one the release makes. See `src-tauri/src/update/waiting.rs`.
  */
 export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 

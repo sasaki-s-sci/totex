@@ -7,8 +7,10 @@ use super::reachable;
 
 /// Writing a file has to come back as that file.
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn says_what_was_written_since_the_last_look() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let dir = "/tmp/totex-watch-test";

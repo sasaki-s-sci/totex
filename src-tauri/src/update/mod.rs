@@ -14,9 +14,12 @@
 //! new one is started, the old one is let go of between two questions, and the
 //! window does not even blink.
 //!
-//! **The program.** That is the installer, and it ends in a restart — which
-//! ends every terminal with it. It is a row of its own because it is a
-//! different cost.
+//! **The program.** That is the installer, and it is the one layer that cannot
+//! be put in underneath a window that is open. So a press is the download and
+//! nothing else, and what puts the release in is the app being closed — see
+//! [`waiting`]. Nothing goes away while somebody is working; the next start is
+//! the one on the new release. It is a row of its own because it is a different
+//! cost, and this is that cost paid where it costs nothing.
 //!
 //! ## What a copy can have
 //!
@@ -63,6 +66,11 @@ mod kept;
 pub(crate) mod layer;
 #[cfg(test)]
 mod tests;
+/// A release that is down and waiting for the app to be closed, which is only
+/// ever a thing on a desktop: the updater the whole of this rests on is not
+/// built for a phone.
+#[cfg(desktop)]
+mod waiting;
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
@@ -75,6 +83,8 @@ use crate::front::Serving;
 use crate::release::Cycles;
 
 pub use kept::Kept;
+#[cfg(desktop)]
+pub use waiting::Waiting;
 
 /// Which of the three a row is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -96,7 +106,8 @@ pub const LAYERS: [Layer; 3] = [Layer::Front, Layer::App, Layer::Core];
 #[serde(rename_all = "camelCase")]
 pub enum Took {
     /// It is here. What is left is whatever finishes it — a reload for the
-    /// pages, a restart for the program, and nothing at all for the layer.
+    /// pages, the next start of the app for the program, and nothing at all for
+    /// the layer.
     Taken,
     /// Nothing to do: that release is what is already being drawn, or already
     /// running, or already answering.
@@ -222,6 +233,16 @@ pub async fn update_take<R: Runtime>(
 /// swapped, and after the restart that a program takes.
 #[tauri::command]
 pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
+    // The row moved, and a release that came down for where it used to point is
+    // one nothing is pointed at any more — see [`waiting`]. Asked here rather
+    // than on [`update_follow`] because every move of a row ends in a pick: a
+    // row sent to another cycle is a row that names a version of that cycle a
+    // moment later, and that is the naming worth reading.
+    #[cfg(desktop)]
+    if layer == Layer::Core {
+        app.state::<std::sync::Arc<Waiting>>()
+            .let_go_unless(version.as_deref());
+    }
     app.state::<std::sync::Arc<Kept>>().pick(layer, version);
 }
 

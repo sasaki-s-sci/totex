@@ -35,6 +35,22 @@ const HELLO: Duration = Duration::from_secs(10);
 /// How long a layer that has been let go of is given to end itself.
 const FAREWELL: Duration = Duration::from_secs(5);
 
+/// How long a start waits out a program somebody else is still holding open.
+///
+/// Unix will not run a file while any process has it open for writing, and
+/// taking a layer is exactly that shape: the program is written and then run,
+/// and everything else the app spawns in between — a terminal, a `git` — is a
+/// fork that inherited the write handle for as long as it takes to reach its
+/// own `exec`. The handle is nobody's to close but its owner's, and the window
+/// it is open for is measured in the time between two system calls.
+///
+/// So it is waited out. A layer turned down for this would be a press that
+/// failed for a reason that has nothing to do with the layer, and the person
+/// pressing it again is the retry either way. Generous against how short the
+/// window is, and short enough that a program which really is being held is
+/// reported rather than waited on.
+const BUSY: (u32, Duration) = (20, Duration::from_millis(25));
+
 /// One answer, as the reading thread hands it over.
 enum Said {
     Answered(Value),
@@ -109,9 +125,7 @@ impl Running {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             command.creation_flags(CREATE_NO_WINDOW);
         }
-        let mut child = command
-            .spawn()
-            .map_err(|error| format!("{}: {error}", program.display()))?;
+        let mut child = spawn(&mut command, program)?;
 
         let asking = child.stdin.take().ok_or("the layer took no questions")?;
         let saying = child.stdout.take().ok_or("the layer gave no answers")?;
@@ -249,6 +263,30 @@ impl Drop for Running {
             let _ = child.wait();
         });
     }
+}
+
+/// Starts the program, waiting out a write handle somebody else still holds.
+///
+/// Every other reason a start fails is handed straight back: a program that is
+/// not there, one this account may not run, one the machine has no room for.
+/// The one that is waited on is the file being open for writing somewhere, which
+/// is a state that ends without anybody doing anything — see [`BUSY`].
+fn spawn(command: &mut Command, program: &std::path::Path) -> Result<Child, String> {
+    let (tries, wait) = BUSY;
+    for _ in 0..tries {
+        match command.spawn() {
+            Ok(child) => return Ok(child),
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(wait);
+            }
+            Err(error) => return Err(format!("{}: {error}", program.display())),
+        }
+    }
+    // Waited the whole way out. Whatever is holding it is not letting go, and
+    // saying so is better than waiting on it for as long as it goes on.
+    command
+        .spawn()
+        .map_err(|error| format!("{}: {error}", program.display()))
 }
 
 /// Reads answers until there are no more, and hands each to whoever asked.

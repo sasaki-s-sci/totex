@@ -4,6 +4,10 @@
 //! replaces a program is an installer, and running one over the top of a copy
 //! of itself is what the updater plugin is. This is the release page read the
 //! way the other two layers read it, and then handed to the plugin.
+//!
+//! A press here is the download and nothing else. What puts the release in is
+//! the app being closed, wherever putting it in would have closed the app —
+//! see [`super::waiting`], which is the whole of why the two are apart.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,6 +20,15 @@ use crate::release::{self, Cycle};
 
 use super::{Coming, Took, whole_update_supported};
 
+/// Whether putting a release in ends this process.
+///
+/// The Windows installers are run over the top of a closed app: the updater
+/// starts one, this process ends inside the call, and the installer opens the
+/// new copy afterwards. Everywhere else an install is files being written — a
+/// `.app` unpacked over, an AppImage rewritten — and the copy it replaces goes
+/// on running out of what it already has open, up until the next start.
+const ENDS_THIS_PROCESS: bool = cfg!(windows);
+
 /// How long the whole of a release is given to arrive.
 ///
 /// Said apart from the reading of the release page, because they are not the
@@ -25,13 +38,13 @@ use super::{Coming, Took, whole_update_supported};
 /// a download that ends in red on every line anybody has.
 const FETCHING: Duration = Duration::from_secs(15 * 60);
 
-/// Replaces the program with the one a named release carries.
+/// Takes the program a named release carries, ready for the next start.
 ///
-/// The expensive layer, and the one that ends every terminal in the window, so
-/// nothing here happens without the row having been pressed. `version` is what
-/// the pull-down was on, or nothing at all on a window that never got a list of
-/// versions — which asks the release page for whatever is newest, exactly as
-/// every press meant before a version could be named.
+/// The expensive layer, and the one whose arrival ends every terminal in the
+/// window, so nothing here happens without the row having been pressed.
+/// `version` is what the pull-down was on, or nothing at all on a window that
+/// never got a list of versions — which asks the release page for whatever is
+/// newest, exactly as every press meant before a version could be named.
 ///
 /// A named version is taken whether it is newer or older than what is running.
 /// That is the whole of what naming one is for: the default comparison would
@@ -44,6 +57,7 @@ pub async fn take_core<R: Runtime>(
     version: Option<&str>,
     coming: &Channel<Coming>,
 ) -> Result<Took, String> {
+    use super::waiting::Waiting;
     use tauri_plugin_updater::UpdaterExt;
 
     if !whole_update_supported() {
@@ -95,17 +109,9 @@ pub async fn take_core<R: Runtime>(
     // wait entirely — see `FETCHING`.
     update.timeout = Some(FETCHING);
 
-    // Before the download rather than after it, because on Windows there is no
-    // after: the installer is run over the top of a closed app, so this process
-    // ends inside `download_and_install` and the installer opens the new one. A
-    // download that then fails leaves the window drawn out of the pages the
-    // program was built with, which is the one front that always works.
-    let serving = Arc::clone(app.state::<Arc<Serving>>().inner());
-    serving.drop_front();
-
     let mut taken = 0u64;
-    update
-        .download_and_install(
+    let release = update
+        .download(
             |chunk, length| {
                 taken += chunk as u64;
                 Coming::say(coming, taken, length);
@@ -113,7 +119,24 @@ pub async fn take_core<R: Runtime>(
             || {},
         )
         .await
-        .map_err(|error| format!("the release did not go in: {error}"))?;
+        .map_err(|error| format!("the release did not come down: {error}"))?;
+
+    // It is here, the signature checked, and the window is still open — which
+    // is the whole of what taking the download out of the install is for. From
+    // this line on the release is going in, so the pages taken over the top of
+    // the old program are dropped: the program about to be in place carries its
+    // own, and those are the ones this release means. Only the next start is
+    // reached by it; the window on the screen goes on being served out of the
+    // directory it was opened on.
+    app.state::<Arc<Serving>>().drop_front();
+
+    if ENDS_THIS_PROCESS {
+        app.state::<Arc<Waiting>>().hold(update, &release)?;
+    } else {
+        update
+            .install(release)
+            .map_err(|error| format!("the release did not go in: {error}"))?;
+    }
     Ok(Took::Taken)
 }
 

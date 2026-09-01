@@ -22,8 +22,10 @@ fn reads_the_frame_the_runner_writes() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn runs_a_command_inside_the_distribution() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let output = exec(&distro, Some("/etc"), &[], &["pwd"]).expect("a shell");
@@ -32,8 +34,10 @@ fn runs_a_command_inside_the_distribution() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn hands_back_what_a_command_failed_with() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let output = exec(&distro, None, &[], &["sh", "-c", "echo no >&2; exit 3"]).expect("a shell");
@@ -44,8 +48,10 @@ fn hands_back_what_a_command_failed_with() {
 /// The reason the answers are framed by length: a file is bytes, and every byte
 /// a delimiter could be is one a file is allowed to hold.
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn carries_bytes_a_line_could_not() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let output = exec(
@@ -61,8 +67,10 @@ fn carries_bytes_a_line_could_not() {
 /// The whole point of holding the shell open: the second command must not pay
 /// for `wsl.exe` again.
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn the_shell_is_still_there_for_the_next_command() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     for _ in 0..3 {
@@ -79,8 +87,10 @@ fn the_shell_is_still_there_for_the_next_command() {
 }
 
 #[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_script_reads_its_arguments_as_arguments() {
     let Some(distro) = reachable() else {
+        eprintln!("skipped: no WSL distribution to reach");
         return;
     };
     let output = script(&distro, None, "printf '%s|' \"$@\"", &["it's", "a b"]).expect("a shell");

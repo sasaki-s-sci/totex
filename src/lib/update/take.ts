@@ -3,7 +3,6 @@
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { relaunch } from "@tauri-apps/plugin-process";
 import type { Layer, UpdateStage } from "./model";
 import { askStanding, rungOf, settlePress, state, wanted } from "./store";
 
@@ -56,21 +55,22 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
 /**
  * Which ending each row reaches when the release is actually taken.
  *
- * The application layer's is the one worth reading twice. It is `current`
- * because that is what it is: the layer was downloaded, started, and asked the
- * next question, so by the time the press is answered the new one is already
- * the one answering. Nothing is left to press, nothing is reloaded, and every
- * terminal in the window went on running throughout.
+ * Two of the three are over the moment they are answered. The application
+ * layer's is `current` because that is what it is: the layer was downloaded,
+ * started, and asked the next question, so by the time the press is answered
+ * the new one is already the one answering. The program's is `ready`, which is
+ * the same sentence one start later — it is down, it is in or on its way in,
+ * and the copy that opens next is the copy it makes. Neither leaves anything to
+ * press, and every terminal in the window went on running throughout.
+ *
+ * Only the pages end in something the window has to do, and that is `swapped`:
+ * a reload, which is the cheap one.
  */
 const ENDING = { front: "swapped", app: "current", core: "ready" } as const;
 
 /**
  * Takes one physical layer to its declaration and returns the ending so the
- * settings can finish a reload or restart during sync.
- *
- * The backend keeps taking and finishing separate: installing a program and
- * relaunching a process are different operations. Sync calls the second
- * immediately when the first reaches it.
+ * settings can finish the reload the pages need during sync.
  */
 export async function take(layer: Layer, target?: string | null): Promise<UpdateStage> {
   if (state.presses[layer].stage === "taking") return "taking";
@@ -127,15 +127,4 @@ function asked(layer: Layer, version: string | null): Promise<Took> {
  */
 export function reload(): void {
   window.location.reload();
-}
-
-/**
- * Closes this copy and opens the one that has just replaced it.
- *
- * A restart that will not happen goes red like anything else that did not
- * finish: the new version is on disk either way, and starting the app again by
- * hand is the same ending.
- */
-export function restart(): void {
-  relaunch().catch(() => settlePress("core", { stage: "failed", progress: null }));
 }

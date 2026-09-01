@@ -13,6 +13,8 @@ mod live;
 pub(super) mod rows;
 mod serve;
 mod sessions;
+#[cfg(desktop)]
+mod waiting;
 mod whole;
 
 use std::path::{Path, PathBuf};
