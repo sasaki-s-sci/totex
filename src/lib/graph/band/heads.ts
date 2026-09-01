@@ -48,13 +48,13 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
     // beside the head. Stop at the actual ref ring. The source
     // stops at its commit too, so a provisional dashed dot is never crossed.
     const headTrim = ref.data.kind === "remote" ? REMOTE_HEAD_TRIM : RING_TRIM;
-    const leaves = shortOf(at, dots[ref.from], COMMIT_TRIM, true);
-    const reaches = shortOf(dots[ref.from], at, headTrim, true);
+    const leaves = shortOf(at, dots[ref.from], COMMIT_TRIM, "curve");
+    const reaches = shortOf(dots[ref.from], at, headTrim, "curve");
     drawn.add({
       id: `${ref.id}branch`,
       from: onCommit(commitNodeId(repository, history.placed[ref.from].commit.id)),
       to: onHead(ref.id),
-      curve: true,
+      shape: "curve",
       trim: headTrim,
       lead: COMMIT_TRIM,
       // Two refs at one commit remain distinct. Their coincident edge is split

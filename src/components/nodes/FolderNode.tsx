@@ -18,7 +18,8 @@ import { CliMark, FolderMark } from "../marks";
  * with: a name on this canvas heads the thing it names.
  *
  * The mark under it is the folder itself. Every line down to a repository leaves
- * it, so it is where the group is held together, and it is what the group is
+ * it — square down the page and square across, the way a tree of directories is
+ * drawn — so it is where the group is held together, and it is what the group is
  * carried by: the hand takes the folder here and the whole column comes with it.
  * It is deliberately not a button — a mark that both moved the group and did
  * something when it was pressed would do the something every time a drag came to
@@ -37,9 +38,9 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   return (
     <div className="band folder">
       {/* The folder itself, and the handle the column is moved by. At the head
-          of the row, under its own name, which is what gives the lines down to
-          the repositories the room to fan out. `nopan` so that taking hold of it
-          is not also a drag across the canvas. */}
+          of the row, under its own name, which is what puts the trunk the lines
+          down to the repositories hang off clear of the column. `nopan` so that
+          taking hold of it is not also a drag across the canvas. */}
       <div className={`${GRIP} nopan`} style={{ left: mark }} title={t("folder.move")}>
         <FolderMark on={open} size={15} />
       </div>

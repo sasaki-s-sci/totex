@@ -89,7 +89,7 @@ export function rowRing(
       id: `${id}run`,
       from: inBand(node, spot.socket.x, spot.socket.y),
       to: onStack(id),
-      curve: true,
+      shape: "curve",
       // Half the glyph it arrives at, so the line stops beside the terminal
       // rather than being drawn across it.
       trim: CLI_MARK / 2,

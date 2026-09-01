@@ -33,6 +33,21 @@ const STEEP = 1.6;
 export type Point = { x: number; y: number };
 
 /**
+ * The shapes a line of the graph can be drawn in.
+ *
+ * `curve` is history and everything hung off it: a line that changes rows
+ * leaves its own row flat, turns once, and arrives flat. `straight` is what
+ * that curve degenerates to when both ends are on one row, drawn directly
+ * because it is a fraction of the work. `elbow` is the odd one out, and the
+ * only one of the three that is not history: a folder down to something it
+ * holds, dropped square down the folder's own column and turned square into the
+ * row it names. It is drawn that way because that is how a tree of directories
+ * is drawn everywhere else — containment reads as containment, and never as one
+ * more line of development.
+ */
+export type LineShape = "straight" | "curve" | "elbow";
+
+/**
  * Where the curve turns, as a fraction of the horizontal run.
  *
  * The steeper the climb, the earlier the turn. A dozen branches cut at one
@@ -76,6 +91,19 @@ export function straightPath(source: Point, target: Point): string {
 }
 
 /**
+ * The right angle a folder takes down to something it holds.
+ *
+ * Down the folder's own column first and then square across into the row, so
+ * every line out of one folder shares the single vertical: the group is read as
+ * a tree hanging off one trunk rather than as a sheaf of arcs leaving one mark.
+ * Two ends already on a row make no corner at all — the `V` goes nowhere and
+ * what is left is the horizontal run.
+ */
+export function elbowPath(source: Point, target: Point): string {
+  return `M ${source.x},${source.y} V ${target.y} H ${target.x}`;
+}
+
+/**
  * Many circles as independent pieces of one path.
  *
  * A dot on this canvas is a fixed-size circle on a grid, and a repository holds
@@ -101,9 +129,21 @@ export function circlesOf(points: readonly Point[], radius: number): string {
  * beside the curve rather than on it, and the line then runs out from under the
  * disc the mark is drawn on.
  */
-export function midpointOf(source: Point, target: Point, curve: boolean): Point {
+export function midpointOf(source: Point, target: Point, shape: LineShape): Point {
   const y = (source.y + target.y) / 2;
-  if (!curve) return { x: (source.x + target.x) / 2, y };
+  if (shape === "straight") return { x: (source.x + target.x) / 2, y };
+
+  if (shape === "elbow") {
+    // Half way along the two legs rather than half way between the two ends: an
+    // elbow's own middle is a point on the elbow, which is on whichever of its
+    // legs is the longer.
+    const down = Math.abs(target.y - source.y);
+    const across = Math.abs(target.x - source.x);
+    const half = (down + across) / 2;
+    return half <= down
+      ? { x: source.x, y: source.y + Math.sign(target.y - source.y) * half }
+      : { x: source.x + Math.sign(target.x - source.x) * (half - down), y: target.y };
+  }
 
   // The curve at its halfway point, with both control points on `bendX`.
   const bendX = source.x + (target.x - source.x) * bendOf(source, target);
@@ -118,16 +158,32 @@ export function midpointOf(source: Point, target: Point, curve: boolean): Point 
  * branch head, which is a ring with nothing inside it. So a line that ends on a
  * ring stops at its rim instead of being drawn across the hole.
  */
-export function shortOf(source: Point, target: Point, by: number, curve: boolean): Point {
+export function shortOf(source: Point, target: Point, by: number, shape: LineShape): Point {
   if (by <= 0) return target;
-  // The S arrives flat, so its last stretch is horizontal whatever the rows did.
-  if (curve) {
+  // The S and the elbow both arrive flat, so the last stretch of either one is
+  // horizontal whatever the rows did.
+  if (shape !== "straight") {
     return { x: target.x - Math.sign(target.x - source.x) * by, y: target.y };
   }
 
   const run = { x: target.x - source.x, y: target.y - source.y };
   const span = Math.hypot(run.x, run.y) || 1;
   return { x: target.x - (run.x / span) * by, y: target.y - (run.y / span) * by };
+}
+
+/**
+ * The near end of an elbow, pulled back off its own mark down the column.
+ *
+ * The other two shapes leave their mark heading for the far end, so `shortOf`
+ * with the ends swapped is the whole of it. An elbow leaves straight down, and
+ * what keeps it out of the mark it belongs to is a step along that vertical
+ * instead. Ends already on a row leave no vertical to step down, and the line
+ * is then pulled back the way every flat arrival is.
+ */
+export function downFrom(source: Point, target: Point, by: number): Point {
+  if (by <= 0) return source;
+  if (target.y === source.y) return shortOf(target, source, by, "elbow");
+  return { x: source.x, y: source.y + Math.sign(target.y - source.y) * by };
 }
 
 /**
@@ -146,8 +202,11 @@ const SAMPLES = 8;
  * and a repository has thousands, so this is the difference between an array
  * and eight objects per line.
  */
-export function samplesOf(source: Point, target: Point, curve: boolean): number[] {
-  if (!curve) return [source.x, source.y, target.x, target.y];
+export function samplesOf(source: Point, target: Point, shape: LineShape): number[] {
+  if (shape === "straight") return [source.x, source.y, target.x, target.y];
+  // An elbow is two straight pieces through its corner, so those two pieces are
+  // the line itself rather than a sampling of it.
+  if (shape === "elbow") return [source.x, source.y, source.x, target.y, target.x, target.y];
 
   const bendX = source.x + (target.x - source.x) * bendOf(source, target);
   const run: number[] = [];

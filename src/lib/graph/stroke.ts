@@ -3,6 +3,7 @@
  * with.
  */
 
+import type { LineShape } from "./geometry";
 import { COLUMN_WIDTH, COMMIT_STEP, LANE_HEIGHT, LINE_COLOR } from "./grid";
 import { CLI_STEP, SESSION_WIDTH } from "./stacks";
 
@@ -10,8 +11,12 @@ export type GraphLine = {
   id: string;
   from: LineEnd;
   to: LineEnd;
-  /** A line that changes rows takes the S; one that stays in its row is straight. */
-  curve: boolean;
+  /**
+   * How it is drawn between its two ends: the S a line that changes rows takes,
+   * the straight run that becomes when the rows are level, or the right angle a
+   * folder takes down to what it holds.
+   */
+  shape: LineShape;
   /** How far short of the far end to stop, for a line that runs into a ring. */
   trim: number;
   /** How far out from the near end to start, for a line that leaves a box. */
@@ -136,7 +141,9 @@ export const CLI_STROKE: StrokeStyle = {
  * Faint, and in the canvas's own ink. Containment is the quietest fact on the
  * graph — it does not change, and nothing is done about it — so these lines are
  * the ground the rest of the group is read against rather than anything to be
- * followed.
+ * followed. Square rather than curved, for the same reason: a right angle is
+ * the shape a directory holding a thing is drawn in everywhere else, and it
+ * says at a glance that this is not one more line of development.
  */
 export const FOLDER_STROKE: StrokeStyle = {
   colour: LINE_COLOR,

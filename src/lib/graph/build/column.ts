@@ -122,7 +122,7 @@ export function bandColumn(
         id: `${id}run`,
         from: onHead(run.head),
         to: onStack(id),
-        curve: true,
+        shape: "curve",
         // Half the glyph it arrives at, so the line stops beside the terminal
         // rather than being drawn across it. There is no paper under the mark
         // to hide a line that went too far.
@@ -164,7 +164,7 @@ export function cardLine(card: string, mark: string, height: number): GraphLine 
     id: `${card}line`,
     from: onStack(mark),
     to: { node: card, dx: 0, dy: height / 2 },
-    curve: true,
+    shape: "curve",
     trim: 0,
     lead: CLI_MARK / 2,
     stroke: CLI_STROKE,

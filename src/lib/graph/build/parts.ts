@@ -44,16 +44,28 @@ export type LaidGroup = {
  * A hair, so that the line arrives at the row rather than under whatever is
  * standing at that end of it: the folder's own line stops just before the name
  * it is pointing at, and a terminal's just past the last of its row's buttons.
+ * A folder's line is pulled back down its own trunk at the near end for the
+ * same reason — it leaves vertically, so what keeps it off the mark is a step
+ * down rather than a step across. See `downFrom`.
  */
 export const REACH_TRIM = 4;
 
-/** One line from a folder's mark to something it holds. */
+/**
+ * One line from a folder's mark to something it holds.
+ *
+ * A right angle rather than a curve: down the folder's own column and then
+ * square into the row. Every line the folder draws leaves the same mark, so
+ * they all share that one vertical and the group reads as a tree with a trunk —
+ * which is the shape a directory holding things is drawn in everywhere else,
+ * and the shape nothing else on this canvas takes. History curves; containment
+ * turns a corner.
+ */
 export function holds(band: string, from: LineEnd, repository: string, to: LineEnd): GraphLine {
   return {
     id: `${band}holds${repository}`,
     from,
     to,
-    curve: true,
+    shape: "elbow",
     trim: REACH_TRIM,
     lead: FOLDER_MARK / 2,
     stroke: FOLDER_STROKE,
