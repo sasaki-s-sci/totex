@@ -1,10 +1,12 @@
 import { Box, Paper } from "@mui/material";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import type { CliPlace } from "../lib/graphNav";
 import type { Session } from "../lib/session";
+import { CliStrip } from "./CliStrip";
 import { CliView } from "./CliView";
 import { ResizeGrip, useResizeGrip } from "./useResizeGrip";
-import { HEADER_HEIGHT } from "./WindowControls";
+import { HEADER_HEIGHT, HEADER_INSET } from "./WindowControls";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 1100;
@@ -21,6 +23,14 @@ type Props = {
   sessions: readonly Session[];
   /** Which one is being looked at, or null when the panel is put away. */
   showing: string | null;
+  /**
+   * Every terminal on the canvas, in the order the numbers are given out.
+   *
+   * Read off what is drawn rather than out of the sessions above: the numbers
+   * are the canvas's, and the strip in the band is that same reading. See
+   * `cliRun`.
+   */
+  run: readonly CliPlace[];
   /** The process finished by itself, so there is no session left to show. */
   onEnded: (session: Session) => void;
 };
@@ -37,7 +47,7 @@ type Props = {
  * hidden — hidden while still laid out, which is what makes moving between them
  * cost a property rather than a redraw. See below.
  */
-export function SidePanel({ sessions, showing, onEnded }: Props) {
+export function SidePanel({ sessions, showing, run, onEnded }: Props) {
   const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
   // The grip is on the panel's left edge, so dragging left widens it.
@@ -76,24 +86,45 @@ export function SidePanel({ sessions, showing, onEnded }: Props) {
       {/* The window's band, carried on across the panel. The panel sits under
           the corner the marks are drawn into, and a terminal row under the
           close mark is a row with a button through it — so the rows start
-          below the band instead of running into it. Nothing is drawn in the
-          band: it is cut out of the paper it is standing on, which leaves the
-          panel looking as though it begins at the top of the window and reads
-          as one band the whole way across. */}
-      <Box
-        data-tauri-drag-region
-        sx={{
-          flex: "none",
-          height: HEADER_HEIGHT,
-          cursor: "grab",
-          // Invisible at rest, and a wash under the pointer — the same as the
-          // band over the graph, because it is the same band.
-          opacity: 0,
-          bgcolor: "action.hover",
-          transition: "opacity 120ms ease-out",
-          "&:hover": { opacity: 1 },
-        }}
-      />
+          below the band instead of running into it. Nothing is drawn in it but
+          the run of marks at the near edge — no plate and no rule under them —
+          which leaves the panel looking as though it begins at the top of the
+          window and reads as one band the whole way across. */}
+      <Box sx={{ position: "relative", flex: "none", height: HEADER_HEIGHT }}>
+        <Box
+          data-tauri-drag-region
+          sx={{
+            position: "absolute",
+            inset: 0,
+            cursor: "grab",
+            // Invisible at rest, and a wash under the pointer — the same as the
+            // band over the graph, because it is the same band.
+            opacity: 0,
+            bgcolor: "action.hover",
+            transition: "opacity 120ms ease-out",
+            "&:hover": { opacity: 1 },
+          }}
+        />
+
+        {/* Where the terminal in the panel stands among all of them, at the
+            near edge of the band and clear of the grip. Drawn over the sheet
+            rather than inside it: the sheet is invisible until the pointer is
+            on it, and the strip is there to be read the whole time. Its own
+            marks line up with the window's, which sit on the band's floor at
+            the other end of the same row. */}
+        <Box
+          sx={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            height: "100%",
+            pt: `${HEADER_INSET}px`,
+            pl: `${HEADER_INSET}px`,
+          }}
+        >
+          <CliStrip run={run} showing={showing} />
+        </Box>
+      </Box>
 
       {/* The sessions, one on top of another and every one of them the size of
           the panel. Hidden with `visibility` rather than by being given no box

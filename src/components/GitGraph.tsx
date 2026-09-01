@@ -18,6 +18,7 @@ import { useNodeGlide } from "../hooks/useNodeGlide";
 import { useSettingsPage } from "../hooks/useSettingsPage";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
+import { cliRun } from "../lib/graphNav";
 import { useCanvasActions } from "./canvasActions";
 import { CliJumpsProvider } from "./cliJumps";
 import { CliTypedProvider } from "./cliTyped";
@@ -68,6 +69,7 @@ export function GitGraph({
   onShowSession,
   onJumpSession,
   onEndSession,
+  onCliRun,
   filePreviews,
   onPreviewFile,
   onCloseFilePreview,
@@ -188,6 +190,14 @@ export function GitGraph({
       onJumpSession,
       onEndSession,
     });
+
+  // The same numbers, said to the window: the panel draws this run in its band,
+  // and where a terminal ended up on the canvas is the only place the number
+  // that reaches it comes from. Told on the change rather than every render —
+  // the run is a handful of ids, and the graph is rebuilt for every commit that
+  // lands.
+  const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
+  useEffect(() => onCliRun(run), [run, onCliRun]);
 
   // And what each of those numbers is standing beside, taken at the press and
   // held for as long as the key is — or kept on all the time, where the window

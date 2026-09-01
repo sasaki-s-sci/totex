@@ -77,6 +77,8 @@ export function rowRing(
           session,
           showing: session.id === showing,
           ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
+          // The row every line here leaves is also the place they are all in.
+          group: node,
         },
         null,
         x,
