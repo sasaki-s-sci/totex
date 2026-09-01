@@ -32,6 +32,7 @@ pub mod host;
 pub mod sync;
 pub mod wsl;
 
+mod base64;
 mod call;
 mod serve;
 mod talk;

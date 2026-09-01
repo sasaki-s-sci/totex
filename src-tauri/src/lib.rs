@@ -28,7 +28,7 @@ use serde_json::json;
 use tauri::State;
 
 use app_layer::Layers;
-use fs_browse::{FileHead, Listing, Place, Root};
+use fs_browse::{FileData, FileHead, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
 /// Windows drives and the WSL distributions this platform can reach.
@@ -80,6 +80,14 @@ fn read_directory(
 #[tauri::command(async)]
 fn read_file_head(layer: State<'_, Arc<Layers>>, path: String) -> Result<FileHead, String> {
     layer.ask("read_file_head", json!({ "path": path }))
+}
+
+/// Reads the whole of a file, for a card drawing a picture of it rather than
+/// reading it. Bounded by the layer, which answers with nothing at all for a
+/// file too large to draw.
+#[tauri::command(async)]
+fn read_file_data(layer: State<'_, Arc<Layers>>, path: String) -> Result<FileData, String> {
+    layer.ask("read_file_data", json!({ "path": path }))
 }
 
 /// Writes an edited card back to its file, and answers with how long it now is.
@@ -228,6 +236,7 @@ pub fn run() {
             describe_folders,
             read_directory,
             read_file_head,
+            read_file_data,
             write_file,
             fs_read_file,
             fs_create_entry,

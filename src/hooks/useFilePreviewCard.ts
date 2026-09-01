@@ -6,7 +6,7 @@
 import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
-import { previewable } from "../lib/filePreview";
+import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize, readableSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
@@ -95,9 +95,9 @@ export function useFilePreviewCard(
       setNodes((current) =>
         current.map((node) => {
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
-          // A card that is already a page of its file has no reading to turn
-          // over: the file it is drawn from is the card beside it.
-          if (node.data.view === "markdown") return node;
+          // A card that is already a drawing of its file has no reading to
+          // turn over: the file it is drawn from is the card beside it.
+          if (drawn(node.data.view)) return node;
           const view = node.data.view === "diff" ? "text" : "diff";
           return { ...node, data: { ...node.data, view } };
         }),
@@ -109,9 +109,9 @@ export function useFilePreviewCard(
   /**
    * Opens a rendering of one card's file beside it.
    *
-   * Refused for a card that is already a page — a preview of a preview is the
-   * card it is standing on — and for a file there is no drawing of, which is
-   * everything but markdown for now.
+   * Refused for a card that is already a drawing — a preview of a preview is
+   * the card it is standing on — and for a file there is no drawing of, which
+   * is everything but markdown and SVG.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const previewFilePreview = useCallback(
@@ -120,7 +120,7 @@ export function useFilePreviewCard(
         (candidate): candidate is FilePreviewFlowNode =>
           candidate.type === "file-preview" && candidate.data.requestId === requestId,
       );
-      if (!node || node.data.view === "markdown" || !previewable(node.data.path)) return;
+      if (!node || drawn(node.data.view) || !previewable(node.data.path)) return;
       previewFile(node.data.path, requestId);
     },
     [previewFile],

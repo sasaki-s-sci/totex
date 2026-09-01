@@ -2,23 +2,13 @@
 
 use super::super::channel::parse_header;
 use super::super::shell::line;
-use super::super::{encode, exec, script};
+use super::super::{exec, script};
 use super::reachable;
 
 #[test]
 fn an_argument_survives_the_shell_unchanged() {
     let rendered = line(Some("/tmp"), &[("LC_ALL", "C")], &["git", "log", "it's"]);
     assert_eq!(rendered, "cd '/tmp' && LC_ALL='C' 'git' 'log' 'it'\\''s'");
-}
-
-#[test]
-fn encodes_the_way_base64_reads_it_back() {
-    assert_eq!(encode(b""), "");
-    assert_eq!(encode(b"f"), "Zg==");
-    assert_eq!(encode(b"fo"), "Zm8=");
-    assert_eq!(encode(b"foo"), "Zm9v");
-    assert_eq!(encode(b"foob"), "Zm9vYg==");
-    assert!(!encode("echo 'it\\'s'".as_bytes()).contains('\n'));
 }
 
 #[test]

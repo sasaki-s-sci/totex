@@ -1,10 +1,10 @@
-//! Reading a directory, and reading and writing the head of a file.
+//! Reading a directory, and reading and writing a file.
 
 use std::path::Path;
 
-use super::model::{Entry, FileHead, Listing};
+use super::model::{Entry, FileData, FileHead, Listing};
 use super::path::resolve;
-use super::{MAX_ENTRIES, MAX_FILE_HEAD};
+use super::{MAX_ENTRIES, MAX_FILE_DATA, MAX_FILE_HEAD};
 use crate::host::Host;
 
 /// Reads `raw_path` and returns its children, sorted directories first.
@@ -52,6 +52,37 @@ pub fn read_file_head(raw_path: &str) -> Result<FileHead, String> {
         text: as_text(&bytes, truncated),
         size,
         truncated,
+    })
+}
+
+/// Reads the whole of `raw_path`, for a card drawing a picture of it.
+///
+/// The whole of it, and not the head a reading is given: half a picture is not
+/// half drawn, it is not drawn at all. What comes back is base64 because the
+/// answer crosses two boundaries as JSON — this layer's pipe and the window's
+/// own — and a byte written as a number is four characters where this is one
+/// and a third.
+///
+/// A file past [`MAX_FILE_DATA`] comes back with nothing in it rather than as a
+/// failure: the card can then say how large the file is and that it is too
+/// large to draw, which is more than it could say about an error.
+pub fn read_file_data(raw_path: &str) -> Result<FileData, String> {
+    let (host, path) = resolve(raw_path)?;
+    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
+    if stat.is_dir {
+        return Err("is-a-directory".to_string());
+    }
+    let data = if stat.size > MAX_FILE_DATA {
+        None
+    } else {
+        Some(crate::base64::encode(&host.read(&path)?))
+    };
+
+    Ok(FileData {
+        name: host.name(&path),
+        path: path.to_string_lossy().into_owned(),
+        data,
+        size: stat.size,
     })
 }
 

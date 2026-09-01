@@ -100,3 +100,24 @@ pub struct FileHead {
     /// Set when the file runs past what was read. See [`super::MAX_FILE_HEAD`].
     pub truncated: bool,
 }
+
+/// The whole of one file, for the card that draws a picture of it.
+///
+/// A reading and a picture are asked for separately because they are read
+/// differently: a card is given the head of a file whatever the file is, and a
+/// picture is nothing at all until the last byte of it is in hand — see
+/// [`super::read::read_file_data`].
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileData {
+    /// The file that actually answered, which may differ from the request once
+    /// `~` expansion or `..` folding ran.
+    pub path: String,
+    pub name: String,
+    /// The whole file as base64, or `None` for one longer than a card will
+    /// draw. See [`super::MAX_FILE_DATA`].
+    pub data: Option<String>,
+    /// How long the whole file is, which is what the card says it is showing —
+    /// and, when there is no `data`, what it is saying instead.
+    pub size: u64,
+}

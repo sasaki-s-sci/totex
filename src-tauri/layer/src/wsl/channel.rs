@@ -13,8 +13,8 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::sync::{Mutex, OnceLock};
 
-use super::base64::encode;
 use super::shell::{command, line};
+use crate::base64::encode;
 
 /// How many held-open shells a distribution keeps. The scan walks repositories
 /// in parallel and each worker wants a shell of its own; past that they queue,

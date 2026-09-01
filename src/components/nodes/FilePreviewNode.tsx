@@ -12,10 +12,10 @@ import {
   NodeResizer,
   ResizeControlVariant,
 } from "@xyflow/react";
-import { type CSSProperties, useLayoutEffect, useMemo, useRef } from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../../hooks/useReadingSize";
-import { previewable } from "../../lib/filePreview";
+import { drawn, previewable, vector } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
 import { markdownPart } from "../../parts";
 import { useGraphActions } from "../graphActions";
@@ -99,17 +99,28 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   // and the patch the header offers in place of the reading. A card drawing a
   // page of its file is not the one asking — the file it is a page of is the
   // card standing beside it, and that one has the question.
-  const diff = useFileDiff(data.view === "markdown" ? null : data.path, data.text);
+  const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);
   const runs = fileRuns(diff, lines);
   const patch = data.view === "diff" ? patchOf(diff, reading) : "";
   const tints = useMemo(() => tintRuns(patch), [patch]);
   // What draws a page, fetched the first time one is opened and never before.
   const Markdown = markdownPart.use(data.view === "markdown");
   /** There is something in the card that can be moved about. */
-  const ready = data.state === "ready" && data.text !== null;
+  const ready = data.state === "ready" && (data.text !== null || data.picture !== null);
   /** The header, measured alongside the reading when the card is asked to fit:
    *  the name in it is as much what the card is showing as the lines are. */
   const bar = useRef<HTMLElement>(null);
+  /** The picture, which is the one thing a card holds that has a width of its
+   *  own rather than the one the card gave it. */
+  const drawing = useRef<HTMLImageElement>(null);
+  /**
+   * The picture the engine would not draw, if it has met one.
+   *
+   * Which picture rather than that there was one: what a file is called says
+   * what it is meant to be and its bytes say what it is, and the two
+   * disagreeing is a card that says so — about those bytes and no others.
+   */
+  const [undrawn, setUndrawn] = useState<string | null>(null);
   // How large the reading is drawn, for every card at once. Ctrl and a plus or
   // a minus is what changes it, for as long as a card has the focus;
   // `useReadingKeys` in the graph listens for them.
@@ -137,8 +148,14 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
    *  the lines run out. The width and nothing else — no height fits a file. */
   function fitWidth() {
     const header = widthWithout(bar.current, "width", "max-content");
-    const reading = widthWithout(sheet.current, "minWidth", "0");
-    fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, reading) + BORDERS));
+    // A picture is fitted to the picture. It is drawn inside whatever the card
+    // is, so there is nothing on the page to measure it by — what it would come
+    // to at its own size is the one thing it can say, and the canvas holds that
+    // to the room there is on screen the same way it holds a line of text. A
+    // drawing has no size of its own and answers with none, which leaves the
+    // card measured the way every other one is.
+    const held = drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
+    fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, held) + BORDERS));
   }
 
   // What the card is holding only part of, which is a different part in each of
@@ -217,7 +234,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         {/* The patch, in place of the reading. Drawn only while there is one,
             which is the same moment the gutter has bars in it: a file the
             commit under it agrees with has nothing to turn over to. */}
-        {data.view !== "markdown" && changed(diff) && (
+        {!drawn(data.view) && changed(diff) && (
           <button
             type="button"
             className={`file-preview__button nodrag${data.view === "diff" ? " is-on" : ""}`}
@@ -239,7 +256,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         {/* The file drawn as the page it is written to be, beside the file
             itself — the same as Ctrl, Shift and V. Beside rather than in place
             of, because the two are read against each other. */}
-        {data.view !== "markdown" && previewable(data.path) && (
+        {!drawn(data.view) && previewable(data.path) && (
           <button
             type="button"
             className="file-preview__button nodrag"
@@ -327,8 +344,10 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           {data.state === "failed" && (
             <p className="file-preview__message is-error">{t("filePreview.failed")}</p>
           )}
-          {data.state === "ready" && data.text === null && (
-            <p className="file-preview__message">{t("filePreview.notText")}</p>
+          {data.state === "ready" && data.text === null && data.picture === null && (
+            <p className="file-preview__message">
+              {t(data.view === "picture" ? "filePreview.tooLarge" : "filePreview.notText")}
+            </p>
           )}
           {ready && data.view === "text" && (
             <div className="file-preview__code" ref={sheet}>
@@ -373,6 +392,29 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
                 />
               ))}
               <pre className="file-preview__text">{patch}</pre>
+            </div>
+          )}
+
+          {/* The picture, drawn whole inside whatever the card is: an edge
+              dragged is what it is read larger at, and the canvas's own zoom
+              is the other. Nothing of it is this app's to read — the bytes go
+              to the engine as they came off the disk. */}
+          {ready && data.view === "picture" && data.picture !== null && (
+            <div
+              className={`file-preview__picture${vector(data.path) ? " is-drawing" : ""}`}
+              ref={sheet}
+            >
+              {undrawn === data.picture ? (
+                <p className="file-preview__message">{t("filePreview.notPicture")}</p>
+              ) : (
+                <img
+                  src={data.picture}
+                  alt={data.name}
+                  ref={drawing}
+                  draggable={false}
+                  onError={() => setUndrawn(data.picture)}
+                />
+              )}
             </div>
           )}
 

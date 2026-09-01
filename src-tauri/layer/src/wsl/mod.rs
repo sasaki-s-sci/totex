@@ -13,7 +13,6 @@
 //! passes around. Nothing else has to know a path is remote until it runs
 //! something. See [`channel`] for why that running goes down a held-open pipe.
 
-mod base64;
 pub mod channel;
 pub mod shell;
 mod watch;
@@ -21,7 +20,6 @@ mod watch;
 #[cfg(test)]
 mod tests;
 
-pub use base64::encode;
 pub use channel::{exec, script};
 pub use shell::{distros, program};
 pub use watch::{Poll, watch};

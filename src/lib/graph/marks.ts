@@ -91,6 +91,13 @@ export type FilePreviewNodeData = {
   path: string;
   name: string;
   text: string | null;
+  /**
+   * The file as something a picture can be drawn from, for a card that is
+   * showing one: a data URL of the whole of it, and null for every card that is
+   * not — and for a picture too large to have been read at all, which is a card
+   * that says so instead.
+   */
+  picture: string | null;
   size: number | null;
   truncated: boolean;
   state: "loading" | "ready" | "failed";
