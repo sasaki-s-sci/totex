@@ -119,6 +119,35 @@ export function jumpable(nodes: readonly AppNode[]): Pickable[] {
 }
 
 /**
+ * One terminal in the run the panel's strip draws, in the order the numbers are
+ * given out.
+ */
+export type CliPlace = {
+  /** The session's own id, which is what the panel knows a terminal by. */
+  session: string;
+  /** The row it is hanging on, which is where the run is broken by a gap. */
+  group: string;
+};
+
+/**
+ * Every terminal on the canvas, read the way the numbers are.
+ *
+ * The same list `jumpable` hands the keys, said in what the panel knows rather
+ * than in nodes: a session's id and the row it is standing on. A place in this
+ * run is the number that reaches it — Ctrl and that number — so the strip and
+ * the key cannot drift apart, because they are one reading of one canvas.
+ */
+export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
+  const marks = new Map(
+    nodes.flatMap((node) => (node.type === "cli" ? [[node.id, node.data] as const] : [])),
+  );
+  return jumpable(nodes).flatMap((pick) => {
+    const mark = marks.get(pick.id);
+    return mark ? [{ session: mark.session.id, group: mark.group }] : [];
+  });
+}
+
+/**
  * The commits on the canvas.
  *
  * What Ctrl and Shift and an arrow walks through, and the one thing it walks

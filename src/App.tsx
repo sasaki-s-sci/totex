@@ -22,6 +22,7 @@ import { useSessions } from "./hooks/useSessions";
 import { useTaskKeys } from "./hooks/useTaskKeys";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
+import type { CliPlace } from "./lib/graphNav";
 import { warmInTurn } from "./lib/onDemand";
 import { startShell, writeShell } from "./lib/pty";
 import { type Session, shellSession } from "./lib/session";
@@ -92,6 +93,16 @@ function Window() {
     end: endSession,
     endIn: endSessionsIn,
   } = useSessions();
+
+  // Where each terminal stands among all of them, which is the canvas's reading
+  // and the panel's strip. Held by the window because the two are on either
+  // side of it: the numbers come out of where the marks were laid out, and the
+  // panel is what somebody is looking at when they want to know which of them
+  // they are in.
+  const [run, setRun] = useState<readonly CliPlace[]>([]);
+  const takeRun = useCallback((next: readonly CliPlace[]) => {
+    setRun((held) => (sameRun(held, next) ? held : next));
+  }, []);
 
   // What any of them has stopped to ask, which the graph draws beside the
   // terminal doing the asking. A question is a turn nobody has taken: it is
@@ -296,6 +307,7 @@ function Window() {
             onShowSession={showSession}
             onJumpSession={jumpSession}
             onEndSession={endSession}
+            onCliRun={takeRun}
             filePreviews={filePreviews}
             onPreviewFile={previewFile}
             onCloseFilePreview={closeFilePreview}
@@ -308,7 +320,9 @@ function Window() {
 
       {/* Stood up with the first session and kept from then on: the panel holds
           the terminals, and a terminal that is unmounted comes back empty. */}
-      {SidePanel && <SidePanel sessions={sessions} showing={showing} onEnded={endSession} />}
+      {SidePanel && (
+        <SidePanel sessions={sessions} showing={showing} run={run} onEnded={endSession} />
+      )}
 
       {/* The window has no frame of its own, so the three moves it would have
           carried are drawn over the corner instead. */}
@@ -330,6 +344,23 @@ function Window() {
         />
       )}
     </Box>
+  );
+}
+
+/**
+ * Whether two readings of the run are the same one.
+ *
+ * The canvas says it again for every graph it draws, which is one per commit
+ * that lands anywhere: a reading that says what the last one did is the same
+ * reading, and putting it in state would re-render the window for nothing.
+ */
+function sameRun(held: readonly CliPlace[], next: readonly CliPlace[]): boolean {
+  return (
+    held.length === next.length &&
+    held.every((place, at) => {
+      const against = next[at];
+      return place.session === against?.session && place.group === against.group;
+    })
   );
 }
 

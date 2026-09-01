@@ -110,6 +110,7 @@ export function bandColumn(
             session,
             showing: session.id === showing,
             ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
+            group: band,
           },
           band,
           run.x,

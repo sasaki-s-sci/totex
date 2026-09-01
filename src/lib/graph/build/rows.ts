@@ -184,6 +184,9 @@ function markRow(
     {
       open,
       socket: { node: mark, dx: REPO_MARK_WIDTH - REPO_MARK_RING, dy: LANE_HEIGHT / 2 },
+      // The ring is the whole of what is drawn for this repository, so it is
+      // also the one place everything working anywhere in it is standing.
+      group: mark,
       lead: RING_TRIM,
       at: {
         x: x + REPO_MARK_WIDTH - REPO_MARK_RING + CHIP_STEP - SESSION_WIDTH / 2,
