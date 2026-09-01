@@ -72,7 +72,17 @@ function coreChoices(at: UpdateState): UpdateChoice[] {
   );
 }
 
-/** Which Core declaration the first pull-down currently represents. */
+/**
+ * Which Core declaration the first pull-down currently represents.
+ *
+ * Two kinds of answer, and only one of them is a layer named. A release of the
+ * layer's own cycle is one somebody asked for and is answered with as it was
+ * published. Anything else resolves to the layer already in place, and that one
+ * is made up here out of what is running — a release the listing never offered,
+ * because it is the layer this release carries rather than a release of its
+ * own. What tells the two apart afterwards is whether the answer is one of
+ * `coreChoices`, which is what [`programChoices`] asks of it.
+ */
 function selectedCore(at: UpdateState): UpdateChoice | null {
   const rung = rungOf(at, "app");
   if (!rung) return null;
@@ -121,7 +131,19 @@ function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoic
   const program = rungOf(at, "core");
   // Whether the Core row is on a layer of its own, which is the one case where
   // what would be answering afterwards is not what the release carries.
-  const named = rungOf(at, "app")?.cycle === CORE_CYCLE;
+  //
+  // Being on that cycle is not enough to be on a layer of its own. A row
+  // following it with nothing named resolves to whichever is newer, the newest
+  // layer released on its own or the layer already in place — and the layer
+  // already in place is the one this release carries, of which the next release
+  // carries its own. Read as a naming, that is a row declaring the protocol
+  // this copy speaks today and refusing every release that ever raises it: the
+  // app draws a tick and says it is up to date while the release page has
+  // something newer on it, which is the trap `wanted` was fixed for reached by
+  // another road. So it is a naming only where what it named is a release.
+  const named =
+    rungOf(at, "app")?.cycle === CORE_CYCLE &&
+    coreChoices(at).some((choice) => choice.version === core.version);
   return at.choices.filter(
     (choice) =>
       choice.cycle === PROGRAM_CYCLE &&
