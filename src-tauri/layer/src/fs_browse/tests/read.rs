@@ -1,9 +1,9 @@
-//! Listing a directory, and reading and writing the head of a file.
+//! Listing a directory, and reading and writing a file.
 
 use std::fs;
 
-use super::super::MAX_FILE_HEAD;
-use super::super::read::{read_directory, read_file_head, write_file};
+use super::super::read::{read_directory, read_file_data, read_file_head, write_file};
+use super::super::{MAX_FILE_DATA, MAX_FILE_HEAD};
 use super::temp_dir;
 
 #[test]
@@ -119,6 +119,42 @@ fn binary_files_and_directories_do_not_masquerade_as_text() {
     assert_eq!(head.text, None);
     assert!(!head.truncated);
     assert!(read_file_head(&dir.to_string_lossy()).is_err());
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The whole of it, and nothing of it decoded on the way: what the window is
+/// handed is the file's own bytes, spelled the one way JSON can carry them.
+#[test]
+fn a_picture_is_answered_with_the_whole_of_its_bytes() {
+    let dir = temp_dir("file-data");
+    let path = dir.join("dot.png");
+    // The eight bytes every PNG opens with, which is a picture as far as
+    // anything here is concerned: nothing in the layer reads what a file is.
+    fs::write(&path, [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]).unwrap();
+
+    let read = read_file_data(&path.to_string_lossy()).expect("the file");
+    assert_eq!(read.name, "dot.png");
+    assert_eq!(read.size, 8);
+    assert_eq!(read.data.as_deref(), Some("iVBORw0KGgo="));
+
+    assert!(read_file_data(&dir.to_string_lossy()).is_err());
+    assert!(read_file_data("/totex/does/not/exist").is_err());
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Nothing rather than an error, because the card has something to say about a
+/// file it cannot draw and nothing to say about a failure.
+#[test]
+fn a_picture_past_what_a_card_draws_comes_back_with_nothing_in_it() {
+    let dir = temp_dir("file-data-long");
+    let path = dir.join("huge.png");
+    fs::write(&path, vec![7u8; MAX_FILE_DATA as usize + 1]).unwrap();
+
+    let read = read_file_data(&path.to_string_lossy()).expect("the file");
+    assert_eq!(read.size, MAX_FILE_DATA + 1);
+    assert_eq!(read.data, None);
 
     fs::remove_dir_all(&dir).unwrap();
 }

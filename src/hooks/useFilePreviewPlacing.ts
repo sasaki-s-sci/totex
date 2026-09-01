@@ -7,10 +7,10 @@
  */
 
 import { useEffect, useRef } from "react";
-import { readFileHead } from "../folder/api";
+import { readFileData, readFileHead } from "../folder/api";
 import { baseName } from "../folder/format";
-import type { FilePreviewRequest } from "../lib/filePreview";
-import type { FilePreviewFlowNode } from "../lib/graph";
+import { type FilePreviewRequest, openingView, pictureType } from "../lib/filePreview";
+import type { FilePreviewFlowNode, FilePreviewNodeData } from "../lib/graph";
 import { FILE_PREVIEW_SIZE, FILE_PREVIEW_Z, fileNodeId, fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 
@@ -86,10 +86,11 @@ export function useFilePreviewPlacing(
           path: preview.path,
           name: baseName(preview.path),
           text: null,
+          picture: null,
           size: null,
           truncated: false,
           state: "loading",
-          view: preview.view ?? "text",
+          view: preview.view ?? openingView(preview.path),
           collapsed: false,
           box,
           pinnedAt,
@@ -102,34 +103,27 @@ export function useFilePreviewPlacing(
       ...additions,
     ]);
 
-    for (const preview of fresh) {
-      void readFileHead(preview.path)
-        .then((head) => {
-          if (!placedFiles.current.has(preview.id)) return;
+    // Asked of the cards that were just placed rather than of the requests they
+    // came from: what a card is showing is what says how its file is read, and
+    // the card is where that was settled.
+    for (const { data } of additions) {
+      const card = data.requestId;
+      void (data.view === "picture" ? drawnFile(data.path) : readFile(data.path))
+        .then((read) => {
+          if (!placedFiles.current.has(card)) return;
           setNodes((current) =>
             current.map((node) =>
-              node.type === "file-preview" && node.data.requestId === preview.id
-                ? {
-                    ...node,
-                    data: {
-                      ...node.data,
-                      path: head.path,
-                      name: head.name,
-                      text: head.text,
-                      size: head.size,
-                      truncated: head.truncated,
-                      state: "ready",
-                    },
-                  }
+              node.type === "file-preview" && node.data.requestId === card
+                ? { ...node, data: { ...node.data, ...read, state: "ready" } }
                 : node,
             ),
           );
         })
         .catch(() => {
-          if (!placedFiles.current.has(preview.id)) return;
+          if (!placedFiles.current.has(card)) return;
           setNodes((current) =>
             current.map((node) =>
-              node.type === "file-preview" && node.data.requestId === preview.id
+              node.type === "file-preview" && node.data.requestId === card
                 ? { ...node, data: { ...node.data, state: "failed" } }
                 : node,
             ),
@@ -137,4 +131,37 @@ export function useFilePreviewPlacing(
         });
     }
   }, [requests, flowReady, setNodes, host, instance, standing]);
+}
+
+/** What of a file a card is given: as much of the head of it as one is drawn
+ *  in, which is where a reading comes from. */
+async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {
+  const head = await readFileHead(path);
+  return {
+    path: head.path,
+    name: head.name,
+    text: head.text,
+    size: head.size,
+    truncated: head.truncated,
+  };
+}
+
+/**
+ * And the whole of one, for a card that draws it.
+ *
+ * The bytes arrive as base64 and are turned into the one thing an image is
+ * drawn from without being decoded on the way — what a picture is written in is
+ * the engine's to read, and this app never looks inside it. A file the layer
+ * would not read the whole of comes back with nothing in it, and the card says
+ * so rather than drawing half a picture.
+ */
+async function drawnFile(path: string): Promise<Partial<FilePreviewNodeData>> {
+  const read = await readFileData(path);
+  const type = pictureType(read.path) ?? "application/octet-stream";
+  return {
+    path: read.path,
+    name: read.name,
+    picture: read.data === null ? null : `data:${type};base64,${read.data}`,
+    size: read.size,
+  };
 }

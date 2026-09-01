@@ -49,6 +49,7 @@ pub const ANSWERS: &[&str] = &[
     "describe_folders",
     "read_directory",
     "read_file_head",
+    "read_file_data",
     "write_file",
     "fs_read_file",
     "fs_create_entry",
@@ -79,6 +80,9 @@ pub fn answer(command: &str, with: Value) -> Option<Result<Value, String>> {
             .and_then(|at| said(fs_browse::read_directory(&at.path, at.show_hidden)?)),
         "read_file_head" => {
             read::<Path>(with).and_then(|at| said(fs_browse::read_file_head(&at.path)?))
+        }
+        "read_file_data" => {
+            read::<Path>(with).and_then(|at| said(fs_browse::read_file_data(&at.path)?))
         }
         "write_file" => read::<Written>(with)
             .and_then(|at| said(fs_browse::write_file(&at.path, &at.text, at.expect_size)?)),

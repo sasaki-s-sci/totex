@@ -2,8 +2,8 @@
   "name": "totex",
   "version": "0.1.18",
   "private": true,
-  "frontContract": 7,
-  "layerProtocol": 3,
+  "frontContract": 8,
+  "layerProtocol": 4,
   "type": "module",
   "scripts": {
     "dev": "vite",

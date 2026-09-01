@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import type { FilePreviewRequest } from "../lib/filePreview";
+import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
 
 export function useFileDrops() {
   const [filePreviews, setFilePreviews] = useState<FilePreviewRequest[]>([]);
@@ -34,10 +34,13 @@ export function useFileDrops() {
    */
   const previewFile = useCallback((path: string, beside: number) => {
     const id = nextFilePreview.current++;
+    const view = previewView(path);
     setFilePreviews((current) =>
-      current.some((preview) => preview.view === "markdown" && preview.path === path)
+      current.some(
+        (preview) => preview.path === path && drawn(preview.view ?? openingView(preview.path)),
+      )
         ? current
-        : [...current, { id, path, at: null, view: "markdown", beside }],
+        : [...current, { id, path, at: null, view, beside }],
     );
   }, []);
 

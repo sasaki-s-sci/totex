@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::Host;
 use super::script::{HEAD, PUT, WRITE};
+use crate::base64;
 use crate::wsl;
 
 impl Host {
@@ -74,7 +75,7 @@ impl Host {
                 // The bytes ride inside the command rather than down the
                 // channel's own pipe: a command reads nothing, so one waiting on
                 // input cannot hold up everything queued behind it.
-                let payload = wsl::encode(text.as_bytes());
+                let payload = base64::encode(text.as_bytes());
                 let output = wsl::script(
                     distro,
                     None,
@@ -210,7 +211,7 @@ impl Host {
                 file.write_all(bytes).map_err(|error| error.to_string())
             }
             Self::Wsl(distro) => {
-                let payload = wsl::encode(bytes);
+                let payload = base64::encode(bytes);
                 let output = wsl::script(distro, None, PUT, &[&self.native(path), &payload])?;
                 match output.code {
                     0 => Ok(()),

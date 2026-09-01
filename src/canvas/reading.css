@@ -172,6 +172,53 @@
   padding: var(--reading-pad) 12px;
 }
 
+/* A picture, drawn whole inside whatever the card is.
+
+   A reading is moved about because there is more of it than fits and every line
+   of it has to be readable; a picture is one thing, and a card showing the top
+   left corner of one is a card showing nothing. So it is fitted instead, and
+   the ways to see it larger are the ways everything else on this canvas is seen
+   larger: an edge of the card dragged out, and the canvas zoomed in — which
+   redraws the picture at the scale rather than magnifying what was drawn. The
+   header's fit is the third, and it is the one that says "at its own size". */
+.file-preview__picture {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: var(--reading-pad);
+}
+
+/* Never drawn larger than it is: a 16-pixel icon blown up to fill a card is a
+   card lying about what is in it. The chequer is what says where the picture
+   ends and what in it is transparent — faint, because it is the paper behind a
+   picture and not a thing to be read. */
+.file-preview__picture img {
+  max-width: 100%;
+  max-height: 100%;
+  background-image:
+    linear-gradient(45deg, var(--mui-palette-action-hover) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--mui-palette-action-hover) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--mui-palette-action-hover) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--mui-palette-action-hover) 75%);
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+  background-size: 12px 12px;
+  object-fit: contain;
+}
+
+/* Unless there are no pixels in it to blow up. A drawing is given the whole of
+   the card and drawn again at whatever size that is, which is the one thing it
+   can do that a photograph cannot. */
+.file-preview__picture.is-drawing img {
+  width: 100%;
+  height: 100%;
+}
+
 /* The numbers stay where they are while the reading is moved sideways: a line
    is being counted from its own end, and a gutter that has slid off the left
    leaves nothing to count against. It is given the move back rather than being

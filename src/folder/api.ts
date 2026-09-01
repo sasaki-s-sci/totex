@@ -62,6 +62,20 @@ export interface FileHead {
   truncated: boolean;
 }
 
+/**
+ * The whole of one file, for the card that draws a picture of it.
+ *
+ * Asked for instead of the head above rather than beside it: half a picture is
+ * not half drawn, so a card of one is nothing until the last byte is in hand.
+ */
+export interface FileData {
+  path: string;
+  name: string;
+  /** The whole file as base64, or null for one too large for a card to draw. */
+  data: string | null;
+  size: number;
+}
+
 /** Carries the directories whose contents just moved, as absolute paths. */
 export const FS_CHANGED_EVENT = "fs:changed";
 
@@ -93,6 +107,11 @@ export function readDirectory(path: string, showHidden: boolean): Promise<Listin
 
 export function readFileHead(path: string): Promise<FileHead> {
   return invoke<FileHead>("read_file_head", { path });
+}
+
+/** Reads a whole file for the card drawing it, bounded by what one will draw. */
+export function readFileData(path: string): Promise<FileData> {
+  return invoke<FileData>("read_file_data", { path });
 }
 
 /**
