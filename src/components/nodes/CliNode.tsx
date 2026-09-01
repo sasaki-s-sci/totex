@@ -43,10 +43,11 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   // saying the one thing anybody already knows about it — that it is a
   // terminal — next to the one thing they are looking for.
   const jump = useCliJump(id);
-  // And what this one was last told to do, while the same key is held. Beside
-  // the mark rather than on it, in the place a card would stand — one terminal
-  // among a stack of identical glyphs is told from the others by what somebody
-  // set it going on, and that is a line of words rather than a mark.
+  // And what this one was last told to do, while the same key is held, or all
+  // the time where the window has been told to keep these. Beside the mark
+  // rather than on it, in the place a card would stand — one terminal among a
+  // stack of identical glyphs is told from the others by what somebody set it
+  // going on, and that is a line of words rather than a mark.
   const said = useTypedLine(session.id);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what

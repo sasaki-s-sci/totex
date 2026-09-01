@@ -1,9 +1,18 @@
-//! What a repository says can be run in it.
+//! What can be run in a folder: what the project there says, and what the
+//! person there wrote down.
 //!
-//! Four runners and no format of our own: mise, Task, just and make each keep
-//! the commands for a project in a file beside the project, and this reads
-//! those. A folder is asked what it holds, whichever of the four are there are
-//! asked what they can run, and what comes back is a list of lines to type.
+//! Four runners and no format of our own for the first of those: mise, Task,
+//! just and make each keep the commands for a project in a file beside the
+//! project, and this reads those. A folder is asked what it holds, whichever of
+//! the four are there are asked what they can run, and what comes back is a
+//! list of lines to type.
+//!
+//! The second is the exception, and it is one because it is a different
+//! question. A project's file says what anybody working on it would run; it has
+//! nothing to say about the line one person keeps retyping in that folder and
+//! nowhere else, which until now lived in a shell's history until the history
+//! rolled over. That goes in the space instead — see `read::totex` and
+//! `crate::space`.
 //!
 //! Lines, and not runs. Nothing here starts anything: a task is a command
 //! somebody would have typed into the terminal that is already open in that

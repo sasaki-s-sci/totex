@@ -68,8 +68,8 @@ export function usePinDrag(
       if (!(target instanceof HTMLElement)) return;
       // The header and nothing else — a reading is selected and typed into, and
       // the marks in the header are pressed rather than dragged.
-      if (!target.closest(".file-preview__header")) return;
-      if (target.closest(".file-preview__button")) return;
+      if (!target.closest(".page__header")) return;
+      if (target.closest(".page__tool")) return;
 
       const card = event.currentTarget;
       const box = pane.current?.getBoundingClientRect();

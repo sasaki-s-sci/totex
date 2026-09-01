@@ -11,7 +11,8 @@ import { readFileData, readFileHead } from "../folder/api";
 import { baseName } from "../folder/format";
 import { type FilePreviewRequest, openingView, pictureType } from "../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../lib/graph";
-import { FILE_PREVIEW_SIZE, FILE_PREVIEW_Z, fileNodeId, fileSize } from "./filePreviewBox";
+import { FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
+import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
 /** The gap left between a card and the one opened beside it, so that the two
@@ -54,15 +55,10 @@ export function useFilePreviewPlacing(
           node.type === "file-preview" && node.data.requestId === preview.beside,
       );
       const stagger = (placedFiles.current.size - 1) % 8;
-      const screen = preview.at ?? {
-        x: (bounds?.left ?? 0) + (bounds?.width ?? FILE_PREVIEW_SIZE.width) / 2 + stagger * 16,
-        y: (bounds?.top ?? 0) + (bounds?.height ?? FILE_PREVIEW_SIZE.height) / 2 + stagger * 16,
-      };
-      const point = flow.screenToFlowPosition(screen);
       const box = from ? fileSize(from) : FILE_PREVIEW_SIZE;
       const corner = from
         ? { x: from.position.x + box.width + BESIDE_GAP, y: from.position.y }
-        : { x: point.x - box.width / 2, y: point.y - 17 };
+        : pageCorner(flow, preview.at ?? canvasMiddle(bounds, box, stagger * 16), box);
       // A preview of a card that has been pinned off the canvas is pinned
       // beside it, in the pane's own pixels: the two are being read against
       // each other, and one of them left the canvas.
@@ -75,8 +71,8 @@ export function useFilePreviewPlacing(
         position: corner,
         hidden: pinnedAt !== null,
         draggable: true,
-        dragHandle: ".file-preview__header",
-        zIndex: FILE_PREVIEW_Z,
+        dragHandle: PAGE_HANDLE,
+        zIndex: PAGE_Z,
         // Written on the node rather than into its style: a dragged edge is a
         // dimension change, and the node's own width wins over both.
         width: box.width,

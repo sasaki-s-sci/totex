@@ -1,26 +1,32 @@
 /**
- * What a repository says can be run in it.
+ * What can be run in a folder: what the project there says, and what the person
+ * there wrote down.
  *
- * Four runners and no format of this window's own: mise, Task, just and make
- * each keep a project's commands in a file beside the project, and what comes
- * back from the app is those files read — see `src-tauri/src/tasks`. Nothing
- * here runs anything: a task is a line somebody would have typed, and running
- * one is typing it into a terminal.
+ * Four runners and no format of this window's own for the first: mise, Task,
+ * just and make each keep a project's commands in a file beside the project,
+ * and what comes back from the app is those files read. The fifth is the
+ * window's own and answers the other question — the lines somebody keeps in
+ * `.totex/commands` because they keep typing them, which are nobody's build
+ * step. See `src-tauri/src/tasks` and `src-tauri/src/space`.
+ *
+ * Nothing here runs anything: a task is a line somebody would have typed, and
+ * running one is typing it into a terminal.
  */
 
 import { invoke } from "@tauri-apps/api/core";
 
-/** Which of the four said a line can be run. */
-export type Runner = "mise" | "task" | "just" | "make";
+/** Who said a line can be run: one of the four runners, or the space itself. */
+export type Runner = "totex" | "mise" | "task" | "just" | "make";
 
-/** One thing a repository says can be run in it. */
+/** One thing that can be run in a folder. */
 export type Task = {
   runner: Runner;
   name: string;
   /** What the file says it is for, or "" where it says nothing. */
   about: string;
   /** The line that runs it, exactly as it would be typed, with nothing given
-   *  to it — see `runLine` for the line with what it takes on the end. */
+   *  to it — see `runLine` for the line with what it takes on the end. A line
+   *  a space keeps may run to several, which are typed in as they are written. */
   line: string;
   /** What it takes, in the order they are passed. Empty for a task that takes
    *  nothing, and empty for the three runners that have no way to say. */
@@ -41,11 +47,11 @@ export type Param = {
 };
 
 /**
- * Everything the runners in a directory say can be run there.
+ * Everything that can be run in a directory, the space's own lines first.
  *
- * Never fails and never empty for a reason: a runner that is not installed and
- * a folder that holds none of the four both come back as nothing to run, which
- * is the same thing to draw.
+ * Never fails and never empty for a reason: a runner that is not installed, a
+ * folder that holds none of the four, and a folder standing in no space all
+ * come back as nothing to run, which is the same thing to draw.
  */
 export function directoryTasks(path: string): Promise<Task[]> {
   return invoke<Task[]>("directory_tasks", { path });

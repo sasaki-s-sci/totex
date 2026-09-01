@@ -1,4 +1,4 @@
-//! The four runners, and what each of them is asked.
+//! The runners, and what each of them is asked.
 //!
 //! Three of them answer in JSON and are asked in their own words, because a
 //! runner is the only thing that knows the whole of its own file — what an
@@ -6,6 +6,8 @@
 //! fourth has nothing to ask: `make` has never had a way to say what it can do,
 //! so its file is read instead, for the one shape a Makefile written to be read
 //! by a person already has.
+//!
+//! The fifth is not a runner and answers a different question. See `totex`.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -48,12 +50,16 @@ const JUSTFILE: [&str; 4] = ["justfile", ".justfile", "Justfile", "JUSTFILE"];
 /// is the one that counts.
 const MAKEFILE: [&str; 3] = ["GNUmakefile", "makefile", "Makefile"];
 
-/// Everything the four say, each runner's list whole and in this order.
+/// What a space keeps its own lines in, under `.totex`.
+const COMMANDS: &str = "commands";
+
+/// Everything they say, each list whole and in this order.
 ///
 /// The order is the answer to two runners in one repository: a list that
 /// interleaved them by name would be a list where the eye has to check the mark
-/// beside every row. mise first because a repository that has one usually has
-/// it standing in front of the others.
+/// beside every row. The space's own lines first, because they are the ones
+/// somebody wrote down for themselves; then mise, because a repository that has
+/// one usually has it standing in front of the others.
 pub fn everything(dir: &Path) -> Vec<Task> {
     let host = Host::of(dir);
     // One reading of the directory, and every question about what is in it
@@ -75,11 +81,104 @@ pub fn everything(dir: &Path) -> Vec<Task> {
         )
     });
 
-    let mut found = mise;
+    let mut found = totex(dir);
+    found.extend(mise);
     found.extend(taskfile);
     found.extend(justfile);
     found.extend(makefile(&host, dir, &held));
     found
+}
+
+/// The lines somebody keeps in a space because they keep typing them.
+///
+/// The one format this window has of its own, and the reason for the exception
+/// is that the other four answer a different question. They say what a project
+/// runs — the checks, the build, the things anybody working on it would run —
+/// and those belong in the project's own file whether or not this window ever
+/// opens it. `gh repo create`, or the deploy line with the flags nobody
+/// remembers, is not that. It is what *this person* keeps typing *here*, it is
+/// nobody's build step, and there has never been a file for it: it lives in a
+/// shell's history until the history rolls over, which is why it is retyped.
+///
+/// So it is written down instead, in the space it is typed in — see `crate::space`.
+/// A folder that is not a project at all can hold one, which the other four
+/// cannot say anything about.
+fn totex(dir: &Path) -> Vec<Task> {
+    let Some(space) = crate::space::find(dir) else {
+        return Vec::new();
+    };
+    let host = Host::of(&space);
+    let file = host.join(&host.join(&space, crate::space::DIR), COMMANDS);
+    let Ok(text) = host.read(&file) else {
+        return Vec::new();
+    };
+    kept(&String::from_utf8_lossy(&text))
+}
+
+/// Every line a space keeps, in the order it keeps them.
+///
+/// A blank line is what separates one from the next, and nothing else is: what
+/// a person reaches for these with is the up arrow, and one press of that
+/// brings back one thing they typed however many lines it ran to. So a command
+/// here is a block rather than a line, and a block of three lines is three
+/// lines typed into the terminal exactly as they are written.
+///
+/// The `#` lines a block opens with are what it is for. They are the shell's
+/// own way of saying something that is not a command, so a block whose comment
+/// this reading did not understand is still a block that runs.
+pub fn kept(text: &str) -> Vec<Task> {
+    let mut found: Vec<Task> = Vec::new();
+    let mut about: Vec<String> = Vec::new();
+    let mut lines: Vec<&str> = Vec::new();
+
+    // A line at a time rather than a split on two newlines, because a blank
+    // line is not always two newlines: a file written on Windows separates with
+    // more than that, and a line somebody left a space on looks blank and is
+    // meant as one.
+    for line in text.lines().chain([""]) {
+        let line = line.trim_end();
+
+        if line.is_empty() {
+            keep(&mut found, &mut about, &mut lines);
+            continue;
+        }
+
+        // A comment only while the block has not started. One under a command
+        // is the shell's own, and goes in with the command because that is
+        // where the person who wrote it put it.
+        if lines.is_empty() && line.trim_start().starts_with('#') {
+            about.push(line.trim_start().trim_start_matches('#').trim().to_string());
+            continue;
+        }
+
+        lines.push(line);
+    }
+
+    found
+}
+
+/// Puts one block down and clears the way for the next, or clears the way for
+/// the next where there was no block — which is every run of blank lines, and
+/// every comment nobody wrote a command under.
+fn keep(found: &mut Vec<Task>, about: &mut Vec<String>, lines: &mut Vec<&str>) {
+    if !lines.is_empty() {
+        found.push(Task {
+            runner: "totex",
+            // Drawn on one row however many lines it runs to, with the breaks
+            // marked rather than dropped: a row that silently joined two
+            // commands into one would be a row saying it will do something
+            // other than what it does.
+            name: lines.join(" \u{23ce} "),
+            about: about.join(" "),
+            line: lines.join("\n"),
+            // What it takes is whatever the person typing it types. Nothing
+            // here has a way to say otherwise, and a line with a hole in it is
+            // a line they will finish in the terminal.
+            params: Vec::new(),
+        });
+    }
+    about.clear();
+    lines.clear();
 }
 
 /// mise, which is asked for its tasks and answers with the whole of each one.

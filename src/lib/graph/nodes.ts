@@ -121,8 +121,15 @@ export type BranchHeadData = {
 
 export type RepositoryNodeData = {
   repository: Repository;
-  /** Band-relative box of the name's cell, which leads the row the band opens on. */
-  label: { x: number; y: number; width: number; height: number };
+  /**
+   * Band-relative box of the name's cell, which leads the row the band opens
+   * on, and the column the name is centred in inside it.
+   *
+   * The mark the band opens with — the fold, or the first commit drawn — stands
+   * in the middle of that column, and the name is set over that mark rather
+   * than over the left edge of the box it is laid out in.
+   */
+  label: { x: number; y: number; width: number; height: number; column: number };
 };
 
 /**

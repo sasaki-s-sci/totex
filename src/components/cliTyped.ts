@@ -9,6 +9,10 @@ import { createContext, useContext } from "react";
  * terminal glyphs is a stack of identical marks and what tells them apart is
  * what somebody set each of them going on.
  *
+ * The one of the two that can also be asked for outright: a window whose
+ * terminals are each on a different thing is a window where these lines are
+ * what is being read, and the choice for that is in settings — see `said`.
+ *
  * Passed through context rather than through node data, for the same reason the
  * numbers are: React Flow decides what to redraw by comparing that data, and a
  * line that comes and goes with a key would rebuild the layout each time it

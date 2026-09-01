@@ -38,9 +38,9 @@
 /* A name on the canvas, on the line above the mark it belongs to: a folder's
    over the mark that is the folder, a repository's over the mark its band opens
    with — the first commit drawn, or the fold where the history carries on past
-   it. Both are set at the left of that mark's own column and sat on the line
-   itself, so the eye runs down from the name into what it heads, and the two
-   read as one column of names down the left of everything.
+   it. Both are sat on the line itself, so the eye runs down from the name into
+   what it heads, and the two read as one column of names down the left of
+   everything.
 
    The room under the text is what keeps it clear of the mark it is over: the
    fold is a pill and a folder's mark is a glyph, and both stand a few pixels
@@ -54,10 +54,39 @@
   box-sizing: border-box;
   align-items: flex-end;
   justify-content: flex-start;
-  gap: 2px;
   padding-bottom: 12px;
-  padding-left: 6px;
+  /* Everything longer than the room the layout gave it is cut off here: the
+     column past the name's own is where a branch's terminals stand, and a name
+     is not something to read across them. */
   overflow: hidden;
+}
+
+/* A folder's name is set in from the left edge of its box, over its own mark,
+   which is at the head of the row rather than in the middle of a column. */
+.folder .band__name {
+  padding-left: 6px;
+}
+
+/* A repository's name and the one mark that answers for the repository, on one
+   line and centred over the mark the band opens with: what the name heads is
+   that mark — the fold, or the first commit drawn — and a name that began at
+   the band's left edge read as heading the line instead of it.
+
+   The line is the column the mark stands in the middle of, plus the mark's own
+   square at the end of the name, and it is centred by a margin at each end
+   taking half of whatever room is left over. A name longer than the column has
+   none to take: it keeps to the left of the column and runs out to the right,
+   which is the only side it may grow into — the left is where the folder's line
+   arrives. Longer again and the line gives way at the far end of the box, and
+   the name is the part that is cut short. */
+.band__heading {
+  display: flex;
+  width: max-content;
+  align-items: center;
+}
+
+.band__heading .folder__name {
+  margin-left: auto;
 }
 
 /* The mark that takes the repository off the canvas, after the name rather than
@@ -65,12 +94,50 @@
    the two, and the left of the name's own line is where the folder's line
    arrives.
 
+   Out only while the pointer is on the heading, and drawn in the colour of the
+   glyph rather than in its opacity — an opacity that moves would ask the canvas
+   for a layer; see `index.css`. A repository is read far more often than it is
+   put away, and a mark out at rest beside every name is one more thing on top
+   of what is being read.
+
    The band takes no pointer and everything in it inherits that, so the mark is
    where it comes back — `nopan` beside it in the markup, because pressing a
    button is not the start of a drag across the canvas. */
 .band__close {
   display: flex;
+  /* The square the mark answers in — a glyph on its own is a small thing to aim
+     at — handed down from the heading, which has already made room for it at
+     the end of the line. It keeps that square when the line is squeezed: a name
+     too long for the band is the part that gives way. The height is taken
+     straight back out, so the name sits exactly where it would with no mark
+     beside it at all and the mark rides on the middle of the name rather than
+     on the foot of it. */
   flex: none;
+  width: var(--square);
+  height: var(--square);
+  /* The far end of the centring; see `.band__heading`. */
+  margin-right: auto;
+  margin-block: calc(var(--square) / -2);
   align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  color: transparent;
+  cursor: pointer;
   pointer-events: all;
+  transition: color var(--reveal);
+}
+
+.band__name:hover .band__close,
+.band__name:focus-within .band__close {
+  color: var(--mui-palette-text-secondary);
+}
+
+/* One step up out of the grey it comes out at, the way every mark on this
+   canvas answers the pointer. Written past the name's own hover so that the two
+   rules are read in the order they happen. */
+.band__name .band__close:hover,
+.band__name .band__close:focus-visible {
+  color: var(--mui-palette-text-primary);
 }
