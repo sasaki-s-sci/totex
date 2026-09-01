@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCanvasDrag } from "../hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
 import { useCanvasKeys } from "../hooks/useCanvasKeys";
+import { useCanvasZoom } from "../hooks/useCanvasZoom";
 import { useCliTyped } from "../hooks/useCliTyped";
 import { useFilePreviews } from "../hooks/useFilePreviews";
 import { useFolderPlaces } from "../hooks/useFolderPlaces";
@@ -103,6 +104,10 @@ export function GitGraph({
   const framed = useRef(false);
   /** The canvas itself, which the cursor keys measure their panning against. */
   const host = useRef<HTMLDivElement>(null);
+  /** React Flow's own element inside it, which is where the wheel is heard.
+   *  The pinned cards are drawn over the canvas rather than on it, and a wheel
+   *  turned on one of those is not the canvas being zoomed. */
+  const pane = useRef<HTMLDivElement>(null);
   const glide = useNodeGlide(setNodes);
   // Where everything is standing on screen, which is where the next move starts
   // from — mid-move included, so a second change does not jump.
@@ -111,6 +116,8 @@ export function GitGraph({
   const heldLineNodes = useRef<readonly AppNode[]>(graph.nodes);
   const lineNodes = retainLineNodes(nodes, heldLineNodes.current);
   heldLineNodes.current = lineNodes;
+
+  useCanvasZoom({ pane, instance });
 
   const { expand, fold, reachFold, keepFold } = useCanvasFold({
     workspace,
@@ -273,6 +280,7 @@ export function GitGraph({
                   changes; replacing the instance would initialise an empty view
                   before the scanned nodes arrive. */}
                   <ReactFlow<AppNode, Edge>
+                    ref={pane}
                     nodes={shown}
                     nodeTypes={nodeTypes}
                     onNodesChange={onNodesChange}
@@ -298,6 +306,10 @@ export function GitGraph({
                     onlyRenderVisibleElements={false}
                     minZoom={MIN_ZOOM}
                     maxZoom={MAX_ZOOM}
+                    // The wheel is `useCanvasZoom`'s: d3-zoom holds the point
+                    // under the cursor still, and this canvas comes in on its
+                    // own middle instead. A pinch is still React Flow's.
+                    zoomOnScroll={false}
                     proOptions={proOptions}
                     fitView
                   >
