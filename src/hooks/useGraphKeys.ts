@@ -29,6 +29,9 @@ type Options = {
   activate: (node: AppNode) => void;
   /** Go to a terminal the walk reached or a number named: it goes in the panel. */
   jump: (node: AppNode) => void;
+  /** End a terminal the walk is standing on: the shell stops, and the mark
+   *  drawn for it leaves the canvas with it. */
+  end: (node: AppNode) => void;
   /** What the walk has arrived at, which the window keeps: the ring itself goes
    *  when Ctrl does. */
   land: (node: AppNode | null) => void;
@@ -43,13 +46,24 @@ type Options = {
  * Ctrl and an arrow steps from terminal to terminal and Ctrl and a number goes
  * straight to the one wearing it; both leave the panel holding what they
  * reached. Ctrl and Shift and an arrow is the other walk, along the history —
- * nothing is opened out there, and Return is what opens it.
+ * nothing is opened out there, and Return is what opens it. Ctrl and D ends the
+ * terminal the walk is standing on, which is the one key here that takes
+ * something away rather than going to it.
  *
  * Held rather than toggled: let go and the pick goes with it, so there is no
  * mode to be left in. The pick is written straight onto the node's own element
  * rather than fed back through the graph, which would rebuild every node.
  */
-export function useGraphKeys({ nodes, instance, host, activate, jump, land, selected }: Options) {
+export function useGraphKeys({
+  nodes,
+  instance,
+  host,
+  activate,
+  jump,
+  end,
+  land,
+  selected,
+}: Options) {
   const [picked, setPicked] = useState<string | null>(null);
   // Whether Ctrl is down, which is the whole of what puts the numbers on the
   // terminals. Only the marks read it, so it costs a render of those and
@@ -82,8 +96,8 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
   }, [nodes]);
   // The listeners are registered once and read through this, so a graph that
   // changes underneath them does not cost a pair of listeners each time.
-  const latest = useRef({ nodes, activate, jump, land, selected, shown, shownCommit });
-  latest.current = { nodes, activate, jump, land, selected, shown, shownCommit };
+  const latest = useRef({ nodes, activate, jump, end, land, selected, shown, shownCommit });
+  latest.current = { nodes, activate, jump, end, land, selected, shown, shownCommit };
   // Where every node can be landed on, rebuilt only when the graph itself is.
   // A held arrow key repeats far faster than the canvas changes, and walking
   // every node twice per repeat is the bulk of what a walk would cost.
@@ -211,6 +225,40 @@ export function useGraphKeys({ nodes, instance, host, activate, jump, land, sele
         // A held key is one press. Left to repeat, a number would read its own
         // repeats as the digits after it and walk away down the stack.
         if (!event.repeat) jumpTo(Number(event.key));
+        return;
+      }
+
+      // D: the terminal the walk is standing on is ended, shell and mark
+      // together. Only ever the one the walk found — with nothing picked out
+      // the press is left where it has always gone, which in a shell is the end
+      // of what is being read, and a key that sometimes closed whatever the
+      // panel happened to be holding would end a session mid-line. The shell
+      // being ended sees the ^D as well: to stop that, every terminal would
+      // have to give up its EOF for a press that only ever arrives at one that
+      // is going anyway.
+      if (event.key.toLowerCase() === "d" && !event.shiftKey && at.current) {
+        const node = latest.current.nodes.find((candidate) => candidate.id === at.current);
+        // A walk along the history stands on commits, and a commit is nobody's
+        // to end. It keeps its own D, which is the browser's.
+        if (node?.type !== "cli") return;
+        event.preventDefault();
+        // A held key is one press. Left to repeat, this would run down the
+        // stack a frame at a time, and every one of these takes a shell with it.
+        if (event.repeat) return;
+
+        // Where the next press lands: whichever terminal takes this one's
+        // number, or the one before it when this was the last of them. Picked
+        // out and not shown — a terminal is opened by being gone to, and
+        // nobody asked for the neighbour of what they just closed.
+        const stacks = places.current;
+        const place = stacks.findIndex((stack) => stack.id === node.id);
+        const next = stacks[place + 1] ?? stacks[place - 1] ?? null;
+        at.current = next?.id ?? null;
+        // A number typed before this named a terminal by a number that is
+        // about to belong to another one.
+        typed.current = null;
+        setPicked(next?.id ?? null);
+        latest.current.end(node);
         return;
       }
 

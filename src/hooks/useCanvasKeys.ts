@@ -21,6 +21,7 @@ export type KeysCanvas = {
   onOpenWork: (request: WorkRequest) => void;
   onShowSession: (session: Session) => void;
   onJumpSession: (session: Session) => void;
+  onEndSession: (session: Session) => void;
 };
 
 export function useCanvasKeys({
@@ -32,6 +33,7 @@ export function useCanvasKeys({
   onOpenWork,
   onShowSession,
   onJumpSession,
+  onEndSession,
 }: KeysCanvas) {
   // Commit marks are drawn in the shared SVG rather than as React Flow nodes,
   // so their selection is the one small piece of canvas state kept here.
@@ -119,12 +121,28 @@ export function useCanvasKeys({
     [onJumpSession],
   );
 
+  /**
+   * Ends a terminal the walk is standing on.
+   *
+   * The one press on the walk that takes something away rather than going
+   * somewhere, so it answers for terminals and for nothing else: a commit, a
+   * branch and a folder are all things this window draws rather than things it
+   * is running, and none of them is its to close.
+   */
+  const finish = useCallback(
+    (node: AppNode) => {
+      if (node.type === "cli") onEndSession(node.data.session);
+    },
+    [onEndSession],
+  );
+
   const { picked, jumps } = useGraphKeys({
     nodes: graph.nodes,
     instance,
     host,
     activate,
     jump,
+    end: finish,
     land,
     selected: selectedCommit,
   });
