@@ -14,6 +14,9 @@ export { isOpen } from "./folders";
 export {
   circlesOf,
   distanceTo,
+  downFrom,
+  elbowPath,
+  type LineShape,
   type Point,
   shortOf,
   sigmoidPath,

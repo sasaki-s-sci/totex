@@ -4,8 +4,11 @@
 
 import type { XYPosition } from "@xyflow/react";
 import {
+  downFrom,
+  elbowPath,
   type GraphLine,
   type LineEnd,
+  type LineShape,
   type Point,
   type StrokeStyle,
   shortOf,
@@ -20,11 +23,11 @@ import {
  * makes a repository a dozen elements instead of one per commit. A line whose
  * ends are not both on the canvas is left out rather than drawn to nowhere.
  *
- * Both ends are pulled back off the marks they belong to, by the same sum from
- * either direction: `trim` for the far one, which is what keeps a line from
- * being drawn across the hole in a ring, and `lead` for the near one, which is
- * what keeps a line out of the box a terminal is drawn in. The ring of canvas
- * every mark carries covers what is left between the line and the mark.
+ * Both ends are pulled back off the marks they belong to: `trim` for the far
+ * one, which is what keeps a line from being drawn across the hole in a ring,
+ * and `lead` for the near one, which is what keeps a line out of the box a
+ * terminal is drawn in. The ring of canvas every mark carries covers what is
+ * left between the line and the mark.
  */
 export function pathOf(
   parts: readonly GraphLine[],
@@ -35,15 +38,27 @@ export function pathOf(
     const from = endOf(part.from, standing);
     const to = endOf(part.to, standing);
     if (!from || !to) continue;
-    // The same sum with the ends swapped: `shortOf` pulls the second point back
-    // towards the first, which from this direction is the start of the line.
-    const start = shortOf(to, from, part.lead, part.curve);
-    const end = shortOf(from, to, part.trim, part.curve);
+    // The far end is the same sum with the ends swapped: `shortOf` pulls the
+    // second point back towards the first. The near end depends on the
+    // direction the line leaves in, which for an elbow is straight down its own
+    // column rather than towards anything.
+    const start =
+      part.shape === "elbow"
+        ? downFrom(from, to, part.lead)
+        : shortOf(to, from, part.lead, part.shape);
+    const end = shortOf(from, to, part.trim, part.shape);
     offset(start, end, part.offset ?? 0);
-    path += part.curve ? sigmoidPath(start, end) : straightPath(start, end);
+    path += pieceOf(part.shape, start, end);
     path += " ";
   }
   return path;
+}
+
+/** One line as path data, in whichever of the three shapes it takes. */
+function pieceOf(shape: LineShape, start: Point, end: Point): string {
+  if (shape === "curve") return sigmoidPath(start, end);
+  if (shape === "elbow") return elbowPath(start, end);
+  return straightPath(start, end);
 }
 
 /** Move both ends along the line's normal. Positive is below a left-to-right

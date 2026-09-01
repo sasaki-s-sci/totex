@@ -19,7 +19,8 @@ import {
  * line out of that mark to every repository it holds.
  *
  * Reading the group is reading down a column: a repository per row, every one
- * joined back to the folder's mark, and never one to be found somewhere else. A
+ * joined back to the folder's mark by a right angle out of the one trunk, and
+ * never one to be found somewhere else. A
  * repository in that column is either folded into a single mark or opened out
  * into a band, and it stands in the same place either way — which is what makes
  * folding cheap. The row is a place as well as a heading: its own directory can
@@ -30,8 +31,8 @@ import {
 const TOOLS_WIDTH = 40;
 
 /** Where the folder's own mark stands: at the head of its row, under the name.
- *  Every line down to a repository leaves from here, and leaving from the left
- *  of the column gives those lines room to be a fan. */
+ *  Every line down to a repository leaves from here, and standing to the left
+ *  of the column is what lets them all share one trunk down the page. */
 export const FOLDER_MARK_X = 0;
 /**
  * Where the row's own button stands: at the column the repositories under it

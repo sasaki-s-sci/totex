@@ -1,4 +1,4 @@
-import { midpointOf, type Point, samplesOf } from "./geometry";
+import { type LineShape, midpointOf, type Point, samplesOf } from "./geometry";
 import {
   type BandLines,
   COMMIT_STEP,
@@ -47,7 +47,7 @@ export type Fold = {
   hides: number;
   from: Point;
   to: Point;
-  curve: boolean;
+  shape: LineShape;
 };
 
 export class Lines {
@@ -73,10 +73,10 @@ export class Lines {
 
     // Nothing behind it to fold away: the offer would say "hide zero commits".
     if (!fold || fold.hides <= 0) return;
-    const run = samplesOf(fold.from, fold.to, fold.curve);
+    const run = samplesOf(fold.from, fold.to, fold.shape);
     const target: FoldTarget = {
       run,
-      at: midpointOf(fold.from, fold.to, fold.curve),
+      at: midpointOf(fold.from, fold.to, fold.shape),
       keep: fold.keep,
       hides: fold.hides,
     };

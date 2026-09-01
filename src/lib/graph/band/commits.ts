@@ -3,7 +3,7 @@
  * and the mark that stands where a fold hides the rest.
  */
 
-import { shortOf } from "../geometry";
+import { type LineShape, shortOf } from "../geometry";
 import { commitNodeId } from "../history";
 import {
   COMMIT_CELL,
@@ -52,16 +52,17 @@ export function drawCommits(frame: Frame) {
       // curve degenerates to anyway, at a fraction of the work. One that moves
       // between rows takes the S, and that is what makes a fork or a merge
       // readable at a glance.
-      const curve = entry.row !== history.placed[parentPosition].row;
-      const start = shortOf(dots[parentPosition], dots[position], COMMIT_TRIM, curve);
-      const end = shortOf(dots[position], dots[parentPosition], COMMIT_TRIM, curve);
+      const shape: LineShape =
+        entry.row === history.placed[parentPosition].row ? "straight" : "curve";
+      const start = shortOf(dots[parentPosition], dots[position], COMMIT_TRIM, shape);
+      const end = shortOf(dots[position], dots[parentPosition], COMMIT_TRIM, shape);
 
       drawn.add(
         {
           id: `${repository.id}${entry.commit.id}->${parent}`,
           from: onCommit(commitNodeId(repository, entry.commit.id)),
           to: onCommit(commitNodeId(repository, parent)),
-          curve,
+          shape,
           trim: COMMIT_TRIM,
           lead: COMMIT_TRIM,
           stroke: HISTORY_STROKE,
@@ -73,7 +74,7 @@ export function drawCommits(frame: Frame) {
           hides: history.placed.length - (position + 1),
           from: start,
           to: end,
-          curve,
+          shape,
         },
       );
     }
@@ -111,7 +112,7 @@ export function drawCommits(frame: Frame) {
       from: onCommit(`${repository.id}collapse`),
       to: onCommit(commitNodeId(repository, oldest.commit.id)),
       // The same S every line off the row takes; level ends make it straight.
-      curve: true,
+      shape: "curve",
       trim: COMMIT_TRIM,
       // The fold is a 56px pill centred on this end. Start just past its edge
       // instead of showing the dash through its translucent background.
