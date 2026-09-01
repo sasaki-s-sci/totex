@@ -2,10 +2,11 @@ import CloseIcon from "@mui/icons-material/Close";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
+import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
 import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
-import { CliMark } from "../marks";
+import { AgentMark, CliMark } from "../marks";
 
 /**
  * One terminal: the only mark this canvas draws for anything to do with a
@@ -49,6 +50,13 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   // stack of identical glyphs is told from the others by what somebody set it
   // going on, and that is a line of words rather than a mark.
   const said = useTypedLine(session.id);
+  // And what it is doing, which is the one thing the glyph itself says. Three
+  // states and three drawings: an agent wears a mark of its own, a command
+  // running turns the terminal's cursor over, and a shell at its prompt is the
+  // mark exactly as it has always been. Nothing here is a colour — the ink of
+  // these is what says which of them the panel is holding, and a second thing
+  // said in colour would be two things said in one place.
+  const doing = useCliDoing(session.id);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
   // something reading the window aloud is given in place of the marks.
@@ -59,7 +67,9 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
       <div className="mark mark--centred cli__row">
         <button
           type="button"
-          className={`cli__open nopan${showing ? " is-showing" : ""}`}
+          className={`cli__open nopan${showing ? " is-showing" : ""}${
+            doing === "running" ? " is-working" : ""
+          }`}
           aria-label={name}
           aria-pressed={showing}
           onPointerDown={(event) => event.stopPropagation()}
@@ -68,7 +78,13 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             showSession(session);
           }}
         >
-          {jump === null ? <CliMark size={11} /> : <span className="cli__jump">{jump}</span>}
+          {jump !== null ? (
+            <span className="cli__jump">{jump}</span>
+          ) : doing === "agent" ? (
+            <AgentMark size={11} />
+          ) : (
+            <CliMark size={11} />
+          )}
         </button>
 
         {/* The one thing here that cannot be undone, so it is faint until the

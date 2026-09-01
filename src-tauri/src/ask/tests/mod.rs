@@ -1,5 +1,6 @@
 //! What the readings are held to, drawn the way the agents actually draw it.
 
+mod doing;
 mod frame;
 mod keyed;
 mod prompt;

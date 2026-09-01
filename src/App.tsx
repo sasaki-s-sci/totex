@@ -12,6 +12,7 @@ import { useAskActions } from "./hooks/useAskActions";
 import { useAsks } from "./hooks/useAsks";
 import { useAutoFollow } from "./hooks/useAutoFollow";
 import { useCanvasWork } from "./hooks/useCanvasWork";
+import { useDoings } from "./hooks/useDoings";
 import { useDrops } from "./hooks/useDrops";
 import { useFileDrops } from "./hooks/useFileDrops";
 import { useMarks } from "./hooks/useMarks";
@@ -103,6 +104,9 @@ function Window() {
   // it is read rather than answered — and it is empty until the window is
   // standing a server for the agents to say it through.
   const reports = useReports();
+  // And what every one of them is doing, which is what its own mark draws: an
+  // agent, something running, or a shell waiting to be typed at.
+  const doings = useDoings();
 
   // Ctrl and A, which puts another terminal in the workspace the panel is
   // showing. Held here rather than in the graph: it is about what is running,
@@ -279,6 +283,7 @@ function Window() {
             showing={showing}
             asks={asks}
             reports={reports}
+            doings={doings}
             onAnswer={answerAsk}
             onReply={replyToAsk}
             onPoint={pointAtAsk}

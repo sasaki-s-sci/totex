@@ -34,12 +34,25 @@ pub use watcher::Watcher;
 /// window, not of the panel.
 pub const ASK_EVENT: &str = "pty:ask";
 
+/// Carries what a session has turned to doing. Sent for the same reason and to
+/// the same place: the mark a terminal wears on the canvas is drawn from this,
+/// and the canvas is there whether or not the panel is.
+pub const DOING_EVENT: &str = "pty:doing";
+
 /// What a session is asking, or — with nothing in it — that it has stopped.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Asking {
     id: String,
     ask: Option<super::Ask>,
+}
+
+/// A session, and what it is doing.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Doings {
+    id: String,
+    doing: super::Doing,
 }
 
 /// A session, and the last thing typed at it.
@@ -134,16 +147,31 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
             Event::Said { data, at } => {
                 // Read under the lock and told outside it: telling crosses to
                 // the window, and the next run of output must not wait on that.
-                let told = state
-                    .lock()
-                    .get_mut(id)
-                    .and_then(|watcher| watcher.keep(at, data));
-                if let Some(ask) = told {
+                // Both readings are taken in the one hold of the map — they are
+                // off the same screen, and taking them separately would be
+                // holding it twice for one run of output.
+                let (asked, turned) = {
+                    let mut watching = state.lock();
+                    match watching.get_mut(id) {
+                        None => (None, None),
+                        Some(watcher) => (watcher.keep(at, data), watcher.turned()),
+                    }
+                };
+                if let Some(ask) = asked {
                     let _ = handle.emit(
                         ASK_EVENT,
                         Asking {
                             id: id.to_string(),
                             ask,
+                        },
+                    );
+                }
+                if let Some(doing) = turned {
+                    let _ = handle.emit(
+                        DOING_EVENT,
+                        Doings {
+                            id: id.to_string(),
+                            doing,
                         },
                     );
                 }
@@ -199,6 +227,24 @@ pub fn pty_typed<R: Runtime>(app: AppHandle<R>) -> Vec<Typed> {
                 id: id.clone(),
                 said: watcher.typed()?.to_string(),
             })
+        })
+        .collect()
+}
+
+/// What every running session is doing, for a window that has just come up.
+///
+/// The event carries the moments these change; a window that only listened
+/// would draw nothing until a session next said something, which for a shell
+/// sitting at its prompt is never.
+#[tauri::command]
+pub fn pty_doing<R: Runtime>(app: AppHandle<R>) -> Vec<Doings> {
+    let state = app.state::<AskState>();
+    let watching = state.lock();
+    watching
+        .iter()
+        .map(|(id, watcher)| Doings {
+            id: id.clone(),
+            doing: watcher.doing(),
         })
         .collect()
 }
