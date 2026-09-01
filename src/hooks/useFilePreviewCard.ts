@@ -8,7 +8,7 @@ import { writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { fileSize, readableSize } from "./filePreviewBox";
+import { fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
@@ -173,12 +173,19 @@ export function useFilePreviewCard(
    * over, and the node is put there. A card pinned, the graph panned across a
    * repository, and the card let go stays on screen where the reader left it.
    *
-   * Its box crosses with it. A card on the canvas is drawn at the zoom and one
-   * over the window is drawn at none, so the same numbers on either side of the
-   * step are two different cards on screen — a graph at half scale pinned a card
-   * to twice the size it had just been read at. The box is multiplied by the
-   * zoom on the way out and divided by it on the way back, which leaves the card
-   * standing at the size it was: what changes is only what it is nailed to.
+   * Its box does not cross with it. The zoom is a scale the whole card is drawn
+   * at — the reading inside it as much as the edges around it — and only the
+   * edges are a number kept here, so a box multiplied by the zoom on the way out
+   * would hold the card at the size it looked while leaving what is in it at
+   * another size entirely: the same card, pinned off a graph at half scale, is
+   * five lines of a file where it had just been twelve. So the box crosses
+   * untouched and a pinned card is drawn at its own size, which is the size the
+   * canvas draws it at with the zoom at one. That is the whole of the step: a
+   * card standing at the zoom, and one standing at none.
+   *
+   * Nothing but the position, then, and the position is the one thing that has
+   * to be said in the other's units — where the card is on screen is where the
+   * reader is looking, and the two sides measure that from different corners.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const pinFilePreview = useCallback(
@@ -186,44 +193,32 @@ export function useFilePreviewCard(
       const flow = instance.current;
       const pane = host.current?.getBoundingClientRect();
       if (!flow || !pane) return;
-      const { zoom } = flow.getViewport();
       setNodes((current) =>
         current.map((node) => {
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
           const at = node.data.pinnedAt;
-          const box = fileSize(node);
-          // A card put away carries no height of its own — the canvas measures
-          // what its header comes to — and one handed back here would give it a
-          // body again. The height it had is kept in the box either way.
-          const measured = node.height === undefined;
           if (at) {
-            const under = readableSize({ width: box.width / zoom, height: box.height / zoom });
             return {
               ...node,
               hidden: false,
               position: flow.screenToFlowPosition({ x: pane.left + at.x, y: pane.top + at.y }),
-              width: under.width,
-              height: measured ? undefined : under.height,
-              data: { ...node.data, box: under, pinnedAt: null },
+              data: { ...node.data, pinnedAt: null },
             };
           }
           const corner = flow.flowToScreenPosition(node.position);
-          const over = readableSize({ width: box.width * zoom, height: box.height * zoom });
           return {
             ...node,
             hidden: true,
-            width: over.width,
-            height: measured ? undefined : over.height,
             data: {
               ...node.data,
-              box: over,
               // Held inside the pane by the same rule a drag is, so that a card
               // pinned while it is half off the canvas is not pinned half out
-              // of the window.
+              // of the window. Its own width, because that is what it will be
+              // drawn at up there.
               pinnedAt: heldInPane(
                 { x: corner.x - pane.left, y: corner.y - pane.top },
                 pane,
-                over.width,
+                fileSize(node).width,
               ),
             },
           };
