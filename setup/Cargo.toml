@@ -3,7 +3,11 @@ name = "totex-setup"
 # Not the app's version. This is the installer's own, and it moves when the
 # installer does -- which is hardly ever, because nothing in here names a
 # release. See the workflow that publishes it.
-version = "1.0.0"
+#
+# 2.0.0 is where it started installing rather than downloading the per-version
+# installer and running that, which is the whole of what this program is for
+# and so the whole of what a major number is for here.
+version = "2.0.0"
 edition = "2024"
 rust-version = "1.95"
 publish = false
@@ -29,12 +33,18 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_Networking_WinHttp",
     "Win32_Security",
     "Win32_Storage_FileSystem",
+    # The shortcuts, which are COM objects told what they point at and saved.
+    "Win32_System_Com",
     "Win32_System_LibraryLoader",
+    # The line in Add/Remove Programs, and whether there is a webview.
+    "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_Controls",
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",
+    # Where this account's Start menu and desktop are.
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

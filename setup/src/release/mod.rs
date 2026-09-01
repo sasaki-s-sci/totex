@@ -20,37 +20,41 @@ const REPO: &str = "sasaki-s-sci/totex";
 /// purpose: a download this accepts is one the installed app would accept too.
 const PUBLIC_KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1Mzg0NDdDQzMyRjc5RjIKUldUeWVTL0RmRVE0cFNIcTBWL3FCbDV3MzZRVm95ZjZUdWZWazdVWEJVNGppRGdoNkNLanE1eDgK";
 
+/// Which machine's downloads this asks for.
+///
+/// The kind of machine rather than the kind of installed copy, which is what
+/// `programs` is keyed by -- see scripts/update-manifest.mjs. There is one of
+/// these because this program is one of these: a Windows installer, built for
+/// the one architecture the app is built for.
+const TARGET: &str = "windows-x86_64";
+
+/// The kind of copy the per-version installer makes, for the releases that
+/// carry no program of their own -- see [`Release::Installer`].
+const NSIS: &str = "windows-x86_64-nsis";
+
 /// How much a manifest is allowed to weigh. It is four platforms and a date.
 pub const MANIFEST_MOST: usize = 256 * 1024;
 
 /// How much a listing of releases is allowed to weigh.
 pub const LISTING_MOST: usize = 4 * 1024 * 1024;
 
-/// How much an installer is allowed to weigh.
-pub const BUNDLE_MOST: usize = 512 * 1024 * 1024;
+/// How much a download is allowed to weigh.
+pub const DOWNLOAD_MOST: usize = 512 * 1024 * 1024;
 
-/// Which of the two Windows installers to take.
+/// What a release offers this machine, which is one of two things.
 ///
-/// They differ in who they install for rather than in what they install: the
-/// `.exe` puts the app under the account running it and asks nobody for
-/// anything, and the `.msi` puts it on the machine for every account and wants
-/// an administrator to say so.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Exe,
-    Msi,
-}
-
-impl Kind {
-    /// The name the manifest files this kind of copy under. These are the
-    /// updater's names for what is being replaced, not the platform's, which
-    /// is why both Windows entries say which installer made the copy.
-    fn target(self) -> &'static str {
-        match self {
-            Kind::Exe => "windows-x86_64-nsis",
-            Kind::Msi => "windows-x86_64-msi",
-        }
-    }
+/// The whole point of the difference is that only one of them is still being
+/// published. A release cut since this installer learned to install has its
+/// program beside its installers, and that is what goes on the machine. A
+/// release cut before it has only its own installer, and the only way onto the
+/// machine is to run it -- which is what this used to do for every version and
+/// now does for none that could be done otherwise.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Release {
+    /// The program of this release, to be installed by us.
+    Program,
+    /// This release's own installer, to be run.
+    Installer,
 }
 
 /// One download, named by a manifest.
@@ -59,13 +63,19 @@ pub struct Bundle {
     pub version: String,
     pub url: String,
     pub signature: String,
+    /// What was found, which decides what is done with it.
+    pub what: Release,
 }
 
 impl Bundle {
-    /// What to call the file on the way to disk. The end of the address it
-    /// came from, which is a name the release page chose rather than one made
-    /// up here -- and never a path, because a manifest is not trusted to name
-    /// where on the machine anything goes.
+    /// What to call the file on the way to disk, for the one kind that is
+    /// written under a name of its own: an installer that is about to be run.
+    ///
+    /// The end of the address it came from, which is a name the release page
+    /// chose rather than one made up here -- and never a path, because a
+    /// manifest is not trusted to name where on the machine anything goes. The
+    /// program needs none of this: it goes in under the one name the app is
+    /// installed as, whatever the release page calls it.
     pub fn file_name(&self) -> String {
         let last = self.url.rsplit('/').next().unwrap_or_default();
         let plain = last
@@ -73,7 +83,7 @@ impl Bundle {
             .filter(|letter| letter.is_ascii_alphanumeric() || matches!(letter, '.' | '-' | '_'))
             .collect::<String>();
         if plain.is_empty() {
-            "totex-installer".to_string()
+            "totex-installer.exe".to_string()
         } else {
             plain
         }
@@ -106,7 +116,10 @@ pub fn listing_url() -> String {
 /// itself: a tag whose manifest names another version is a release page
 /// somebody has been at, and installing what it offers anyway would make
 /// asking for a version by name mean nothing.
-pub fn bundle(manifest: &[u8], asked: Option<&str>, kind: Kind) -> Result<Bundle, String> {
+///
+/// The program is preferred over the installer wherever a release carries one,
+/// which is every release cut since it started carrying one. See [`Release`].
+pub fn bundle(manifest: &[u8], asked: Option<&str>) -> Result<Bundle, String> {
     let manifest: Value = serde_json::from_slice(manifest)
         .map_err(|_| "the release page answered with something that is not a manifest")?;
     let released = manifest["version"]
@@ -120,19 +133,23 @@ pub fn bundle(manifest: &[u8], asked: Option<&str>, kind: Kind) -> Result<Bundle
         ));
     }
 
-    let entry = &manifest["platforms"][kind.target()];
-    let url = entry["url"]
-        .as_str()
-        .ok_or_else(|| format!("totex {released} has nothing for {}", kind.target()))?;
-    let signature = entry["signature"]
-        .as_str()
-        .ok_or_else(|| format!("totex {released} is not signed for {}", kind.target()))?;
+    let found = [
+        (Release::Program, &manifest["programs"][TARGET]),
+        (Release::Installer, &manifest["platforms"][NSIS]),
+    ]
+    .into_iter()
+    .find_map(|(what, entry)| {
+        let url = entry["url"].as_str()?;
+        let signature = entry["signature"].as_str()?;
+        Some(Bundle {
+            version: released.to_string(),
+            url: url.to_string(),
+            signature: signature.to_string(),
+            what,
+        })
+    });
 
-    Ok(Bundle {
-        version: released.to_string(),
-        url: url.to_string(),
-        signature: signature.to_string(),
-    })
+    found.ok_or_else(|| format!("totex {released} has nothing signed for {TARGET}"))
 }
 
 /// The versions there are to install, newest first.
@@ -171,7 +188,7 @@ pub fn is_version(text: &str) -> bool {
         })
 }
 
-/// Whether this is the installer the release page named, signed with our key.
+/// Whether this is the download the release page named, signed with our key.
 ///
 /// The signature travels as base64 around the whole of a minisign document,
 /// which is the shape the updater's own manifest carries and the shape

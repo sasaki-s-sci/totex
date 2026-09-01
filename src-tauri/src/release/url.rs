@@ -62,8 +62,8 @@ pub fn listing_url(endpoint: &str) -> Option<String> {
 ///
 /// A tag belongs to the cycle whose prefix it carries and to no other, which is
 /// what keeps three cycles on one repository apart — and what keeps the
-/// standalone installer's own releases, tagged for the installer rather than
-/// for anything the app updates, out of every one of them.
+/// version-selectable installer's own releases, tagged for the installer rather
+/// than for anything the app updates, out of every one of them.
 ///
 /// The tag of a cycle whose prefix is a prefix of another's would be read as
 /// both. That cannot happen with the cycles that exist -- `v` and `layer-v`

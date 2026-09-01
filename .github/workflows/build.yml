@@ -376,6 +376,56 @@ jobs:
           pnpm tauri signer sign "dist-release/${{ matrix.layer }}"
           ls -l "dist-release/${{ matrix.layer }}.sig"
 
+      - name: Take the program out of its installer
+        # The program on its own, beside the installers that carry it.
+        #
+        # This is what the version-selectable installer puts on the machine --
+        # see setup/, which asks which release to install and then installs it
+        # rather than downloading a per-version installer and running that. An
+        # installer that hands over to another installer is two programs
+        # deciding where the app goes, and only one of them was asked.
+        #
+        # Only Windows has one, because only Windows has that installer. The
+        # bundle is this one file: nothing is configured under `bundle.resources`
+        # in src-tauri/tauri.conf.json, so what NSIS lays down beside its own
+        # uninstaller is exactly what is copied here.
+        #
+        # Uncompressed on purpose. Everything setup/ does it does with what
+        # Windows already has -- the window, the download, the install -- and
+        # gzip is the one thing Windows cannot undo on its own. Seventeen
+        # megabytes once is the price of not carrying a decompressor into a file
+        # nobody re-downloads.
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          built="src-tauri/target/${{ matrix.target }}/release/totex.exe"
+          [ -f "$built" ] || {
+            echo "::error::the build finished without producing $built"
+            exit 1
+          }
+          cp "$built" "dist-release/${{ matrix.artifact }}.exe"
+          ls -l "dist-release/${{ matrix.artifact }}.exe"
+
+      - name: Sign the program
+        # The same key, the same signer, the same job as everything else this
+        # build publishes. setup/ carries that key and checks this against it
+        # before a byte of it is written where the app goes -- which is the whole
+        # reason that installer exists, so a build that could not sign this is a
+        # release it will turn down rather than one it installs unchecked.
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "there is no key to sign the program with, so it is left unsigned"
+            exit 0
+          fi
+          pnpm tauri signer sign "dist-release/${{ matrix.artifact }}.exe"
+          ls -l "dist-release/${{ matrix.artifact }}.exe.sig"
+
       - name: Pack the pages on their own
         # The other half of a release. The pages the window is drawn out of are
         # the same on all three platforms -- one `pnpm build` produces them, and
@@ -491,12 +541,19 @@ jobs:
             ```
 
             The files below are what they download, for anybody who would
-            rather click. Their names are the same at every release — no
-            version in any of them — which is what makes a link to one worth
-            keeping:
+            rather click. They are this release's per-version installers, one
+            per platform, each holding this release and no other. Their names
+            are the same at every release — no version in any of them — which
+            is what makes a link to one worth keeping:
             `https://github.com/${{ github.repository }}/releases/latest/download/totex-macos-universal.dmg`
             is the newest release's, today and after every release still to
             come. Swap `latest` for a tag to hold a link to this one.
+
+            `totex-windows-x86_64.exe` is not one of them. It is the program
+            itself, out of its installer, and it is there for the
+            version-selectable installer — the one file that holds no release
+            and asks which one to put on the machine:
+            `https://github.com/${{ github.repository }}/releases/download/setup/totex-setup.exe`
 
             | Platform | Download |
             | --- | --- |

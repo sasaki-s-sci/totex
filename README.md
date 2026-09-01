@@ -5,6 +5,18 @@ and the terminals those worktrees are worked in.
 
 ## Install
 
+There are two installers and the difference between them is versions, not
+platforms.
+
+The **per-version installer** is cut with a release and holds that release: one
+per platform on every release page, and the newest one is what the two lines
+below fetch. The **version-selectable installer** holds no release at all — it
+is a window that asks which totex to put on the machine and then puts it there,
+so the copy downloaded once installs whatever is newest a year from now. It is
+Windows only, and it is the last thing in this section.
+
+Both of them install. Neither downloads the other.
+
 **macOS and Linux**
 
 ```sh
@@ -35,7 +47,7 @@ curl -fsSL https://github.com/sasaki-s-sci/totex/releases/latest/download/instal
 
 `--help` / `-Help` lists the rest of what they take.
 
-**Or take the installer yourself.** Every release page carries the installers
+**Or take the per-version installer yourself.** Every release page carries them
 as well, for anybody who would rather click than paste. Not one of their names
 holds a version, which is what makes each link below one worth keeping: it is
 the newest release today and the newest release a year from now, exactly as the
@@ -52,12 +64,15 @@ cut under, which is what `--version` is on the scripts. Releases cut before
 these names existed carry the version in theirs instead, and their own page is
 what has them.
 
-**Windows, with the version asked for and nothing typed.** There is one more
-installer, and it is on no release page because it holds no release: it is a
+**The version-selectable installer — Windows, with the version asked for and
+nothing typed.** It is on no release page because it holds no release: it is a
 window that asks which totex to put on the machine — the newest, or any version
-by name — and then does what `install.ps1` does. It reads the release page,
-downloads what that version shipped, checks it against the key totex is
-released with, and hands over to the pages the `-setup.exe` has always shown.
+by name — and then installs it. It reads the release page, downloads the
+program of that release, checks it against the key totex is released with,
+writes it where the app goes, makes the shortcuts and puts the line in
+Add/Remove Programs. The same values the per-version installer writes, so the
+two are alternatives rather than a stack: a copy put on by one is a copy the
+other recognises, and the app updating itself finds an install it knows.
 
 [`totex-setup.exe`](https://github.com/sasaki-s-sci/totex/releases/download/setup/totex-setup.exe)
 
@@ -67,12 +82,17 @@ all. It is published on a cycle of its own, under a tag of its own, so it moves
 when the installer moves rather than when the app does — which is what makes
 the copy downloaded today the one to keep.
 
-`-setup.exe` asks two things, where the app goes and whether there is a desktop
-shortcut, and opens totex once it has done it. The `.msi` asks nothing,
-installs for every account on the machine, and wants administrator to do that.
-The `.dmg` is the drag onto Applications. An `.AppImage` is one file: make it
-executable and run it. A `.deb` or an `.rpm` is the package manager's, which is
-also who brings it forward afterwards.
+It asks one thing, whether there is a desktop shortcut, and the app goes in the
+folder the per-version installer would have put it in. A release cut before its
+program was published beside its installers is the one thing it cannot install
+itself; it says so and runs that release's own installer instead.
+
+Of the per-version installers, `-setup.exe` asks two things, where the app goes
+and whether there is a desktop shortcut, and opens totex once it has done it.
+The `.msi` asks nothing, installs for every account on the machine, and wants
+administrator to do that. The `.dmg` is the drag onto Applications. An
+`.AppImage` is one file: make it executable and run it. A `.deb` or an `.rpm`
+is the package manager's, which is also who brings it forward afterwards.
 
 What is given up by clicking a file off a release page is the check. The
 scripts turn down anything not signed with the key totex is released with; a
@@ -87,7 +107,10 @@ publisher, which is More info, then Run anyway.
 
 `latest.json`, `totex-macos-universal.app.tar.gz`, `front.tar.gz` and the three
 `totex-layer-*.gz` sit beside them and are not downloads at all: they are what
-an installed copy updates itself from.
+an installed copy updates itself from. `totex-windows-x86_64.exe` is the app
+itself, out of its installer — what the version-selectable installer writes
+where the app goes, and the one file on the page that installs nothing if it is
+double-clicked, because it is not an installer. It is totex.
 
 ## Updating
 

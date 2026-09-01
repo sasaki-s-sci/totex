@@ -18,10 +18,10 @@
 //! A release page is not trusted to say which release it is. A manifest under
 //! `v0.1.6` that says 0.1.7 is a page somebody has been at, and taking what it
 //! offers anyway would make naming a version mean nothing — so the two are
-//! compared, which is the same check `setup/src/release.rs` makes for the same
+//! compared, which is the same check `setup/src/release` makes for the same
 //! reason.
 //!
-//! That file is the standalone Windows installer's half of all this, and the
+//! That file is the version-selectable installer's half of all this, and the
 //! resemblance is deliberate rather than shared code: it is a crate of its own,
 //! released on a cycle of its own, and it has to install a version of the app
 //! onto a machine that has none. What is common to the two is what a release
