@@ -137,6 +137,26 @@ impl Screen {
             .collect()
     }
 
+    /// One row, up to a column: what is written in front of the caret when the
+    /// caret is standing on that row.
+    ///
+    /// Cut in columns rather than in characters, because columns are what the
+    /// caret counts in. A row with a wide character on it holds fewer
+    /// characters than the columns it fills, and a string cut at the caret's
+    /// own number would be cut in the wrong place — which for a question typed
+    /// in Japanese is the middle of a word.
+    pub fn upto(&self, row: usize, col: usize) -> String {
+        if row >= self.rows {
+            return String::new();
+        }
+        let from = row * self.cols;
+        let to = from + col.min(self.cols);
+        self.cells[from..to]
+            .iter()
+            .filter(|cell| **cell != '\0')
+            .collect()
+    }
+
     pub fn feed(&mut self, text: &str) {
         for letter in text.chars() {
             match self.state {

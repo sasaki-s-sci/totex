@@ -4,6 +4,7 @@ mod frame;
 mod keyed;
 mod prompt;
 mod screen;
+mod typed;
 mod walk;
 
 use super::Screen;

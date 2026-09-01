@@ -42,6 +42,20 @@ pub struct Asking {
     ask: Option<super::Ask>,
 }
 
+/// A session, and the last thing typed at it.
+///
+/// Asked for rather than sent. A question is a turn nobody has taken and has to
+/// reach the window the moment it is put; this is a label somebody wants for as
+/// long as they are holding a key, and a session says it over and over as
+/// somebody types — so it goes the other way round, and the window asks when
+/// there is somebody to read it.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Typed {
+    id: String,
+    said: String,
+}
+
 /// One screen per running session, and nothing that is not on one.
 #[derive(Default)]
 pub struct AskState {
@@ -166,6 +180,27 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
         watcher.replay(&held.text, held.upto);
         watching.insert(session.id, watcher);
     }
+}
+
+/// The last thing typed at every running session that has been typed at.
+///
+/// What the canvas draws beside its terminal marks while Ctrl is held: the
+/// number says which of them a key would reach, and this says which of them is
+/// which. Read out of what the watchers are already holding, so asking costs a
+/// walk of the running sessions and nothing else.
+#[tauri::command]
+pub fn pty_typed<R: Runtime>(app: AppHandle<R>) -> Vec<Typed> {
+    let state = app.state::<AskState>();
+    let watching = state.lock();
+    watching
+        .iter()
+        .filter_map(|(id, watcher)| {
+            Some(Typed {
+                id: id.clone(),
+                said: watcher.typed()?.to_string(),
+            })
+        })
+        .collect()
 }
 
 /// Every question standing right now, for a window that has just come up. The

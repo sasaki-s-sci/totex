@@ -3,6 +3,7 @@ import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
 import { useCliJump } from "../cliJumps";
+import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
 import { CliMark } from "../marks";
 
@@ -42,6 +43,11 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   // saying the one thing anybody already knows about it — that it is a
   // terminal — next to the one thing they are looking for.
   const jump = useCliJump(id);
+  // And what this one was last told to do, while the same key is held. Beside
+  // the mark rather than on it, in the place a card would stand — one terminal
+  // among a stack of identical glyphs is told from the others by what somebody
+  // set it going on, and that is a line of words rather than a mark.
+  const said = useTypedLine(session.id);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
   // something reading the window aloud is given in place of the marks.
@@ -79,6 +85,15 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
         >
           <CloseIcon sx={{ fontSize: 9 }} />
         </button>
+
+        {/* Drawn for the eye running over a canvas and for nothing else: it is
+            already said, in full and in its own terminal, to anything reading
+            the window aloud. */}
+        {said === null ? null : (
+          <span className="cli__said" aria-hidden="true">
+            {said}
+          </span>
+        )}
       </div>
     </div>
   );
