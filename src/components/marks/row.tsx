@@ -1,6 +1,6 @@
 /**
- * The marks a row or a bar carries: a terminal, a close, an add, a jump, a step
- * up, and the settings.
+ * The marks a row or a bar carries: a terminal, an agent, a close, an add, a
+ * jump, a step up, and the settings.
  */
 
 import { Frame, HAIRLINE, SIZE, struck } from "../marks";
@@ -21,7 +21,43 @@ export function CliMark({ size }: { size?: number }) {
   return (
     <Frame size={size}>
       <path d="M4.8 7.6 L10.4 12 L4.8 16.4" />
-      <path d="M13.4 16.4 H20" />
+      {/* The cursor a terminal waits at. Named because it is the one part of
+          any mark in this file that moves: a session with something running in
+          it turns this over and leaves the chevron where it is — see
+          `.is-working` beside the terminal marks. The class is on the drawing
+          rather than a prop on the mark, because what is running is a fact
+          about a session and this mark is drawn in four places, three of which
+          are an offer to open one rather than one that is open. */}
+      <path className="cli-mark__caret" d="M13.4 16.4 H20" />
+    </Frame>
+  );
+}
+
+/**
+ * Three points joined: what stands in a terminal's place while an agent is
+ * running in it.
+ *
+ * A terminal running an agent is not a terminal somebody is waiting on. The
+ * glyph beside it says `a shell, and a command in it` — a chevron to type after
+ * — and that is the wrong thing to say about a session somebody is having, so
+ * the whole mark changes rather than something being hung off it.
+ *
+ * Points and the lines between them rather than a face or a star. It is drawn
+ * at eleven pixels in a stack of other marks at eleven pixels: an eye in a
+ * drawing that small is a pixel, and a pixel is not a feature. Three dots and
+ * three strokes hold their shape all the way down, and they are the same
+ * hairline everything else in this file is struck at.
+ */
+export function AgentMark({ size }: { size?: number }) {
+  return (
+    <Frame size={size}>
+      <circle cx="12" cy="5.6" r="2.6" />
+      <circle cx="5.6" cy="17.4" r="2.6" />
+      <circle cx="18.4" cy="17.4" r="2.6" />
+      {/* Rim to rim rather than centre to centre: a stroke run under a circle
+          is a stroke drawn twice at the hairline, and at eleven pixels that is
+          a blot where a point should be. */}
+      <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
     </Frame>
   );
 }

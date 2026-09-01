@@ -14,16 +14,18 @@
 //! empty composer alone, because a card that stood on those would stop meaning
 //! that somebody's turn has stopped.
 //!
-//! One smaller thing is read off the same screen and kept beside the question:
-//! the last thing typed at the session — see `typed`. It is not a question and
-//! nothing waits on it; it is here because this is where a session's screen is
-//! already held, and reading it anywhere else would be holding a second one.
+//! Two smaller things are read off the same screen and kept beside the
+//! question: the last thing typed at the session — see `typed` — and what the
+//! session is doing, see `doing`. Neither is a question and nothing waits on
+//! either; they are here because this is where a session's screen is already
+//! held, and reading them anywhere else would be holding a second one.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use serde::Serialize;
 
 mod choice;
+mod doing;
 mod glyph;
 mod read;
 mod screen;
@@ -33,6 +35,7 @@ pub mod watch;
 #[cfg(test)]
 mod tests;
 
+pub use doing::{Doing, doing};
 pub use read::read;
 pub use screen::Screen;
 pub use typed::typed;

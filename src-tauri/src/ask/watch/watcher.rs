@@ -1,6 +1,6 @@
 //! One session's screen, and the question standing on it.
 
-use super::super::{Ask, Reading, Screen, read, typed};
+use super::super::{Ask, Doing, Reading, Screen, doing, read, typed};
 
 /// Fed everything the session says whether or not a terminal is being drawn for
 /// it — a session nobody has opened is exactly the one whose question the graph
@@ -18,6 +18,32 @@ pub struct Watcher {
     /// output is read for one, and the last one there was stands until another
     /// takes its place. A session that has never been typed at has none.
     typed: Option<String>,
+    /// The command that started whatever is drawing on this screen, which is
+    /// the reading above with the agents taken out of it.
+    ///
+    /// Held apart because `typed` cannot survive an agent. That reading takes
+    /// the lowest line anybody could have typed on, and an agent redraws a
+    /// whole transcript of lines that look exactly like that — its composer,
+    /// the answer its own mark is standing on. So a session running one says it
+    /// was last told `1. Yes, run it`, which is right for the label the canvas
+    /// draws and useless for saying what is running.
+    ///
+    /// This is the same reading, kept only while the session is on its ordinary
+    /// screen. An agent takes the alternate one as it starts, so what is left
+    /// standing here is the line that started it, and it is left standing for
+    /// as long as the agent holds that screen.
+    started: Option<String>,
+    /// What the session is doing, as its screen stands.
+    ///
+    /// Kept rather than read when asked for, because this one is *sent*: the
+    /// mark on the canvas is drawn from it, and a window that had to ask would
+    /// be a window polling every session for a glyph. So the reading is taken
+    /// as the output arrives, and what crosses to the window is the moments it
+    /// changed — which for a shell somebody is typing at is twice a command.
+    doing: Doing,
+    /// Whether that has changed since anybody was told, which is what keeps a
+    /// session drawing its own output from saying `running` a thousand times.
+    turned: bool,
     /// How far into everything the session has said this screen has been fed.
     ///
     /// For the moment this is rebuilt: the screen is taken from the backlog in
@@ -34,6 +60,11 @@ impl Watcher {
             screen: Screen::new(rows, cols),
             asking: None,
             typed: None,
+            started: None,
+            // A shell that has not printed its prompt yet is a shell nobody
+            // can type at, which is what starting up is.
+            doing: Doing::Running,
+            turned: false,
             fed: 0,
         }
     }
@@ -48,12 +79,21 @@ impl Watcher {
         self.fed = at + data.len();
         self.screen.feed(data);
         self.remember();
+        self.reckon();
         self.settle(read(&self.screen))
     }
 
     /// Takes a whole backlog at once and stands wherever it leaves the screen.
     /// Nothing is reported: this is a question already being asked, arrived at a
     /// second time. A window that has just come up asks via `pty_asking`.
+    ///
+    /// One thing does not survive it: a session already running an agent comes
+    /// back as running something, because what says it is an agent is the line
+    /// that started it — and the whole backlog goes in at once, so there is no
+    /// moment here at which that line was the last thing typed. It is right
+    /// again the next time the session is left at a prompt. Nothing calls this
+    /// from the window today; `rederive` is a command for the day something
+    /// does.
     pub(super) fn replay(&mut self, text: &str, upto: usize) {
         self.screen.feed(text);
         self.asking = read(&self.screen).map(Ask::of);
@@ -61,6 +101,10 @@ impl Watcher {
         // it was made of went by in one, so there is nothing here to have
         // watched somebody type.
         self.remember();
+        self.reckon();
+        // Nothing was told, so nothing is owed: a window that has just come up
+        // asks for the lot of these through `pty_doing`.
+        self.turned = false;
         self.fed = upto;
     }
 
@@ -89,6 +133,33 @@ impl Watcher {
         if let Some(said) = typed(&self.screen) {
             self.typed = Some(said);
         }
+        // And the same reading again, kept only off the ordinary screen — see
+        // `started`. Taken here rather than beside the state it is read for,
+        // because this is the one place that knows the reading is fresh.
+        if !self.screen.standing().alt && self.started != self.typed {
+            self.started = self.typed.clone();
+        }
+    }
+
+    /// Takes the session's state off the screen as it stands, and keeps it.
+    fn reckon(&mut self) {
+        let doing = doing(&self.screen, self.started.as_deref());
+        if doing == self.doing {
+            return;
+        }
+        self.doing = doing;
+        self.turned = true;
+    }
+
+    /// What the session is doing, for a window asking after the lot of them.
+    pub fn doing(&self) -> Doing {
+        self.doing
+    }
+
+    /// The same thing, but only where it has changed since it was last asked
+    /// for — which is what is worth crossing to the window.
+    pub fn turned(&mut self) -> Option<Doing> {
+        std::mem::take(&mut self.turned).then_some(self.doing)
     }
 
     /// How far into everything the session has said this screen has been fed,

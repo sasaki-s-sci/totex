@@ -100,6 +100,56 @@
   filter: var(--lit);
 }
 
+/* Something running in this terminal, said by the terminal's own cursor.
+
+   The glyph is a chevron and the block that sits after it, which is a drawing
+   of a shell waiting to be typed at. So what says the shell is not waiting is
+   that block turning over: the one part of the mark that stands for the wait is
+   the one part that moves, and the chevron — which is what makes the glyph a
+   terminal at all — is left exactly where it is.
+
+   Two half turns rather than a spin. A cursor turning steadily is a spinner,
+   and a spinner beside every busy terminal on a canvas is a canvas of things
+   revolving; this turns over, stops long enough to be a mark again, and turns
+   over once more. Which way up it lands is not read — a block is the same block
+   at nought and at a hundred and eighty — so the turn is the whole of the
+   telling and the rest of the cycle is the mark standing still.
+
+   `transform` rather than anything else that could be animated here: it is the
+   one property the compositor can run without the canvas being redrawn, and the
+   colour of these marks is already saying something else. */
+.cli-mark__caret {
+  /* In the square the paths are written in, rather than in the box this one
+     stroke happens to fill: a horizontal line has no height, so the middle of
+     its own bounds is a place the drawing does not have. */
+  transform-box: view-box;
+  transform-origin: 16.7px 16.4px;
+}
+
+.cli__open.is-working .cli-mark__caret {
+  animation: cli-caret 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes cli-caret {
+  0% {
+    transform: rotate(0deg);
+  }
+  15%,
+  50% {
+    transform: rotate(180deg);
+  }
+  65%,
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cli__open.is-working .cli-mark__caret {
+    animation: none;
+  }
+}
+
 /* Ending a session is the one thing here that cannot be undone, so it is faint
    until the cursor is on the mark — but its room is always held, out to the
    side of the glyph, so a stack does not shuffle as the pointer runs down it. */

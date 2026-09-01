@@ -5,6 +5,7 @@
 import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
+import type { Doing } from "../lib/doing";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
 import type { CliPlace } from "../lib/graphNav";
@@ -65,6 +66,16 @@ export type GraphProps = {
    * through — see `mcp`.
    */
   reports: ReadonlyMap<string, Report>;
+  /**
+   * What each session is doing, by session id.
+   *
+   * The one of these three the terminal's own mark draws rather than something
+   * standing beside it: a session running an agent wears a mark of its own, one
+   * running anything else turns its cursor over, and one at a prompt is drawn
+   * as it always was. A session that is not in here is one nothing has been
+   * heard about yet.
+   */
+  doings: ReadonlyMap<string, Doing>;
   /** One of those answers was taken. */
   onAnswer: (session: Session, ask: Ask, key: string) => void;
   /** Or the answer was written: a question with nothing to press, or the row of
