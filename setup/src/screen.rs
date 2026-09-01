@@ -30,7 +30,7 @@ pub(crate) unsafe fn draw(app: &App) {
         let asking = if told.working { 0 } else { 1 };
         EnableWindow(app.button, asking);
         EnableWindow(app.version, asking);
-        EnableWindow(app.everyone, asking);
+        EnableWindow(app.desktop, asking);
     }
 }
 
@@ -66,7 +66,7 @@ pub(crate) unsafe fn start(app: &mut App) {
                 return;
             }
         };
-        let msi = SendMessageW(app.everyone, BM_GETCHECK, 0, 0) == 1;
+        let desktop = SendMessageW(app.desktop, BM_GETCHECK, 0, 0) == 1;
 
         {
             let mut told = app.told.lock().unwrap_or_else(|held| held.into_inner());
@@ -78,7 +78,7 @@ pub(crate) unsafe fn start(app: &mut App) {
 
         let told = app.told.clone();
         let poke = Poke(app.window);
-        std::thread::spawn(move || do_it(poke, told, asked, msi));
+        std::thread::spawn(move || do_it(poke, told, asked, desktop));
     }
 }
 

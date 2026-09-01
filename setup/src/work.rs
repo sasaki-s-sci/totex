@@ -4,6 +4,7 @@
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex};
 
+use crate::release::Release;
 use crate::{HINT, Poke, Told, WM_TOLD, WM_VERSIONS, install, release, web};
 
 /// Says a thing, and pokes the window into drawing it.
@@ -14,9 +15,9 @@ pub(crate) fn say(told: &Arc<Mutex<Told>>, poke: Poke, what: &str) {
 
 /// The whole of an install, on a thread of its own so that the window keeps
 /// answering while it happens.
-pub(crate) fn do_it(poke: Poke, told: Arc<Mutex<Told>>, asked: Option<String>, msi: bool) {
+pub(crate) fn do_it(poke: Poke, told: Arc<Mutex<Told>>, asked: Option<String>, desktop: bool) {
     let ending = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-        fetch(poke, &told, asked.as_deref(), msi)
+        fetch(poke, &told, asked.as_deref(), desktop)
     })) {
         Ok(Ok(said)) | Ok(Err(said)) => said,
         Err(_) => "The installer stopped in a way it cannot explain".to_string(),
@@ -34,14 +35,8 @@ pub(crate) fn fetch(
     poke: Poke,
     told: &Arc<Mutex<Told>>,
     asked: Option<&str>,
-    msi: bool,
+    desktop: bool,
 ) -> Result<String, String> {
-    let kind = if msi {
-        release::Kind::Msi
-    } else {
-        release::Kind::Exe
-    };
-
     say(told, poke, "Reading the release page");
     let manifest = web::get(
         &release::manifest_url(asked),
@@ -53,10 +48,10 @@ pub(crate) fn fetch(
         Some(version) => format!("There is no totex {version} to install — {why}"),
         None => why,
     })?;
-    let bundle = release::bundle(&manifest, asked, kind)?;
+    let bundle = release::bundle(&manifest, asked)?;
 
     say(told, poke, &format!("Downloading totex {}", bundle.version));
-    let downloaded = web::get(&bundle.url, release::BUNDLE_MOST, None, |done, total| {
+    let downloaded = web::get(&bundle.url, release::DOWNLOAD_MOST, None, |done, total| {
         told.lock().unwrap_or_else(|held| held.into_inner()).bar = Some((done, total));
         poke.tell(WM_TOLD);
     })?;
@@ -64,10 +59,19 @@ pub(crate) fn fetch(
     say(told, poke, "Checking the signature");
     release::ours(&downloaded, &bundle.signature)?;
 
-    say(told, poke, "Handing over to the installer");
-    let kept = install::keep(&bundle.file_name(), &downloaded)?;
-    let code = install::run(&kept, msi)?;
-    install::what_happened(&bundle.version, code)
+    // The bar has nothing left to measure, and the steps that follow name
+    // themselves as they happen.
+    told.lock().unwrap_or_else(|held| held.into_inner()).bar = None;
+    match bundle.what {
+        Release::Program => {
+            let step = |what: &str| say(told, poke, what);
+            install::put(&bundle.version, &downloaded, desktop, &step)
+        }
+        Release::Installer => {
+            say(told, poke, &install::handing_over(&bundle.version));
+            install::hand::over(&bundle.file_name(), &downloaded, &bundle.version)
+        }
+    }
 }
 
 /// Asks the release page what there is, so the box can offer it.

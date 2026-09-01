@@ -1,7 +1,13 @@
 name: Setup
 
-# The installer somebody downloads once and keeps, built and published on a
-# cycle of its own.
+# The version-selectable installer: the one somebody downloads once and keeps,
+# built and published on a cycle of its own.
+#
+# It is one of two. The other is the per-version installer -- the `-setup.exe`
+# and the `.msi` that .github/workflows/build.yml cuts with every release, each
+# holding the release it was cut with. Both of them install; neither downloads
+# the other. What this one takes off the release page is the program of the
+# version somebody chose, which that page carries beside its installers.
 #
 # Nothing under setup/ names a version of totex -- what it installs is decided
 # by the release page it reads when the button is pressed -- so a release of the
@@ -134,7 +140,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: setup
-          name: The installer
+          name: The version-selectable installer
           files: dist-setup/totex-setup.exe
           fail_on_unmatched_files: true
           # Marked as a pre-release so that it can never become what
@@ -146,14 +152,21 @@ jobs:
           prerelease: true
           make_latest: "false"
           body: |
-            The installer, which is not a release of totex and does not hold
-            one. It asks which version to install and installs it, so the file
+            The installer that is not a release of totex and does not hold one.
+            It asks which version to install and then installs it, so the file
             below is the one to keep: it installs whatever is newest today, and
             whatever is newest a year from now.
 
             ```
             https://github.com/${{ github.repository }}/releases/download/setup/totex-setup.exe
             ```
+
+            Installing is what it does itself — the program written where the
+            app goes, the shortcuts, the line in Add/Remove Programs — writing
+            the same values the per-version installer on each release page
+            writes. The two are alternatives rather than a stack: a copy put on
+            by one is a copy the other recognises, and this file is also what
+            Windows' own list points at to take it off again.
 
             It checks what it downloads against the key totex is released with,
             the same check `install.ps1` makes and the same one the app makes

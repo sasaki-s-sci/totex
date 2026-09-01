@@ -1,18 +1,33 @@
-//! The installer somebody downloads once and keeps.
+//! The version-selectable installer: the one somebody downloads once and keeps.
 //!
-//! Nothing in this file names a version of totex. What it installs is decided
-//! by the release page it reads when the button is pressed, which is what makes
-//! it worth keeping: the copy downloaded today installs whatever is newest a
-//! year from now, and the copy downloaded a year from now still installs the
-//! version asked for by name here. That is what the two install scripts have
-//! always been, and this is the same thing for somebody who would rather click
-//! than paste — released on its own cycle, because it moves when the installer
-//! moves rather than when the app does.
+//! There are two installers and this is the one that is not a release. The
+//! other is the per-version installer — `totex-windows-x86_64-setup.exe` and
+//! the `.msi` beside it, cut with each release, holding that release and no
+//! other. Nothing in this file names a version at all. What it installs is
+//! decided by the release page it reads when the button is pressed, which is
+//! what makes it worth keeping: the copy downloaded today installs whatever is
+//! newest a year from now, and the copy downloaded a year from now still
+//! installs the version asked for by name here. That is what the two install
+//! scripts have always been, and this is the same thing for somebody who would
+//! rather click than paste — released on its own cycle, because it moves when
+//! the installer moves rather than when the app does.
 //!
-//! What it does not do is skip the check. The scripts turn down anything not
-//! signed with the key totex is released with, and so does this — but without
-//! sending anybody off to install a verifier first, because the one thing a
-//! person who came here to click will not do is that.
+//! Both of them install. This one used to download the other one and run it,
+//! which made the version somebody chose here the only thing it actually
+//! decided; everything else about the install was a second program's, asked
+//! again on its own pages. Now the release carries its program beside its
+//! installers and this puts that program on the machine itself — see
+//! [`install`], which writes what the per-version installer writes so that the
+//! two are alternatives rather than a stack.
+//!
+//! What neither of them does is skip the check. The scripts turn down anything
+//! not signed with the key totex is released with, and so does this — but
+//! without sending anybody off to install a verifier first, because the one
+//! thing a person who came here to click will not do is that.
+//!
+//! It is also the uninstaller. The copy this leaves in the install directory is
+//! what Windows' own list points at, and started from there it takes the app
+//! off again rather than putting one on — see [`install::remove`].
 
 #![windows_subsystem = "windows"]
 
@@ -44,7 +59,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 const TITLE: &str = "Install totex";
 const HEADING: &str = "Which totex to put on this machine";
 const NEWEST: &str = "The newest release";
-const EVERYONE: &str = "For every account on this machine — the .msi, which asks for administrator";
+const DESKTOP: &str = "Put a shortcut on the desktop as well as in the Start menu";
 const HINT: &str = "Any released version can be asked for by name.";
 
 /// What the controls answer to. The first two are the dialog manager's own
@@ -53,7 +68,7 @@ const HINT: &str = "Any released version can be asked for by name.";
 const ID_INSTALL: i32 = IDOK;
 const ID_CLOSE: i32 = IDCANCEL;
 const ID_VERSION: i32 = 100;
-const ID_EVERYONE: i32 = 101;
+const ID_DESKTOP: i32 = 101;
 const ID_HEADING: i32 = 102;
 const ID_STATUS: i32 = 103;
 const ID_BAR: i32 = 104;
@@ -102,7 +117,7 @@ struct App {
     window: HWND,
     heading: HWND,
     version: HWND,
-    everyone: HWND,
+    desktop: HWND,
     status: HWND,
     bar: HWND,
     button: HWND,
@@ -112,6 +127,14 @@ struct App {
 }
 
 fn main() {
+    // Which of the two things this is. Started from the copy an install left
+    // behind, there is no window and nothing to choose: what it does is undo
+    // that install. See `install::remove`, which is also where the switches the
+    // per-version installer passes are read.
+    if let install::remove::Asked::Remove(removal) = install::remove::asked() {
+        std::process::exit(install::remove::go(removal) as i32);
+    }
+
     unsafe {
         let common = INITCOMMONCONTROLSEX {
             dwSize: size_of::<INITCOMMONCONTROLSEX>() as u32,
@@ -152,7 +175,7 @@ fn main() {
             window: std::ptr::null_mut(),
             heading: std::ptr::null_mut(),
             version: std::ptr::null_mut(),
-            everyone: std::ptr::null_mut(),
+            desktop: std::ptr::null_mut(),
             status: std::ptr::null_mut(),
             bar: std::ptr::null_mut(),
             button: std::ptr::null_mut(),

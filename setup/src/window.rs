@@ -14,7 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::{
-    App, EVERYONE, HEADING, HINT, ID_BAR, ID_CLOSE, ID_EVERYONE, ID_HEADING, ID_INSTALL, ID_STATUS,
+    App, DESKTOP, HEADING, HINT, ID_BAR, ID_CLOSE, ID_DESKTOP, ID_HEADING, ID_INSTALL, ID_STATUS,
     ID_VERSION, NEWEST, wide,
 };
 
@@ -31,12 +31,12 @@ pub(crate) unsafe fn build(app: &mut App) {
             child | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWN as u32 | CBS_AUTOHSCROLL as u32,
             ID_VERSION,
         );
-        app.everyone = control(
+        app.desktop = control(
             app.window,
             "BUTTON",
-            EVERYONE,
+            DESKTOP,
             child | WS_TABSTOP | BS_AUTOCHECKBOX as u32 | BS_MULTILINE as u32,
-            ID_EVERYONE,
+            ID_DESKTOP,
         );
         app.status = control(app.window, "STATIC", HINT, child, ID_STATUS);
         app.bar = control(app.window, "msctls_progress32", "", child, ID_BAR);
@@ -90,7 +90,7 @@ pub(crate) unsafe fn lay_out(app: &mut App) {
         place(app.version, EDGE, 42, INNER, 240);
         // Both of these are given the room a sentence takes when it wraps,
         // which is more than it takes here in English on this screen.
-        place(app.everyone, EDGE, 80, INNER, 34);
+        place(app.desktop, EDGE, 80, INNER, 34);
         place(app.status, EDGE, 120, INNER, 48);
         place(app.bar, EDGE, 174, INNER, 8);
         place(app.button, WIDE - EDGE - BUTTON * 2 - 10, 194, BUTTON, 28);

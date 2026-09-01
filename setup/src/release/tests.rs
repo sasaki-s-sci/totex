@@ -2,13 +2,32 @@
 
 use super::*;
 
-/// A release manifest with the one entry a Windows machine reads.
+/// A release manifest as they are cut now: the program beside the installers
+/// that carry it, which is what this installs.
 const MANIFEST: &str = r#"{
   "version": "0.1.6",
   "pub_date": "2026-08-24T00:00:00.000Z",
   "platforms": {
     "windows-x86_64-nsis": {
-      "signature": "c2lnbmF0dXJl",
+      "signature": "aW5zdGFsbGVy",
+      "url": "https://github.com/sasaki-s-sci/totex/releases/download/v0.1.6/totex-windows-x86_64-setup.exe"
+    }
+  },
+  "programs": {
+    "windows-x86_64": {
+      "signature": "cHJvZ3JhbQ==",
+      "url": "https://github.com/sasaki-s-sci/totex/releases/download/v0.1.6/totex-windows-x86_64.exe"
+    }
+  }
+}"#;
+
+/// A release cut before one carried its program: all this can do with it is
+/// run the installer it does carry.
+const OLDER: &str = r#"{
+  "version": "0.1.6",
+  "platforms": {
+    "windows-x86_64-nsis": {
+      "signature": "aW5zdGFsbGVy",
       "url": "https://github.com/sasaki-s-sci/totex/releases/download/v0.1.6/totex-windows-x86_64-setup.exe"
     }
   }
@@ -35,9 +54,22 @@ fn the_newest_release_is_a_different_address_from_a_named_one() {
 }
 
 #[test]
-fn a_manifest_names_what_to_download() {
-    let bundle = bundle(MANIFEST.as_bytes(), None, Kind::Exe).unwrap();
+fn a_release_that_carries_its_program_is_installed_from_it() {
+    let bundle = bundle(MANIFEST.as_bytes(), None).unwrap();
     assert_eq!(bundle.version, "0.1.6");
+    assert_eq!(bundle.what, Release::Program);
+    assert!(
+        bundle.url.ends_with("/totex-windows-x86_64.exe"),
+        "{bundle:?}"
+    );
+}
+
+#[test]
+fn a_release_that_does_not_is_installed_by_its_own_installer() {
+    // The one thing left that is handed over to rather than done here, and
+    // only because there is nothing else in the release to do it with.
+    let bundle = bundle(OLDER.as_bytes(), None).unwrap();
+    assert_eq!(bundle.what, Release::Installer);
     assert_eq!(bundle.file_name(), "totex-windows-x86_64-setup.exe");
 }
 
@@ -45,15 +77,16 @@ fn a_manifest_names_what_to_download() {
 fn a_tag_that_says_another_version_is_turned_down() {
     // The whole worth of asking for a version by name: a release page that
     // answers with something else is one to stop at.
-    let complaint = bundle(MANIFEST.as_bytes(), Some("0.1.5"), Kind::Exe).unwrap_err();
+    let complaint = bundle(MANIFEST.as_bytes(), Some("0.1.5")).unwrap_err();
     assert!(complaint.contains("0.1.5"), "{complaint}");
     assert!(complaint.contains("0.1.6"), "{complaint}");
 }
 
 #[test]
 fn a_release_with_nothing_for_this_machine_says_so() {
-    let complaint = bundle(MANIFEST.as_bytes(), None, Kind::Msi).unwrap_err();
-    assert!(complaint.contains("windows-x86_64-msi"), "{complaint}");
+    let nothing = r#"{"version": "0.1.6", "platforms": {}, "programs": {}}"#;
+    let complaint = bundle(nothing.as_bytes(), None).unwrap_err();
+    assert!(complaint.contains("windows-x86_64"), "{complaint}");
 }
 
 #[test]
@@ -62,6 +95,7 @@ fn nothing_a_manifest_says_becomes_a_path() {
         version: "0.1.6".to_string(),
         url: "https://example.invalid/..\\..\\Startup\\totex.exe".to_string(),
         signature: String::new(),
+        what: Release::Installer,
     };
     let name = sideways.file_name();
     assert!(!name.contains(['/', '\\']), "{name}");

@@ -38,11 +38,21 @@
  * not a kind of installed copy, because nothing about how a copy got onto the
  * disk changes which program can run beside it.
  *
- * What makes both of them keys of their own rather than more platforms is that
- * nothing in the updater plugin reads either. It reads what it knows and
- * ignores the rest; `src-tauri/src/front` and `src-tauri/src/app_layer` read
- * these, out of the same document, because what the newest release is should
- * not be several files that can disagree.
+ * `programs` is the last third: the app's own executable, out of the installer
+ * rather than in it. Nothing installed reads this one — an installed copy
+ * replaces its program by running a per-version installer over the top of
+ * itself, which is what `platforms` is for. It is read by the machine that has
+ * no installed copy yet: setup/, the version-selectable installer, which asks
+ * which release to put on and then puts it on, and needs the program itself to
+ * do that rather than another installer to run. One per kind of machine for the
+ * same reason the layer is, and only Windows has one because only Windows has
+ * that installer.
+ *
+ * What makes all three of them keys of their own rather than more platforms is
+ * that nothing in the updater plugin reads any of them. It reads what it knows
+ * and ignores the rest; `src-tauri/src/front` and `src-tauri/src/app_layer`
+ * read theirs, out of the same document, because what the newest release is
+ * should not be several files that can disagree.
  *
 
  * ## Why every one of them is required
@@ -77,7 +87,11 @@ import { fileURLToPath } from "node:url";
  * them together.
  */
 const CYCLES = {
-  release: { tag: "v", manifest: "latest.json", holds: ["platforms", "front", "layers"] },
+  release: {
+    tag: "v",
+    manifest: "latest.json",
+    holds: ["platforms", "front", "layers", "programs"],
+  },
   layer: { tag: "layer-v", manifest: "layer.json", holds: ["layers"] },
   front: { tag: "front-v", manifest: "front.json", holds: ["front"] },
 };
@@ -102,6 +116,16 @@ const LAYERS = [
   { name: "totex-layer-windows-x86_64.gz", targets: ["windows-x86_64"] },
   { name: "totex-layer-macos-universal.gz", targets: ["macos-aarch64", "macos-x86_64"] },
 ];
+
+/**
+ * The program of the release, out of its installer, one per kind of machine.
+ *
+ * Windows and nothing else, because the version-selectable installer is a
+ * Windows program and it is the only thing that reads these. The name is the
+ * one .github/workflows/build.yml collects it under, which is the artifact's
+ * own name and what the file is — the same rule every other download follows.
+ */
+const PROGRAMS = [{ name: "totex-windows-x86_64.exe", targets: ["windows-x86_64"] }];
 
 /**
  * Which kind of copy each bundle replaces.
@@ -153,7 +177,7 @@ const { frontContract, layerProtocol } = JSON.parse(readFileSync(packageJson, "u
 const manifest = { version, pub_date: new Date().toISOString() };
 const said = [];
 for (const holds of cycle.holds) {
-  manifest[holds] = { platforms, front, layers }[holds]();
+  manifest[holds] = { platforms, front, layers, programs }[holds]();
 }
 
 const out = join(directory, cycle.manifest);
@@ -223,6 +247,28 @@ function layers() {
     };
     for (const target of kind.targets) found[target] = entry;
     said.push(`layer (speaks ${layerProtocol})  ${kind.name}  ${kind.targets.join(", ")}`);
+  }
+  return found;
+}
+
+/**
+ * Where each kind of machine's program is, on its own.
+ *
+ * No number beside it the way the other two carry one. The layer declares the
+ * conversation it speaks and the pages declare what they need, because either
+ * can end up beside a half of the app out of another release. This cannot: it
+ * is the program of this release, and what installs it installs the whole of
+ * that release at once.
+ */
+function programs() {
+  const found = {};
+  for (const kind of PROGRAMS) {
+    if (!files.includes(kind.name)) {
+      fail(`nothing for the version-selectable installer to install: no ${kind.name} was built`);
+    }
+    const entry = { signature: signatureOf(kind.name), url: downloadOf(kind.name) };
+    for (const target of kind.targets) found[target] = entry;
+    said.push(`program  ${kind.name}  ${kind.targets.join(", ")}`);
   }
   return found;
 }
