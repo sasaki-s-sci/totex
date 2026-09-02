@@ -32,6 +32,7 @@
 #![windows_subsystem = "windows"]
 
 mod install;
+mod paint;
 mod proc;
 mod release;
 mod screen;
@@ -42,10 +43,10 @@ mod work;
 use std::sync::{Arc, Mutex};
 
 use windows_sys::Win32::Foundation::HWND;
-use windows_sys::Win32::Graphics::Gdi::{COLOR_BTNFACE, GetSysColorBrush, HFONT};
+use windows_sys::Win32::Graphics::Gdi::HFONT;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Controls::{
-    ICC_PROGRESS_CLASS, INITCOMMONCONTROLSEX, InitCommonControlsEx,
+    ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CW_USEDEFAULT, CreateWindowExW, DispatchMessageW, GetMessageW, IDC_ARROW, IDCANCEL, IDOK,
@@ -53,6 +54,8 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     RegisterClassW, SW_SHOW, ShowWindow, TranslateMessage, WM_APP, WM_USER, WNDCLASSW, WS_CAPTION,
     WS_EX_CONTROLPARENT, WS_MINIMIZEBOX, WS_SYSMENU,
 };
+
+use crate::paint::Paint;
 
 /// The window's own strings, in one place because they are half of what this
 /// program is.
@@ -123,6 +126,8 @@ struct App {
     button: HWND,
     close: HWND,
     font: HFONT,
+    /// The colours all of that is drawn in, read off the machine once.
+    paint: Paint,
     told: Arc<Mutex<Told>>,
 }
 
@@ -138,9 +143,18 @@ fn main() {
     unsafe {
         let common = INITCOMMONCONTROLSEX {
             dwSize: size_of::<INITCOMMONCONTROLSEX>() as u32,
-            dwICC: ICC_PROGRESS_CLASS,
+            dwICC: ICC_STANDARD_CLASSES,
         };
         InitCommonControlsEx(&common);
+
+        // Which half of totex's colours this machine asked for, read before
+        // there is a window: the class below is registered with the ground it
+        // stands on, and a program only gets to say it draws itself dark while
+        // it has nothing on the screen yet.
+        let paint = Paint::chosen();
+        if paint.dark {
+            paint::allow_dark();
+        }
 
         let instance = GetModuleHandleW(std::ptr::null());
         let class_name = wide("totex-setup");
@@ -165,7 +179,7 @@ fn main() {
             )
             .cast(),
             hCursor: LoadCursorW(std::ptr::null_mut(), IDC_ARROW),
-            hbrBackground: GetSysColorBrush(COLOR_BTNFACE),
+            hbrBackground: paint.ground,
             lpszMenuName: std::ptr::null(),
             lpszClassName: class_name.as_ptr(),
         };
@@ -181,6 +195,7 @@ fn main() {
             button: std::ptr::null_mut(),
             close: std::ptr::null_mut(),
             font: std::ptr::null_mut(),
+            paint,
             told: Arc::new(Mutex::new(Told {
                 status: HINT.to_string(),
                 ..Told::default()

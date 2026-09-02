@@ -1,19 +1,21 @@
 //! The window procedure: every message Windows sends, and what it means here.
 
-use windows_sys::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows_sys::Win32::Graphics::Gdi::{
-    COLOR_BTNFACE, GetSysColor, GetSysColorBrush, HDC, SetBkColor,
-};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use windows_sys::Win32::Graphics::Gdi::{HDC, SetBkColor, SetTextColor};
+use windows_sys::Win32::UI::Controls::DRAWITEMSTRUCT;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CREATESTRUCTW, DefWindowProcW, GWLP_USERDATA, GetWindowLongPtrW, PostQuitMessage, SWP_NOZORDER,
-    SetWindowLongPtrW, SetWindowPos, WM_COMMAND, WM_CREATE, WM_CTLCOLORSTATIC, WM_DESTROY,
-    WM_DPICHANGED, WM_NCCREATE,
+    SetWindowLongPtrW, SetWindowPos, WM_COMMAND, WM_CREATE, WM_CTLCOLORBTN, WM_CTLCOLOREDIT,
+    WM_CTLCOLORLISTBOX, WM_CTLCOLORSTATIC, WM_DESTROY, WM_DPICHANGED, WM_DRAWITEM, WM_NCCREATE,
 };
 
-use crate::screen::{draw, offer, start};
+use crate::paint::dress_window;
+use crate::screen::{bar, draw, offer, start};
 use crate::window::{build, centre, lay_out};
 use crate::work::which_versions;
-use crate::{App, DC_HASDEFID, DM_GETDEFID, ID_CLOSE, ID_INSTALL, Poke, WM_TOLD, WM_VERSIONS};
+use crate::{
+    App, DC_HASDEFID, DM_GETDEFID, ID_BAR, ID_CLOSE, ID_INSTALL, Poke, WM_TOLD, WM_VERSIONS,
+};
 
 pub(crate) unsafe extern "system" fn handle(
     window: HWND,
@@ -39,6 +41,12 @@ pub(crate) unsafe extern "system" fn handle(
             WM_CREATE => {
                 build(app);
                 centre(window);
+                // The one part of a window a program does not paint. Said
+                // before it is shown, so that a dark window is not a light
+                // title bar for the frame it takes to be told.
+                if app.paint.dark {
+                    dress_window(window);
+                }
                 let told = app.told.clone();
                 let poke = Poke(window);
                 std::thread::spawn(move || which_versions(poke, told));
@@ -60,12 +68,33 @@ pub(crate) unsafe extern "system" fn handle(
                 offer(app);
                 0
             }
-            // Every label and the checkbox sit on the window's own grey, which
-            // is not the colour a static control paints behind itself unless
-            // it is told.
-            WM_CTLCOLORSTATIC => {
-                SetBkColor(the as HDC, GetSysColor(COLOR_BTNFACE) as COLORREF);
-                GetSysColorBrush(COLOR_BTNFACE) as LRESULT
+            // Every label and the check box sit on the window's own ground,
+            // which is not the colour a control paints behind itself unless it
+            // is told. The status line is given the quieter of the two inks: it
+            // says what is happening rather than what there is to decide.
+            WM_CTLCOLORSTATIC | WM_CTLCOLORBTN => {
+                let ink = if parameter as HWND == app.status {
+                    app.paint.scheme.ink_muted
+                } else {
+                    app.paint.scheme.ink
+                };
+                SetTextColor(the as HDC, ink);
+                SetBkColor(the as HDC, app.paint.scheme.ground);
+                app.paint.ground as LRESULT
+            }
+            // The box a version is typed into, and the list it drops, stand on
+            // the ground rather than being part of it.
+            WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => {
+                SetTextColor(the as HDC, app.paint.scheme.ink);
+                SetBkColor(the as HDC, app.paint.scheme.surface);
+                app.paint.surface as LRESULT
+            }
+            // The progress bar is drawn here rather than by comctl32, which
+            // draws one in its own green on its own near-white however the
+            // window around it is painted. See `screen::bar`.
+            WM_DRAWITEM if the as i32 == ID_BAR => {
+                bar(app, &*(parameter as *const DRAWITEMSTRUCT));
+                1
             }
             WM_DPICHANGED => {
                 let suggested = parameter as *const RECT;
