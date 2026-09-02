@@ -28,7 +28,12 @@ serde_json = "1.0.151"
 # over -- is something the machine already has, which is what keeps a file
 # nobody re-downloads from carrying a TLS stack that ages.
 windows-sys = { version = "0.61.2", features = [
+    # Which Windows this actually is, which decides whether the window can be
+    # drawn dark at all. See src/paint.rs.
+    "Wdk_System_SystemServices",
     "Win32_Foundation",
+    # The one part of the window this program does not paint: the title bar.
+    "Win32_Graphics_Dwm",
     "Win32_Graphics_Gdi",
     "Win32_Networking_WinHttp",
     "Win32_Security",
@@ -39,7 +44,12 @@ windows-sys = { version = "0.61.2", features = [
     # The line in Add/Remove Programs, and whether there is a webview.
     "Win32_System_Registry",
     "Win32_System_SystemInformation",
+    # Where the style a static control is made with happens to be kept.
+    "Win32_System_SystemServices",
     "Win32_System_Threading",
+    # Whether the machine is set to high contrast, which decides the whole
+    # question of what colour anything is.
+    "Win32_UI_Accessibility",
     "Win32_UI_Controls",
     "Win32_UI_HiDpi",
     "Win32_UI_Input_KeyboardAndMouse",

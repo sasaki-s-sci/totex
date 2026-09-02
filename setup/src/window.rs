@@ -4,6 +4,7 @@
 use windows_sys::Win32::Foundation::{HWND, RECT};
 use windows_sys::Win32::Graphics::Gdi::{CreateFontIndirectW, DeleteObject, HFONT, LOGFONTW};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::SystemServices::SS_OWNERDRAW;
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForSystem, GetDpiForWindow};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     BS_AUTOCHECKBOX, BS_DEFPUSHBUTTON, BS_MULTILINE, BS_PUSHBUTTON, CB_ADDSTRING, CB_SETCURSEL,
@@ -13,6 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WS_CHILD, WS_EX_CONTROLPARENT, WS_MINIMIZEBOX, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE, WS_VSCROLL,
 };
 
+use crate::paint::dress_control;
 use crate::{
     App, DESKTOP, HEADING, HINT, ID_BAR, ID_CLOSE, ID_DESKTOP, ID_HEADING, ID_INSTALL, ID_STATUS,
     ID_VERSION, NEWEST, wide,
@@ -39,7 +41,11 @@ pub(crate) unsafe fn build(app: &mut App) {
             ID_DESKTOP,
         );
         app.status = control(app.window, "STATIC", HINT, child, ID_STATUS);
-        app.bar = control(app.window, "msctls_progress32", "", child, ID_BAR);
+        // Owner-drawn, which here means drawn by `screen::bar` in the colours
+        // the rest of the window is in. comctl32's own bar is a fine bar and it
+        // is green on near-white in every window ever painted, which is one
+        // colour too many for a window with a scheme of its own.
+        app.bar = control(app.window, "STATIC", "", child | SS_OWNERDRAW, ID_BAR);
         app.button = control(
             app.window,
             "BUTTON",
@@ -54,6 +60,17 @@ pub(crate) unsafe fn build(app: &mut App) {
             child | WS_TABSTOP | BS_PUSHBUTTON as u32,
             ID_CLOSE,
         );
+
+        // What a colour cannot reach: the tick inside the check box, the arrow
+        // on the drop-down, the face of a button. Those are drawn from the
+        // theme rather than from anything `proc` answers, and the theme has a
+        // dark set of each under a name the shell uses for exactly this.
+        if app.paint.dark {
+            dress_control(app.version, "DarkMode_CFD");
+            for button in [app.desktop, app.button, app.close] {
+                dress_control(button, "DarkMode_Explorer");
+            }
+        }
 
         SendMessageW(app.version, CB_ADDSTRING, 0, wide(NEWEST).as_ptr() as isize);
         SendMessageW(app.version, CB_SETCURSEL, 0, 0);
