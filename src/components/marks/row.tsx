@@ -55,6 +55,46 @@ const TURN = {
 } as const;
 
 /**
+ * The whole of the agent mark turning, which is what says a session is carrying
+ * on without anybody.
+ *
+ * The other two states move the part of the glyph that carries what they mean —
+ * a busy terminal turns the cursor it is waiting at, and leaves the chevron
+ * alone. This mark has no such part: three points and the lines between them
+ * are one drawing of a session somebody is having, and there is nothing in it
+ * that stands for the working in particular. So the whole mark turns.
+ *
+ * A third of a turn every 2.7 seconds, and the loop is that third rather than
+ * the whole turn. The three points are all but evenly spaced round the mark's
+ * centre — a degree and a half out, and a fifth of a pixel apart at the size
+ * this is drawn — so a third of a turn lands on the shape it started as and the
+ * seam has nothing in it to see. What that reads as is a mark that keeps
+ * arriving back at itself rather than one going somewhere.
+ *
+ * Eight seconds for the whole way round, against the second and a half a busy
+ * terminal takes to turn its cursor over twice. The two are different news and
+ * should not read as one speed down a stack: a cursor turning over is something
+ * being waited on, and this is somebody's session carrying on without them. It
+ * is slow enough to be read as movement rather than as haste, which is the
+ * difference between a mark that is alive and a spinner.
+ *
+ * Carried on the drawing rather than in a stylesheet, for the reason `TURN` is:
+ * this mark is drawn on the canvas and in the panel's band, and the two have no
+ * container in common.
+ */
+const SPIN = {
+  // The square the paths are written in, the way the caret's origin is — and
+  // the three points' own centre rather than the middle of that square, which
+  // sits a little above it. About the square, the mark would walk round a small
+  // circle instead of turning where it stands.
+  transformBox: "view-box",
+  transformOrigin: "12px 13.47px",
+  animation: "totex-agent-turn 2.7s linear infinite",
+  "@keyframes totex-agent-turn": { to: { transform: "rotate(120deg)" } },
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+} as const;
+
+/**
  * A line with a branch leaving it for a ring — the graph in miniature, which is
  * what expanding a folder puts on the canvas. The ring fills once it is there,
  * so the mark says the state as well as the offer.
@@ -99,13 +139,19 @@ export function CliMark({ size, working }: { size?: number; working?: boolean })
 export function AgentMark({ size }: { size?: number }) {
   return (
     <Frame size={size}>
-      <circle cx="12" cy="5.6" r="2.6" />
-      <circle cx="5.6" cy="17.4" r="2.6" />
-      <circle cx="18.4" cy="17.4" r="2.6" />
-      {/* Rim to rim rather than centre to centre: a stroke run under a circle
-          is a stroke drawn twice at the hairline, and at eleven pixels that is
-          a blot where a point should be. */}
-      <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      {/* Grouped so that the three points and the lines between them turn as
+          one drawing. The turn is the mark's, not a state hung on it: this mark
+          is only ever drawn where an agent is running, so what it says and what
+          it does are the same statement — see `SPIN`. */}
+      <Box component="g" sx={SPIN}>
+        <circle cx="12" cy="5.6" r="2.6" />
+        <circle cx="5.6" cy="17.4" r="2.6" />
+        <circle cx="18.4" cy="17.4" r="2.6" />
+        {/* Rim to rim rather than centre to centre: a stroke run under a circle
+            is a stroke drawn twice at the hairline, and at eleven pixels that is
+            a blot where a point should be. */}
+        <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      </Box>
     </Frame>
   );
 }

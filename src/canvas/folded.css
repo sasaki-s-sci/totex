@@ -116,6 +116,7 @@
 }
 
 .head.is-provisional .head__ring__ink,
+.head.is-provisional .head__ring__here,
 .head.is-provisional .head__cli {
   display: none;
 }

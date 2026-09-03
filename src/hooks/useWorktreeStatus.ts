@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 
 import { type WorktreeStatus, worktreeStatuses } from "../lib/workspace";
+import { worktreePaths } from "../lib/worktrees";
 import type { Workspace } from "../types/git";
 
 /**
@@ -85,18 +86,6 @@ export function useWorktreeStatus(
   }, [key]);
 
   return statuses;
-}
-
-/** Every directory worth asking about: a worktree that is there to be read. */
-function worktreePaths(workspace: Workspace | null): string[] {
-  if (!workspace) return [];
-  const paths: string[] = [];
-  for (const repository of workspace.repositories) {
-    for (const worktree of repository.worktrees) {
-      if (worktree.exists && !worktree.bare) paths.push(worktree.path);
-    }
-  }
-  return paths;
 }
 
 /**

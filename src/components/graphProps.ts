@@ -38,6 +38,16 @@ export type GraphProps = {
    */
   folders: readonly Folder[];
   /**
+   * Where the folder column's panes are standing.
+   *
+   * Not what the graph draws — that is `folders`, which is what was actually
+   * put on the canvas. This is only where the column is looking, and what the
+   * canvas does with it is light the ring of the worktree it is looking into:
+   * pressing a ring moves a pane there, and until now nothing said which ring
+   * the column had ended up in.
+   */
+  browsing: readonly string[];
+  /**
    * What this window is running, in the order it was opened.
    *
    * A terminal is a mark in the column past its repository's branches, joined
