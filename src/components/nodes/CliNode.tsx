@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
 import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
+import { useCliPlace } from "../cliPlaces";
 import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
 import { CliGlyph } from "../marks";
@@ -33,10 +34,13 @@ import { CliGlyph } from "../marks";
  * one would be a mark that answers to nothing, which on a canvas of things that
  * can be done is a reading pretending to be a place. What the window opened is
  * what the window draws.
+ *
+ * One of them carries a word: the terminal in the panel says, while Ctrl is
+ * held, what it is running in. See `.cli__place`.
  */
 export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { t } = useTranslation();
-  const { session, showing, ordinal } = data;
+  const { session, showing, ordinal, group } = data;
   const { showSession, endSession } = useGraphActions();
   // What Ctrl and this number would reach, while Ctrl is being held. Drawn in
   // place of the glyph rather than beside it: the number is the whole of what
@@ -54,6 +58,13 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   // states and three drawings — see `CliGlyph`, which is what the panel's band
   // draws from the same two readings.
   const doing = useCliDoing(session.id);
+  // And what the terminal in the panel is running in — a repository or a folder
+  // — which only that one is given, and only while the same key is down. The
+  // key is what a stack is read with: every mark on it turns into a number to
+  // go somewhere by, and the word says where the one being left is. It is on
+  // the row it belongs to rather than in the run of them, so it is drawn where
+  // every name on this canvas is drawn: on the line over its own mark.
+  const place = useCliPlace(group);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
   // something reading the window aloud is given in place of the marks.
@@ -62,6 +73,15 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   return (
     <div className="cell cli">
       <div className="mark mark--centred cli__row">
+        {/* Where this one is running, over the mark and for the eye alone: the
+            band it stands in is named on the canvas already, and the panel
+            names it again over the run in its strip. */}
+        {showing && jump !== null && place ? (
+          <span className="cli__place" aria-hidden="true">
+            {place}
+          </span>
+        ) : null}
+
         <button
           type="button"
           className={`cli__open nopan${showing ? " is-showing" : ""}`}

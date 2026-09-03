@@ -25,6 +25,7 @@ import { BrowsingProvider } from "./browsing";
 import { useCanvasActions } from "./canvasActions";
 import { CliDoingProvider } from "./cliDoing";
 import { CliJumpsProvider } from "./cliJumps";
+import { CliPlacesProvider } from "./cliPlaces";
 import { CliTypedProvider } from "./cliTyped";
 import { GraphLines } from "./GraphLines";
 import { GraphActionsProvider } from "./graphActions";
@@ -213,6 +214,13 @@ export function GitGraph({
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
   useEffect(() => onCliRun(run), [run, onCliRun]);
 
+  // The same run again, read by the row rather than by the number: what the
+  // strip heads each run with is what a mark out on the canvas has to say it is
+  // standing in, so the two are taken from the one reading and cannot drift.
+  // Only the rows something is running in are in here, which is every row that
+  // could ask.
+  const cliPlaces = useMemo(() => new Map(run.map((place) => [place.group, place.name])), [run]);
+
   // And what each of those numbers is standing beside, taken at the press and
   // held for as long as the key is — or kept on all the time, where the window
   // has been told to in settings. The numbers are what a key would reach; the
@@ -273,78 +281,85 @@ export function GitGraph({
             until Ctrl is held. Only the terminal marks read this, so the key
             costs a render of those and of nothing else on the canvas. */}
               <CliJumpsProvider value={jumps}>
-                {/* And what each of them is running, which unlike the two above is
-              not a key being held: it is on the canvas all the time, because a
-              stack of identical glyphs cannot otherwise say which of them is
-              busy and which is an agent somebody is working with. Through
-              context for the same reason those are — a session turns over twice
-              a command, and the layout is not rebuilt for that. */}
-                <CliDoingProvider value={doings}>
-                  {/* And what each of them was last told to do, which is the
-                other half of the same key — or standing on its own, where the
-                lines have been asked for outright: the number says which mark
-                a press would reach, and the line says which terminal that mark
-                is. */}
-                  <CliTypedProvider value={typed}>
-                    {/* `is-merging` and the two ends of a merge are written on here by
-                `useBranchDrag` rather than handed down, so the class stays put
-                across a render: React only writes an attribute whose prop changed,
-                and this one never does. Which is why how far out the canvas is
-                zoomed is said in an attribute of its own rather than in the class:
-                a class React rewrote would take the merge's own marks with it. */}
-                    <div ref={host} className="graph" data-coarse={coarse || undefined}>
-                      {/* The canvas stays mounted while folders enter and leave it. Its
-                  controlled nodes and repository-set framing already carry those
-                  changes; replacing the instance would initialise an empty view
-                  before the scanned nodes arrive. */}
-                      <ReactFlow<AppNode, Edge>
-                        ref={pane}
-                        nodes={shown}
-                        nodeTypes={nodeTypes}
-                        onNodesChange={onNodesChange}
-                        onInit={(flow) => {
-                          instance.current = flow;
-                          setFlowReady(true);
-                          // The first frame is framed by `fitView` rather than by a move, so
-                          // the canvas has to be asked where it ended up.
-                          resolve(flow.getViewport().zoom);
-                        }}
-                        onMove={handleMove}
-                        onNodeClick={handleNodeClick}
-                        onNodeDragStart={takeGroup}
-                        onNodeDrag={carryGroup}
-                        onNodeDragStop={dropGroup}
-                        onPaneClick={() => setSelectedCommit(null)}
-                        nodesConnectable={false}
-                        nodesDraggable
-                        elevateNodesOnSelect={false}
-                        // Commit history is the unbounded part and is one shared SVG;
-                        // the small interactive node set stays mounted. React Flow's own
-                        // per-frame visibility pass cost more than moving those nodes.
-                        onlyRenderVisibleElements={false}
-                        minZoom={MIN_ZOOM}
-                        maxZoom={MAX_ZOOM}
-                        // The wheel is `useCanvasZoom`'s: d3-zoom holds the point
-                        // under the cursor still, and this canvas comes in on its
-                        // own middle instead. A pinch is still React Flow's.
-                        zoomOnScroll={false}
-                        proOptions={proOptions}
-                        fitView
-                      >
-                        <GraphLines
-                          bands={graph.bands}
-                          reach={graph.reach}
-                          extent={graph.extent}
-                          nodes={lineNodes}
-                          selected={selectedCommit}
-                          picked={picked}
-                          onCommit={handleCommitClick}
-                        />
-                      </ReactFlow>
-                      <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
-                    </div>
-                  </CliTypedProvider>
-                </CliDoingProvider>
+                {/* And where each of them is standing, which is what a number
+              cannot say: a mark wearing one says which key reaches it, and
+              this says what the terminal being read is running in. The run the
+              panel's strip is drawn from, keyed by the row it heads — one
+              reading of one canvas, said out here as well as in the band. */}
+                <CliPlacesProvider value={cliPlaces}>
+                  {/* And what each of them is running, which unlike the two above is
+                not a key being held: it is on the canvas all the time, because a
+                stack of identical glyphs cannot otherwise say which of them is
+                busy and which is an agent somebody is working with. Through
+                context for the same reason those are — a session turns over twice
+                a command, and the layout is not rebuilt for that. */}
+                  <CliDoingProvider value={doings}>
+                    {/* And what each of them was last told to do, which is the
+                  other half of the same key — or standing on its own, where the
+                  lines have been asked for outright: the number says which mark
+                  a press would reach, and the line says which terminal that mark
+                  is. */}
+                    <CliTypedProvider value={typed}>
+                      {/* `is-merging` and the two ends of a merge are written on here by
+                  `useBranchDrag` rather than handed down, so the class stays put
+                  across a render: React only writes an attribute whose prop changed,
+                  and this one never does. Which is why how far out the canvas is
+                  zoomed is said in an attribute of its own rather than in the class:
+                  a class React rewrote would take the merge's own marks with it. */}
+                      <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                        {/* The canvas stays mounted while folders enter and leave it. Its
+                    controlled nodes and repository-set framing already carry those
+                    changes; replacing the instance would initialise an empty view
+                    before the scanned nodes arrive. */}
+                        <ReactFlow<AppNode, Edge>
+                          ref={pane}
+                          nodes={shown}
+                          nodeTypes={nodeTypes}
+                          onNodesChange={onNodesChange}
+                          onInit={(flow) => {
+                            instance.current = flow;
+                            setFlowReady(true);
+                            // The first frame is framed by `fitView` rather than by a move, so
+                            // the canvas has to be asked where it ended up.
+                            resolve(flow.getViewport().zoom);
+                          }}
+                          onMove={handleMove}
+                          onNodeClick={handleNodeClick}
+                          onNodeDragStart={takeGroup}
+                          onNodeDrag={carryGroup}
+                          onNodeDragStop={dropGroup}
+                          onPaneClick={() => setSelectedCommit(null)}
+                          nodesConnectable={false}
+                          nodesDraggable
+                          elevateNodesOnSelect={false}
+                          // Commit history is the unbounded part and is one shared SVG;
+                          // the small interactive node set stays mounted. React Flow's own
+                          // per-frame visibility pass cost more than moving those nodes.
+                          onlyRenderVisibleElements={false}
+                          minZoom={MIN_ZOOM}
+                          maxZoom={MAX_ZOOM}
+                          // The wheel is `useCanvasZoom`'s: d3-zoom holds the point
+                          // under the cursor still, and this canvas comes in on its
+                          // own middle instead. A pinch is still React Flow's.
+                          zoomOnScroll={false}
+                          proOptions={proOptions}
+                          fitView
+                        >
+                          <GraphLines
+                            bands={graph.bands}
+                            reach={graph.reach}
+                            extent={graph.extent}
+                            nodes={lineNodes}
+                            selected={selectedCommit}
+                            picked={picked}
+                            onCommit={handleCommitClick}
+                          />
+                        </ReactFlow>
+                        <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
+                      </div>
+                    </CliTypedProvider>
+                  </CliDoingProvider>
+                </CliPlacesProvider>
               </CliJumpsProvider>
             </GraphMarksProvider>
           </BrowsingProvider>
