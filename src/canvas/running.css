@@ -127,7 +127,12 @@
    drawn in the same ink; in the terminal's face because what it holds came off
    a terminal, and a command set in the canvas's own type is a command being
    quoted rather than shown. What will not fit is cut where the room runs out:
-   the whole of it is in the session, which is one press away. */
+   the whole of it is in the session, which is one press away.
+
+   The last three of those are where the window starts rather than where it has
+   to stay. A line glanced at under a key and a line left standing all day are
+   not the same line, and the choice that leaves them standing is on the same
+   page as the choice of how large — see `said` and `useSaidStyle`. */
 .cli__said {
   position: absolute;
   top: 50%;
@@ -135,16 +140,51 @@
   /* Clear of the mark that ends the session, which stands in the same place and
      is drawn only under the pointer. */
   margin-left: 15px;
-  max-width: 220px;
+  /* How wide, how tall and in what — all four written onto the canvas itself by
+     `useSaidStyle` and inherited from there, because every one of these is set
+     the same way and a mark appearing carries nothing about it. The fallbacks
+     are what the rule said before there was anywhere to say otherwise, so a
+     window whose canvas has not been written to yet draws what it always drew.
+
+     A box rather than a line, because a line that may run to two is still one
+     box: `-webkit-line-clamp` cuts it where the count runs out and puts the
+     ellipsis on the last line it kept, which at one line is exactly the
+     single-line ellipsis this was. So there is one rule for every setting of it
+     rather than one for each. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--said-lines, 1);
+  /* As wide as the words want and no wider than they may be. Both, because
+     this box stands out of the flow and one on its own is not enough: the
+     width an absolutely positioned box shrinks to is bounded by the room left
+     beside it, and there is none — it begins where the mark ends. Asked for
+     `max-content` it takes the width of the line instead, and the maximum is
+     then where that line is made to wrap. */
+  width: max-content;
+  max-width: var(--said-width, 220px);
   overflow: hidden;
   color: var(--mui-palette-text-disabled);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 9px;
-  line-height: 1;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  font-size: var(--said-size, 9px);
+  line-height: 1.35;
+  /* A command is one long word as often as it is several — a path, a URL, a
+     flag with an equals in it — and a line allowed to run to two that refused
+     to break one of those would be a line that used the second for nothing. */
+  overflow-wrap: anywhere;
   transform: translateY(-50%);
   /* Words to be read past, never to be pressed: the mark beside it is what
      answers, and the terminal itself is where the rest of this is. */
   pointer-events: none;
+}
+
+/* Or set in the window's own face, where the page has asked for that.
+
+   A rule of its own rather than another custom property. The other three
+   measures are numbers, and a number handed through a variable is the whole of
+   what the stylesheet needed; a face is a stack of names with a fallback stack
+   already written beside it, and `inherit` — which is the whole point of
+   choosing the window's — is not a value that survives being substituted into
+   one. */
+.graph[data-said-face="window"] .cli__said {
+  font-family: inherit;
 }

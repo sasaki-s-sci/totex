@@ -107,7 +107,13 @@
     "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",
     "register": "Agent setup",
-    "registerHint": "Written into each agent once, and read by every terminal it is run in."
+    "registerHint": "Written into each agent once, and read by every terminal it is run in.",
+    "saidFace": "Line face",
+    "saidSize": "Line size",
+    "saidFit": "Fit the lines to the canvas",
+    "saidFitHint": "Take how wide a line may be from how much of the canvas is on screen, and how many lines it may run to from how far apart the graph's rows are.",
+    "saidLines": "Lines",
+    "saidWidth": "Line width"
   },
   "mcp": {
     "on": "On",
@@ -166,5 +172,9 @@
     "notPicture": "Not drawable as a picture",
     "truncated": "Showing the first {{kilobytes}} KB",
     "patchCut": "Showing the first part of the patch"
+  },
+  "said": {
+    "terminal": "The terminal's",
+    "window": "The window's"
   }
 }

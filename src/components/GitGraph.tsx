@@ -17,6 +17,7 @@ import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
 import { useHistoryDepth } from "../hooks/useHistoryDepth";
 import { useNodeGlide } from "../hooks/useNodeGlide";
+import { useSaidStyle } from "../hooks/useSaidStyle";
 import { useSettingsPage } from "../hooks/useSettingsPage";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
@@ -126,6 +127,11 @@ export function GitGraph({
 
   useCanvasZoom({ pane, instance });
 
+  // How the lines beside the terminals are set, written onto the canvas for the
+  // marks to inherit. What comes back is how the canvas tells it the zoom,
+  // which is half of the room it has to fit one of those lines into.
+  const fitSaid = useSaidStyle(host);
+
   const { expand, fold, reachFold, keepFold } = useCanvasFold({
     workspace,
     graph,
@@ -177,11 +183,17 @@ export function GitGraph({
    *  out there they are a couple of pixels across. Only the crossing is a change,
    *  which is what makes this cheap. */
   const [coarse, setCoarse] = useState(false);
-  const resolve = useCallback((zoom: number) => {
-    // Apart, so that settling exactly on the threshold does not put the buttons
-    // in and out on alternate frames.
-    setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
-  }, []);
+  const resolve = useCallback(
+    (zoom: number) => {
+      // Apart, so that settling exactly on the threshold does not put the
+      // buttons in and out on alternate frames.
+      setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
+      // And the same number again, for the one line on the canvas that is
+      // measured against how much of it is on screen.
+      fitSaid(zoom);
+    },
+    [fitSaid],
+  );
 
   const shown = useMemo(() => nodes.filter((node) => node.type !== "commit"), [nodes]);
 
