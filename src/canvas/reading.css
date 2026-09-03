@@ -282,8 +282,8 @@
    both times it means `this one`.
 
    The number a terminal carries while the key is down is lit with it, because
-   the number is that mark — see `.cli__jump`, which takes its colour from here
-   rather than naming one. `.cli__open` is named beside the mark because the
+   the number is that mark — see `CliGlyph`, which strikes it in the mark's own
+   square and in the mark's own ink rather than naming a colour. `.cli__open` is named beside the mark because the
    button inside it sets a colour of its own, which an inherited one would lose
    to, and a folder's name is named because the name is that row's whole
    control — there is no mark on it to light. */

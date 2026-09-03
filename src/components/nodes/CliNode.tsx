@@ -6,7 +6,7 @@ import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
 import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
-import { AgentMark, CliMark } from "../marks";
+import { CliGlyph } from "../marks";
 
 /**
  * One terminal: the only mark this canvas draws for anything to do with a
@@ -51,11 +51,8 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   // going on, and that is a line of words rather than a mark.
   const said = useTypedLine(session.id);
   // And what it is doing, which is the one thing the glyph itself says. Three
-  // states and three drawings: an agent wears a mark of its own, a command
-  // running turns the terminal's cursor over, and a shell at its prompt is the
-  // mark exactly as it has always been. Nothing here is a colour — the ink of
-  // these is what says which of them the panel is holding, and a second thing
-  // said in colour would be two things said in one place.
+  // states and three drawings — see `CliGlyph`, which is what the panel's band
+  // draws from the same two readings.
   const doing = useCliDoing(session.id);
 
   // Nowhere on the mark, and nowhere else on the canvas either: this is what
@@ -67,9 +64,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
       <div className="mark mark--centred cli__row">
         <button
           type="button"
-          className={`cli__open nopan${showing ? " is-showing" : ""}${
-            doing === "running" ? " is-working" : ""
-          }`}
+          className={`cli__open nopan${showing ? " is-showing" : ""}`}
           aria-label={name}
           aria-pressed={showing}
           onPointerDown={(event) => event.stopPropagation()}
@@ -78,13 +73,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             showSession(session);
           }}
         >
-          {jump !== null ? (
-            <span className="cli__jump">{jump}</span>
-          ) : doing === "agent" ? (
-            <AgentMark size={11} />
-          ) : (
-            <CliMark size={11} />
-          )}
+          <CliGlyph doing={doing} jump={jump} />
         </button>
 
         {/* The one thing here that cannot be undone, so it is faint until the

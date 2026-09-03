@@ -5,7 +5,7 @@ import { type BranchHeadFlowNode, HEAD_SIZE, REMOTE_HEAD_SIZE } from "../../lib/
 import { dirtyCount } from "../../lib/workspace";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
-import { CliMark } from "../marks";
+import { CLI_GLYPH, CliMark } from "../marks";
 import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
 
@@ -111,7 +111,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
               openWork({ repository, branch: name, cwd });
             }}
           >
-            <CliMark size={11} />
+            <CliMark size={CLI_GLYPH} />
           </button>
         </>
       )}

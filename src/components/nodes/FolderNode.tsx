@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { FolderFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
 import { useGraphActions } from "../graphActions";
-import { CliMark, FolderMark } from "../marks";
+import { CLI_GLYPH, CliMark, FolderMark } from "../marks";
 
 /**
  * A folder on the graph, drawn as the one line that heads its repositories.
@@ -81,7 +81,7 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
             openWork({ repository: null, branch: name, cwd: root });
           }}
         >
-          <CliMark size={11} />
+          <CliMark size={CLI_GLYPH} />
         </button>
       </div>
     </div>

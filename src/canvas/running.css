@@ -54,32 +54,6 @@
     filter var(--reveal);
 }
 
-/* The number this terminal answers to while Ctrl is held, drawn where its glyph
-   was.
-
-   In place of the glyph rather than beside it: a stack is one mark drawn over
-   and over, and hanging a badge off each of them put a second column of small
-   things down the canvas — which is the reading the stack was made to avoid.
-   While the key is down the number is the whole of what the mark has to say,
-   and the glyph comes straight back when it is let go.
-
-   The mark's own ink, inherited rather than named, so the number is drawn in
-   whatever the glyph under it would have been drawn in. Every one of these in
-   the canvas's strong colour was a screenful of things all saying `this one`,
-   which is a screenful of things saying nothing; the one that is lit is the one
-   being pointed at, and it is lit because the mark carrying it is — see
-   `.cli__open.is-showing` and `.is-picked`. Tabular figures so that 1 and 11
-   stand in the same place, and the mark does not shuffle as the eye runs down
-   the stack. */
-.cli__jump {
-  font-size: 9px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  letter-spacing: -0.02em;
-  color: inherit;
-}
-
 /* Which terminal the panel is holding: its own glyph, lit.
 
    The panel stands beside the canvas and says which session it is showing; what
@@ -98,63 +72,6 @@
 .cli__open.is-showing {
   color: var(--mui-palette-primary-main);
   filter: var(--lit);
-}
-
-/* Something running in this terminal, said by the terminal's own cursor.
-
-   The glyph is a chevron and the block that sits after it, which is a drawing
-   of a shell waiting to be typed at. So what says the shell is not waiting is
-   that block turning over: the one part of the mark that stands for the wait is
-   the one part that moves, and the chevron — which is what makes the glyph a
-   terminal at all — is left exactly where it is.
-
-   Two half turns rather than a spin. A cursor turning steadily is a spinner,
-   and a spinner beside every busy terminal on a canvas is a canvas of things
-   revolving; this turns over, stops long enough to be a mark again, and turns
-   over once more. Which way up it lands is not read — a block is the same block
-   at nought and at a hundred and eighty — so the turn is the whole of the
-   telling and the rest of the cycle is the mark standing still.
-
-   The turn is a fixed length and the stillness is what the cycle is stretched
-   with: the percentages below are worked back from about a third of a second of
-   turning, so that slowing the mark down puts the extra time into the standing
-   still rather than into the movement. A turn that took as long as the wait
-   would be the spin this was drawn to avoid, and a mark that moves for a third
-   of a second in every few is a canvas somebody can work in front of.
-
-   `transform` rather than anything else that could be animated here: it is the
-   one property the compositor can run without the canvas being redrawn, and the
-   colour of these marks is already saying something else. */
-.cli-mark__caret {
-  /* In the square the paths are written in, rather than in the box this one
-     stroke happens to fill: a horizontal line has no height, so the middle of
-     its own bounds is a place the drawing does not have. */
-  transform-box: view-box;
-  transform-origin: 16.7px 16.4px;
-}
-
-.cli__open.is-working .cli-mark__caret {
-  animation: cli-caret 5.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-@keyframes cli-caret {
-  0% {
-    transform: rotate(0deg);
-  }
-  6.7%,
-  50% {
-    transform: rotate(180deg);
-  }
-  56.7%,
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cli__open.is-working .cli-mark__caret {
-    animation: none;
-  }
 }
 
 /* Ending a session is the one thing here that cannot be undone, so it is faint

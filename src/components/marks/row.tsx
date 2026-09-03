@@ -3,7 +3,56 @@
  * jump, a step up, and the settings.
  */
 
+import { Box } from "@mui/material";
+
 import { Frame, HAIRLINE, SIZE, struck } from "../marks";
+
+/** The cursor a terminal waits at: the one part of this mark that ever moves. */
+const CARET = "M13.4 16.4 H20";
+
+/**
+ * That cursor turning over, which is what says the terminal is not waiting.
+ *
+ * The glyph is a chevron and the block that sits after it, which is a drawing
+ * of a shell waiting to be typed at. So the part of the mark that stands for
+ * the wait is the part that moves, and the chevron — which is what makes the
+ * glyph a terminal at all — is left exactly where it is.
+ *
+ * Two half turns rather than a spin. A cursor turning steadily is a spinner,
+ * and a spinner beside every busy terminal is a screen of things revolving;
+ * this turns over, stops long enough to be a mark again, and turns over once
+ * more. Which way up it lands is not read — a block is the same block at nought
+ * and at a hundred and eighty — so the turn is the whole of the telling and the
+ * rest of the cycle is the mark standing still.
+ *
+ * The turn is a fixed length and the stillness is what the cycle is stretched
+ * with: the percentages are worked back from about a third of a second of
+ * turning, so that slowing the mark down puts the extra time into the standing
+ * still rather than into the movement.
+ *
+ * Carried on the drawing rather than in a stylesheet, the way `UpdateMark`
+ * carries its own spin: this mark is drawn on the canvas and in the panel's
+ * band, and an animation that lived in the canvas's own rules would be one the
+ * band could only borrow. `transform` and nothing else, because it is the one
+ * property the compositor can run without the canvas being redrawn.
+ */
+const TURN = {
+  // In the square the paths are written in, rather than in the box this one
+  // stroke happens to fill: a horizontal line has no height, so the middle of
+  // its own bounds is a place the drawing does not have.
+  transformBox: "view-box",
+  transformOrigin: "16.7px 16.4px",
+  animation: "totex-cli-caret 5.4s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+  "@keyframes totex-cli-caret": {
+    "0%": { transform: "rotate(0deg)" },
+    "6.7%, 50%": { transform: "rotate(180deg)" },
+    "56.7%, 100%": { transform: "rotate(360deg)" },
+  },
+  // A window that has asked for less movement gets the mark it has always had,
+  // which still says what it says: what is running is also on the terminal's
+  // own screen, one press away.
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+} as const;
 
 /**
  * A line with a branch leaving it for a ring — the graph in miniature, which is
@@ -16,19 +65,18 @@ import { Frame, HAIRLINE, SIZE, struck } from "../marks";
  * pane's heading is for the folder the pane is showing, and the one on a row is
  * for that row. Browsing never draws anything by itself, which is what keeps a
  * walk through a folder of repositories from reading all of them.
+ *
+ * `working` is for the ones that are a terminal rather than an offer to open
+ * one: it turns the cursor over and leaves the rest of the mark where it is.
+ * A prop rather than a class hung on whatever the mark is sitting in, because
+ * the same mark is drawn on the canvas and in the panel's band and the two have
+ * no container in common — see `CliGlyph`, which is what both of them draw.
  */
-export function CliMark({ size }: { size?: number }) {
+export function CliMark({ size, working }: { size?: number; working?: boolean }) {
   return (
     <Frame size={size}>
       <path d="M4.8 7.6 L10.4 12 L4.8 16.4" />
-      {/* The cursor a terminal waits at. Named because it is the one part of
-          any mark in this file that moves: a session with something running in
-          it turns this over and leaves the chevron where it is — see
-          `.is-working` beside the terminal marks. The class is on the drawing
-          rather than a prop on the mark, because what is running is a fact
-          about a session and this mark is drawn in four places, three of which
-          are an offer to open one rather than one that is open. */}
-      <path className="cli-mark__caret" d="M13.4 16.4 H20" />
+      {working ? <Box component="path" sx={TURN} d={CARET} /> : <path d={CARET} />}
     </Frame>
   );
 }

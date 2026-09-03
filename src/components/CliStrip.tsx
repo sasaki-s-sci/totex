@@ -1,17 +1,8 @@
 import { Box } from "@mui/material";
+import type { Doing } from "../lib/doing";
 import type { CliPlace } from "../lib/graphNav";
+import { CLI_GLYPH, CliGlyph } from "./marks";
 
-/** The hollow circle one terminal is drawn as. */
-const MARK = 6;
-/**
- * The room each of them takes.
- *
- * Wide enough for the number that stands in place of a circle, so that the run
- * does not shuffle as the panel moves from one terminal to the next. A number
- * past nine is wider than this and pushes what is to its right along; nothing
- * to its left moves, which is the half the eye is reading back from.
- */
-const SLOT = 10;
 /** Between two terminals standing on the same row of the canvas. */
 const GAP = 4;
 /**
@@ -26,6 +17,8 @@ type Props = {
   run: readonly CliPlace[];
   /** The one the panel is showing, which is the only one drawn as a number. */
   showing: string | null;
+  /** What each of them is doing, which is what its glyph draws. */
+  doings: ReadonlyMap<string, Doing>;
 };
 
 /**
@@ -36,12 +29,20 @@ type Props = {
  * the canvas is one glyph drawn over and over, and the panel is the one place
  * somebody is looking at when they want to know where they are.
  *
- * So this is a place-marker and nothing more. Every terminal is a hollow circle
- * in the order the numbers are given out — down the canvas, left to right — and
- * the one being shown is its own number, in the canvas's one light. The number
- * replaces the circle rather than sitting beside it, exactly as it does on the
+ * So this is the canvas's own run of terminals, said again in the band: the
+ * same marks, at the same size, saying the same three things about each of them
+ * — an agent, something running, or a shell at its prompt. It is one reading of
+ * one set of sessions drawn in two places, so it is one drawing; see `CliGlyph`,
+ * which is that drawing. A row of shapes of its own here would be a second
+ * alphabet for the same terminals, learnt in the band and unlearnt on the
+ * canvas.
+ *
+ * The one being shown is its own number, in the canvas's one light. The number
+ * replaces the glyph rather than sitting beside it, exactly as it does on the
  * mark itself while Ctrl is held: it is the same number, and pressing Ctrl with
- * it is what goes back to this terminal from anywhere.
+ * it is what goes back to this terminal from anywhere. It is struck inside the
+ * mark's own square, so a second figure does not push the run along and nothing
+ * to either side of it moves.
  *
  * Read left to right from the panel's own edge, and broken by a wider gap
  * wherever the next terminal is standing on a different row of the canvas — a
@@ -52,7 +53,7 @@ type Props = {
  * One terminal draws nothing at all. There is no position to find among one,
  * the same reason a directory's only session is given no ordinal.
  */
-export function CliStrip({ run, showing }: Props) {
+export function CliStrip({ run, showing, doings }: Props) {
   if (run.length < 2) return null;
 
   return (
@@ -75,37 +76,17 @@ export function CliStrip({ run, showing }: Props) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              minWidth: `${SLOT}px`,
-              height: `${SLOT}px`,
+              width: `${CLI_GLYPH}px`,
+              height: `${CLI_GLYPH}px`,
+              // The ink the glyph is handed, which is the whole of what says
+              // which of these the panel is holding — the same grey the marks
+              // on the canvas are drawn in, and the same light on the one that
+              // is open.
+              color: lit ? "primary.main" : "text.disabled",
               ml: at === 0 ? 0 : `${run[at - 1]?.group === place.group ? GAP : GROUP_GAP}px`,
             }}
           >
-            {lit ? (
-              <Box
-                component="span"
-                sx={{
-                  fontSize: 9,
-                  fontWeight: 600,
-                  // So that 1 and 11 stand in the same place, as on the mark.
-                  fontVariantNumeric: "tabular-nums",
-                  lineHeight: 1,
-                  letterSpacing: "-0.02em",
-                  color: "primary.main",
-                }}
-              >
-                {at + 1}
-              </Box>
-            ) : (
-              <Box
-                sx={{
-                  width: `${MARK}px`,
-                  height: `${MARK}px`,
-                  borderRadius: "50%",
-                  border: 1,
-                  borderColor: "text.disabled",
-                }}
-              />
-            )}
+            <CliGlyph doing={doings.get(place.session) ?? null} jump={lit ? at + 1 : null} />
           </Box>
         );
       })}

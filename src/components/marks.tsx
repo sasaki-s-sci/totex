@@ -62,7 +62,25 @@ export function struck(size: number, weight: number = HAIRLINE): number {
   return (weight * 24) / size;
 }
 
-export function Frame({ size = SIZE, children }: { size?: number; children: React.ReactNode }) {
+export function Frame({
+  size = SIZE,
+  spill,
+  children,
+}: {
+  size?: number;
+  /**
+   * Lets the drawing out of its own square.
+   *
+   * A mark is cut to the square it is written in, which is what keeps a run of
+   * them even. Figures are not a mark: a second one of them is wider than the
+   * square, and a number with its sides shaved off is a number nobody can
+   * read — so it spills into the clearance every one of these carries rather
+   * than being trimmed, and rather than widening the place it stands in and
+   * pushing the rest of the run along. See `CliGlyph`.
+   */
+  spill?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -75,6 +93,10 @@ export function Frame({ size = SIZE, children }: { size?: number; children: Reac
       strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
+      // Written as a style rather than as an attribute: what cuts a drawing to
+      // its square is the engine's own rule for the outermost `svg`, and only
+      // a style is certain to outrank it everywhere this window runs.
+      style={spill ? { overflow: "visible" } : undefined}
     >
       {children}
     </svg>
@@ -150,6 +172,7 @@ export function MarkButton({
   );
 }
 
+export * from "./marks/cli";
 export * from "./marks/row";
 export * from "./marks/tree";
 export * from "./marks/window";
