@@ -52,6 +52,11 @@ type Props = {
  * terminal exactly as it is drawn everywhere else — and over all three, while
  * something is asking, the number that would reach this one.
  *
+ * Two of the four states are the same drawing: an agent is an agent whether it
+ * is answering or waiting to be answered, so what tells those two apart is the
+ * mark turning rather than a mark of its own. Which is the same thing the
+ * terminal's own glyph does for a command that is running — see `CliMark`.
+ *
  * The number stands in place of the glyph rather than beside it: on the canvas
  * while Ctrl is held, and in the panel's band for the terminal the panel is
  * holding. Both times it is the same number, and both times it is the whole of
@@ -91,7 +96,9 @@ export function CliGlyph({ doing, jump = null, size = CLI_GLYPH }: Props) {
     );
   }
 
-  if (doing === "agent") return <AgentMark size={size} />;
+  if (doing === "agent" || doing === "working") {
+    return <AgentMark size={size} working={doing === "working"} />;
+  }
 
   return <CliMark size={size} working={doing === "running"} />;
 }

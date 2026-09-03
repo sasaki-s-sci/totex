@@ -28,6 +28,18 @@ pub struct Standing {
     pub shown: bool,
     /// Whether this is the screen a full-screen program draws on.
     pub alt: bool,
+    /// Whether something that draws has taken the terminal over, by either of
+    /// the two ways there are of doing it.
+    ///
+    /// The alternate screen is the older one and the one that reads as a fact:
+    /// a program on it has a screen of its own and hands it back on the way
+    /// out. The newer agents do not take it — they draw down the ordinary
+    /// screen so that what they said stays in the scrollback — and what they
+    /// turn on instead is being told when the window is looked at, which a
+    /// shell has no use for and which they turn off again as they go. Either
+    /// one says the same thing: what is on this terminal is being drawn rather
+    /// than printed.
+    pub taken: bool,
 }
 
 /// Where the escape sequence being read has got to.
@@ -63,6 +75,9 @@ pub struct Screen {
     shown: bool,
     /// Whether this is the screen a full-screen program draws on.
     alt: bool,
+    /// Whether something asked to be told when the window is looked at, which
+    /// is the other half of `Standing::taken`.
+    watched: bool,
     state: State,
     /// What has arrived so far of a sequence still coming: output is handed
     /// over in runs of whatever the process happened to have written.
@@ -85,6 +100,7 @@ impl Screen {
             wrapping: false,
             shown: true,
             alt: false,
+            watched: false,
             state: State::Ground,
             held: String::new(),
         }
@@ -92,16 +108,18 @@ impl Screen {
 
     /// A new size, and a blank screen at it. Nothing drawn is carried over —
     /// whatever is running is about to redraw, which is what a resize is for —
-    /// but which screen is in use and whether the caret is shown are, because
-    /// nothing redraws those.
+    /// but which screen is in use, whether the caret is shown and whether
+    /// anything asked to be told about the window are, because nothing redraws
+    /// those.
     pub fn resize(&mut self, rows: u16, cols: u16) {
         if rows as usize == self.rows && cols as usize == self.cols {
             return;
         }
-        let (shown, alt) = (self.shown, self.alt);
+        let (shown, alt, watched) = (self.shown, self.alt, self.watched);
         *self = Self::new(rows, cols);
         self.shown = shown;
         self.alt = alt;
+        self.watched = watched;
     }
 
     /// Where the caret is standing, and what that says about the screen.
@@ -120,6 +138,7 @@ impl Screen {
             clear,
             shown: self.shown,
             alt: self.alt,
+            taken: self.alt || self.watched,
         }
     }
 

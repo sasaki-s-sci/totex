@@ -55,8 +55,7 @@ const TURN = {
 } as const;
 
 /**
- * The whole of the agent mark turning, which is what says a session is carrying
- * on without anybody.
+ * The whole of the agent mark turning, which is what says the agent is working.
  *
  * The other two states move the part of the glyph that carries what they mean —
  * a busy terminal turns the cursor it is waiting at, and leaves the chevron
@@ -74,9 +73,15 @@ const TURN = {
  * Eight seconds for the whole way round, against the second and a half a busy
  * terminal takes to turn its cursor over twice. The two are different news and
  * should not read as one speed down a stack: a cursor turning over is something
- * being waited on, and this is somebody's session carrying on without them. It
- * is slow enough to be read as movement rather than as haste, which is the
- * difference between a mark that is alive and a spinner.
+ * being waited on, and this is an agent answering. It is slow enough to be read
+ * as movement rather than as haste, which is the difference between a mark that
+ * is alive and a spinner.
+ *
+ * It runs while the agent is working and not otherwise. A session left standing
+ * at its composer is one waiting to be answered, which is the same news as a
+ * shell standing at its prompt: nothing is happening, and the mark that says so
+ * is a mark that stands still. A stack of agents turning all night would be a
+ * canvas saying `busy` about the ones nobody has typed into since lunch.
  *
  * Carried on the drawing rather than in a stylesheet, for the reason `TURN` is:
  * this mark is drawn on the canvas and in the panel's band, and the two have no
@@ -123,7 +128,7 @@ export function CliMark({ size, working }: { size?: number; working?: boolean })
 
 /**
  * Three points joined: what stands in a terminal's place while an agent is
- * running in it.
+ * running in it, turning while that agent is working.
  *
  * A terminal running an agent is not a terminal somebody is waiting on. The
  * glyph beside it says `a shell, and a command in it` — a chevron to type after
@@ -136,14 +141,16 @@ export function CliMark({ size, working }: { size?: number; working?: boolean })
  * three strokes hold their shape all the way down, and they are the same
  * hairline everything else in this file is struck at.
  */
-export function AgentMark({ size }: { size?: number }) {
+export function AgentMark({ size, working }: { size?: number; working?: boolean }) {
   return (
     <Frame size={size}>
       {/* Grouped so that the three points and the lines between them turn as
-          one drawing. The turn is the mark's, not a state hung on it: this mark
-          is only ever drawn where an agent is running, so what it says and what
-          it does are the same statement — see `SPIN`. */}
-      <Box component="g" sx={SPIN}>
+          one drawing — and so that the group is what the turn is hung on, which
+          is what lets the same three points stand still. A prop rather than a
+          class, for the reason `CliMark` takes one: this mark is drawn on the
+          canvas and in the panel's band, and the two have no container in
+          common. See `SPIN`. */}
+      <Box component="g" sx={working ? SPIN : undefined}>
         <circle cx="12" cy="5.6" r="2.6" />
         <circle cx="5.6" cy="17.4" r="2.6" />
         <circle cx="18.4" cy="17.4" r="2.6" />

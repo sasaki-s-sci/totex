@@ -8,6 +8,11 @@
  * own, a command that is running turns the terminal's own cursor over, and a
  * shell at its prompt is drawn exactly as it always was.
  *
+ * The agent's mark is drawn twice over, because a session somebody is having
+ * has two halves: the agent answering, and the agent waiting to be answered.
+ * The mark turns for the first and stands still for the second — see
+ * `AgentMark`.
+ *
  * Read off the session's own screen by the Rust side — see `ask/doing` there
  * for why it is a reading rather than a question put to the process, and
  * `ask/watch` for what holds a screen per session. Sent rather than asked for:
@@ -27,8 +32,11 @@ export type Doing =
   | "idle"
   /** Running something, whatever it is. */
   | "running"
-  /** Running one of the coding agents, which is a session rather than a wait. */
-  | "agent";
+  /** Running one of the coding agents and waiting for the person: a session
+   *  rather than a wait. */
+  | "agent"
+  /** The same session, with the agent answering rather than waiting. */
+  | "working";
 
 /** A session, and what it is doing. */
 export type Doings = {

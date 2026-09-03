@@ -28,10 +28,11 @@ pub struct Watcher {
     /// was last told `1. Yes, run it`, which is right for the label the canvas
     /// draws and useless for saying what is running.
     ///
-    /// This is the same reading, kept only while the session is on its ordinary
-    /// screen. An agent takes the alternate one as it starts, so what is left
-    /// standing here is the line that started it, and it is left standing for
-    /// as long as the agent holds that screen.
+    /// This is the same reading, kept only while nothing has taken the terminal
+    /// over. An agent takes it as it starts — see `Standing::taken` for the two
+    /// ways of doing that — so what is left standing here is the line that
+    /// started it, and it is left standing for as long as the agent has the
+    /// terminal.
     started: Option<String>,
     /// What the session is doing, as its screen stands.
     ///
@@ -133,10 +134,11 @@ impl Watcher {
         if let Some(said) = typed(&self.screen) {
             self.typed = Some(said);
         }
-        // And the same reading again, kept only off the ordinary screen — see
-        // `started`. Taken here rather than beside the state it is read for,
-        // because this is the one place that knows the reading is fresh.
-        if !self.screen.standing().alt && self.started != self.typed {
+        // And the same reading again, kept only off a terminal nothing has
+        // taken over — see `started`. Taken here rather than beside the state
+        // it is read for, because this is the one place that knows the reading
+        // is fresh.
+        if !self.screen.standing().taken && self.started != self.typed {
             self.started = self.typed.clone();
         }
     }
