@@ -32,10 +32,11 @@ export type CollapseNodeData = {
  * Where the branches that share a name are gathered on their way out.
  *
  * A knot in the wiring rather than a thing in the repository: `dev/` is not a
- * ref and nothing can be done to it. So the mark is the smallest on the canvas
- * — smaller than a commit, which is the least thing that is real — and it
- * carries no name of its own. What it is is read off the names fanning out of
- * it, and the count is there for the pointer. See `junctions`.
+ * ref and nothing can be done to it. So the mark stands under the size of a
+ * commit, which is the least thing on the canvas that is real, and is struck
+ * rather than filled — an asterisk. The prefix is set on the line above it, in
+ * the branch names' own quiet, and the count is there for the pointer: what the
+ * group is is a word, and what it amounts to is a number. See `junctions`.
  */
 export type JunctionNodeData = {
   /** The shared start of the names, without its trailing slash. */

@@ -2,29 +2,92 @@
  * Where the branches that share a name are gathered.
  */
 
-/* A knot in the wiring: the smallest mark the canvas draws, standing in the
-   middle of its own cell.
+/* A knot in the wiring: an asterisk, standing in the middle of its own cell and
+   under the size of a commit dot.
 
-   Smaller than a commit dot, and deliberately. A commit is the least thing on
-   this canvas that is real — an object in the repository, with a message and a
-   hand behind it — and this is not one: it is the shared start of a handful of
-   names, drawn because a dozen lines all saying `dev/` before they say anything
-   else read better gathered than fanned. Being under the size of the least real
-   thing is how it says that without a word.
+   An asterisk because an asterisk is what stands in for the rest of a name, and
+   the rest of the name is exactly what fans out of here: the word above the
+   knot is `dev/` and everything past it is the fan, which is `dev/*` written
+   the way this canvas writes. A commit is the least thing on here that is
+   real — an object in the repository, with a message and a hand behind it — and
+   this is not one. Struck rather than filled, and under a commit's size with
+   it, is how it says so without a word.
 
-   The same clearance every mark on the grid carries, so the lines that run into
-   it and out of it stop short of the disc rather than touching it, and the
-   canvas's own ink: it is a mark on the grid and reads as one. The size is the
-   whole of what tells it apart from a commit, which is the point — it is a knot
-   in the wiring, not a thing that happened. */
+   Three arms crossed at sixty degrees, one of them upright, drawn in the
+   canvas's own ink: two of them are the pseudo-elements and the third is the
+   disc's own background, because three bars want three boxes and an element has
+   only the two to give.
+
+   The disc under them is the canvas's own colour rather than paint — it is the
+   clearance every mark on this grid carries, so the lines that run into the
+   knot and out of it stop short of the arms rather than touching them, and the
+   arms keep the canvas showing between them at every angle. `JUNCTION_TRIM` is
+   where those lines are cut; this is what covers the pixel between. The size is
+   `JUNCTION_SIZE`, handed down the cell as `--knot`, so the drawing and the
+   trim are the one measure. */
 .junction__knot {
-  width: 7px;
-  height: 7px;
+  width: var(--knot);
+  height: var(--knot);
   border-radius: 50%;
-  background: var(--mark);
+  /* The upright arm, over the clearance disc. */
+  background:
+    linear-gradient(var(--mark), var(--mark)) center / 1px 100% no-repeat,
+    var(--mui-palette-background-default);
   box-shadow: var(--clearance);
-  /* It answers the pointer only so that the name it gathers can be read off it.
-     There is nothing to press: no `nopan` in the markup, so the hand that comes
-     down here carries the canvas as it would anywhere else on the grid. */
+  /* It answers the pointer only so that the count it gathers can be read off
+     it. There is nothing to press: no `nopan` in the markup, so the hand that
+     comes down here carries the canvas as it would anywhere else on the grid. */
   cursor: inherit;
+}
+
+/* The two arms that lean, each the same bar turned about the knot's own centre.
+   Outside the disc's rounding, which clips a background and not a child, so
+   they are drawn whole. */
+.junction__knot::before,
+.junction__knot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(var(--mark), var(--mark)) center / 1px 100% no-repeat;
+}
+
+.junction__knot::before {
+  transform: rotate(60deg);
+}
+
+.junction__knot::after {
+  transform: rotate(-60deg);
+}
+
+/* The path the knot gathers, on the line above it.
+
+   The same place every name on this canvas is set — a repository's over the
+   mark its band opens with, a folder's over the mark that is the folder — and
+   the same quiet as the branch names it is the start of: `.edge__name`'s size,
+   weight and ink, because this word and those words are one name broken in two
+   and a start set louder than its own endings would read as the heading of
+   something rather than as part of a name.
+
+   Centred on the knot, and kept to the column the knot stands in: the next one
+   along is another junction, and a namespace running across its neighbour's is
+   two words in one place. Anything longer is cut short there, the way a band's
+   name is — the knot's own tooltip still holds the whole of it. */
+.junction__name {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  max-width: 100%;
+  /* Measured off the mark's own size, so the word keeps its air when the knot
+     is redrawn at another one. */
+  margin-bottom: calc(var(--knot) / 2 + 3px);
+  overflow: hidden;
+  transform: translateX(-50%);
+  color: var(--line);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.9;
 }
