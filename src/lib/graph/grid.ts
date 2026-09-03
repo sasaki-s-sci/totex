@@ -66,14 +66,20 @@ export const COMMIT_TRIM = DOT_SIZE / 2;
 /**
  * The knot a group of branches is gathered at.
  *
- * Half a commit, and deliberately the smallest mark the canvas draws. A commit
- * is the least thing on here that is real — an object in the repository, with a
- * message and a hand behind it — and a junction is none of that: it is the
- * shared start of some names, drawn because a dozen lines saying `dev/` before
- * they say anything else read better gathered than fanned. Smaller than the
- * least real thing is what says so without a word.
+ * Under a commit, and deliberately: a commit is the least thing on here that is
+ * real — an object in the repository, with a message and a hand behind it — and
+ * a junction is none of that. It is the shared start of some names, drawn
+ * because a dozen lines saying `dev/` before they say anything else read better
+ * gathered than fanned, and standing under the least real thing is what says so
+ * without a word.
+ *
+ * Larger than the disc it used to be, because it is an asterisk now and an
+ * asterisk is arms rather than area: six of them a couple of pixels long read
+ * as a smudge. It is still the lighter mark of the two — struck rather than
+ * filled, with the canvas showing between the arms — which is what carries the
+ * reading the size used to carry alone.
  */
-export const JUNCTION_SIZE = 7;
+export const JUNCTION_SIZE = 10;
 export const JUNCTION_TRIM = JUNCTION_SIZE / 2 + 1;
 /**
  * Where a line touching the fold begins.

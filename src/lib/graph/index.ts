@@ -50,6 +50,7 @@ export {
   type GraphResult,
   gridMove,
   HEAD_SIZE,
+  JUNCTION_SIZE,
   type JunctionFlowNode,
   LANE_HEIGHT,
   LINE_COLOR,
