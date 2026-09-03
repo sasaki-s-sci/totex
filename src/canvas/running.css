@@ -74,6 +74,53 @@
   filter: var(--lit);
 }
 
+/* Where that terminal is running: the name of the repository or the folder it
+   is standing in, on the line over its own mark and only while Ctrl is held.
+
+   The other half of what the key puts on a stack, and the half that is about
+   one terminal rather than about all of them. While the key is down every mark
+   on the canvas is a number to go somewhere by, and the one thing none of those
+   numbers says is where the terminal being left is. The row it hangs on carries
+   that name at the head of its band — which is off the side of the screen
+   exactly when a stack is being read close up, because the stack is out past
+   the branches and the name is back at the left of everything.
+
+   Over the mark, because that is where every name on this canvas is set: a
+   repository's over the mark its band opens with, a folder's over the mark that
+   is the folder, a namespace's over its knot. What hangs to the side of a
+   terminal is what that terminal itself has — the mark that ends it, and the
+   line it was set going on — and a place put out there would be the wrong kind
+   of thing in a row of the right ones.
+
+   Quieter than the mark it heads, in the ink the canvas labels things in: it is
+   what the terminal is standing in rather than one more thing on the stack, and
+   the glyph under it is already lit. Out of the flow like everything else hung
+   off the glyph, so nothing moves when the key comes down.
+
+   Cut well before it could reach the branch the stack hangs off. What a long
+   name crosses on its way out is the corridor the lines from that branch sweep
+   through, which a word is welcome to lie over for as long as a key is held
+   down; what it may not do is arrive at another mark and be read as that
+   mark's. */
+.cli__place {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  max-width: 110px;
+  overflow: hidden;
+  color: var(--mui-palette-text-disabled);
+  font-size: 8px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  /* A word to be read past, never to be pressed: the glyph under it is what
+     answers. */
+  pointer-events: none;
+}
+
 /* Ending a session is the one thing here that cannot be undone, so it is faint
    until the cursor is on the mark — but its room is always held, out to the
    side of the glyph, so a stack does not shuffle as the pointer runs down it. */
