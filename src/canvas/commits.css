@@ -99,3 +99,46 @@
 .commit-branch:hover .commit-branch__mark {
   opacity: 1;
 }
+
+/* What a commit says, while the keys that read the history are held — see
+   `CommitMessages`, which is where the reading itself is explained.
+
+   In the mark's own ink rather than the line's: a subject is what the commit is
+   rather than wiring between two of them, and it is set beside the very dot it
+   belongs to. Quieter than a mark all the same, because a canvas of these is a
+   canvas of prose and the dots are still what the shape is read from.
+
+   Painted over whatever history runs behind it, so the words carry the ground
+   with them: the stroke goes down first and the letters over it, which leaves a
+   hairline of canvas round each letter instead of a box round the line. */
+.commit-said {
+  fill: var(--mark);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  opacity: 0.72;
+  paint-order: stroke;
+  stroke: var(--mui-palette-background-default);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+}
+
+/* And the whole of what the one the walk is standing on says, set as a block.
+
+   The one thing on this canvas that is paragraphs, so it is the one thing given
+   a ground of its own: a hairline round each letter is enough for a line
+   crossing a line, and not for a dozen lines of prose lying over a history. The
+   edge is the ink that says `here` — the same ink the dot under it is lit in —
+   because what this block is is the commit the walk has reached, said out. */
+.commit-reading__ground {
+  fill: var(--mui-palette-background-default);
+  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 45%, transparent);
+  stroke-width: 0.5;
+}
+
+.commit-reading__said {
+  fill: var(--mark);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+}

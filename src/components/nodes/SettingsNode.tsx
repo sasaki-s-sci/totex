@@ -9,6 +9,7 @@ import { useGraphActions } from "../graphActions";
 import { FollowRow } from "../settings/FollowRow";
 import { LanguageRow } from "../settings/LanguageRow";
 import { McpSection } from "../settings/McpSection";
+import { RevealRow } from "../settings/RevealRow";
 import { SaidRow } from "../settings/SaidRow";
 import { useSettingsControls } from "../settings/SettingsControls";
 import { ThemeRow } from "../settings/ThemeRow";
@@ -51,6 +52,7 @@ export function SettingsNode(_props: NodeProps<SettingsFlowNode>) {
           <ThemeRow />
           <LanguageRow />
           <SaidRow />
+          <RevealRow />
           <FollowRow />
           <McpSection controls={mcp} />
           <UpdateSection />

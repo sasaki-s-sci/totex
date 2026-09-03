@@ -241,7 +241,7 @@ function Window() {
     [folders],
   );
 
-  const { openWork, browseWorktree, pickCommit, merge, sync, fetch } = useCanvasWork({
+  const { openWork, browseWorktree, pickCommit, cutBranch, merge, sync, fetch } = useCanvasWork({
     openSession,
     fail,
     hold,
@@ -310,6 +310,7 @@ function Window() {
             onTake={takeAsking}
             marks={marks}
             onSelect={pickCommit}
+            onCutBranch={cutBranch}
             onOpenWork={openWork}
             onBrowseWorktree={browseWorktree}
             onPickBranch={(pick: BranchPick) => setWorktreeMenu(pick)}

@@ -9,6 +9,9 @@
  */
 
 export type { AskCard, AskFlowNode, AskNodeData } from "./asking";
+// The card's own way of breaking text to a width, which the canvas borrows to
+// set what a commit says beside its mark.
+export { cellsOf, clamp, wrap } from "./asking";
 export { buildCommitGraph, type GraphInput } from "./build";
 export { isOpen } from "./folders";
 export {
