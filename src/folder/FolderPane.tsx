@@ -3,9 +3,9 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CloseMark,
-  DoorMark,
   GraphMark,
   MarkButton,
+  McpMark,
   PaneFolderMark,
   UpMark,
 } from "../components/marks";
@@ -205,7 +205,7 @@ export function FolderPane({
             label={t("folder.door", { space: baseName(standing.space) })}
             onClick={() => tell({ ...standing.settings, mcp: !standing.settings.mcp })}
           >
-            <DoorMark on={standing.settings.mcp} />
+            <McpMark on={standing.settings.mcp} />
           </MarkButton>
         )}
         {/* Last in the row, which is where the same offer stands on every

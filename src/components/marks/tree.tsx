@@ -134,20 +134,37 @@ export function FolderMark({ on, size = ROW_SIZE }: { on: boolean; size?: number
 /**
  * Whether an agent started in this folder's space is handed the window's door.
  *
- * A doorway, because that is what it is: the terminal is opened in the space,
- * and this says whether what runs there is told where to say what it is doing.
- * The handle fills when it is — the same way `ExpandMark`'s ring does, so the
- * two marks a heading carries answer in the same voice.
+ * The protocol's own mark rather than a drawing of our own. A doorway stood
+ * here once and said the right thing about what the button does — a terminal is
+ * opened in the space, and this says whether what runs there is told where to
+ * report what it is working on — but it said it in a word only this window
+ * uses. What is on the far side of that door is somebody else's standard, and
+ * anyone who would look for it on a heading knows its shape already from every
+ * other program that speaks it.
+ *
+ * Taken as it is published, which is why it is the one mark here that is filled
+ * and the one that is left the whole square: the logo is drawn as a pair of
+ * strokes struck at about the weight everything around it is struck at, so it
+ * lands in this column without being redrawn — and its strokes are layered, so
+ * setting it back inside the square the other marks sit in closes the layers up
+ * into a blot.
+ *
+ * Off is the same drawing gone faint, rather than a piece of it left hollow the
+ * way `ExpandMark`'s ring is. There is nothing in a mark somebody else owns to
+ * fill or leave empty, and a state said by adding to it would be a state said
+ * by defacing it.
  *
  * Drawn on every heading rather than only where a space has said something.
  * The mark is the offer as much as the answer, and a folder that has never been
  * asked is exactly the one where nobody would think to look for a place to ask.
  */
-export function DoorMark({ on }: { on: boolean }) {
+export function McpMark({ on }: { on: boolean }) {
   return (
     <Frame>
-      <path d="M6.5 20.5 V4.5 H17.5 V20.5" />
-      <circle cx="14.6" cy="12.6" r="1.6" fill={on ? "currentColor" : "none"} />
+      <g fill="currentColor" fillRule="evenodd" stroke="none" opacity={on ? 1 : 0.4}>
+        <path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z" />
+        <path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z" />
+      </g>
     </Frame>
   );
 }
