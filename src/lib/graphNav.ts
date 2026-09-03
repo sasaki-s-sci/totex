@@ -125,15 +125,26 @@ export function jumpable(nodes: readonly AppNode[]): Pickable[] {
 export type CliPlace = {
   /** The session's own id, which is what the panel knows a terminal by. */
   session: string;
-  /** The row it is hanging on, which is where the run is broken by a gap. */
+  /** The row it is hanging on, which is where the run is broken in two. */
   group: string;
+  /**
+   * What that place is called: the repository's name, or the folder's.
+   *
+   * The strip heads each run with it, so the panel says where a terminal is
+   * running and not only which of them it is. Read off the node the row belongs
+   * to rather than off the session's own directory: a worktree cut from a
+   * repository is that repository's, and the name over the run has to be the
+   * one on the canvas the run was read from.
+   */
+  name: string;
 };
 
 /**
  * Every terminal on the canvas, read the way the numbers are.
  *
  * The same list `jumpable` hands the keys, said in what the panel knows rather
- * than in nodes: a session's id and the row it is standing on. A place in this
+ * than in nodes: a session's id, the row it is standing on, and what that row is
+ * called. A place in this
  * run is the number that reaches it — Ctrl and that number — so the strip and
  * the key cannot drift apart, because they are one reading of one canvas.
  */
@@ -141,9 +152,23 @@ export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
   const marks = new Map(
     nodes.flatMap((node) => (node.type === "cli" ? [[node.id, node.data] as const] : [])),
   );
+  // What each of those rows is called. Three kinds of node can be a row — a
+  // repository opened out into a band, one folded into a single mark, and a
+  // folder's own row — and all three carry the name that is already drawn over
+  // that place on the canvas, so the strip names a run in the words the canvas
+  // does.
+  const names = new Map(
+    nodes.flatMap((node) => {
+      if (node.type === "repository" || node.type === "repo-mark") {
+        return [[node.id, node.data.repository.name] as const];
+      }
+      return node.type === "folder" ? [[node.id, node.data.name] as const] : [];
+    }),
+  );
   return jumpable(nodes).flatMap((pick) => {
     const mark = marks.get(pick.id);
-    return mark ? [{ session: mark.session.id, group: mark.group }] : [];
+    if (!mark) return [];
+    return [{ session: mark.session.id, group: mark.group, name: names.get(mark.group) ?? "" }];
   });
 }
 
