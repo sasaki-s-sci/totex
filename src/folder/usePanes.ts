@@ -5,9 +5,15 @@
 
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useResizeGrip } from "../components/useResizeGrip";
+import { type Homes, homeAfterRemoval } from "../lib/worktrees";
 import { describeFolders, listRoots, type Place, type Root, resolveFolder } from "./api";
 import { type FolderDestination, type Pane, useReport } from "./FolderSidebar";
 import { keepPlaces, keptPlaces } from "./places";
+
+/** No repository read yet. Held once rather than made per render, so that a
+ *  column with nothing on the graph behind it is not a column whose worktrees
+ *  look different every time it draws. */
+const NO_HOMES: Homes = new Map();
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 560;
@@ -18,6 +24,7 @@ export function usePanes(
   onFoldersChange: ((paths: string[]) => void) | undefined,
   onExpandedChange: ((paths: string[]) => void) | undefined,
   destination?: FolderDestination | null,
+  homes?: Homes,
 ) {
   const nextId = useRef(0);
   const [panes, setPanes] = useState<Pane[]>(() =>
@@ -88,6 +95,41 @@ export function usePanes(
         ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
   }, [destination]);
+
+  /**
+   * Sends a pane home when the worktree it was standing in is deleted.
+   *
+   * A branch removed from the canvas takes its checkout with it, and the pane
+   * that was reading that checkout is left showing a directory that is no
+   * longer on the disk. It goes to the repository's main worktree — the one
+   * copy git will not let anybody remove — because that is the same codebase
+   * and it is still there.
+   *
+   * The repository's own panes and no others: what moves is worked out from the
+   * worktrees that went missing between one reading of the workspace and the
+   * next, so a folder taken off the graph, which loses every worktree it had at
+   * once, moves nothing. See `homeAfterRemoval`.
+   *
+   * Left open or closed as it was, and its `graphed` paths stay put: this is
+   * the pane being kept on its feet, not somebody asking it for a folder.
+   */
+  const standing = homes ?? NO_HOMES;
+  const known = useRef(standing);
+  useEffect(() => {
+    const before = known.current;
+    known.current = standing;
+    if (before === standing) return;
+    setPanes((current) => {
+      let moved = false;
+      const next = current.map((pane) => {
+        const home = homeAfterRemoval(before, standing, pane.path);
+        if (home === null || home === pane.path) return pane;
+        moved = true;
+        return { ...pane, path: home };
+      });
+      return moved ? next : current;
+    });
+  }, [standing]);
 
   function update(id: number, change: Partial<Pane>) {
     setPanes((current) => current.map((pane) => (pane.id === id ? { ...pane, ...change } : pane)));

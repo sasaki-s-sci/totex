@@ -6,6 +6,7 @@ import { ResizeGrip } from "../components/useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET } from "../components/WindowControls";
 import type { Drops } from "../hooks/useDrops";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import type { Homes } from "../lib/worktrees";
 import { DROP_INTO, folderUnder } from "./dropInto";
 import { FileContextMenu, type FileMenuTarget } from "./FileContextMenu";
 import { FolderPane } from "./FolderPane";
@@ -59,6 +60,10 @@ export interface FolderSidebarProps {
   drops: Drops;
   /** A graph node asked to move its owning pane to a folder. */
   destination?: FolderDestination | null;
+  /** Every worktree that is there, against the directory its repository keeps.
+   *  A pane whose worktree goes missing from this is sent to that repository's
+   *  main copy rather than left showing a directory that is not there. */
+  homes?: Homes;
 }
 
 /**
@@ -98,6 +103,7 @@ export function FolderSidebar({
   onOpenFile,
   drops,
   destination,
+  homes,
 }: FolderSidebarProps) {
   const { t } = useTranslation();
   const {
@@ -121,7 +127,7 @@ export function FolderSidebar({
     addPane,
     dropPlace,
     keepTyped,
-  } = usePanes(initialFolders ?? [], onFoldersChange, onExpandedChange, destination);
+  } = usePanes(initialFolders ?? [], onFoldersChange, onExpandedChange, destination, homes);
   // What was last right-clicked, wherever in the column that was. One menu for
   // the whole column rather than one per level: two of them open at once is
   // two answers to a question that was asked once.
