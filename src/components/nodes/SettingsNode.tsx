@@ -9,7 +9,7 @@ import { useGraphActions } from "../graphActions";
 import { FollowRow } from "../settings/FollowRow";
 import { LanguageRow } from "../settings/LanguageRow";
 import { McpSection } from "../settings/McpSection";
-import { SaidRow } from "../settings/SaidRow";
+import { SaidSection } from "../settings/SaidSection";
 import { useSettingsControls } from "../settings/SettingsControls";
 import { ThemeRow } from "../settings/ThemeRow";
 import { UpdateSection } from "../settings/UpdateSection";
@@ -50,8 +50,8 @@ export function SettingsNode(_props: NodeProps<SettingsFlowNode>) {
         <Stack sx={{ p: 2, gap: 1, minWidth: MIN_WIDTH - 2 }}>
           <ThemeRow />
           <LanguageRow />
-          <SaidRow />
           <FollowRow />
+          <SaidSection />
           <McpSection controls={mcp} />
           <UpdateSection />
         </Stack>

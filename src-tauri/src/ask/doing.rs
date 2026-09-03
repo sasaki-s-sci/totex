@@ -13,12 +13,19 @@
 //! questions are, because the drawing is the only place it exists on every
 //! machine this app runs on.
 //!
-//! Three states, and the reading is deliberately blunt. Somewhere to type at
-//! the caret means the session is waiting for somebody: a shell at its prompt,
-//! or an agent at its composer. Nowhere to type means something is running.
-//! And what was typed at the shell says *what* is running — see `AGENTS`, which
-//! is the one place in this app that reads what somebody ran rather than that
-//! they ran something.
+//! Four states out of three readings, and every one of them is deliberately
+//! blunt. What was typed at the shell says *what* is running — see `AGENTS`,
+//! which is the one place in this app that reads what somebody ran rather than
+//! that they ran something. Whether the terminal has been taken over says
+//! whether it is still running — see `Standing::taken`. And for anything that
+//! is not an agent, somewhere to type at the caret means the session is waiting
+//! for somebody, while nowhere to type means something is running.
+//!
+//! An agent is asked the last of those a different way. Its composer is
+//! somewhere to type whatever it is doing — that is the whole point of a
+//! composer, that a turn can be written while the last one is still being
+//! answered — so the caret says nothing about it. What says it is that an agent
+//! at work offers a way out of the work: see `STOPPING`.
 
 use super::glyph::{MARKERS, SIGILS};
 use super::screen::Screen;
@@ -33,9 +40,11 @@ pub enum Doing {
     Idle,
     /// Running something, whatever it is.
     Running,
-    /// Running one of the coding agents, which is a session somebody is having
-    /// rather than a command they are waiting on.
+    /// Running one of the coding agents, and waiting for the person: a session
+    /// somebody is having rather than a command they are waiting on.
     Agent,
+    /// The same session, with the agent working rather than waiting.
+    Working,
 }
 
 /// The agents this window draws a mark of its own for.
@@ -48,6 +57,29 @@ pub enum Doing {
 /// here because they are the ones people run. Adding one is adding a line.
 const AGENTS: [&str; 5] = ["claude", "codex", "opencode", "gemini", "aider"];
 
+/// What an agent draws while it is working, and never while it is not: the way
+/// out of the work it is doing.
+///
+/// A list of words, the way `AGENTS` is a list of names, and for the same
+/// reason: nothing an agent draws while working is different in kind from
+/// anything else drawn on a terminal. What is not arbitrary is that there is
+/// something to find. An agent at work has taken a turn nobody can take back
+/// except by saying so, and every one of them says how — which makes the offer
+/// the one thing on the screen that is there while it works and gone the moment
+/// it stops.
+///
+/// Measured rather than guessed. Claude Code 2.1 draws `esc to interrupt` on
+/// its bottom line and `? for shortcuts` there the rest of the time; Codex 0.153
+/// draws `• Working (2s • esc to interrupt)` above its composer and takes the
+/// whole line away when the answer lands. Adding an agent that says it another
+/// way is adding a line.
+///
+/// `cancel` is not one of these, and is the reason the list is words rather than
+/// the shape of a hint: an agent that has stopped to ask a question draws
+/// `Esc to cancel` under it, and a question standing is the one thing here that
+/// is most certainly not the agent working.
+const STOPPING: [&str; 1] = ["to interrupt"];
+
 /// What stands in front of a command without being one: the environment it is
 /// given, and the programs whose whole job is to run the next word along.
 const LAUNCHERS: [&str; 9] = [
@@ -59,14 +91,18 @@ const LAUNCHERS: [&str; 9] = [
 /// The two are read together on purpose. The screen says whether anybody is
 /// being waited for; it cannot say what they are waiting for, because an
 /// agent's composer and a shell's prompt are the same thing to a terminal. So
-/// what was typed says which program is up, and the alternate screen says it is
-/// still up — an agent takes that screen for as long as it runs and hands it
-/// back on the way out, which is a fact about the terminal rather than a guess
-/// about the program.
+/// what was typed says which program is up, and the terminal having been taken
+/// over says it is still up — which is a fact about the terminal rather than a
+/// guess about the program.
 pub fn doing(screen: &Screen, started: Option<&str>) -> Doing {
     let standing = screen.standing();
-    if standing.alt && started.is_some_and(agent) {
-        return Doing::Agent;
+    if standing.taken && started.is_some_and(agent) {
+        // An agent is the session itself for the whole of its run, so what is
+        // left to say is only which half of that run this is.
+        return match working(&screen.lines()) {
+            true => Doing::Working,
+            false => Doing::Agent,
+        };
     }
     // What is in front of the caret, with nothing trimmed off the end of it:
     // the space after a shell's sigil is the whole of what says the sigil is a
@@ -76,6 +112,19 @@ pub fn doing(screen: &Screen, started: Option<&str>) -> Doing {
         return Doing::Idle;
     }
     Doing::Running
+}
+
+/// Whether the agent drawing this screen is working rather than waiting.
+///
+/// The whole screen rather than the foot of it. The two agents measured put the
+/// offer in different places — Claude Code under its composer, Codex above it —
+/// and neither place is the other's, so what is looked for is the words and not
+/// where they landed.
+fn working(lines: &[String]) -> bool {
+    lines.iter().any(|line| {
+        let said = line.to_lowercase();
+        STOPPING.iter().any(|offer| said.contains(offer))
+    })
 }
 
 /// Whether what is in front of the caret is somewhere a command could be typed.

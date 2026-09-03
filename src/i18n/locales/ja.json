@@ -107,7 +107,13 @@
     "followHint": "数分おきに fetch し、遅れているだけのブランチをリモートの先まで進めます。",
     "mcp": "MCPサーバー",
     "register": "エージェントの設定",
-    "registerHint": "各エージェントに一度書き込めば、それを動かす端末すべてに効きます。"
+    "registerHint": "各エージェントに一度書き込めば、それを動かす端末すべてに効きます。",
+    "saidFace": "行の書体",
+    "saidSize": "行の大きさ",
+    "saidFit": "行をキャンバスに合わせる",
+    "saidFitHint": "行の幅は画面に出ているキャンバスの広さから、行数はグラフの行の間隔から決めます。",
+    "saidLines": "行数",
+    "saidWidth": "行の幅"
   },
   "mcp": {
     "on": "ON",
@@ -166,5 +172,9 @@
     "notPicture": "画像として表示できません",
     "truncated": "先頭 {{kilobytes}} KB を表示",
     "patchCut": "差分の先頭のみ表示"
+  },
+  "said": {
+    "terminal": "ターミナルの書体",
+    "window": "ウィンドウの書体"
   }
 }

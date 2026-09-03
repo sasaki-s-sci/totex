@@ -52,6 +52,30 @@ pub(super) fn full_screen_box() -> String {
     .concat()
 }
 
+/// What an agent that draws down the ordinary screen leaves on one: no
+/// alternate screen anywhere in it, focus reporting turned on as it started,
+/// its own transcript, a composer at the foot and one line of hint under that.
+///
+/// Taken off Claude Code 2.1.259 and Codex 0.153.1, both of which draw this way
+/// — see `STOPPING` beside the reading for what was measured. `hint` is that
+/// bottom line, which is the one part of it that says whether the agent is
+/// working or waiting.
+pub(super) fn inline_agent(hint: &str) -> String {
+    [
+        "\u{1b}[?1004h\u{1b}[2J\u{1b}[H",
+        "❯ explain this repository\r\n",
+        "\r\n",
+        "● Reading the folder now.\r\n",
+        "\r\n",
+        "────────────────────────────────────────\r\n",
+        "❯ \r\n",
+        "────────────────────────────────────────\r\n",
+        "  ",
+        hint,
+    ]
+    .concat()
+}
+
 pub(super) fn screen_of(text: &str) -> Screen {
     let mut screen = Screen::new(24, 60);
     screen.feed(text);

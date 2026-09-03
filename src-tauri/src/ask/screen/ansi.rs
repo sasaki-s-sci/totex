@@ -50,6 +50,7 @@ impl Screen {
             'c' => {
                 self.shown = true;
                 self.alt = false;
+                self.watched = false;
                 self.reset();
             }
             _ => {}
@@ -82,7 +83,8 @@ impl Screen {
     }
 
     /// A private sequence is a mode being set, and the only ones that matter
-    /// here swap screens or put the caret away.
+    /// here swap screens, put the caret away, or say that what is drawing wants
+    /// to be told when the window is looked at.
     fn mode(&mut self, letter: char, first: usize) {
         if !matches!(letter, 'h' | 'l') {
             return;
@@ -95,6 +97,12 @@ impl Screen {
                 self.reset();
             }
             25 => self.shown = letter == 'h',
+            // Being told when the window is looked at. A shell has no use for
+            // it and never asks; something drawing a screen asks as it starts
+            // and unasks as it goes, which is what makes it the other half of
+            // `Standing::taken` — see there for why the alternate screen alone
+            // is no longer enough to say a program has taken the terminal.
+            1004 => self.watched = letter == 'h',
             _ => {}
         }
     }

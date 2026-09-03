@@ -3,7 +3,7 @@
 
 use super::super::watch::Watcher;
 use super::super::{Doing, doing};
-use super::{full_screen_box, screen_of};
+use super::{full_screen_box, inline_agent, screen_of};
 
 /// A shell standing at its prompt with nothing typed at it: the one state where
 /// the window is waiting for the person rather than the other way round.
@@ -52,6 +52,59 @@ fn a_command_that_has_said_nothing_is_running() {
 fn an_agent_on_its_own_screen_is_an_agent() {
     let screen = screen_of(&full_screen_box());
     assert_eq!(doing(&screen, Some("claude")), Doing::Agent);
+}
+
+/// And an agent that never asked for a screen of its own is one just the same.
+///
+/// Which is now every one of them: Claude Code 2.1 and Codex 0.153 both draw
+/// down the ordinary screen so that what they said stays in the scrollback, and
+/// a reading that wanted the alternate screen said `a shell at its prompt`
+/// about both of them for the whole of a session. What they take instead is
+/// being told when the window is looked at — see `Standing::taken`.
+#[test]
+fn an_agent_that_never_took_a_screen_is_an_agent() {
+    let screen = screen_of(&inline_agent("⏸ manual mode on · ? for shortcuts"));
+    assert_eq!(doing(&screen, Some("claude")), Doing::Agent);
+}
+
+/// The one thing that tells the two halves of a session apart: an agent at work
+/// draws the way out of the work, and an agent waiting to be answered does not.
+#[test]
+fn an_agent_offering_a_way_out_is_working() {
+    for hint in [
+        // Claude Code, on its bottom line, where `? for shortcuts` otherwise is.
+        "⏸ manual mode on · esc to interrupt",
+        // Codex, on the line above its composer, which is not drawn at all the
+        // rest of the time.
+        "• Working (2s • esc to interrupt)",
+    ] {
+        let screen = screen_of(&inline_agent(hint));
+        assert_eq!(doing(&screen, Some("codex")), Doing::Working, "{hint}");
+    }
+}
+
+/// A question standing is the agent waiting for somebody, however loudly the
+/// screen offers a key to get out of it. Which is why the reading is the words
+/// an agent uses for stopping work and not the shape of a hint: this line is
+/// the same shape and says the opposite thing.
+#[test]
+fn an_agent_that_has_stopped_to_ask_is_not_working() {
+    let screen = screen_of(&inline_agent("Esc to cancel · Tab to amend"));
+    assert_eq!(doing(&screen, Some("claude")), Doing::Agent);
+}
+
+/// And handing the terminal back ends it, the same way giving the alternate
+/// screen back does: what says the agent has gone is the terminal saying so.
+#[test]
+fn an_agent_that_handed_the_terminal_back_has_stopped() {
+    let screen = screen_of(
+        &[
+            &inline_agent("⏸ manual mode on · esc to interrupt"),
+            "\u{1b}[?1004l\r\na@box:~/repo$ ",
+        ]
+        .concat(),
+    );
+    assert_eq!(doing(&screen, Some("claude")), Doing::Idle);
 }
 
 /// The same screen, run by something that is not an agent. A full-screen
@@ -191,6 +244,53 @@ fn an_agent_started_at_a_shell_says_so_for_as_long_as_it_is_up() {
     // Quitting hands the screen back, and the session is a shell again.
     assert_eq!(
         told(&mut watcher, &mut at, "\u{1b}[?1049l\r\na@box:~/repo$ "),
+        Some(Doing::Idle)
+    );
+}
+
+/// And the same road for an agent that draws down the ordinary screen, which is
+/// the one the two agents measured actually take.
+///
+/// What is being held down here is that `started` survives an agent that never
+/// asks for a screen of its own. That reading is kept off the ordinary screen —
+/// it is the line somebody typed at a shell — and an agent drawing a composer
+/// on that screen writes over it every frame, so what keeps `codex` standing is
+/// the terminal having been taken rather than which screen is in use.
+#[test]
+fn an_agent_drawing_down_the_ordinary_screen_says_so_too() {
+    let mut watcher = Watcher::new(24, 60);
+    let mut at = 0;
+
+    assert_eq!(
+        told(&mut watcher, &mut at, "a@box:~/repo$ "),
+        Some(Doing::Idle)
+    );
+    assert_eq!(told(&mut watcher, &mut at, "codex"), None);
+    assert_eq!(told(&mut watcher, &mut at, "\r\n"), Some(Doing::Running));
+
+    // The agent comes up and stands at its composer, which is a session waiting
+    // to be answered rather than one being waited on.
+    assert_eq!(
+        told(&mut watcher, &mut at, &inline_agent("? for shortcuts")),
+        Some(Doing::Agent)
+    );
+    // A turn is handed over, and the agent says how to take it back.
+    assert_eq!(
+        told(
+            &mut watcher,
+            &mut at,
+            &inline_agent("• Working (2s • esc to interrupt)")
+        ),
+        Some(Doing::Working)
+    );
+    // The answer lands and the offer goes with it.
+    assert_eq!(
+        told(&mut watcher, &mut at, &inline_agent("? for shortcuts")),
+        Some(Doing::Agent)
+    );
+    // And quitting hands the terminal back, which is a shell again.
+    assert_eq!(
+        told(&mut watcher, &mut at, "\u{1b}[?1004l\r\na@box:~/repo$ "),
         Some(Doing::Idle)
     );
 }
