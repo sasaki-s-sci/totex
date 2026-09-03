@@ -1,6 +1,7 @@
 import { Box, Paper } from "@mui/material";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import type { Doing } from "../lib/doing";
 import type { CliPlace } from "../lib/graphNav";
 import type { Session } from "../lib/session";
 import { CliStrip } from "./CliStrip";
@@ -31,6 +32,13 @@ type Props = {
    * `cliRun`.
    */
   run: readonly CliPlace[];
+  /**
+   * What each of them is doing, which is what the strip in the band draws.
+   *
+   * The same reading the canvas marks are drawn from, handed to the panel as
+   * well: the two are one run of terminals said in two places.
+   */
+  doings: ReadonlyMap<string, Doing>;
   /** The process finished by itself, so there is no session left to show. */
   onEnded: (session: Session) => void;
 };
@@ -47,7 +55,7 @@ type Props = {
  * hidden — hidden while still laid out, which is what makes moving between them
  * cost a property rather than a redraw. See below.
  */
-export function SidePanel({ sessions, showing, run, onEnded }: Props) {
+export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
   const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
   // The grip is on the panel's left edge, so dragging left widens it.
@@ -122,7 +130,7 @@ export function SidePanel({ sessions, showing, run, onEnded }: Props) {
             pl: `${HEADER_INSET}px`,
           }}
         >
-          <CliStrip run={run} showing={showing} />
+          <CliStrip run={run} showing={showing} doings={doings} />
         </Box>
       </Box>
 

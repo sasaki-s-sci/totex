@@ -326,7 +326,13 @@ function Window() {
       {/* Stood up with the first session and kept from then on: the panel holds
           the terminals, and a terminal that is unmounted comes back empty. */}
       {SidePanel && (
-        <SidePanel sessions={sessions} showing={showing} run={run} onEnded={endSession} />
+        <SidePanel
+          sessions={sessions}
+          showing={showing}
+          run={run}
+          doings={doings}
+          onEnded={endSession}
+        />
       )}
 
       {/* The window has no frame of its own, so the three moves it would have
