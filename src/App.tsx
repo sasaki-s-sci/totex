@@ -378,7 +378,14 @@ function sameRun(held: readonly CliPlace[], next: readonly CliPlace[]): boolean 
     held.length === next.length &&
     held.every((place, at) => {
       const against = next[at];
-      return place.session === against?.session && place.group === against.group;
+      return (
+        place.session === against?.session &&
+        place.group === against.group &&
+        // The name as well: the strip heads each run with it, so a repository
+        // that came back from a sweep under another name is a reading that says
+        // something new.
+        place.name === against.name
+      );
     })
   );
 }

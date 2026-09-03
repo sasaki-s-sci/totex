@@ -7,7 +7,7 @@ import type { Session } from "../lib/session";
 import { CliStrip } from "./CliStrip";
 import { CliView } from "./CliView";
 import { ResizeGrip, useResizeGrip } from "./useResizeGrip";
-import { HEADER_HEIGHT, HEADER_INSET } from "./WindowControls";
+import { HEADER_HEIGHT, HEADER_INSET, HEADER_MARKS } from "./WindowControls";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 1100;
@@ -117,9 +117,14 @@ export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
         {/* Where the terminal in the panel stands among all of them, at the
             near edge of the band and clear of the grip. Drawn over the sheet
             rather than inside it: the sheet is invisible until the pointer is
-            on it, and the strip is there to be read the whole time. Its own
-            marks line up with the window's, which sit on the band's floor at
-            the other end of the same row. */}
+            on it, and the strip is there to be read the whole time.
+
+            It is two lines now — a repository's name over the terminals running
+            in it — so it takes the whole of the band under the inset rather
+            than standing on the middle line of it. The band itself is
+            unchanged: it is the window's own, the three marks at the other end
+            of it are where they were, and the terminal underneath still begins
+            where it did. */}
         <Box
           sx={{
             position: "relative",
@@ -128,6 +133,10 @@ export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
             height: "100%",
             pt: `${HEADER_INSET}px`,
             pl: `${HEADER_INSET}px`,
+            // And stops short of the window's own three marks, which stand over
+            // this corner: the strip names the repositories now, and a name is
+            // the one thing in the band long enough to reach them.
+            pr: `${HEADER_MARKS}px`,
           }}
         >
           <CliStrip run={run} showing={showing} doings={doings} />

@@ -46,6 +46,19 @@ export const HEADER_INSET = 8;
  */
 export const HEADER_HEIGHT = HEADER_INSET + MARK_BUTTON;
 
+/** The hair between the three marks, which is what the row is spaced by. */
+const MARK_GAP = 2;
+
+/**
+ * How much of the far end of the band the window's own marks take.
+ *
+ * The three of them, the hair between them, and the inset they stand off the
+ * edge by. Read by the panel: the marks are drawn over the panel's own corner —
+ * the window has one band and the panel is under the end of it — so anything the
+ * panel draws in that band has to stop here or be read through a button.
+ */
+export const HEADER_MARKS = MARK_BUTTON * 3 + MARK_GAP * 2 + HEADER_INSET;
+
 export function WindowControls() {
   const { t } = useTranslation();
   const appWindow = useMemo(() => getCurrentWindow(), []);
@@ -63,7 +76,7 @@ export function WindowControls() {
       />
       <Stack
         direction="row"
-        spacing={0.25}
+        spacing={`${MARK_GAP}px`}
         sx={{
           position: "relative",
           zIndex: 1,
