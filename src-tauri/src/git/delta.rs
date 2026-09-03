@@ -25,6 +25,7 @@ pub struct RepositorySummary {
     pub default_branch: Option<String>,
     pub remotes: Vec<Remote>,
     pub history_truncated: bool,
+    pub graph_ignore: Vec<String>,
 }
 
 fn summary(repository: &Repository) -> RepositorySummary {
@@ -38,6 +39,7 @@ fn summary(repository: &Repository) -> RepositorySummary {
         default_branch: repository.default_branch.clone(),
         remotes: repository.remotes.clone(),
         history_truncated: repository.history_truncated,
+        graph_ignore: repository.graph_ignore.clone(),
     }
 }
 

@@ -29,6 +29,22 @@ export type CollapseNodeData = {
 };
 
 /**
+ * Where the branches that share a name are gathered on their way out.
+ *
+ * A knot in the wiring rather than a thing in the repository: `dev/` is not a
+ * ref and nothing can be done to it. So the mark is the smallest on the canvas
+ * — smaller than a commit, which is the least thing that is real — and it
+ * carries no name of its own. What it is is read off the names fanning out of
+ * it, and the count is there for the pointer. See `junctions`.
+ */
+export type JunctionNodeData = {
+  /** The shared start of the names, without its trailing slash. */
+  prefix: string;
+  /** How many rows of the branch column run through it. */
+  members: number;
+};
+
+/**
  * One terminal: the single mark this canvas draws for anything to do with a
  * shell.
  *

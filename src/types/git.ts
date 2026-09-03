@@ -72,6 +72,16 @@ export type Repository = {
   /** Newest first, in topological order. */
   commits: Commit[];
   historyTruncated: boolean;
+  /**
+   * The branch names this repository asks the graph to leave out, as its
+   * `.totex/.graphignore` writes them — blank lines and comments already gone.
+   *
+   * Optional because these pages can be running on a program from before the
+   * file was read at all, and a window that drew nothing rather than drawing
+   * every branch would be a worse answer than ignoring nothing. See
+   * `lib/graph/ignore`.
+   */
+  graphIgnore?: string[];
 };
 
 export type Workspace = {

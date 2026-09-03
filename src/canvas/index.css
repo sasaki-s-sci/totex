@@ -43,6 +43,7 @@
 @import "./folders.css";
 @import "./commits.css";
 @import "./branches.css";
+@import "./junctions.css";
 @import "./ring.css";
 @import "./menus.css";
 @import "./folded.css";

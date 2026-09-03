@@ -10,10 +10,11 @@ import {
   COMMIT_STEP,
   COMMIT_TRIM,
   type CommitFlowNode,
+  FOLD_TRIM,
   LINE_COLOR,
   onCommit,
 } from "../model";
-import type { Frame } from "./frame";
+import { collapseId, type Frame } from "./frame";
 
 /** How history itself is drawn. */
 const HISTORY_STROKE = { colour: LINE_COLOR, width: 1.2, opacity: 0.82 };
@@ -87,7 +88,7 @@ export function drawCommits(frame: Frame) {
     const oldest = history.placed[history.placed.length - 1];
 
     nodes.push({
-      id: `${repository.id}collapse`,
+      id: collapseId(repository),
       type: "collapse",
       parentId: repository.id,
       extent: "parent",
@@ -109,14 +110,14 @@ export function drawCommits(frame: Frame) {
     // button standing where the rest of the history would be.
     drawn.add({
       id: `${repository.id}collapse-edge`,
-      from: onCommit(`${repository.id}collapse`),
+      from: onCommit(collapseId(repository)),
       to: onCommit(commitNodeId(repository, oldest.commit.id)),
       // The same S every line off the row takes; level ends make it straight.
       shape: "curve",
       trim: COMMIT_TRIM,
-      // The fold is a 56px pill centred on this end. Start just past its edge
+      // The fold is a pill centred on this end. Start just past its edge
       // instead of showing the dash through its translucent background.
-      lead: 29,
+      lead: FOLD_TRIM,
       stroke: { colour: LINE_COLOR, width: 1.2, opacity: 0.5, dash: "4 5" },
     });
   }

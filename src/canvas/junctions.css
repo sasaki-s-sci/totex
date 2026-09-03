@@ -1,0 +1,30 @@
+/**
+ * Where the branches that share a name are gathered.
+ */
+
+/* A knot in the wiring: the smallest mark the canvas draws, standing in the
+   middle of its own cell.
+
+   Smaller than a commit dot, and deliberately. A commit is the least thing on
+   this canvas that is real — an object in the repository, with a message and a
+   hand behind it — and this is not one: it is the shared start of a handful of
+   names, drawn because a dozen lines all saying `dev/` before they say anything
+   else read better gathered than fanned. Being under the size of the least real
+   thing is how it says that without a word.
+
+   The same clearance every mark on the grid carries, so the lines that run into
+   it and out of it stop short of the disc rather than touching it, and the
+   canvas's own ink: it is a mark on the grid and reads as one. The size is the
+   whole of what tells it apart from a commit, which is the point — it is a knot
+   in the wiring, not a thing that happened. */
+.junction__knot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mark);
+  box-shadow: var(--clearance);
+  /* It answers the pointer only so that the name it gathers can be read off it.
+     There is nothing to press: no `nopan` in the markup, so the hand that comes
+     down here carries the canvas as it would anywhere else on the grid. */
+  cursor: inherit;
+}

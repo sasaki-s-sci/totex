@@ -85,6 +85,11 @@ fn the_watch_set_covers_refs_and_the_shallow_tree() {
     let git_dir = root.join("zeta").join(".git");
     std::fs::create_dir_all(git_dir.join("refs")).expect("create refs");
     std::fs::create_dir_all(root.join("nested").join("deeper")).expect("create nested");
+    // What a checkout says about how it is drawn, and what the folder over it
+    // says for the ones that say nothing: neither is written by git, so nothing
+    // else in the watch set would ever fire for an edit to one.
+    std::fs::create_dir_all(root.join("zeta").join(".totex")).expect("create the repo's space");
+    std::fs::create_dir_all(root.join(".totex")).expect("create the folder's space");
 
     let targets = super::super::watch::watch_targets(
         &crate::host::Host::Local,
@@ -100,6 +105,14 @@ fn the_watch_set_covers_refs_and_the_shallow_tree() {
     assert!(
         paths.contains(&root.join("nested").as_path()),
         "a directory a new repository could appear in"
+    );
+    assert!(
+        paths.contains(&root.join("zeta").join(".totex").as_path()),
+        "the repository's own space"
+    );
+    assert!(
+        paths.contains(&root.join(".totex").as_path()),
+        "the space the folder keeps for everything under it"
     );
     // `worktrees` does not exist here, so it must not have been registered.
     assert!(!paths.contains(&git_dir.join("worktrees").as_path()));

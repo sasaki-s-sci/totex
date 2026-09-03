@@ -176,3 +176,78 @@ fn rejects_a_root_that_is_not_a_directory() {
     let error = scan("/definitely/not/here".into(), None).expect_err("must fail");
     assert_eq!(error, "not-a-directory");
 }
+
+#[test]
+fn reads_the_branches_a_repository_asks_to_leave_off_the_graph() {
+    if !git_available() {
+        eprintln!("skipping: git is not on PATH");
+        return;
+    }
+
+    let temp = TempDir::new("graphignore");
+    let root = temp.path();
+
+    let alpha = root.join("alpha");
+    std::fs::create_dir_all(&alpha).expect("create alpha");
+    git(&alpha, &["init", "-b", "main"]);
+    commit(&alpha, "one.txt", "1");
+
+    // A repository that says nothing is a repository asking for nothing left
+    // out, which is what every one of them asked for before the file existed.
+    let beta = root.join("beta");
+    std::fs::create_dir_all(&beta).expect("create beta");
+    git(&beta, &["init", "-b", "main"]);
+    commit(&beta, "one.txt", "1");
+
+    let space = alpha.join(".totex");
+    std::fs::create_dir_all(&space).expect("create space");
+    std::fs::write(
+        space.join(".graphignore"),
+        "# what is not worth a row\n\nrelease/*\n  origin/*  \n!release/next\n",
+    )
+    .expect("write graphignore");
+
+    let workspace = scan(root.to_string_lossy().into_owned(), None).expect("scan");
+    // The furniture of the file is the file's own: what comes over is the list.
+    assert_eq!(
+        find(&workspace.repositories, "alpha").graph_ignore,
+        vec![
+            "release/*".to_string(),
+            "origin/*".to_string(),
+            "!release/next".to_string(),
+        ]
+    );
+    assert!(
+        find(&workspace.repositories, "beta")
+            .graph_ignore
+            .is_empty()
+    );
+}
+
+#[test]
+fn takes_the_list_from_the_space_a_repository_stands_in() {
+    if !git_available() {
+        eprintln!("skipping: git is not on PATH");
+        return;
+    }
+
+    let temp = TempDir::new("graphignore-above");
+    let root = temp.path();
+
+    let alpha = root.join("alpha");
+    std::fs::create_dir_all(&alpha).expect("create alpha");
+    git(&alpha, &["init", "-b", "main"]);
+    commit(&alpha, "one.txt", "1");
+
+    // Written at the folder somebody put on the graph rather than in the
+    // checkout, which is where one list for a whole tree of them goes.
+    let space = root.join(".totex");
+    std::fs::create_dir_all(&space).expect("create space");
+    std::fs::write(space.join(".graphignore"), "origin/*\n").expect("write graphignore");
+
+    let workspace = scan(root.to_string_lossy().into_owned(), None).expect("scan");
+    assert_eq!(
+        find(&workspace.repositories, "alpha").graph_ignore,
+        vec!["origin/*".to_string()]
+    );
+}
