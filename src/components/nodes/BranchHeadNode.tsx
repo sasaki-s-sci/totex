@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useFetchPull } from "../../hooks/useFetchPull";
 import { type BranchHeadFlowNode, HEAD_SIZE, REMOTE_HEAD_SIZE } from "../../lib/graph";
 import { dirtyCount } from "../../lib/workspace";
+import { useBrowsing } from "../browsing";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
 import { CliMark } from "../marks";
@@ -24,6 +25,10 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { openWork, browseWorktree, pickBranch, dragBranch, fetchBranch } = useGraphActions();
   const statuses = useWorktreeStatuses();
   const status = statuses.get(cwd ?? "");
+  /** The column is reading this copy: the one worktree of the several a
+   *  repository can have that is actually in front of whoever is here. */
+  const browsing = useBrowsing();
+  const here = cwd !== null && browsing.has(cwd);
 
   const live = fetch !== null && atRest(statuses, fetch.work);
   const asking = fetch && t("branch.fetch", { remote: fetch.remote, branch: fetch.branch });
@@ -72,6 +77,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
             className={`mark mark--centred nopan head__ring${state ? ` ${state}` : ""}${doing}`}
             style={{ width: HEAD_SIZE, height: HEAD_SIZE }}
             aria-label={t("branch.browse", { name })}
+            aria-current={here || undefined}
             onPointerDown={(event) => dragBranch(repository, name, event)}
             onClick={(event) => {
               event.stopPropagation();
@@ -99,6 +105,13 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
                 {ink}
               </svg>
             )}
+
+            {/* The column is in this copy. Inside the ring rather than on it:
+                the ring's own line is spoken for several times over — what is
+                uncommitted, a branch with no worktree, a refusal, a wait — and
+                the inside of it is the one surface on this mark that says
+                nothing yet. */}
+            {here && <span className="head__ring__here" />}
           </button>
 
           <button

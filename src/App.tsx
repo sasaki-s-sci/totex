@@ -69,6 +69,10 @@ function Window() {
   // Where the column starts. Read once — the sidebar owns the panes from there,
   // and reports back what to keep for next time.
   const [initialFolders] = useState(storedRoots);
+  // And where its panes are standing now, which is the other thing that report
+  // is good for: the canvas lights the ring of the worktree being browsed, and
+  // only the column knows which one that is.
+  const [browsing, setBrowsing] = useState<readonly string[]>(initialFolders);
   const [folderDestination, setFolderDestination] = useState<FolderDestination | null>(null);
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
@@ -260,7 +264,10 @@ function Window() {
       <FolderSidebar
         initialFolders={initialFolders}
         onExpandedChange={setRoots}
-        onFoldersChange={(folders) => localStorage.setItem(ROOTS_KEY, JSON.stringify(folders))}
+        onFoldersChange={(folders) => {
+          setBrowsing(folders);
+          localStorage.setItem(ROOTS_KEY, JSON.stringify(folders));
+        }}
         onOpenSettings={openSettings}
         onOpenFile={(path) => openFiles([path], null)}
         drops={drops}
@@ -290,6 +297,7 @@ function Window() {
           <GitGraph
             workspace={drawn ?? EMPTY_WORKSPACE}
             folders={folders}
+            browsing={browsing}
             sessions={sessions}
             showing={showing}
             asks={asks}
