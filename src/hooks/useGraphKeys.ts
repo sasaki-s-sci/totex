@@ -5,6 +5,7 @@ import type { CliJumps } from "../components/cliJumps";
 import { type AppNode, commitNodeId } from "../lib/graph";
 import { first, history, jumpable, type Pickable, pickables, step } from "../lib/graphNav";
 import { terminal, typing } from "../lib/keys";
+import { revealing } from "../lib/reveal";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
   ArrowRight: { x: 1, y: 0 },
@@ -32,6 +33,9 @@ type Options = {
   /** End a terminal the walk is standing on: the shell stops, and the mark
    *  drawn for it leaves the canvas with it. */
   end: (node: AppNode) => void;
+  /** Cut a branch at the commit the walk is standing on, under the name
+   *  nobody was asked for. */
+  branch: (node: AppNode) => void;
   /** What the walk has arrived at, which the window keeps: the ring itself goes
    *  when Ctrl does. */
   land: (node: AppNode | null) => void;
@@ -45,10 +49,13 @@ type Options = {
  *
  * Ctrl and an arrow steps from terminal to terminal and Ctrl and a number goes
  * straight to the one wearing it; both leave the panel holding what they
- * reached. Ctrl and Shift and an arrow is the other walk, along the history —
- * nothing is opened out there, and Return is what opens it. Ctrl and D ends the
- * terminal the walk is standing on, which is the one key here that takes
- * something away rather than going to it.
+ * reached. Ctrl and Shift is the other walk, along the history: the pair on
+ * their own already stand it on a commit — the history is what is being read
+ * from the moment they are down — and the arrows step along from there. Nothing
+ * is opened out there; Return is what opens it, and A cuts a branch at the
+ * commit the walk is standing on. Ctrl and D ends the terminal the walk is
+ * standing on, which is the one key here that takes something away rather than
+ * going to it.
  *
  * Held rather than toggled: let go and the pick goes with it, so there is no
  * mode to be left in. The pick is written straight onto the node's own element
@@ -61,6 +68,7 @@ export function useGraphKeys({
   activate,
   jump,
   end,
+  branch,
   land,
   selected,
 }: Options) {
@@ -69,6 +77,12 @@ export function useGraphKeys({
   // terminals. Only the marks read it, so it costs a render of those and
   // nothing else.
   const [holding, setHolding] = useState(false);
+  // And whether Shift is down beside it, which is the history being read: every
+  // commit says what it is while the pair are held, and the one the walk is
+  // standing on says the whole of it. Apart from `holding` because the two are
+  // read in different places, and a canvas of messages is not drawn for Ctrl on
+  // its own.
+  const [reading, setReading] = useState(false);
   // Where a walk between terminals sets out from before it has walked anywhere
   // of its own. Read off the graph: the mark drawn as being shown is already here.
   const shown = useMemo(
@@ -96,8 +110,8 @@ export function useGraphKeys({
   }, [nodes]);
   // The listeners are registered once and read through this, so a graph that
   // changes underneath them does not cost a pair of listeners each time.
-  const latest = useRef({ nodes, activate, jump, end, land, selected, shown, shownCommit });
-  latest.current = { nodes, activate, jump, end, land, selected, shown, shownCommit };
+  const latest = useRef({ nodes, activate, jump, end, branch, land, selected, shown, shownCommit });
+  latest.current = { nodes, activate, jump, end, branch, land, selected, shown, shownCommit };
   // Where every node can be landed on, rebuilt only when the graph itself is.
   // A held arrow key repeats far faster than the canvas changes, and walking
   // every node twice per repeat is the bulk of what a walk would cost.
@@ -123,21 +137,35 @@ export function useGraphKeys({
   /** The number being typed, and when its last digit arrived. */
   const typed = useRef<{ number: number; at: number } | null>(null);
 
-  /** Brings a pick into view, but only when it is not already there. */
+  /**
+   * Brings a pick into view, as far as the window has been told to go.
+   *
+   * The middle of the three is what this always did and is still what a window
+   * nobody has told does: move only once the walk has reached the edge of the
+   * pane, which is the least that keeps the mark from walking off it. The other
+   * two are the ends of that — a canvas that never moves under a key, and one
+   * that puts every step in the middle of the pane. See `reveal`, which is
+   * where the choice is kept and why there is one.
+   */
   const reveal = useCallback(
     (pick: Pickable) => {
+      const how = revealing();
+      if (how === "never") return;
       const flow = instance.current;
-      const box = host.current?.getBoundingClientRect();
-      if (!flow || !box) return;
+      if (!flow) return;
 
       const { x, y, zoom } = flow.getViewport();
-      const onScreen = { x: pick.x * zoom + x, y: pick.y * zoom + y };
-      const inside =
-        onScreen.x >= MARGIN &&
-        onScreen.y >= MARGIN &&
-        onScreen.x <= box.width - MARGIN &&
-        onScreen.y <= box.height - MARGIN;
-      if (inside) return;
+      if (how === "edge") {
+        const box = host.current?.getBoundingClientRect();
+        if (!box) return;
+        const onScreen = { x: pick.x * zoom + x, y: pick.y * zoom + y };
+        const inside =
+          onScreen.x >= MARGIN &&
+          onScreen.y >= MARGIN &&
+          onScreen.x <= box.width - MARGIN &&
+          onScreen.y <= box.height - MARGIN;
+        if (inside) return;
+      }
 
       flow.setCenter(pick.x, pick.y, { zoom, duration: PAN_MS });
     },
@@ -150,6 +178,44 @@ export function useGraphKeys({
       typed.current = null;
       setPicked(null);
       setHolding(false);
+      setReading(false);
+    };
+
+    /**
+     * Stands the walk on a pick: it is lit, the canvas comes as far towards it
+     * as it has been told to, and the window is told what was landed on.
+     *
+     * The one place any of that happens, because every way of arriving —
+     * a step, a number, the pair of keys that begins a walk — arrives the same.
+     */
+    const stand = (pick: Pickable): AppNode | null => {
+      at.current = pick.id;
+      // A digit typed before this named somewhere the walk has since left.
+      typed.current = null;
+      setPicked(pick.id);
+      reveal(pick);
+      const node = latest.current.nodes.find((candidate) => candidate.id === pick.id) ?? null;
+      latest.current.land(node);
+      return node;
+    };
+
+    /**
+     * Where a walk along the history sets out from.
+     *
+     * The commit already picked out, if there is one: a commit that was clicked
+     * or walked to is where the eye is, and Shift arriving is no reason to send
+     * it anywhere else. Failing that the commit under the terminal the panel is
+     * holding, which is where the work in view actually stands, and failing
+     * that the first commit on the canvas.
+     */
+    const origin = (): Pickable | null => {
+      const among = along.current;
+      const { selected, shownCommit } = latest.current;
+      return (
+        (selected ? among.find((pick) => pick.id === selected) : null) ??
+        (shownCommit ? among.find((pick) => pick.id === shownCommit) : null) ??
+        first(among)
+      );
     };
 
     /** The terminal a digit asks for. A digit typed straight after another is
@@ -165,15 +231,12 @@ export function useGraphKeys({
         return;
       }
 
-      typed.current = { number: wanted, at: Date.now() };
-      const stack = stacks[wanted - 1];
       // Where the arrows would carry on from, so a jump is somewhere to walk
       // out of rather than a place the walk has never heard of.
-      at.current = stack.id;
-      setPicked(stack.id);
-      reveal(stack);
-      const node = latest.current.nodes.find((candidate) => candidate.id === stack.id);
-      latest.current.land(node ?? null);
+      const node = stand(stacks[wanted - 1]);
+      // After standing on it, which clears whatever digit came before: this is
+      // the digit that is now open to a second one.
+      typed.current = { number: wanted, at: Date.now() };
       if (node) latest.current.jump(node);
     };
 
@@ -182,13 +245,10 @@ export function useGraphKeys({
      *  looked up in every node rather than in what is being walked. */
     const walk = (direction: { x: number; y: number }, terminals: boolean) => {
       const among = terminals ? places.current : along.current;
-      // The first history press chooses its origin. Later presses walk from it.
-      const beginning =
-        terminals || at.current
-          ? null
-          : ((latest.current.shownCommit
-              ? among.find((pick) => pick.id === latest.current.shownCommit)
-              : null) ?? first(among));
+      // The first history press chooses its origin. Later presses walk from it
+      // — and holding Shift has usually chosen it already, which is what leaves
+      // this to the walk that began before the window could pick anything out.
+      const beginning = terminals || at.current ? null : origin();
       // Where the walk is, or failing that where the eye is: the terminal the
       // panel is holding, or a commit that has been picked out already.
       const standing =
@@ -197,13 +257,7 @@ export function useGraphKeys({
       const next = beginning ?? (from ? step(from, among, direction) : first(among));
       if (!next) return;
 
-      at.current = next.id;
-      // A digit typed before the walk named somewhere the walk has since left.
-      typed.current = null;
-      setPicked(next.id);
-      reveal(next);
-      const node = latest.current.nodes.find((candidate) => candidate.id === next.id) ?? null;
-      latest.current.land(node);
+      const node = stand(next);
       // Reaching a terminal is going to it: the panel comes back holding what
       // the walk arrived at, the same as a number would have left it.
       if (terminals && node) latest.current.jump(node);
@@ -218,6 +272,27 @@ export function useGraphKeys({
       // answer from inside the terminal being left.
       setHolding(true);
 
+      // A field being written in keeps Ctrl and Shift: that pair with an arrow
+      // is how a word is selected, and none of what they mean out here is worth
+      // taking that away for. A terminal is the exception it always is — the
+      // window's keys matter most in there, which is what `terminal` is for.
+      const writing = typing(event.target) && !terminal(event.target);
+
+      // Ctrl and Shift: the walk along the history, standing on a commit from
+      // the moment the pair are down rather than from the first arrow. Two
+      // things wanted that. The history says what it is while they are held —
+      // every commit its message, and this one the whole of it — and there is
+      // no reading a history a key has not arrived at yet. And A cuts a branch
+      // at whatever the walk is standing on, which has to be a commit somebody
+      // has been shown before it is a commit they can cut from.
+      if (event.shiftKey && !writing) {
+        setReading(true);
+        if (!at.current) {
+          const start = origin();
+          if (start) stand(start);
+        }
+      }
+
       // A number: the same key the terminal is told to leave alone, so that the
       // one press is answered once and here.
       if (numeric(event)) {
@@ -225,6 +300,30 @@ export function useGraphKeys({
         // A held key is one press. Left to repeat, a number would read its own
         // repeats as the digits after it and walk away down the stack.
         if (!event.repeat) jumpTo(Number(event.key));
+        return;
+      }
+
+      // A: a branch cut at the commit the walk is standing on, under the name
+      // nobody was asked for — `draftBranchName`'s, which is the name the menu
+      // opens with and the whole of what it suggests. The third A this window
+      // answers: Ctrl and A opens another terminal in the workspace on show,
+      // Ctrl and Alt and A asks that workspace what it can run, and this one is
+      // on the history's own pair of keys because the history is what is being
+      // read when a branch is wanted. The menu is still there for a branch that
+      // wants a name of its own — see `CommitMenu`, and the offer over the dot
+      // that opens it.
+      if (event.shiftKey && !writing && event.key.toLowerCase() === "a" && at.current) {
+        const node = latest.current.nodes.find((candidate) => candidate.id === at.current);
+        // Only a commit is a thing to cut from. A walk that stopped on a
+        // terminal leaves A where it has always gone, which in a shell is the
+        // beginning of the line.
+        if (node?.type !== "commit") return;
+        event.preventDefault();
+        // A held key is one press. Left to repeat, this would cut a branch a
+        // frame for as long as the finger was down, and every one of them makes
+        // a directory.
+        if (event.repeat) return;
+        latest.current.branch(node);
         return;
       }
 
@@ -266,7 +365,7 @@ export function useGraphKeys({
       if (direction) {
         // A terminal is walked out of from inside it. Anything else being typed
         // into keeps its own arrows, which move a cursor through what is written.
-        if (typing(event.target) && !terminal(event.target)) return;
+        if (writing) return;
         event.preventDefault();
         walk(direction, !event.shiftKey);
         return;
@@ -286,6 +385,10 @@ export function useGraphKeys({
 
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Control") drop();
+      // Shift on its own only ends the reading. Where the walk had got to is
+      // kept, because the two walks are one: letting go of Shift is stepping
+      // from the history back to the terminals, not leaving.
+      if (event.key === "Shift") setReading(false);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -320,7 +423,7 @@ export function useGraphKeys({
   }, [picked, nodes, host]);
 
   const jumps: CliJumps = holding ? numbers : null;
-  return { picked, jumps };
+  return { picked, jumps, reading };
 }
 
 /** One of the ten keys a terminal can be reached by. */

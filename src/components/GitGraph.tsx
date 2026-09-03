@@ -12,6 +12,7 @@ import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
 import { useCanvasKeys } from "../hooks/useCanvasKeys";
 import { useCanvasZoom } from "../hooks/useCanvasZoom";
 import { useCliTyped } from "../hooks/useCliTyped";
+import { useCommitMessage } from "../hooks/useCommitMessage";
 import { useFilePreviews } from "../hooks/useFilePreviews";
 import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
@@ -66,6 +67,7 @@ export function GitGraph({
   onTake,
   marks,
   onSelect,
+  onCutBranch,
   onOpenWork,
   onBrowseWorktree,
   onPickBranch,
@@ -193,18 +195,37 @@ export function GitGraph({
     [resolve],
   );
 
-  const { picked, jumps, selectedCommit, setSelectedCommit, handleCommitClick, handleNodeClick } =
-    useCanvasKeys({
-      graph,
-      host,
-      instance,
-      expand,
-      onSelect,
-      onOpenWork,
-      onShowSession,
-      onJumpSession,
-      onEndSession,
-    });
+  const {
+    picked,
+    jumps,
+    reading,
+    selectedCommit,
+    setSelectedCommit,
+    handleCommitClick,
+    handleNodeClick,
+  } = useCanvasKeys({
+    graph,
+    host,
+    instance,
+    expand,
+    onSelect,
+    onCutBranch,
+    onOpenWork,
+    onShowSession,
+    onJumpSession,
+    onEndSession,
+  });
+
+  // The commit the walk is standing on, while the history is being read. The
+  // rest of them say their subject, which the canvas already has; this is the
+  // one that says the whole of what it says, so it is the one worth asking git
+  // about — and only for as long as somebody is stopped on it.
+  const readingCommit = useMemo(() => {
+    if (!reading || !picked) return null;
+    const node = graph.nodes.find((candidate) => candidate.id === picked);
+    return node?.type === "commit" ? node : null;
+  }, [reading, picked, graph.nodes]);
+  const message = useCommitMessage(readingCommit);
 
   // The same numbers, said to the window: the panel draws this run in its band,
   // and where a terminal ended up on the canvas is the only place the number
@@ -352,6 +373,11 @@ export function GitGraph({
                             nodes={lineNodes}
                             selected={selectedCommit}
                             picked={picked}
+                            // Not out where a line of this is two pixels tall:
+                            // words at that scale are a grey smear over the shape
+                            // the canvas was taken out to see.
+                            reading={reading && !coarse}
+                            message={message}
                             onCommit={handleCommitClick}
                           />
                         </ReactFlow>

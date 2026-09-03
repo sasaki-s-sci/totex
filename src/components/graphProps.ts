@@ -106,6 +106,15 @@ export type GraphProps = {
   marks: GraphMarks;
   /** A commit was clicked, with where on screen it happened. */
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
+  /**
+   * A branch is to be cut at a commit, under the name nobody was asked for.
+   *
+   * Ctrl and Shift and A, on the commit the walk is standing on: the one thing
+   * a commit is for, taken without the menu that would have named it. The
+   * canvas has no mark for this — the offer over a dot opens the menu, which is
+   * where a name is chosen — so it arrives from the keys and nowhere else.
+   */
+  onCutBranch: (node: CommitFlowNode) => void;
   onOpenWork: (request: WorkRequest) => void;
   onBrowseWorktree: (request: WorktreeBrowseRequest) => void;
   onPickBranch: (pick: BranchPick) => void;

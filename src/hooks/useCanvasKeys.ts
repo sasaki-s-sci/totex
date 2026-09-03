@@ -18,6 +18,7 @@ export type KeysCanvas = {
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
   expand: (repository: string) => void;
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
+  onCutBranch: (node: CommitFlowNode) => void;
   onOpenWork: (request: WorkRequest) => void;
   onShowSession: (session: Session) => void;
   onJumpSession: (session: Session) => void;
@@ -30,6 +31,7 @@ export function useCanvasKeys({
   instance,
   expand,
   onSelect,
+  onCutBranch,
   onOpenWork,
   onShowSession,
   onJumpSession,
@@ -136,13 +138,29 @@ export function useCanvasKeys({
     [onEndSession],
   );
 
-  const { picked, jumps } = useGraphKeys({
+  /**
+   * Cuts a branch at the commit the walk is standing on.
+   *
+   * A commit and nothing else: the walk crosses terminals, branches and folders
+   * on its way along the history, and none of those is a thing to cut from. The
+   * name is nobody's to choose here — see `useCanvasWork`, which cuts it under
+   * the same suggestion the menu opens with.
+   */
+  const cut = useCallback(
+    (node: AppNode) => {
+      if (node.type === "commit") onCutBranch(node);
+    },
+    [onCutBranch],
+  );
+
+  const { picked, jumps, reading } = useGraphKeys({
     nodes: graph.nodes,
     instance,
     host,
     activate,
     jump,
     end: finish,
+    branch: cut,
     land,
     selected: selectedCommit,
   });
@@ -150,5 +168,13 @@ export function useCanvasKeys({
   // Ctrl and a plus or a minus, answered by whichever file card has the focus.
   useReadingKeys();
 
-  return { picked, jumps, selectedCommit, setSelectedCommit, handleCommitClick, handleNodeClick };
+  return {
+    picked,
+    jumps,
+    reading,
+    selectedCommit,
+    setSelectedCommit,
+    handleCommitClick,
+    handleNodeClick,
+  };
 }

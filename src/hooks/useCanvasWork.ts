@@ -1,6 +1,6 @@
 /**
  * What a mark on the canvas asks the window for: a terminal in a branch, a
- * commit's menu, a merge, a sync, and a fetch.
+ * commit's menu, a branch cut from a commit, a merge, a sync, and a fetch.
  *
  * Every one of them is held still, because the graph's actions are context: a
  * callback rebuilt on every render is every node on the canvas told that
@@ -14,7 +14,14 @@ import type { WorkRequest } from "../components/graphActions";
 import { branchMark } from "../components/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
-import { fetchBranch, mergeBranch, openWorkspace, syncBranch } from "../lib/workspace";
+import {
+  createWorkspace,
+  draftBranchName,
+  fetchBranch,
+  mergeBranch,
+  openWorkspace,
+  syncBranch,
+} from "../lib/workspace";
 import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";
@@ -103,6 +110,32 @@ export function useCanvasWork({
     [setCommitMenu],
   );
 
+  /**
+   * Cuts a branch at a commit, under the name nobody was asked for.
+   *
+   * What Ctrl and Shift and A comes to, on the commit the walk is standing on.
+   * The same thing the menu does when the name it opens with is simply accepted
+   * — the same suggestion, the same worktree, and the same terminal opened in
+   * it — with the one press that names it taken out. That is the whole of the
+   * common case: a branch cut to start work on something is a branch whose name
+   * is decided later, if ever, and the menu is still there for one that wants a
+   * name of its own.
+   *
+   * Nothing is drawn if git refuses. Every other refusal in this window goes on
+   * the mark that was pressed, and a branch that was never made has no mark to
+   * go on: what it looks like is a graph that did not change, which is what
+   * happened.
+   */
+  const cutBranch = useCallback(
+    (node: CommitFlowNode) => {
+      const { repository, commit } = node.data;
+      createWorkspace(repository.id, draftBranchName(), commit.id)
+        .then((workspace) => openSession(shellSession(workspace.path, workspace.branch)))
+        .catch(() => undefined);
+    },
+    [openSession],
+  );
+
   const merge = useCallback(
     ({ repository, source, target }: MergeRequest) => {
       // The branch being merged into is the one that changes, so it is the one
@@ -168,5 +201,5 @@ export function useCanvasWork({
 
   /** Something the whole window depends on is not answering. */
 
-  return { openWork, browseWorktree, pickCommit, merge, sync, fetch };
+  return { openWork, browseWorktree, pickCommit, cutBranch, merge, sync, fetch };
 }
