@@ -28,6 +28,7 @@ import { warmInTurn } from "./lib/onDemand";
 import { startShell, writeShell } from "./lib/pty";
 import { type Session, shellSession } from "./lib/session";
 import { confirmFront, watchUpdateChoices } from "./lib/update";
+import { worktreeHomes } from "./lib/worktrees";
 import {
   commitPart,
   EMPTY_WORKSPACE,
@@ -156,6 +157,10 @@ function Window() {
   );
 
   const { workspace, folders, loading, failed } = useWorkspaces(roots);
+  // Where every checked-out branch is, against the copy of its repository that
+  // outlives it. The column is handed this so that deleting a branch does not
+  // leave a pane standing in the directory that went with it -- see `usePanes`.
+  const homes = useMemo(() => worktreeHomes(workspace), [workspace]);
   const gitMissing = useGitMissing(roots);
   // Every branch kept up with its remote on a slow loop, while the settings
   // page's one checkbox says to. Held with the window rather than with the
@@ -272,6 +277,7 @@ function Window() {
         onOpenFile={(path) => openFiles([path], null)}
         drops={drops}
         destination={folderDestination}
+        homes={homes}
       />
 
       {/* No toolbar: the graph owns the whole pane. */}
