@@ -51,13 +51,19 @@ export function CliMark({ size }: { size?: number }) {
 export function AgentMark({ size }: { size?: number }) {
   return (
     <Frame size={size}>
-      <circle cx="12" cy="5.6" r="2.6" />
-      <circle cx="5.6" cy="17.4" r="2.6" />
-      <circle cx="18.4" cy="17.4" r="2.6" />
-      {/* Rim to rim rather than centre to centre: a stroke run under a circle
-          is a stroke drawn twice at the hairline, and at eleven pixels that is
-          a blot where a point should be. */}
-      <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      {/* Grouped so that the three points and the lines between them turn as
+          one drawing. The turn is the mark's, not a state hung on it: this mark
+          is only ever drawn where an agent is running, so what it says and what
+          it does are the same statement -- see `.agent-mark`. */}
+      <g className="agent-mark">
+        <circle cx="12" cy="5.6" r="2.6" />
+        <circle cx="5.6" cy="17.4" r="2.6" />
+        <circle cx="18.4" cy="17.4" r="2.6" />
+        {/* Rim to rim rather than centre to centre: a stroke run under a circle
+            is a stroke drawn twice at the hairline, and at eleven pixels that is
+            a blot where a point should be. */}
+        <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      </g>
     </Frame>
   );
 }

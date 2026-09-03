@@ -150,6 +150,50 @@
   }
 }
 
+/* An agent working in this terminal, said by the mark that stands for one.
+
+   The other two states move the part of the glyph that carries what they mean —
+   a busy terminal turns the cursor it is waiting at, and leaves the chevron
+   alone. This mark has no such part: three points and the lines between them
+   are one drawing of a session somebody is having, and there is nothing in it
+   that stands for the working in particular. So the whole mark turns.
+
+   A third of a turn every 2.7 seconds, and the loop is that third rather than
+   the whole turn. The three points are all but evenly spaced round the mark's
+   centre — a degree and a half out, and a fifth of a pixel apart at the size
+   this is drawn — so a third of a turn lands on the shape it started as and the
+   seam has nothing in it to see. What that reads as is a mark that keeps
+   arriving back at itself rather than one going somewhere.
+
+   Eight seconds for the whole way round, against the second and a half a busy
+   terminal takes to turn its cursor over twice. The two are different news and
+   should not read as one speed down a stack: a cursor turning over is something
+   being waited on, and this is somebody's session carrying on without them. It
+   is slow enough to be read as movement rather than as haste, which is the
+   difference between a mark that is alive and a spinner.
+
+   Turned about the three points' own centre rather than the middle of the
+   square they are drawn in, which sits a little above it: about the square, the
+   mark would walk round a small circle instead of turning where it stands. */
+.agent-mark {
+  /* The square the paths are written in, the way the caret's origin is. */
+  transform-box: view-box;
+  transform-origin: 12px 13.47px;
+  animation: agent-turn 2.7s linear infinite;
+}
+
+@keyframes agent-turn {
+  to {
+    transform: rotate(120deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-mark {
+    animation: none;
+  }
+}
+
 /* Ending a session is the one thing here that cannot be undone, so it is faint
    until the cursor is on the mark — but its room is always held, out to the
    side of the glyph, so a stack does not shuffle as the pointer runs down it. */
