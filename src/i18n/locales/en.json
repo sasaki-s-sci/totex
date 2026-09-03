@@ -54,7 +54,9 @@
   },
   "graph": {
     "fold": "Fold",
-    "expand": "Expand"
+    "expand": "Expand",
+    "junction_one": "{{prefix}}/ — {{count}} branch",
+    "junction_other": "{{prefix}}/ — {{count}} branches"
   },
   "commit": {
     "branch": "Branch",

@@ -193,3 +193,41 @@ reaching into WSL that only works where the distribution's networking is
 mirrored — under the networking WSL starts with, a distribution's loopback is
 its own — and where it is not, terminals in that distribution are simply never
 handed an address.
+
+## Keeping branches off the graph
+
+Every branch a repository has is drawn, whether or not the commit it stands on
+is one of the ones on screen: a graph opens folded, and the branches behind the
+fold hang off the fold itself rather than disappearing with the history they
+were cut from. A checkout that has collected a hundred old lines of work
+therefore draws a hundred rows, which is right for some of them and not for
+others.
+
+`.totex/.graphignore` is where that is narrowed. It is found the way `.git` is
+found — by walking up from the checkout — so one written at the folder you put
+on the graph covers every repository under it, and one written in a checkout
+covers that checkout:
+
+```gitignore
+# Everything a remote has, on this repository's own graph.
+origin/*
+
+# And the old releases, except the one still being cut.
+release/*
+!release/next
+```
+
+A line is a branch name, read the way `.gitignore` reads a path: `*` stops at a
+`/` and `**` crosses one, a name stands for everything under it — `dev` hides
+`dev/80gd2z` — and a `!` line brings back what an earlier line swept up. The
+name is matched with and without its remote, so `dev/*` reaches `origin/dev/x`
+as well as `dev/x`. Blank lines and `#` comments are the file's own furniture.
+
+A branch with a terminal running in it is drawn whatever the file says. The
+graph is where a running terminal is found, and a mark that answers to
+something cannot be left off it.
+
+Branches whose names start the same way are gathered on the way out to their
+column: one small mark per shared name, which the group leaves as a single line
+and fans out of. Nothing is configured for that — it is what a namespace looks
+like once there is more than one branch in it.

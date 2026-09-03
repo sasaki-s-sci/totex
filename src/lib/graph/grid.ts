@@ -63,6 +63,27 @@ export const DOT_SIZE = 14;
  * ring. Ending at the circle itself keeps both readings clear.
  */
 export const COMMIT_TRIM = DOT_SIZE / 2;
+/**
+ * The knot a group of branches is gathered at.
+ *
+ * Half a commit, and deliberately the smallest mark the canvas draws. A commit
+ * is the least thing on here that is real — an object in the repository, with a
+ * message and a hand behind it — and a junction is none of that: it is the
+ * shared start of some names, drawn because a dozen lines saying `dev/` before
+ * they say anything else read better gathered than fanned. Smaller than the
+ * least real thing is what says so without a word.
+ */
+export const JUNCTION_SIZE = 7;
+export const JUNCTION_TRIM = JUNCTION_SIZE / 2 + 1;
+/**
+ * Where a line touching the fold begins.
+ *
+ * The fold is a pill about twice the width of a commit's cell, centred on its
+ * own grid point, and its background is translucent: a line run to the middle
+ * of it would be seen through it. Every line out of the fold — the dash into
+ * the history, and the branches standing behind it — starts here instead.
+ */
+export const FOLD_TRIM = 29;
 /** One step of the row grid, for anything drawn to the scale of the layout. */
 export const STEP = { x: COLUMN_WIDTH, y: LANE_HEIGHT };
 /** A compact local/workspace ref node. It contains no duplicate commit dot. */

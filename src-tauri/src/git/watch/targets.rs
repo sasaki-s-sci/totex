@@ -69,7 +69,21 @@ pub(crate) fn watch_targets(
         if let Some(parent) = host.parent(Path::new(path)) {
             push(parent, RecursiveMode::NonRecursive);
         }
+        // And what the repository itself says about how it is drawn, which is a
+        // file somebody edits by hand rather than something git ever writes:
+        // nothing else in here would fire for it. See `inspect::ignore`.
+        push(
+            host.join(Path::new(path), crate::space::DIR),
+            RecursiveMode::NonRecursive,
+        );
     }
+
+    // And the one the folder itself keeps, which covers every repository under
+    // it that has none of its own.
+    push(
+        host.join(Path::new(root), crate::space::DIR),
+        RecursiveMode::NonRecursive,
+    );
 
     for path in discover::levels(host, Path::new(root), NEW_REPOSITORY_DEPTH) {
         push(path, RecursiveMode::NonRecursive);

@@ -2,9 +2,11 @@ import type { Repository } from "../../types/git";
 import { drawCommits } from "./band/commits";
 import type { Frame } from "./band/frame";
 import { drawHeads } from "./band/heads";
+import { drawJunctions } from "./band/junctions";
 import { placeBranches } from "./branches";
 import type { Point } from "./geometry";
 import { depthOf, placeHistory } from "./history";
+import { bundleBranches } from "./junctions";
 import { Lines } from "./lines";
 import {
   type BandLines,
@@ -16,6 +18,7 @@ import {
   type CollapseFlowNode,
   type CommitFlowNode,
   gridRows,
+  type JunctionFlowNode,
   MIN_BAND_WIDTH,
   NAME_HEIGHT,
   type RepositoryNodeData,
@@ -48,7 +51,7 @@ export type PreparedRepository = {
    *  label is where the line down from the folder lands. */
   data: RepositoryNodeData;
   style: { width: number; height: number };
-  nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[];
+  nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[];
   /** Every line the band draws, already batched by how it is drawn. */
   lines: BandLines;
   /** Where each branch's terminals stand, in the order the bands were laid out. */
@@ -120,7 +123,14 @@ const BRANCH_GAP = COMMIT_STEP.x / 2;
 /** Every node and line one repository contributes, relative to its band. */
 function layout(repository: Repository, shown: number, deep: Depth): PreparedRepository {
   const history = placeHistory(repository, shown);
-  const { refs, rows } = placeBranches(repository, history.placed);
+  const { refs, rows } = placeBranches(repository, history.placed, {
+    // Every branch the repository has is drawn, and the ones standing on
+    // history that is folded away hang off the fold.
+    folded: history.hidden > 0,
+    running: (cwd) => cwd !== null && (deep.get(cwd) ?? 0) > 0,
+  });
+  // And the ones whose names start the same way are gathered on the way out.
+  const bundle = bundleBranches(repository.id, refs);
 
   // How deep each row of the branch column is: what is running there, and
   // nothing else. The offer of a terminal is a button on the branch's own ring
@@ -159,13 +169,13 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // one is measured from: the ring itself rather than the edge of its cell, so
   // that the terminals beside a branch read as that branch's own and not as a
   // row of their own.
-  const ring = columnX(history.width) + BRANCH_GAP;
+  const ring = columnX(history.width + bundle.width) + BRANCH_GAP;
   const heads = ring - COLUMN_WIDTH / 2;
   // The terminals stack out past the ring, in a column of their own that no
   // line of the history ever crosses.
   const working = ring + CHIP_STEP;
 
-  const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode)[] = [];
+  const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[] = [];
   const drawn = new Lines();
   const runs: BranchRun[] = [];
 
@@ -184,6 +194,8 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     columnX,
     historyLine,
     branchLine,
+    bundle,
+    junctionAt: new Map(),
     heads,
     ring,
     working,
@@ -192,6 +204,10 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     runs,
   };
   drawCommits(frame);
+  // Before the heads: a branch that is gathered leaves its knot rather than the
+  // history, and the knot has to be standing somewhere before that line can be
+  // drawn to it.
+  drawJunctions(frame, refs);
   drawHeads(frame, refs);
 
   // the history and the branch column reaches furthest down.

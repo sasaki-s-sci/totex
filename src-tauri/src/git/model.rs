@@ -35,6 +35,9 @@ pub struct Repository {
     /// True when the history hit the per-repository limit, so the oldest
     /// commits are missing rather than absent.
     pub history_truncated: bool,
+    /// The branch names this repository asks the graph to leave out, as its
+    /// `.totex/.graphignore` writes them. Empty where it asks for nothing.
+    pub graph_ignore: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

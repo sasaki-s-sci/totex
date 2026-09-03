@@ -5,13 +5,20 @@
 import type { Node } from "@xyflow/react";
 
 import type { AskFlowNode } from "./asking";
-import type { CliNodeData, CollapseNodeData, FilePreviewNodeData, RepoMarkData } from "./marks";
+import type {
+  CliNodeData,
+  CollapseNodeData,
+  FilePreviewNodeData,
+  JunctionNodeData,
+  RepoMarkData,
+} from "./marks";
 import type { BranchHeadData, CommitNodeData, FolderNodeData, RepositoryNodeData } from "./nodes";
 import type { ReportFlowNode } from "./reporting";
 
 export type CommitFlowNode = Node<CommitNodeData, "commit">;
 export type BranchHeadFlowNode = Node<BranchHeadData, "head">;
 export type CollapseFlowNode = Node<CollapseNodeData, "collapse">;
+export type JunctionFlowNode = Node<JunctionNodeData, "junction">;
 export type RepositoryFlowNode = Node<RepositoryNodeData, "repository">;
 export type FolderFlowNode = Node<FolderNodeData, "folder">;
 export type RepoMarkFlowNode = Node<RepoMarkData, "repo-mark">;
@@ -22,6 +29,7 @@ export type AppNode =
   | CommitFlowNode
   | BranchHeadFlowNode
   | CollapseFlowNode
+  | JunctionFlowNode
   | RepositoryFlowNode
   | FolderFlowNode
   | RepoMarkFlowNode

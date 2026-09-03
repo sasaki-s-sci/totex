@@ -11,6 +11,7 @@ import { CliNode } from "./nodes/CliNode";
 import { CollapseNode } from "./nodes/CollapseNode";
 import { FilePreviewNode } from "./nodes/FilePreviewNode";
 import { FolderNode } from "./nodes/FolderNode";
+import { JunctionNode } from "./nodes/JunctionNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
 import { ReportNode } from "./nodes/ReportNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
@@ -22,6 +23,7 @@ export const nodeTypes = {
   "repo-mark": RepoMarkNode,
   head: BranchHeadNode,
   collapse: CollapseNode,
+  junction: JunctionNode,
   cli: CliNode,
   ask: AskNode,
   report: ReportNode,

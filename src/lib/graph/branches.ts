@@ -1,6 +1,7 @@
-import type { Branch, Repository } from "../../types/git";
+import type { Branch, Repository, Worktree } from "../../types/git";
 import { groupBy } from "../collections";
 import type { Placed } from "./history";
+import { graphIgnore } from "./ignore";
 import type { BranchHeadData, Fetch, Origin } from "./model";
 
 /**
@@ -10,37 +11,70 @@ import type { BranchHeadData, Fetch, Origin } from "./model";
  * order. Its edge can therefore fork from a commit just like another commit
  * edge; several names pointing at one commit never share a label track. Only a
  * synchronized local/remote pair shares one row and grid point.
+ *
+ * Every branch the repository has, and not only the ones standing on the
+ * commits that fit on screen. A graph opens folded, so a branch cut a fortnight
+ * ago points behind the fold — and drawing a repository as though it had three
+ * branches because it is showing three commits was the graph hiding the very
+ * thing it is for. What is behind the fold hangs off the fold, which is the
+ * mark that stands for it. Which names are not worth a row is the repository's
+ * own to say: see `ignore`.
  */
 
 /** A branch head, and the row of the column it was dealt. */
 export type PlacedRef = {
   id: string;
   data: BranchHeadData;
-  /** The commit it points at, as a position in the history's own order. */
-  from: number;
+  /**
+   * The commit it points at, as a position in the history's own order, or null
+   * where that commit is behind the fold.
+   */
+  from: number | null;
   /** Its row, counted from the top of the column. */
   row: number;
+  /** The name this ref is gathered by, which is its name without the remote. */
+  group: string;
   /** What this branch is to the repository, set above its name; see `noteOf`. */
   note: string | null;
 };
 
-/** Every branch pointing into the history that is drawn, in a column. */
+/** What a band knows about itself that decides which refs it draws. */
+export type Shown = {
+  /** Whether there is a fold to hang the branches behind it off. */
+  folded: boolean;
+  /** Whether anything is running in a directory, which keeps its branch drawn
+   *  however the repository's own list reads. */
+  running: (cwd: string | null) => boolean;
+};
+
+/** Every branch the repository has, in a column. */
 export function placeBranches(
   repository: Repository,
   placed: readonly Placed[],
+  shown: Shown,
 ): { refs: PlacedRef[]; rows: number } {
   const pairs = pairsOf(repository);
+  const hidden = graphIgnore(repository.graphIgnore);
+  // Where each commit that is drawn stands, so a name can be asked whether the
+  // history under it is on screen.
+  const at = new Map(placed.map((entry, position) => [entry.commit.id, position]));
 
-  // A branch pointing into history that is not shown is not shown either:
-  // folding a stretch of history away means folding away what is on it — the
-  // branches, their worktrees and whatever they were running. The collapse node
-  // says how much went, and expanding brings all of it back.
-  const found: { ref: Ref; from: number }[] = [];
-  for (const [position, entry] of placed.entries()) {
-    // Asked of the entry before anything is built for it: this runs once per
-    // commit, and all but a handful of them have no name on them at all.
-    if (entry.branches.length === 0 && entry.worktrees.length === 0) continue;
-    for (const ref of refsOf(entry, pairs)) found.push({ ref, from: position });
+  const found: { ref: Ref; from: number | null }[] = [];
+  for (const [commit, entry] of namedCommits(repository)) {
+    const from = at.get(commit) ?? null;
+    // A branch behind the fold hangs off the fold. Where there is none — a
+    // repository showing the whole of what it handed over — a name pointing
+    // outside it is a name pointing at history nothing on this canvas draws,
+    // and there is nowhere to run its line from.
+    if (from === null && !shown.folded) continue;
+
+    for (const ref of refsOf(entry, pairs)) {
+      // A branch somebody is working in is drawn whatever the list says: the
+      // graph is where a running terminal is found, and a mark that answers to
+      // something cannot be left off it.
+      if (hidden(ref.name, ref.group) && !shown.running(ref.cwd)) continue;
+      found.push({ ref, from });
+    }
   }
   found.sort((left, right) => inOrder(left.ref, right.ref));
 
@@ -64,11 +98,38 @@ export function placeBranches(
       },
       from,
       row,
+      group: ref.group,
       note: noteOf(ref, repository.defaultBranch),
     };
   });
 
   return { refs, rows: taken.size };
+}
+
+/** The names standing on one commit, whether or not that commit is drawn. */
+type Named = { branches: readonly Branch[]; worktrees: readonly Worktree[] };
+
+/**
+ * Every commit any name points at, with the names on it.
+ *
+ * The whole repository rather than the slice on screen: what is behind the fold
+ * still has branches, and they are drawn off the fold. A worktree with no head
+ * is bucketed under a key no commit can have, which leaves it out — there is no
+ * commit for its line to come from.
+ */
+function namedCommits(repository: Repository): Map<string, Named> {
+  const branchesAt = groupBy(repository.branches, (branch) => branch.commit);
+  const worktreesAt = groupBy(repository.worktrees, (worktree) => worktree.head ?? "");
+
+  const named = new Map<string, Named>();
+  for (const commit of [...branchesAt.keys(), ...worktreesAt.keys()]) {
+    if (commit === "" || named.has(commit)) continue;
+    named.set(commit, {
+      branches: branchesAt.get(commit) ?? [],
+      worktrees: worktreesAt.get(commit) ?? [],
+    });
+  }
+  return named;
 }
 
 /** Where two names are drawn: first by the branch name without its remote
@@ -187,7 +248,7 @@ function originOf(branch: Branch, pair: Pairing | undefined): Origin | null {
 
 /** The names pointing at one commit. A branch is checked out in at most one
  *  worktree, so only a detached one is named after itself. */
-function refsOf(entry: Placed, pairs: ReadonlyMap<string, Pairing>) {
+function refsOf(entry: Named, pairs: ReadonlyMap<string, Pairing>) {
   const named = new Set<string>();
 
   const branches = entry.branches.flatMap((branch) => {

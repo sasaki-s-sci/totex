@@ -54,7 +54,9 @@
   },
   "graph": {
     "fold": "折り畳む",
-    "expand": "展開"
+    "expand": "展開",
+    "junction_one": "{{prefix}}/ — {{count}} 本",
+    "junction_other": "{{prefix}}/ — {{count}} 本"
   },
   "commit": {
     "branch": "分岐",

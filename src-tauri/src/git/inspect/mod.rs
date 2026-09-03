@@ -1,12 +1,14 @@
 //! One repository, read out of git's own answers about it.
 
 mod commits;
+mod ignore;
 pub(crate) mod refs;
 mod worktree;
 
 use std::path::{Path, PathBuf};
 
 use commits::read_commits;
+use ignore::graph_ignore;
 use refs::{read_branches, read_default_branch, read_head, read_remotes};
 use worktree::{link_worktrees, read_worktrees};
 
@@ -124,5 +126,6 @@ pub fn inspect(located: &Located, commit_limit: usize) -> Result<Repository, Str
         worktrees,
         commits,
         history_truncated,
+        graph_ignore: graph_ignore(dir),
     })
 }
