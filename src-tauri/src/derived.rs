@@ -1,20 +1,23 @@
-//! Everything the app is holding that it could work out again.
+//! Everything this window is holding, which is everything it could work out
+//! again.
 //!
 //! Two kinds of thing are kept while a window is open. One is a running shell:
-//! a process with a history nobody else has a copy of, gone for good if this
-//! program stops. The other is all the rest — the snapshot a folder was scanned
-//! into, the watches on the few places git writes, the screen a session has
-//! drawn and the question standing on it — and none of that is a possession. It
-//! is a saving. Throw it away and it comes back, out of what is on disk and out
-//! of what the sessions have already said.
+//! a process with a history nobody else has a copy of, gone for good if
+//! whatever holds it stops. The other is all the rest — the snapshot a folder
+//! was scanned into, the watches on the few places git writes, the screen a
+//! session has drawn and the question standing on it — and none of that is a
+//! possession. It is a saving. Throw it away and it comes back, out of what is
+//! on disk and out of what the sessions have already said.
 //!
-//! The line between the two is the point of the arrangement. It is what would
-//! let the part of the app that owns the shells carry on running while the part
-//! that reads them is replaced underneath — an update that does not end
-//! anybody's agent halfway through what it was doing. A line like that is worth
-//! nothing unless it is true, so it is written down here as something the app
-//! actually does rather than as a note about how it is arranged, and the tests
-//! beside the two halves are what say it still holds.
+//! The line between the two is a process boundary. The shells are held by the
+//! program beside this one — see `keep` — and this window holds only the
+//! second kind, which is what lets it be replaced underneath a running agent
+//! without ending the agent: an update, a crash, a reload that went wrong. A
+//! line like that is worth nothing unless it is true, so it is written down
+//! here as something the window actually does rather than as a note about how
+//! it is arranged, and the tests beside the two halves are what say it still
+//! holds: every one of the window's is run against a program at the other end
+//! of a real socket.
 //!
 //! What comes back by itself and what does not is worth being exact about. The
 //! readings come back here, because everything they are made of is still in the
@@ -27,7 +30,8 @@
 //! own rather than out of anything a session drew, so there is nothing to work
 //! it out from: it is a thing that was said once, the same as the session's own
 //! backlog, and dropping it would not lose a reading but the report itself. So
-//! it stays. It goes when the session it belongs to goes, and not before.
+//! it is the keep's too. It goes when the session it belongs to goes, and not
+//! before.
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -45,8 +49,8 @@ pub fn rederive<R: Runtime>(app: AppHandle<R>) {
     git::session::forget_all(&app);
     app.state::<BrowseWatch>().clear();
     ask::watch::rederive(&app);
-    // Nothing about `mcp` is touched. The server is a door held open by this
-    // process and the reports behind it were said rather than read, so there is
-    // no version of either that could be taken again from what is on disk or
-    // from what the sessions have said.
+    // Nothing about the door is touched. It is held open by the keep and the
+    // reports behind it were said rather than read, so there is no version of
+    // either that could be taken again from what is on disk or from what the
+    // sessions have said.
 }

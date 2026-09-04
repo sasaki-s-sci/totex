@@ -139,12 +139,13 @@
     "programAt": "(program {{version}})",
     "apply": "Apply",
     "current": "Up to date",
-    "ready": "Next start",
-    "readyHint": "The release is here. This window goes on as it is, and the next start of the app is the one on it.",
+    "ready": "Restarting",
+    "readyHint": "The release is here. This window closes and opens again on it; every terminal stays where it is.",
     "failed": "Failed, try again",
     "adjusting": "Adjusting to the selected versions…",
     "adjustFailed": "Could not adjust to the selected versions",
     "incompatible": "That version is unavailable or incompatible",
+    "keepBehind": "Moves to {{version}} once every terminal has been closed",
     "held": "Update with your package manager"
   },
   "theme": {

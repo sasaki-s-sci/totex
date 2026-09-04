@@ -16,7 +16,7 @@
  * package manager owns, and handing it an AppImage to overwrite itself with
  * would leave the manager describing a version that is no longer there. So
  * nothing is listed for `.deb` or `.rpm`, the app never offers those the whole
- * of an update (see `src-tauri/src/update.rs`), and the lookup falls through to
+ * of an update (see `src-tauri/src/update`), and the lookup falls through to
  * nothing rather than to the wrong file.
  *
  * macOS is the one platform listed twice. One universal build serves both
@@ -25,36 +25,27 @@
  *
  * ## And the entries that are not platforms
  *
- * `front` and `layers` are the other two thirds of the app. The pages the
- * window is drawn out of are the first: every kind of installed copy can take
- * them on its own without replacing the program under them, including the two
- * the updater will not touch. They are the same pages on all three platforms,
- * so there is one download and no platform in its name.
+ * `front` is the other half of the app: the pages the window is drawn out of,
+ * which every kind of installed copy can take on its own without replacing the
+ * program under them, including the two the updater will not touch. They are
+ * the same pages on all three platforms, so there is one download and no
+ * platform in its name.
  *
- * The application layer is the second: a small program the app runs beside
- * itself and asks everything it asks of the machine, which can be replaced
- * without the window being reloaded or a single terminal being ended. That one
- * is a program, so there is one per kind of machine — but a kind of machine and
- * not a kind of installed copy, because nothing about how a copy got onto the
- * disk changes which program can run beside it.
- *
- * `programs` is the last third: the app's own executable, out of the installer
- * rather than in it. Nothing installed reads this one — an installed copy
- * replaces its program by running a per-version installer over the top of
- * itself, which is what `platforms` is for. It is read by the machine that has
- * no installed copy yet: setup/, the version-selectable installer, which asks
- * which release to put on and then puts it on, and needs the program itself to
- * do that rather than another installer to run. One per kind of machine for the
- * same reason the layer is, and only Windows has one because only Windows has
+ * `programs` is the app's own executable, out of the installer rather than in
+ * it. Nothing installed reads this one — an installed copy replaces its program
+ * by running a per-version installer over the top of itself, which is what
+ * `platforms` is for. It is read by the machine that has no installed copy
+ * yet: setup/, the version-selectable installer, which asks which release to
+ * put on and then puts it on, and needs the program itself to do that rather
+ * than another installer to run. Only Windows has one because only Windows has
  * that installer.
  *
- * What makes all three of them keys of their own rather than more platforms is
- * that nothing in the updater plugin reads any of them. It reads what it knows
- * and ignores the rest; `src-tauri/src/front` and `src-tauri/src/app_layer`
- * read theirs, out of the same document, because what the newest release is
- * should not be several files that can disagree.
+ * What makes the two of them keys of their own rather than more platforms is
+ * that nothing in the updater plugin reads either of them. It reads what it
+ * knows and ignores the rest; `src-tauri/src/front` reads its own, out of the
+ * same document, because what the newest release is should not be several
+ * files that can disagree.
  *
-
  * ## Why every one of them is required
  *
  * A missing key is not a smaller release, it is a platform that silently never
@@ -63,14 +54,14 @@
  *
  * ## One document per cycle
  *
- * The three layers can be released apart from one another — see
+ * The pages can be released apart from the program — see
  * `src-tauri/src/release/cycle.rs` — and a cycle is a tag its versions are cut
  * under and a document each of its releases publishes. A release of the app is
- * the cycle where all three move together and it publishes all of it; a release
- * of one layer publishes that layer alone, under a name of its own, and an
+ * the cycle where both move together and it publishes all of it; a release of
+ * the pages alone publishes those alone, under a name of their own, and an
  * installed copy asks whichever of them its rows have been pointed at.
  *
- * Usage: node scripts/update-manifest.mjs <directory> <tag> [release|layer|front]
+ * Usage: node scripts/update-manifest.mjs <directory> <tag> [release|front]
  */
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -90,32 +81,13 @@ const CYCLES = {
   release: {
     tag: "v",
     manifest: "latest.json",
-    holds: ["platforms", "front", "layers", "programs"],
+    holds: ["platforms", "front", "programs"],
   },
-  layer: { tag: "layer-v", manifest: "layer.json", holds: ["layers"] },
   front: { tag: "front-v", manifest: "front.json", holds: ["front"] },
 };
 
 /** The pages of the release, packed by the build job that produced `dist`. */
 const FRONT = "front.tar.gz";
-
-/**
- * The application layer of the release, one per kind of machine.
- *
- * Not one per kind of installed copy, the way the installers are: a layer is a
- * program that is started and asked things, so the only thing that decides
- * which one runs is the operating system and the processor. The names on the
- * right are what `release::target()` builds out of `std::env::consts` — see
- * `src-tauri/src/release.rs`, which is the other half of this list.
- *
- * macOS is listed twice for the same reason it is below: one universal build
- * serves both processors, and the app asks as the machine it is running on.
- */
-const LAYERS = [
-  { name: "totex-layer-linux-x86_64.gz", targets: ["linux-x86_64"] },
-  { name: "totex-layer-windows-x86_64.gz", targets: ["windows-x86_64"] },
-  { name: "totex-layer-macos-universal.gz", targets: ["macos-aarch64", "macos-x86_64"] },
-];
 
 /**
  * The program of the release, out of its installer, one per kind of machine.
@@ -148,7 +120,7 @@ const KINDS = [
 
 const [directory, tag, named = "release"] = process.argv.slice(2);
 if (!directory || !tag) {
-  fail("usage: node scripts/update-manifest.mjs <directory> <tag> [release|layer|front]");
+  fail("usage: node scripts/update-manifest.mjs <directory> <tag> [release|front]");
 }
 const cycle = CYCLES[named];
 if (!cycle) {
@@ -164,20 +136,18 @@ const version = tag.slice(cycle.tag.length);
 const repository = process.env.GITHUB_REPOSITORY || "sasaki-s-sci/totex";
 const files = readdirSync(directory).sort();
 
-// What the pages and the layer of this release were built to talk to. Written
-// in one place -- package.json -- and read from there by both halves:
-// `src-tauri/build.rs` and `src-tauri/layer/build.rs` put them into the two
-// programs, and this puts them beside the downloads, so a copy can tell before
-// it downloads anything whether the two would understand each other. See
-// `choose` in src-tauri/src/front/take.rs and `PROTOCOL` in
-// src-tauri/layer/src/call.rs.
+// What the pages of this release were built to talk to. Written in one place
+// -- package.json -- and read from there by both halves: `src-tauri/build.rs`
+// puts it into the program, and this puts it beside the download, so a copy
+// can tell before it downloads anything whether the two would understand each
+// other. See `choose` in src-tauri/src/front/take.rs.
 const packageJson = fileURLToPath(new URL("../package.json", import.meta.url));
-const { frontContract, layerProtocol } = JSON.parse(readFileSync(packageJson, "utf8"));
+const { frontContract } = JSON.parse(readFileSync(packageJson, "utf8"));
 
 const manifest = { version, pub_date: new Date().toISOString() };
 const said = [];
 for (const holds of cycle.holds) {
-  manifest[holds] = { platforms, front, layers, programs }[holds]();
+  manifest[holds] = { platforms, front, programs }[holds]();
 }
 
 const out = join(directory, cycle.manifest);
@@ -230,35 +200,13 @@ function front() {
   return { needs: frontContract, signature: signatureOf(FRONT), url: downloadOf(FRONT) };
 }
 
-/** Where each kind of machine's application layer is. */
-function layers() {
-  if (!Number.isInteger(layerProtocol)) {
-    fail("package.json declares no layerProtocol to publish the layer under");
-  }
-  const found = {};
-  for (const kind of LAYERS) {
-    if (!files.includes(kind.name)) {
-      fail(`nothing to update the application layer with: no ${kind.name} was built`);
-    }
-    const entry = {
-      protocol: layerProtocol,
-      signature: signatureOf(kind.name),
-      url: downloadOf(kind.name),
-    };
-    for (const target of kind.targets) found[target] = entry;
-    said.push(`layer (speaks ${layerProtocol})  ${kind.name}  ${kind.targets.join(", ")}`);
-  }
-  return found;
-}
-
 /**
  * Where each kind of machine's program is, on its own.
  *
- * No number beside it the way the other two carry one. The layer declares the
- * conversation it speaks and the pages declare what they need, because either
- * can end up beside a half of the app out of another release. This cannot: it
- * is the program of this release, and what installs it installs the whole of
- * that release at once.
+ * No number beside it the way the pages carry one. The pages declare what they
+ * need, because they can end up beside a program out of another release. This
+ * cannot: it is the program of this release, and what installs it installs the
+ * whole of that release at once.
  */
 function programs() {
   const found = {};

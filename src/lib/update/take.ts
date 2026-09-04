@@ -1,5 +1,5 @@
 /**
- * Adjusting one of the three physical layers to its declared version.
+ * Adjusting one of the physical layers to its declared version.
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -26,7 +26,7 @@ type Took = "taken" | "current" | "held";
 /**
  * How long a press on one row is given to be answered, in milliseconds.
  *
- * Two numbers, because two of the rows are about a megabyte and the third is
+ * Two numbers, because the pages are about a megabyte and the program is
  * about eighty. Neither is a bound on a slow release page — the backend already
  * holds every read of one to thirty seconds of its own, see `PATIENCE` in
  * `release.rs`. What they stop is a press that is never answered at all, which
@@ -55,18 +55,15 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
 /**
  * Which ending each row reaches when the release is actually taken.
  *
- * Two of the three are over the moment they are answered. The application
- * layer's is `current` because that is what it is: the layer was downloaded,
- * started, and asked the next question, so by the time the press is answered
- * the new one is already the one answering. The program's is `ready`, which is
- * the same sentence one start later — it is down, it is in or on its way in,
- * and the copy that opens next is the copy it makes. Neither leaves anything to
- * press, and every terminal in the window went on running throughout.
+ * The program's is `ready`: it is down and checked, and what puts it in is
+ * this window leaving so that the next can open on it -- see `restart`. Every
+ * terminal stays where it is throughout, because none of them are in this
+ * window.
  *
- * Only the pages end in something the window has to do, and that is `swapped`:
- * a reload, which is the cheap one.
+ * The pages end in `swapped`: a reload, which is the cheap one. The keep's
+ * row is never pressed, and answers `held` if it ever were.
  */
-const ENDING = { front: "swapped", app: "current", core: "ready" } as const;
+const ENDING = { front: "swapped", core: "ready", keep: "held" } as const;
 
 /**
  * Takes one physical layer to its declaration and returns the ending so the
@@ -90,8 +87,8 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
     // mark goes red, and pressing it again is what tries the whole of it again.
     settlePress(layer, { stage: "failed", progress: null });
   }
-  // What is in place may have moved without anything else saying so, which is
-  // the application layer's whole point.
+  // What is in place may have moved before the press ran into whatever it ran
+  // into, and the rows have to say what it is now.
   await askStanding(true);
   return "failed";
 }
@@ -115,6 +112,19 @@ function asked(layer: Layer, version: string | null): Promise<Took> {
     invoke<Took>("update_take", { layer, version, coming }),
     layer === "core" ? WHOLE_TIMEOUT : SMALL_TIMEOUT,
   );
+}
+
+/**
+ * Leaves, so that the release that came down can go in and the next window can
+ * open on it.
+ *
+ * The backend hands the restart to the program holding the terminals and then
+ * closes this window; the terminals are that program's, and are still there
+ * when the next window comes up. Nothing is expected back: a window that was
+ * answered is a window that is already closing.
+ */
+export function restart(): void {
+  invoke("update_restart").catch(() => undefined);
 }
 
 /**

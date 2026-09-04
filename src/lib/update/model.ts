@@ -6,38 +6,42 @@
 /**
  * Where one layer of the app is in being replaced.
  *
- * The backend still replaces three physical layers: the pages, the application
- * layer, and the program. The settings expose the first and last as ephemeral,
- * and the independent application layer as persistent.
+ * The backend replaces two physical layers: the pages, and the program. The
+ * settings expose the two together as ephemeral, because a release moves both.
  *
  * `rest` is a declaration with no adjustment in flight. What an adjustment
  * ends in is the backend's to say: `swapped` for pages that are unpacked
  * and pointed at, `ready` for a program that is down, `current` where that
- * release is what is already here — which is also where the application layer
- * lands, because a layer that has been taken is already answering — and `held`
- * where this layer cannot bring it.
+ * release is what is already here, and `held` where this layer cannot bring
+ * it.
  *
- * `ready` is the one that is not about this window at all. A program cannot be
- * put in underneath a window that is open, so what a press does is bring it
- * down; putting it in is the app being closed, which is a moment the person
- * picks. So the row says the next start rather than offering a press: this copy
- * goes on as it was, with every terminal in it, and the copy that opens next is
- * the one the release makes. See `src-tauri/src/update/waiting.rs`.
+ * `ready` is the one that ends this window. A program cannot be put in
+ * underneath a window that is open, so what a press does is bring it down; what
+ * puts it in is this window leaving so that the next can open on it, which the
+ * settings ask for the moment the download is here. The terminals are not in
+ * this window -- they are the keep's -- so every one of them is still there
+ * when the next window comes up. See `src-tauri/src/update/ready.rs`.
  */
 export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 
-/** Which physical layer of the app an adjustment is about. */
-export type Layer = "front" | "app" | "core";
+/**
+ * Which physical layer of the app an adjustment is about.
+ *
+ * `keep` is the program beside the window that holds the terminals. It is
+ * never adjusted from here: it comes with a release of the program, and the
+ * next window replaces it at the one moment that costs nothing, which is when
+ * it holds nothing. Its row says what is running.
+ */
+export type Layer = "front" | "core" | "keep";
 
 /**
  * Which cycle of releases a row is looking at.
  *
- * `release` is the app's own — one release, and all three layers in it. The
- * other two are for a layer that moves between releases of the app, which is
- * what makes the three of them independent for real rather than only in how
- * they are taken.
+ * `release` is the app's own — one release, and both layers in it. `front` is
+ * for pages that move between releases of the app, which is what makes the
+ * two of them independent for real rather than only in how they are taken.
  */
-export type Cycle = "release" | "layer" | "front";
+export type Cycle = "release" | "front";
 
 /** One physical layer, as the backend has it. */
 export type Rung = {
@@ -50,17 +54,14 @@ export type Rung = {
   cycle: Cycle;
   /** The version it is pointed at, where one was named. */
   picked: string | null;
-  /** The application-layer conversation this layer speaks, where it has one. */
-  protocol: number | null;
   /** The newest front contract this program answers, on the program row. */
   frontContract: number | null;
 };
 
-/** One release and the compatibility agreements written into its manifest. */
+/** One release and the compatibility agreement written into its manifest. */
 export type UpdateChoice = {
   cycle: Cycle;
   version: string;
-  layerProtocol: number | null;
   frontContract: number | null;
 };
 
@@ -83,7 +84,7 @@ export type Press = {
 };
 
 export type UpdateState = {
-  /** The three physical layers as the backend last said them. */
+  /** The physical layers as the backend last said them. */
   rungs: Rung[] | null;
   /** The releases each cycle has, newest first, as the last poll found them. */
   versions: Record<Cycle, string[]>;

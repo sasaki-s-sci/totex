@@ -2,10 +2,9 @@ version: "3"
 
 vars:
   # The Rust crates live under src-tauri/, and every cargo task is driven from
-  # the root. Two of them: the app, and the application layer beside it, which
-  # is a crate of its own because a release of it is a binary of its own -- see
-  # src-tauri/layer. `cargo fmt` reaches both through `--all`; the two below
-  # want to be told, which is what WORKSPACE is.
+  # the root. The app, and the crates beside it that other programs in the
+  # workspace share -- see src-tauri/host. `cargo fmt` reaches all of them
+  # through `--all`; the two below want to be told, which is what WORKSPACE is.
   CARGO: --manifest-path src-tauri/Cargo.toml
   WORKSPACE: --workspace
   # The standalone installer is a second crate, released on a cycle of its own.
@@ -31,6 +30,10 @@ tasks:
   dev:
     desc: Run the desktop app with hot reload, on a port reserved for this run
     cmds:
+      # The program that holds the terminals first, so that it is beside the
+      # app's own binary in the target directory when the app looks for it --
+      # see src-tauri/src/keep.rs. `tauri dev` builds the app and nothing else.
+      - node scripts/keep-sidecar.mjs
       # Both halves are told the same port: the dev server binds it, and the
       # window is pointed at it. Hard-coding one only works until a dev server
       # from an earlier run is still holding it, which is not a failure worth
@@ -44,6 +47,7 @@ tasks:
     cmds:
       # The point here is to look at the production build, not to ship it, so
       # bundling is skipped -- `task build` is what produces the installers.
+      - node scripts/keep-sidecar.mjs --release
       - pnpm tauri build --no-bundle {{.CLI_ARGS}}
       # cargo names the binary after the crate, with the host's executable
       # suffix, and tauri leaves it in the crate's target directory.
@@ -67,15 +71,19 @@ tasks:
     desc: Build the Windows MSI and NSIS installers (must run on Windows)
     cmds:
       - task: bundle
-        vars: { ARGS: "--target x86_64-pc-windows-msvc" }
+        vars: { ARGS: "--target x86_64-pc-windows-msvc", TARGET: "x86_64-pc-windows-msvc" }
 
   bundle:
     internal: true
     cmds:
+      # The program that holds the terminals goes into every bundle beside the
+      # app -- see scripts/keep-sidecar.mjs, which also says why it is named
+      # here rather than in tauri.conf.json.
+      - node scripts/keep-sidecar.mjs --release {{if .TARGET}}--target {{.TARGET}}{{end}}
       - |
         sign=""
         [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || sign="--no-sign"
-        pnpm tauri build $sign {{.ARGS}}
+        pnpm tauri build $sign --config '{"bundle":{"externalBin":["binaries/totex-keep"]}}' {{.ARGS}}
 
   web:build:
     desc: Type-check and bundle the frontend into dist/
@@ -136,9 +144,8 @@ tasks:
     cmds:
       # `--no-fail-fast` because the workspace is several test binaries and the
       # default stops at the first one that fails: a single failure in the app
-      # would hide whether the application layer's own suite still passes, which
-      # is the half most likely to explain it. Every binary runs, and the run
-      # still fails.
+      # would hide whether the keep's own suite still passes, which is the half
+      # most likely to explain it. Every binary runs, and the run still fails.
       - cargo test {{.CARGO}} {{.WORKSPACE}} --no-fail-fast
 
   check:

@@ -1,0 +1,36 @@
+[package]
+name = "totex-keep"
+# The app's own number: a release of the app carries this program inside it,
+# and the window compares the one running against the one it brought.
+version = "0.1.28"
+edition = "2024"
+rust-version = "1.95"
+
+[lib]
+# What the window links, for the client half and the shapes both ends share.
+name = "totex_keep"
+path = "src/lib.rs"
+
+[[bin]]
+# And the program itself, which the window starts beside itself and which
+# outlives it.
+name = "totex-keep"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+portable-pty = "0.9.0"
+totex-host = { path = "../host" }
+
+# Bringing a release of the program down and putting it in -- see src/update.rs.
+# The same client and the same TLS stack the window reads release pages with,
+# and the same provider named the same way: one build of each, whichever crate
+# asked first.
+base64 = "0.22.1"
+flate2 = "1.1.9"
+minisign-verify = "0.2.5"
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
+tar = "0.4.46"
+tokio = { version = "1.53.1", default-features = false, features = ["rt"] }

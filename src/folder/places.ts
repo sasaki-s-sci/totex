@@ -1,3 +1,4 @@
+import { remember } from "../lib/remembered";
 import type { Place } from "./api";
 
 /** Where the folders someone kept are held between windows. */
@@ -27,12 +28,10 @@ export function keptPlaces(): string[] {
   return [];
 }
 
-/** Holds them for the next window. */
+/** Holds them for the next window -- see `remember`. */
 export function keepPlaces(places: readonly Place[]): void {
-  try {
-    localStorage.setItem(PLACES_KEY, JSON.stringify(places.map((place) => place.path)));
-  } catch {
-    // Kept for this window and no longer, which is better than refusing the
-    // folder that was just typed.
-  }
+  remember(
+    PLACES_KEY,
+    places.map((place) => place.path),
+  );
 }

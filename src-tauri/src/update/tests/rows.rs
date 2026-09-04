@@ -1,4 +1,4 @@
-//! The three rows, asked for the way the window asks for them.
+//! The rows, asked for the way the window asks for them.
 
 use crate::release::Cycles;
 use crate::update::Layer;
@@ -7,11 +7,12 @@ use super::{TempDir, asked, window};
 
 /// The names the settings page sends -- see `src/lib/update` and
 /// `src/components/settings/UpdateSection.tsx`.
-pub(super) const SENT: [&str; 6] = [
+pub(super) const SENT: [&str; 7] = [
     "update_standing",
     "update_take",
     "update_pick",
     "update_follow",
+    "update_restart",
     "update_choices",
     "confirm_front",
 ];
@@ -54,16 +55,14 @@ fn a_window_is_told_about_three_layers_and_what_each_is_at() {
     let rungs = rungs.as_array().expect("one entry per layer");
     assert_eq!(rungs.len(), 3);
     assert_eq!(rungs[0]["layer"], "front");
-    assert_eq!(rungs[1]["layer"], "app");
-    assert_eq!(rungs[2]["layer"], "core");
+    assert_eq!(rungs[1]["layer"], "core");
+    assert_eq!(rungs[2]["layer"], "keep");
 
-    // What is in place. The layer's is the one that can move without a reload
-    // or a restart, so it is the one worth reading off a row at all.
-    assert_eq!(rungs[1]["at"], totex_layer::VERSION);
-    assert_eq!(rungs[2]["at"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(rungs[1]["protocol"], totex_layer::PROTOCOL);
-    assert_eq!(rungs[2]["protocol"], totex_layer::PROTOCOL);
-    assert_eq!(rungs[2]["frontContract"], crate::front::take::contract());
+    assert_eq!(rungs[1]["at"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(rungs[1]["frontContract"], crate::front::take::contract());
+    // The one row nothing can press: a program that is replaced only when it
+    // holds nothing, by the next window that finds it so.
+    assert_eq!(rungs[2]["can"], false);
     for rung in rungs {
         assert_eq!(
             rung["cycle"], "release",
@@ -82,22 +81,22 @@ fn what_a_row_is_pointed_at_is_asked_for_and_answered_by_name() {
     asked(
         &view,
         "update_pick",
-        serde_json::json!({ "layer": Layer::App, "version": "0.2.0" }),
+        serde_json::json!({ "layer": Layer::Front, "version": "0.2.0" }),
     )
     .expect("a row can be pointed at a version");
     asked(
         &view,
         "update_follow",
-        serde_json::json!({ "layer": Layer::App, "cycle": Cycles::Layer }),
+        serde_json::json!({ "layer": Layer::Front, "cycle": Cycles::Front }),
     )
     .expect("and at a cycle of releases");
 
     let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
-    let app_row = &rungs.as_array().expect("three rows")[1];
-    assert_eq!(app_row["cycle"], "layer");
+    let front_row = &rungs.as_array().expect("three rows")[0];
+    assert_eq!(front_row["cycle"], "front");
     // Moving a row to another cycle lets go of the version it was naming: 0.2.0
     // of one cycle is not 0.2.0 of another.
-    assert_eq!(app_row["picked"], serde_json::Value::Null);
+    assert_eq!(front_row["picked"], serde_json::Value::Null);
 }
 
 #[test]
@@ -109,7 +108,7 @@ fn a_press_reaches_the_layer_it_names() {
     // so what comes back is the release page not answering -- which is the
     // press having reached the backend, been dispatched to the right layer,
     // and got as far as the network.
-    for layer in ["front", "app", "core"] {
+    for layer in ["front", "core", "keep"] {
         let answered = asked(
             &view,
             "update_take",
@@ -140,7 +139,7 @@ fn compatible_choices_are_asked_for_in_one_go() {
     let found = asked(
         &view,
         "update_choices",
-        serde_json::json!({ "cycles": ["release", "layer"] }),
+        serde_json::json!({ "cycles": ["release", "front"] }),
     )
     .expect("asking is not a failure");
     assert!(found.as_array().is_some_and(|found| found.is_empty()));

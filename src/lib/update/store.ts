@@ -6,11 +6,11 @@
  * the window opens rather than when the page is opened.
  *
  * What is *not* here is which release each row is pointed at. That is the
- * backend's — see `src-tauri/src/update/kept.rs` — because two of the three
- * layers are replaced while the app is running and neither of them is a place
- * anything can be kept. A row left on a version is on it again after the reload
- * that finishes the pages, after the layer underneath has been swapped, and
- * after the next start of the app, which is where a taken program arrives.
+ * backend's — see `src-tauri/src/update/kept.rs` — because the pages are
+ * replaced while the app is running and are not a place anything can be kept.
+ * A row left on a version is on it again after the reload that finishes the
+ * pages, and after the next start of the app, which is where a taken program
+ * arrives.
  */
 
 import { invoke } from "@tauri-apps/api/core";
@@ -21,9 +21,9 @@ const RESTING: Press = { stage: "rest", progress: null, version: null };
 
 export let state: UpdateState = {
   rungs: null,
-  versions: { release: [], layer: [], front: [] },
+  versions: { release: [], front: [] },
   choices: [],
-  presses: { front: RESTING, app: RESTING, core: RESTING },
+  presses: { front: RESTING, core: RESTING, keep: RESTING },
 };
 
 const waiting = new Set<() => void>();
@@ -33,7 +33,7 @@ export function settle(change: Partial<UpdateState>): void {
   for (const wake of waiting) wake();
 }
 
-/** The same, for one of the three physical layers. */
+/** The same, for one of the physical layers. */
 export function settlePress(layer: Layer, change: Partial<Press>): void {
   settle({ presses: { ...state.presses, [layer]: { ...state.presses[layer], ...change } } });
 }
@@ -84,10 +84,10 @@ export function newer(one: string | null, other: string | null): string | null {
  *
  * What is in place counts as one of the releases that cycle offers, so that
  * following it is a declaration to keep up rather than a declaration to move.
- * The three cycles are numbered apart from one another — a layer cut on its own
- * is at 0.1.11 while the app is at 0.1.17 — and without this the newest layer
- * there is reads as a step backwards from the layer inside the release that is
- * already here, which is exactly what it is not.
+ * The cycles are numbered apart from one another — pages cut on their own are
+ * at 0.1.11 while the app is at 0.1.17 — and without this the newest pages
+ * there are read as a step backwards from the pages inside the release that is
+ * already here, which is exactly what they are not.
  *
  * A version named outright is left alone whichever way it points. That is what
  * naming one is for: the row that cannot go backwards is the row nobody told
@@ -143,9 +143,8 @@ export async function declare(
  * Asks the backend what can be replaced here and what each layer is at.
  *
  * Asked again after every press rather than once for the life of the window,
- * because one of the three moves without either a reload or a restart: a layer
- * that has just been taken is answering questions already, and the row has to
- * say so.
+ * because what a press did is what the rows are drawn from, and the backend is
+ * the only one that knows.
  */
 let asking: Promise<Rung[]> | null = null;
 
@@ -179,9 +178,8 @@ const EVERY = 30 * 60_000;
  * on a slow loop instead — twice an hour, which is nothing beside a rate limit
  * and is far more often than releases are cut.
  *
- * The Core and full-release cycles are asked for at once because they are tags
- * on one repository. Their manifests add the compatibility terms the listing
- * itself does not carry.
+ * The releases' manifests add the compatibility terms the listing itself does
+ * not carry.
  *
  * Nothing is asked at all where nothing could be taken. A copy nobody installed
  * has no rows to fill a list for, and phoning a release page on its behalf
@@ -194,7 +192,7 @@ const EVERY = 30 * 60_000;
 export function watchUpdateChoices(): () => void {
   let alive = true;
   let again: ReturnType<typeof setTimeout> | undefined;
-  const cycles: Cycle[] = ["layer", "release"];
+  const cycles: Cycle[] = ["release"];
 
   const round = () => {
     invoke<UpdateChoice[]>("update_choices", { cycles })
