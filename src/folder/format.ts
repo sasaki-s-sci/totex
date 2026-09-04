@@ -16,3 +16,11 @@ export function folderOf(path: string): string | null {
   // A path whose only separator is the leading one is inside the root itself.
   return trimmed.slice(0, cut) || trimmed.slice(0, cut + 1);
 }
+
+/** Whether `path` is the folder `parent` or something under it. Both are
+ *  spelled the way the listing they came from spells them, so the separators
+ *  are taken as they are rather than settled first. */
+export function isInside(parent: string, path: string): boolean {
+  const bare = parent.replace(/[\\/]+$/, "");
+  return path === bare || path.startsWith(`${bare}/`) || path.startsWith(`${bare}\\`);
+}

@@ -1,13 +1,16 @@
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack } from "@mui/material";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { FolderMark, GraphMark, JumpMark, MarkButton } from "../components/marks";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { FsEntry, Listing } from "./api";
 import { DROP_INTO } from "./dropInto";
 import type { FileMenuTarget } from "./FileContextMenu";
+import { isInside } from "./format";
 import { MoreRows } from "./MoreRows";
+import { NameField, type Naming } from "./NameField";
 import {
   CHANGE_COLOUR,
   ICON,
@@ -37,8 +40,15 @@ interface LevelProps {
   onToggleGraph: (path: string) => void;
   onOpenFile?: (path: string) => void;
   /** A row was right-clicked. The menu itself belongs to the column, so that
-   *  one of them is open at a time however deep the rows go. */
-  onMenu: (target: FileMenuTarget) => void;
+   *  one of them is open at a time however deep the rows go — and which pane
+   *  the row is in is the pane's to say, not a level's. */
+  onMenu: (target: Omit<FileMenuTarget, "pane">) => void;
+  /** The name being typed in this pane, wherever in it that is. A level draws
+   *  it when it is one of its own rows, and opens the folder on the way to it
+   *  when it is deeper down. */
+  naming: Naming | null;
+  onNameDone: (name: string) => Promise<void>;
+  onNameCancel: () => void;
   /** What this directory answered, for a caller that needs to know. */
   onListing?: (listing: Listing) => void;
 }
@@ -64,6 +74,9 @@ export function Level({
   onToggleGraph,
   onOpenFile,
   onMenu,
+  naming,
+  onNameDone,
+  onNameCancel,
   onListing,
 }: LevelProps) {
   const { t } = useTranslation();
@@ -89,11 +102,58 @@ export function Level({
   }
   const indent = ROW_INDENT + depth * LEVEL_STEP;
 
+  /* A name being typed in a folder that is not open yet opens it, one level per
+     step down: the field is drawn among that folder's rows, and until it is
+     open there are no such rows to draw it among. Checked on every render
+     rather than against a list of dependencies, because the rows it looks
+     through arrive at their own pace — and it does nothing at all once the
+     folder on the way is open. */
+  useEffect(() => {
+    if (!naming || naming.folder === path) return;
+    const step = rows.find((entry) => entry.isDir && isInside(entry.path, naming.folder));
+    if (step && !expanded.includes(step.path)) setExpanded((held) => [...held, step.path]);
+  });
+
+  /** The row being made here, which is drawn at the top of this folder's rows:
+   *  directly under the folder it is going into, where it is read as being in
+   *  that folder and is in view without anything having to be scrolled. */
+  const making = naming && !naming.path && naming.folder === path ? naming : null;
+
   return (
     <>
       {failed && <Box sx={{ mx: 1, my: 0.5, height: 2, borderRadius: 1, bgcolor: "error.main" }} />}
 
+      {making && (
+        <NameField
+          key={making.kind}
+          indent={indent}
+          isDir={making.kind === "new-folder"}
+          from=""
+          placeholder={t(making.kind === "new-folder" ? "file.newFolder" : "file.newFile")}
+          onDone={onNameDone}
+          onCancel={onNameCancel}
+        />
+      )}
+
       {rows.map((entry) => {
+        // A row being renamed is the field and nothing else: what is being
+        // asked for is its name, and the marks beside a name answer for a row
+        // that is called something.
+        if (naming?.path === entry.path) {
+          return (
+            <Box key={entry.path}>
+              <NameField
+                indent={indent}
+                isDir={entry.isDir}
+                from={entry.name}
+                placeholder={entry.name}
+                onDone={onNameDone}
+                onCancel={onNameCancel}
+              />
+            </Box>
+          );
+        }
+
         const open = expanded.includes(entry.path);
         // The whole of what a row says about git: a name in the colour of what
         // became of the file behind it, a faint one where git was told to leave
@@ -241,6 +301,9 @@ export function Level({
                 onToggleGraph={onToggleGraph}
                 onOpenFile={onOpenFile}
                 onMenu={onMenu}
+                naming={naming}
+                onNameDone={onNameDone}
+                onNameCancel={onNameCancel}
               />
             )}
           </Box>

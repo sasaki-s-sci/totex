@@ -6,10 +6,12 @@ import { ResizeGrip } from "../components/useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET } from "../components/WindowControls";
 import type { Drops } from "../hooks/useDrops";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import { createEntry, renameFile } from "./api";
 import { DROP_INTO, folderUnder } from "./dropInto";
 import { FileContextMenu, type FileMenuTarget } from "./FileContextMenu";
 import { FolderPane } from "./FolderPane";
 import { baseName } from "./format";
+import type { Naming } from "./NameField";
 import { RootsMenu } from "./RootsMenu";
 import { usePanes } from "./usePanes";
 
@@ -126,9 +128,47 @@ export function FolderSidebar({
   // the whole column rather than one per level: two of them open at once is
   // two answers to a question that was asked once.
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
-  // The folder the space under the panes belongs to, which is the one the last
-  // of them is showing — the same folder the rows immediately above it are in.
-  const under = panes.at(-1)?.path ?? null;
+  // The name being typed, wherever in the column that is. Held here for the
+  // same two reasons the menu is: one name is being typed at a time, and the
+  // folder it belongs to may not be open yet — the levels open their way down
+  // to it, which they can only do if it outlasts them. See `Naming`.
+  const [naming, setNaming] = useState<Naming | null>(null);
+  // The pane the space under them all belongs to, which is the last of them —
+  // the same folder the rows immediately above that space are in.
+  const under = panes.at(-1) ?? null;
+
+  /**
+   * Starts a name being typed in the tree rather than in a box over it.
+   *
+   * The menu goes as it starts, and nothing takes its place: the rest of the
+   * window is left where it was, so the folder is still there to be read and
+   * the terminal beside it is still there to be typed in. The pane it is in is
+   * opened, because a name typed among rows that are not showing is a name
+   * typed nowhere.
+   */
+  function startName(kind: Naming["kind"], target: FileMenuTarget) {
+    setMenu(null);
+    setNaming({
+      pane: target.pane,
+      kind,
+      // The folder whose rows the field stands among, which for a rename is the
+      // one listing the row: renaming is offered on files alone, so the folder
+      // a new file would be made in is the folder this row is in.
+      folder: target.into,
+      path: kind === "rename" ? target.path : null,
+      from: kind === "rename" ? target.name : "",
+    });
+    update(target.pane, { open: true });
+  }
+
+  /** What the field was answered with, written where the row will be. A refusal
+   *  is thrown back at the field, which is where the name is. */
+  async function takeName(name: string) {
+    if (!naming) return;
+    if (naming.path) await renameFile(naming.path, name);
+    else await createEntry(naming.folder, name, naming.kind === "new-folder");
+    setNaming(null);
+  }
 
   /** Whether a browser drag is one of the column's own rows, which is the only
    *  kind it takes: anything else dragged over it is not the column's. */
@@ -269,19 +309,29 @@ export function FolderSidebar({
           <Box key={pane.id} data-folder-pane={pane.id}>
             {index > 0 && <Divider />}
             <FolderPane
+              id={pane.id}
               path={pane.path}
               open={pane.open}
               graphed={pane.graphed}
               dropping={drops.into}
               refused={drops.refused}
-              onNavigate={(path) => update(pane.id, { path })}
+              onNavigate={(path) => {
+                // The pane is showing another folder now, and the row a name
+                // was being typed in is not in it.
+                if (naming?.pane === pane.id) setNaming(null);
+                update(pane.id, { path });
+              }}
               onToggleOpen={() => update(pane.id, { open: !pane.open })}
               onToggleGraph={(path) => toggleGraph(pane.id, path)}
               onOpenFile={onOpenFile}
               onMenu={setMenu}
-              onClose={() =>
-                setPanes((current) => current.filter((candidate) => candidate.id !== pane.id))
-              }
+              naming={naming?.pane === pane.id ? naming : null}
+              onNameDone={takeName}
+              onNameCancel={() => setNaming(null)}
+              onClose={() => {
+                if (naming?.pane === pane.id) setNaming(null);
+                setPanes((current) => current.filter((candidate) => candidate.id !== pane.id));
+              }}
             />
           </Box>
         ))}
@@ -293,18 +343,19 @@ export function FolderSidebar({
             so a row under one would be a row that cannot be clicked. */}
         <Box
           data-tauri-drag-region
-          {...(under ? { [DROP_INTO]: under } : null)}
+          {...(under ? { [DROP_INTO]: under.path } : null)}
           sx={{ flex: 1, minHeight: 48 }}
           onContextMenu={
             under
               ? (event) => {
                   event.preventDefault();
                   setMenu({
-                    path: under,
-                    name: baseName(under),
+                    path: under.path,
+                    name: baseName(under.path),
                     isDir: true,
-                    into: under,
-                    root: under,
+                    into: under.path,
+                    root: under.path,
+                    pane: under.id,
                     at: { x: event.clientX, y: event.clientY },
                   });
                 }
@@ -317,7 +368,11 @@ export function FolderSidebar({
           pane is showing, or the space under the last of them. The column's own
           rather than any one pane's, because the space below the panes is the
           column's and belongs to no pane at all. */}
-      <FileContextMenu target={menu} onClose={() => setMenu(null)} />
+      <FileContextMenu
+        target={menu}
+        onName={(kind) => menu && startName(kind, menu)}
+        onClose={() => setMenu(null)}
+      />
 
       {/* The grip between the two panes. */}
       <ResizeGrip label={t("resize.width")} {...grip} />

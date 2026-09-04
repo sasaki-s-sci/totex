@@ -16,9 +16,13 @@ import { DROP_INTO } from "./dropInto";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import { baseName } from "./format";
+import type { Naming } from "./NameField";
 import { REFUSED_DROP, TAKING_DROP } from "./rows";
 
 export interface FolderPaneProps {
+  /** Which pane this is. Two of them can be showing one folder, so a row is
+   *  named by the pane it is drawn in as well as by its path. */
+  id: number;
   /** The folder the pane is showing. It asks to be moved; it does not move. */
   path: string;
   /** True while the rows under the name are shown. Display and nothing else:
@@ -40,6 +44,12 @@ export interface FolderPaneProps {
   onOpenFile?: (path: string) => void;
   /** Something in the pane was right-clicked. The column holds the menu. */
   onMenu: (target: FileMenuTarget) => void;
+  /** The name being typed in this pane, or null when that is another pane's or
+   *  nothing at all. The column holds it for the same reason it holds the
+   *  menu — see `Naming`. */
+  naming: Naming | null;
+  onNameDone: (name: string) => Promise<void>;
+  onNameCancel: () => void;
   onClose: () => void;
 }
 
@@ -62,6 +72,7 @@ export interface FolderPaneProps {
  * offers down the side of it.
  */
 export function FolderPane({
+  id,
   path,
   open: showing,
   graphed,
@@ -72,6 +83,9 @@ export function FolderPane({
   onToggleGraph,
   onOpenFile,
   onMenu,
+  naming,
+  onNameDone,
+  onNameCancel,
   onClose,
 }: FolderPaneProps) {
   const { t } = useTranslation();
@@ -114,6 +128,7 @@ export function FolderPane({
           isDir: true,
           into: path,
           root: path,
+          pane: id,
           at: { x: event.clientX, y: event.clientY },
         });
       }}
@@ -230,7 +245,12 @@ export function FolderPane({
           onNavigate={onNavigate}
           onToggleGraph={onToggleGraph}
           onOpenFile={onOpenFile}
-          onMenu={onMenu}
+          // Which pane the row is in is this pane's to say: the levels below
+          // draw rows and know nothing about who is drawing them.
+          onMenu={(target) => onMenu({ ...target, pane: id })}
+          naming={naming}
+          onNameDone={onNameDone}
+          onNameCancel={onNameCancel}
           onListing={setRoot}
         />
       )}
