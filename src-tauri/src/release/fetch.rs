@@ -3,17 +3,12 @@
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};
 
-use super::cycle::{Cycle, Cycles};
 use super::url::{listing_url, manifest_url, versions};
 use super::{Manifest, PATIENCE, SMALL, declared};
 
 /// Reads what one release says about itself, and checks it is that release.
-pub async fn read(
-    endpoint: &str,
-    cycle: &Cycle,
-    version: Option<&str>,
-) -> Result<Manifest, String> {
-    let url = manifest_url(endpoint, cycle, version).ok_or_else(|| {
+pub async fn read(endpoint: &str, version: Option<&str>) -> Result<Manifest, String> {
+    let url = manifest_url(endpoint, version).ok_or_else(|| {
         format!(
             "there is no release page here for {}",
             version.unwrap_or("the newest release")
@@ -38,10 +33,10 @@ pub async fn read(
 /// rustls does not carry one: something has to name it before the first client
 /// is built, and a client built before anything has is not an error but a
 /// panic — the one failure that does not come back down the wire as a message
-/// somebody could read. So it is named here, the same one the keep names for
-/// its own download — see `totex_keep::update` — and installing it twice is
-/// what `install_default` returns an error for, which is the answer "somebody
-/// already did" and not a failure.
+/// somebody could read. So it is named here, the same one the persistent half
+/// names for its own download — see `totex_persistent::update` — and
+/// installing it twice is what `install_default` returns an error for, which
+/// is the answer "somebody already did" and not a failure.
 fn provider() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
@@ -104,69 +99,35 @@ pub async fn along(
     Ok(taken)
 }
 
-/// Which versions one cycle offers, newest first.
-///
-/// Asked on a loop by the window rather than by a press, because a list has to
-/// be filled before it is opened. Nothing is drawn for a listing that does not
-/// answer: an empty answer leaves the window with the versions it already had,
-/// and a window that has never had any offers the newest release instead, which
-/// is what every press meant before a version could be named at all.
-///
-/// One reading of the release page serves every cycle — they are tags on one
-/// repository — so the window asks for the cycles its rows are following and
-/// this answers each of them out of the one listing.
-#[tauri::command]
-pub async fn update_versions<R: Runtime>(
-    app: AppHandle<R>,
-    cycles: Vec<Cycles>,
-) -> Vec<(Cycles, Vec<String>)> {
-    let Ok((endpoint, _)) = declared(&app) else {
-        return Vec::new();
-    };
-    let Some(url) = listing_url(&endpoint) else {
-        return Vec::new();
-    };
-    let Ok(listing) = ask(&url, SMALL).await else {
-        return Vec::new();
-    };
-    cycles
-        .into_iter()
-        .map(|which| {
-            let found = versions(&listing, &which.cycle());
-            (which, found)
-        })
-        .collect()
-}
-
-/// One version that can be declared in the update settings, with the agreement
-/// needed to keep the pages compatible with the program selected beside them.
+/// One release that can be picked in the update settings, with the agreement
+/// its pages were built to -- which is what says whether a copy that cannot
+/// replace its program could still take the pages.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateChoice {
-    cycle: Cycles,
     version: String,
     front_contract: Option<u32>,
 }
 
-fn update_choice(which: Cycles, version: String, manifest: super::Manifest) -> UpdateChoice {
+fn update_choice(version: String, manifest: super::Manifest) -> UpdateChoice {
     let front_contract = manifest.front.map(|front| front.needs);
     UpdateChoice {
-        cycle: which,
         version,
         front_contract,
     }
 }
 
-/// The releases available to the declarative update selector.
+/// The releases there are to pick from, newest first.
 ///
-/// The repository listing only says which versions exist. Compatibility lives
-/// in each release's manifest, so those small documents are read in parallel
-/// and only manifests that answer truthfully are offered to the window.
+/// Asked on a loop by the window rather than by a press, because a list has to
+/// be filled before it is opened. The repository listing only says which
+/// versions exist; what each of them needs lives in its manifest, so those
+/// small documents are read in parallel and only the releases whose manifest
+/// answers truthfully are offered. Nothing is drawn for a listing that does not
+/// answer: an empty answer leaves the window with the versions it already had,
+/// and a window that has never had any offers the newest release instead.
 #[tauri::command]
-pub async fn update_choices<R: Runtime>(
-    app: AppHandle<R>,
-    cycles: Vec<Cycles>,
-) -> Vec<UpdateChoice> {
+pub async fn update_choices<R: Runtime>(app: AppHandle<R>) -> Vec<UpdateChoice> {
     let Ok((endpoint, _)) = declared(&app) else {
         return Vec::new();
     };
@@ -178,15 +139,12 @@ pub async fn update_choices<R: Runtime>(
     };
 
     let mut reading = Vec::new();
-    for which in cycles {
-        let cycle = which.cycle();
-        for version in versions(&listing, &cycle) {
-            let endpoint = endpoint.clone();
-            reading.push(tauri::async_runtime::spawn(async move {
-                let manifest = read(&endpoint, &cycle, Some(&version)).await.ok()?;
-                Some(update_choice(which, version, manifest))
-            }));
-        }
+    for version in versions(&listing) {
+        let endpoint = endpoint.clone();
+        reading.push(tauri::async_runtime::spawn(async move {
+            let manifest = read(&endpoint, Some(&version)).await.ok()?;
+            Some(update_choice(version, manifest))
+        }));
     }
 
     let mut found = Vec::new();
@@ -202,17 +160,10 @@ pub async fn update_choices<R: Runtime>(
 mod tests {
     use super::super::url::is_version;
     use super::*;
-    use crate::release::cycle::{Cycle, Cycles};
 
     /// The address this app is actually pointed at, from `tauri.conf.json`.
     const ENDPOINT: &str =
         "https://github.com/sasaki-s-sci/totex/releases/latest/download/latest.json";
-
-    /// The app's own cycle, which is the one every layer follows until it is
-    /// told otherwise.
-    fn release() -> Cycle {
-        Cycles::Release.cycle()
-    }
 
     /// The one thing about asking a URL that is not about the URL.
     ///
@@ -245,38 +196,18 @@ mod tests {
 
     #[test]
     fn a_named_version_is_the_same_file_under_its_own_tag() {
+        assert_eq!(manifest_url(ENDPOINT, None).as_deref(), Some(ENDPOINT));
         assert_eq!(
-            manifest_url(ENDPOINT, &release(), None).as_deref(),
-            Some(ENDPOINT)
-        );
-        assert_eq!(
-            manifest_url(ENDPOINT, &release(), Some("0.1.2")).as_deref(),
+            manifest_url(ENDPOINT, Some("0.1.2")).as_deref(),
             Some("https://github.com/sasaki-s-sci/totex/releases/download/v0.1.2/latest.json")
         );
         // Nothing that is not a version becomes part of an address.
-        assert_eq!(
-            manifest_url(ENDPOINT, &release(), Some("0.1.2/../../x")),
-            None
-        );
+        assert_eq!(manifest_url(ENDPOINT, Some("0.1.2/../../x")), None);
         // And an endpoint of another shape has no per-version copy to name.
         assert_eq!(
-            manifest_url("https://example.invalid/x.json", &release(), Some("0.1.2")),
+            manifest_url("https://example.invalid/x.json", Some("0.1.2")),
             None
         );
-    }
-
-    #[test]
-    fn a_cycle_of_its_own_is_the_same_page_under_its_own_tag() {
-        let front = Cycles::Front.cycle();
-        assert_eq!(
-            manifest_url(ENDPOINT, &front, Some("0.2.0")).as_deref(),
-            Some("https://github.com/sasaki-s-sci/totex/releases/download/front-v0.2.0/front.json")
-        );
-        // And it has no address for "whichever is newest": the one address
-        // GitHub keeps pointed at a release is pointed at the newest release of
-        // the repository, which is not the newest release of this cycle. Which
-        // version is newest here is the listing's to say.
-        assert_eq!(manifest_url(ENDPOINT, &front, None), None);
     }
 
     #[test]
@@ -297,28 +228,15 @@ mod tests {
           {"tag_name": "v0.1.5", "draft": true,  "prerelease": false},
           {"tag_name": "v0.1.4", "draft": false, "prerelease": true},
           {"tag_name": "nightly","draft": false, "prerelease": false},
+          {"tag_name": "front-v0.1.13", "draft": false, "prerelease": false},
+          {"tag_name": "layer-v0.1.11", "draft": false, "prerelease": false},
           {"tag_name": "v0.1.3", "draft": false, "prerelease": false}
         ]"#;
+        // Newest first, and a tag of a cycle this app no longer has is not a
+        // version of the app.
         assert_eq!(
-            versions(listing, &release()),
+            versions(listing),
             vec!["0.1.6".to_string(), "0.1.3".to_string()]
-        );
-    }
-
-    #[test]
-    fn one_listing_tells_the_cycles_apart() {
-        let listing = br#"[
-          {"tag_name": "front-v0.2.0", "draft": false, "prerelease": false},
-          {"tag_name": "v0.1.6",       "draft": false, "prerelease": false},
-          {"tag_name": "front-v0.1.7", "draft": false, "prerelease": false},
-          {"tag_name": "layer-v0.1.9", "draft": false, "prerelease": false}
-        ]"#;
-        assert_eq!(versions(listing, &release()), vec!["0.1.6".to_string()]);
-        // Newest first, and a tag of a cycle this build no longer has is not a
-        // version of any cycle it does.
-        assert_eq!(
-            versions(listing, &Cycles::Front.cycle()),
-            vec!["0.2.0".to_string(), "0.1.7".to_string()]
         );
     }
 
@@ -334,15 +252,14 @@ mod tests {
             platforms: Default::default(),
         };
 
-        let choice = update_choice(Cycles::Release, "1.2.3".to_string(), manifest);
-        assert_eq!(choice.cycle, Cycles::Release);
+        let choice = update_choice("1.2.3".to_string(), manifest);
         assert_eq!(choice.version, "1.2.3");
         assert_eq!(choice.front_contract, Some(9));
     }
 
     #[test]
     fn a_listing_that_is_not_one_offers_nothing() {
-        assert!(versions(b"{\"message\":\"API rate limit exceeded\"}", &release()).is_empty());
-        assert!(versions(b"not json at all", &release()).is_empty());
+        assert!(versions(b"{\"message\":\"API rate limit exceeded\"}").is_empty());
+        assert!(versions(b"not json at all").is_empty());
     }
 }

@@ -1,10 +1,10 @@
 //! Where the releases are, and what each of them says about itself.
 //!
-//! One document decides both halves. Every release carries a `latest.json`:
-//! [`crate::update`] reads it for the installer that replaces the program, and
-//! [`crate::front`] reads it for the pages that can be taken without one. What
-//! a release is, is one fact, and two files saying it are two files that can
-//! disagree — so there is one file, and this is the reading of it.
+//! One document decides everything. Every release carries a `latest.json`:
+//! [`crate::update`] reads it for the installer that replaces the ephemeral
+//! half, and [`crate::front`] reads it for the pages that can be taken without
+//! one. What a release is, is one fact, and two files saying it are two files
+//! that can disagree — so there is one file, and this is the reading of it.
 //!
 //! ## Naming a version
 //!
@@ -27,14 +27,23 @@
 //! onto a machine that has none. What is common to the two is what a release
 //! page is, which is a shape neither of them owns.
 //!
+//! ## One cycle, and what the number says
+//!
+//! Every release is tagged `vX.Y.Z` and every layer of the app carries that
+//! one number. Which part of it turned over says which half the release
+//! replaces: a patch is the ephemeral half — the window and its pages — and a
+//! minor is the persistent half too, the program holding the terminals. See
+//! `totex_persistent::LINE`, which is where the rule is enforced, and
+//! `.github/workflows/release.yml`, which is where it is cut.
+//!
 //! ## And which versions there are to name
 //!
 //! A manifest says what one release is; it does not say which releases exist.
 //! That is the repository's own listing, and it is the one thing here that is
 //! read without a version being selected — see [`fetch::update_choices`], which
-//! is asked on a slow loop and reads each listed release's compatibility terms
-//! before offering it. It is therefore also allowed to fail in silence: a rate
-//! limit leaves the declarations with the choices they already had.
+//! is asked on a slow loop and reads each listed release's manifest before
+//! offering it. It is therefore also allowed to fail in silence: a rate limit
+//! leaves the pull-down with the choices it already had.
 
 use std::time::Duration;
 
@@ -65,7 +74,8 @@ pub struct Manifest {
     pub version: String,
     pub front: Option<Entry>,
     /// The program, by the kind of installed copy that can replace itself with
-    /// it — see `update::core::standing`, which is the other half of the names.
+    /// it — see `update::ephemeral::standing`, which is the other half of the
+    /// names.
     #[serde(default)]
     pub platforms: std::collections::HashMap<String, Download>,
 }
@@ -92,9 +102,9 @@ pub struct Entry {
 /// both read out of the updater's own configuration.
 ///
 /// Not a second copy of either. The whole worth of the key is that there is one
-/// of them: the app already declares it once for the plugin, and the build
-/// refuses a tree where the two install scripts do not carry the same string.
-/// A front signed with anything else is a front from somebody else.
+/// of them: the app already declares it once, and the build refuses a tree
+/// where the install scripts do not carry the same string. A release signed
+/// with anything else is a release from somebody else.
 pub fn declared<R: Runtime>(app: &AppHandle<R>) -> Result<(String, String), String> {
     let updater = app
         .config()
@@ -111,9 +121,7 @@ pub fn declared<R: Runtime>(app: &AppHandle<R>) -> Result<(String, String), Stri
     Ok((endpoint.to_string(), key.to_string()))
 }
 
-pub mod cycle;
 pub mod fetch;
 pub(crate) mod url;
 
-pub use cycle::{Cycle, Cycles};
 pub use fetch::read;

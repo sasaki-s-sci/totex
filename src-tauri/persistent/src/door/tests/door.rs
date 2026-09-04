@@ -6,7 +6,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use super::super::*;
-use super::{addressed, keep, knock, post, reported, session};
+use super::{addressed, held, knock, post, reported, session};
 
 /// The whole way through: an agent connects at the address its terminal was
 /// started with, says what it is doing, and the listener is told — without
@@ -15,12 +15,12 @@ use super::{addressed, keep, knock, post, reported, session};
 #[cfg(unix)]
 #[test]
 fn a_report_travels_from_the_door_to_the_listener() {
-    let keep = keep();
+    let held = held();
     let id = "working";
-    let url = session(&keep, id);
+    let url = session(&held, id);
 
     let (tx, rx) = mpsc::channel();
-    keep.door.follow(Arc::new(move |reported| {
+    held.door.follow(Arc::new(move |reported| {
         let _ = tx.send(serde_json::to_value(reported).expect("json"));
     }));
 
@@ -53,7 +53,7 @@ fn a_report_travels_from_the_door_to_the_listener() {
         "the tool was refused"
     );
 
-    let said = reported(&keep.door, id).expect("the door holds the report");
+    let said = reported(&held.door, id).expect("the door holds the report");
     assert_eq!(said.doing, "rewriting the session layout");
     assert_eq!(said.steps.len(), 2);
     assert!(said.steps[0].done);
@@ -82,10 +82,10 @@ fn a_report_travels_from_the_door_to_the_listener() {
             "name":"report","arguments":{"doing":""},
         }}),
     );
-    assert!(reported(&keep.door, id).is_none());
+    assert!(reported(&held.door, id).is_none());
 
-    keep.sessions.close(id);
-    keep.door.unserve();
+    held.sessions.close(id);
+    held.door.unserve();
 }
 
 /// A report belongs to the session that made it, and a door with no session
@@ -93,16 +93,16 @@ fn a_report_travels_from_the_door_to_the_listener() {
 #[cfg(unix)]
 #[test]
 fn an_address_is_one_session_s_own() {
-    let keep = keep();
+    let held = held();
     let one = "first";
     let two = "second";
 
-    let first = session(&keep, one);
+    let first = session(&held, one);
     let cwd = std::env::temp_dir().display().to_string();
-    keep.sessions
+    held.sessions
         .open(two, &cwd, 24, 80, None)
         .expect("a shell starts");
-    let second = addressed(&keep.door, two, &cwd).expect("the second has one too");
+    let second = addressed(&held.door, two, &cwd).expect("the second has one too");
     assert_ne!(first, second, "two sessions were handed one address");
 
     let call = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
@@ -111,26 +111,26 @@ fn an_address_is_one_session_s_own() {
     post(&first, &call);
 
     assert_eq!(
-        reported(&keep.door, one).map(|said| said.doing),
+        reported(&held.door, one).map(|said| said.doing),
         Some("the first one's work".to_string())
     );
     assert!(
-        reported(&keep.door, two).is_none(),
+        reported(&held.door, two).is_none(),
         "a report landed on the wrong session"
     );
 
     // And a session that has ended stops answering its own door, without
     // anything having to be told to forget it.
-    keep.sessions.close(one);
+    held.sessions.close(one);
     let (status, _) = post(&first, &call);
     assert_eq!(status, "HTTP/1.1 404 Not Found");
     assert!(
-        reported(&keep.door, one).is_none(),
+        reported(&held.door, one).is_none(),
         "the report outlived it"
     );
 
-    keep.sessions.close(two);
-    keep.door.unserve();
+    held.sessions.close(two);
+    held.door.unserve();
 }
 
 /// The other way in, for the agent that could not be given a door of its own.
@@ -143,9 +143,9 @@ fn an_address_is_one_session_s_own() {
 #[cfg(unix)]
 #[test]
 fn the_one_door_answers_for_the_session_the_request_names() {
-    let keep = keep();
+    let held = held();
     let id = "named-in-the-request";
-    let own = session(&keep, id);
+    let own = session(&held, id);
     let (host, token) = own
         .strip_prefix("http://")
         .and_then(|rest| rest.split_once("/s/"))
@@ -163,7 +163,7 @@ fn the_one_door_answers_for_the_session_the_request_names() {
         "the tool was refused"
     );
     assert_eq!(
-        reported(&keep.door, id).map(|said| said.doing),
+        reported(&held.door, id).map(|said| said.doing),
         Some("talking through the one door".to_string())
     );
 
@@ -179,6 +179,6 @@ fn the_one_door_answers_for_the_session_the_request_names() {
         "the door answered to a token it never handed out"
     );
 
-    keep.sessions.close(id);
-    keep.door.unserve();
+    held.sessions.close(id);
+    held.door.unserve();
 }

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tauri::ipc::Channel;
 use tauri::test::{mock_builder, mock_context, noop_assets};
 
-use crate::release::{self, Cycles};
+use crate::release;
 use crate::update::{Kept, Took};
 
 use super::TempDir;
@@ -33,25 +33,20 @@ fn declared() -> (String, String) {
 
 #[test]
 #[ignore = "downloads the newest released pages"]
-fn the_newest_released_front_of_every_cycle_is_taken() {
+fn the_newest_released_front_is_taken() {
     let (endpoint, _) = declared();
     let listing = release::url::listing_url(&endpoint).expect("the listing");
     let listing = tauri::async_runtime::block_on(release::fetch::ask(&listing, release::SMALL))
         .expect("the listing answers");
 
-    for which in [Cycles::Release, Cycles::Front] {
-        let cycle = which.cycle();
-        let versions = release::url::versions(&listing, &cycle);
-        println!("{}*: {versions:?}", cycle.tag);
-        match versions.first() {
-            None => println!("  nothing has been released on that cycle yet"),
-            Some(newest) => drawn(&cycle, newest),
-        }
-    }
+    let versions = release::url::versions(&listing);
+    println!("{}*: {versions:?}", release::url::TAG);
+    let newest = versions.first().expect("something has been released");
+    drawn(newest);
 }
 
 /// One press on the pages row, against the release page as it stands.
-fn drawn(cycle: &release::Cycle, newest: &str) {
+fn drawn(newest: &str) {
     let (endpoint, key) = declared();
     let temp = TempDir::new("live-front");
     let mut context = mock_context(noop_assets());
@@ -74,12 +69,11 @@ fn drawn(cycle: &release::Cycle, newest: &str) {
     let coming = Channel::new(|_| Ok(()));
     let took = tauri::async_runtime::block_on(crate::front::take::take_front(
         app.handle(),
-        cycle,
         Some(newest),
         &coming,
     ))
     .expect("the press");
-    println!("  taking {}{newest}: {took:?}", cycle.tag);
+    println!("  taking v{newest}: {took:?}");
     assert_eq!(took, Took::Taken);
 
     // What the next window would be drawn out of.

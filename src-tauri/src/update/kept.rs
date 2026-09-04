@@ -1,17 +1,11 @@
 //! What the app remembers about updating itself.
 //!
-//! Which release each layer is pointed at, and which cycle each of them
-//! follows. Small, and kept by this program rather than by the window on
-//! purpose: two of the three layers are replaced while the app is running, and
-//! neither of them is a place anything can be kept. The pages are thrown away
-//! and drawn again; the application layer is a program that is started and let
-//! go of. So everything either of them would want remembered is remembered
-//! here, by the one layer that is still there afterwards.
-//!
-//! That is also why it is a file rather than something in the window's own
-//! storage: a window drawn out of a front that was rolled back is a window that
-//! would find whatever the newer pages had written, in whatever shape those
-//! pages wrote it.
+//! Which release each row is pointed at, where one was named. Small, and kept
+//! by this program rather than by the pages on purpose: the pages are thrown
+//! away and drawn again, and a window drawn out of pages that were rolled back
+//! is a window that would find whatever the newer pages had written, in
+//! whatever shape those pages wrote it. A file of this program's own is read
+//! the same way by every version of it.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,33 +13,27 @@ use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::release::Cycles;
-
 use super::Layer;
 
-/// The name it is kept under, beside the front and the layer.
+/// The name it is kept under, in the app's data directory.
 const KEPT: &str = "update.json";
 
 /// What was remembered, as it is written down.
 #[derive(Default, Deserialize, Serialize)]
 struct Written {
-    /// Which cycle each layer follows. A layer that is not in here follows the
-    /// app's own, which is what every layer does until it is told otherwise.
-    #[serde(default, deserialize_with = "known")]
-    cycles: HashMap<Layer, Cycles>,
     /// Which version each layer is pointed at, where one was named by hand.
     #[serde(default, deserialize_with = "known")]
     picked: HashMap<Layer, String>,
 }
 
-/// Reads one of the maps above, leaving out every entry this build has no name
-/// for.
+/// Reads the map above, leaving out every entry this build has no name for.
 ///
 /// The file outlives the builds that write it. A row that an older copy kept
 /// and a newer one no longer draws is an entry under a name nothing here
 /// answers to, and the choice is between reading the rest of the file and
 /// reading none of it — which would be every row somebody set, forgotten for
-/// the sake of one that is not there any more.
+/// the sake of one that is not there any more. The same goes for keys an
+/// older copy wrote beside this one, which serde reads past.
 fn known<'de, D, V>(deserializer: D) -> Result<HashMap<Layer, V>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -72,8 +60,8 @@ impl Kept {
     /// Reads back what the last run was left pointed at.
     ///
     /// A file that will not read is one that is started again from nothing:
-    /// what is in it is three versions and three names, and there is nothing in
-    /// there worth refusing to open a window over.
+    /// what is in it is a version or two, and there is nothing in there worth
+    /// refusing to open a window over.
     pub fn prepare(identifier: &str) -> Self {
         Self::at(dirs::data_dir().map(|dir| dir.join(identifier).join(KEPT)))
     }
@@ -89,15 +77,6 @@ impl Kept {
             at,
             written: RwLock::new(written),
         }
-    }
-
-    /// Which cycle one layer follows.
-    pub fn cycle(&self, layer: Layer) -> Cycles {
-        self.written
-            .read()
-            .ok()
-            .and_then(|written| written.cycles.get(&layer).copied())
-            .unwrap_or(Cycles::Release)
     }
 
     /// Which version one layer is pointed at, if one was named.
@@ -117,18 +96,6 @@ impl Kept {
             None => {
                 written.picked.remove(&layer);
             }
-        });
-    }
-
-    /// Points one layer at a cycle of releases.
-    ///
-    /// Whatever it was pointed at goes with it: a version of one cycle is not a
-    /// version of another, and a row left naming one while looking at the other
-    /// is a row that would take something nobody asked for.
-    pub fn follow(&self, layer: Layer, cycle: Cycles) {
-        self.change(|written| {
-            written.cycles.insert(layer, cycle);
-            written.picked.remove(&layer);
         });
     }
 

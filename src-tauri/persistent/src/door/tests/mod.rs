@@ -12,10 +12,10 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use super::*;
-use crate::Keep;
+use crate::Persistent;
 
-pub(super) fn keep() -> Arc<Keep> {
-    Keep::new(None)
+pub(super) fn held() -> Arc<Persistent> {
+    Persistent::new(None)
 }
 
 /// One request at the door, answered the way an agent's client would read it.
@@ -81,13 +81,13 @@ pub(super) fn knock(url: &str, message: &Value, bearer: Option<&str>) -> (String
 
 /// Opens a shell and hands back the address its agent would be given.
 #[cfg(unix)]
-pub(super) fn session(keep: &Keep, id: &str) -> String {
+pub(super) fn session(held: &Persistent, id: &str) -> String {
     let cwd = std::env::temp_dir().display().to_string();
-    keep.sessions
+    held.sessions
         .open(id, &cwd, 24, 80, None)
         .expect("a shell starts");
-    keep.door.serve().expect("the server stands up");
-    addressed(&keep.door, id, &cwd).expect("the session has an address")
+    held.door.serve().expect("the server stands up");
+    addressed(&held.door, id, &cwd).expect("the session has an address")
 }
 
 /// The address a session working in `cwd` would be started with, read out of

@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use totex_keep::talk::Link;
+use totex_persistent::talk::Link;
 
 use crate::pty::{self, Event};
 

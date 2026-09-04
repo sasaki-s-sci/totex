@@ -7,6 +7,12 @@
  * without having anything to do about it. Everything else is arranged around
  * that: the pull-down names where the app should be, the arrow says where that
  * differs from where it is, and the button takes it there.
+ *
+ * Two rows. **persistent** is the program holding the terminals, and nothing
+ * on this page moves it: which releases replace it is said by the version
+ * number, and the row says what that means for the release the pull-down is
+ * on. **ephemeral** is this program and its pages, and is what the press
+ * replaces.
  */
 
 import { Divider, Stack } from "@mui/material";
@@ -16,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import {
   askStanding,
   declare,
+  lineOf,
   reload,
   restart,
   rungOf,
@@ -27,7 +34,12 @@ import {
 } from "../../lib/update";
 import { UpdateMark } from "../marks";
 import { PageButton, Row } from "./Row";
-import { keepStanding, PROGRAM_CYCLE, programStanding, type Standing } from "./updateReading";
+import {
+  ephemeralStanding,
+  keepsTerminals,
+  persistentStanding,
+  type Standing,
+} from "./updateReading";
 import { VersionRow } from "./VersionRow";
 
 /**
@@ -48,7 +60,7 @@ function activity(
   at: UpdateState,
   offering: boolean,
 ): { stage: UpdateStage; progress: number | null } {
-  const layers = ["core", "front"] as const;
+  const layers = ["ephemeral", "front"] as const;
   const presses = layers.map((layer) => ({ ...at.presses[layer], stage: stageOf(at, layer) }));
   const taking = presses.find((press) => press.stage === "taking");
   if (taking) return taking;
@@ -77,19 +89,19 @@ export function UpdateSection() {
     void askStanding();
   }, []);
 
-  const program = programStanding(at);
-  const keep = keepStanding(at);
-  const moving = (["core", "front"] as const).some((layer) => stageOf(at, layer) === "taking");
+  const ephemeral = ephemeralStanding(at);
+  const persistent = persistentStanding(at);
+  const moving = (["ephemeral", "front"] as const).some((layer) => stageOf(at, layer) === "taking");
 
   // The program first, and where it moves it is the whole of the ephemeral
   // half: the release it comes out of carries its own pages, and they arrive
   // with it at the restart. So the pages are taken on their own only in the
   // two places where they are the half that is behind — a program the package
   // manager owns, and a program already on the release the row is pointed at.
-  const finishProgram = async (version: string) => {
-    const rung = rungOf(at, "core");
+  const finishEphemeral = async (version: string) => {
+    const rung = rungOf(at, "ephemeral");
     if (rung?.can) {
-      const stage = await take("core", version);
+      const stage = await take("ephemeral", version);
       // `ready` is the release down and checked, and what is left is this
       // window leaving so that the next can open on it. The terminals stay:
       // they are not in this window.
@@ -101,20 +113,20 @@ export function UpdateSection() {
     if (stage === "swapped") reload();
   };
 
-  const chooseProgram = async (version: string | null) => {
+  const chooseEphemeral = async (version: string | null) => {
     await declare([
-      { layer: "front", cycle: PROGRAM_CYCLE, version },
-      { layer: "core", cycle: PROGRAM_CYCLE, version },
+      { layer: "front", version },
+      { layer: "ephemeral", version },
     ]);
   };
 
-  if (!program || !keep) return null;
+  if (!ephemeral || !persistent) return null;
 
   // Until the release page has answered once, nothing is known — neither that
   // there is something to take nor that there is not.
   const asked = at.choices.length > 0;
-  const known = asked && resolved(program);
-  const waiting = Boolean(program.to);
+  const known = asked && resolved(ephemeral);
+  const waiting = Boolean(ephemeral.to);
   // What the button is holding out: something to take, or a question nobody
   // has the answer to yet. Either way it is not a tick.
   const offering = waiting || !known;
@@ -129,8 +141,8 @@ export function UpdateSection() {
   const arrived = mark.stage === "ready";
 
   const sync = async () => {
-    if (program.can && program.target && (program.to || retry)) {
-      await finishProgram(program.target.version);
+    if (ephemeral.can && ephemeral.target && (ephemeral.to || retry)) {
+      await finishEphemeral(ephemeral.target.version);
     }
   };
 
@@ -149,7 +161,25 @@ export function UpdateSection() {
 
   // A copy the package manager owns can still bring its pages forward, and the
   // program under them is not this window's to replace.
-  const packaged = rungOf(at, "core")?.can === false && rungOf(at, "front")?.can === true;
+  const packaged = rungOf(at, "ephemeral")?.can === false && rungOf(at, "front")?.can === true;
+
+  // What the release the row is pointed at would do to the terminals, said
+  // before anybody presses: a patch on the persistent half's line leaves them
+  // where they are, and another line does not. Only where the program itself
+  // moves -- the pages alone never touch the persistent half.
+  const going = ephemeral.to && rungOf(at, "ephemeral")?.can ? ephemeral.to : null;
+  const stays = going === null ? null : keepsTerminals(at, going);
+  const line = going === null ? null : lineOf(going);
+  const terminals =
+    stays === null || line === null
+      ? undefined
+      : stays
+        ? t("update.stays", { line })
+        : t("update.moves", { line });
+
+  // The persistent half is behind the window only within a line: any further
+  // behind and the window that found it would have replaced it.
+  const behind = persistent.at !== "" && persistent.at !== ephemeral.at;
 
   return (
     <>
@@ -165,12 +195,12 @@ export function UpdateSection() {
                 ? t("update.readyHint")
                 : mark.stage === "held" || (asked && !known)
                   ? t("update.incompatible")
-                  : undefined
+                  : terminals
         }
       >
         {/* A copy that can replace neither half of itself keeps its version
             and loses the press: what is left is a page saying what this is. */}
-        {program.can && (
+        {ephemeral.can && (
           <PageButton
             danger={retry}
             disabled={moving || arrived || !(waiting || retry)}
@@ -182,27 +212,23 @@ export function UpdateSection() {
         )}
       </Row>
       <Stack sx={{ gap: 0.5, pl: 1.5 }}>
-        {/* The program holding the terminals, which nothing on this page
-            moves: it is replaced by the next window that finds it holding
-            nothing, so where it is behind the program, the row says what
-            would let that happen. */}
         <VersionRow
-          name={t("update.core")}
-          standing={keep}
+          name={t("update.persistent")}
+          standing={persistent}
           hint={
-            keep.at && keep.at !== program.at
-              ? t("update.keepBehind", { version: program.at })
-              : undefined
+            behind
+              ? t("update.persistentBehind", { version: ephemeral.at })
+              : t("update.persistentLine")
           }
           disabled
           onChange={() => undefined}
         />
         <VersionRow
-          name={t("update.frontProgram")}
-          standing={program}
+          name={t("update.ephemeral")}
+          standing={ephemeral}
           hint={packaged ? t("update.held") : undefined}
           disabled={moving}
-          onChange={(version) => void chooseProgram(version)}
+          onChange={(version) => void chooseEphemeral(version)}
         />
       </Stack>
     </>

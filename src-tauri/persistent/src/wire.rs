@@ -4,8 +4,14 @@
 //! number, in whatever order the answers finish; and what the sessions do is
 //! pushed down to every window as it happens, under no number at all, because
 //! nobody asked. The two ends share these shapes by linking this crate, which
-//! is the only thing that keeps them agreeing — and [`crate::PROTOCOL`] is what
+//! is the only thing that keeps them agreeing — and [`crate::LINE`] is what
 //! says when they no longer do.
+//!
+//! The names here are frozen for the life of a line. A window of one patch
+//! finds and asks the program of another, so nothing crosses the socket under
+//! a new name until the minor turns over — which is why the hello still says
+//! `keep` and the line is still said as `protocol`: those are the names the
+//! line was started under.
 
 use std::path::{Path, PathBuf};
 
@@ -29,7 +35,10 @@ pub struct Address {
     pub token: String,
     pub pid: u32,
     pub version: String,
-    pub protocol: u32,
+    /// The line the program is on -- see [`crate::LINE`] -- under the name
+    /// the line was started with.
+    #[serde(rename = "protocol")]
+    pub line: u32,
 }
 
 impl Address {
@@ -71,8 +80,11 @@ pub const ANSWERS: &[&str] = &[
 ];
 
 /// What this program says about itself the moment a window has said the token.
+///
+/// `keep` and `protocol` are the names the line was started under, and a
+/// window from earlier in the line reads them -- see the module docs.
 pub fn hello(version: &str) -> Value {
-    json!({ "keep": { "version": version, "protocol": crate::PROTOCOL, "answers": ANSWERS } })
+    json!({ "keep": { "version": version, "protocol": crate::LINE, "answers": ANSWERS } })
 }
 
 /// One question, as it arrives.

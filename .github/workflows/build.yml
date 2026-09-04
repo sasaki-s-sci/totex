@@ -171,9 +171,9 @@ jobs:
           fi
           # And the program that holds the terminals, which ships inside the
           # release under the release's own number.
-          keep=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/keep/Cargo.toml | head -1)
-          if [ "$keep" != "$tagged" ]; then
-            echo "::error file=src-tauri/keep/Cargo.toml::tag $GITHUB_REF_NAME does not name version $keep"
+          persistent=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/persistent/Cargo.toml | head -1)
+          if [ "$persistent" != "$tagged" ]; then
+            echo "::error file=src-tauri/persistent/Cargo.toml::tag $GITHUB_REF_NAME does not name version $persistent"
             exit 1
           fi
 
@@ -223,12 +223,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build the program that holds the terminals
-        # A crate of its own beside the app -- see src-tauri/keep -- carried
+        # A crate of its own beside the app -- see src-tauri/persistent -- carried
         # into every bundle beside the app's own binary. `tauri build` does not
         # build it, and it is named on the command line below rather than in
-        # tauri.conf.json: see scripts/keep-sidecar.mjs for why.
+        # tauri.conf.json: see scripts/persistent-sidecar.mjs for why.
         shell: bash
-        run: node scripts/keep-sidecar.mjs --release --target ${{ matrix.target }}
+        run: node scripts/persistent-sidecar.mjs --release --target ${{ matrix.target }}
 
       - name: Build the installers
         # `tauri build` runs `pnpm build` first via beforeBuildCommand, which
@@ -244,7 +244,7 @@ jobs:
           sign=""
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
           pnpm tauri build --target ${{ matrix.target }} $sign \
-            --config '{"bundle":{"externalBin":["binaries/totex-keep"]}}'
+            --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}'
 
       - name: Collect the installers under names that do not move
         # Every platform bundles into its own subdirectories under one tree, so

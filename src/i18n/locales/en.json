@@ -132,8 +132,8 @@
   },
   "update": {
     "title": "Updates",
-    "core": "persistent",
-    "frontProgram": "ephemeral",
+    "persistent": "persistent",
+    "ephemeral": "ephemeral",
     "pin": "Pin the {{name}} version",
     "pagesAt": "(pages {{version}})",
     "programAt": "(program {{version}})",
@@ -142,10 +142,13 @@
     "ready": "Restarting",
     "readyHint": "The release is here. This window closes and opens again on it; every terminal stays where it is.",
     "failed": "Failed, try again",
-    "adjusting": "Adjusting to the selected versions…",
-    "adjustFailed": "Could not adjust to the selected versions",
+    "adjusting": "Adjusting to the selected version…",
+    "adjustFailed": "Could not adjust to the selected version",
     "incompatible": "That version is unavailable or incompatible",
-    "keepBehind": "Moves to {{version}} once every terminal has been closed",
+    "stays": "A patch on line {{line}}: the program holding the terminals stays, and so does every terminal.",
+    "moves": "Line {{line}} is another program holding the terminals. Every terminal is closed to put it in.",
+    "persistentBehind": "On the window's line. Replaced by {{version}} at a start with no terminal open.",
+    "persistentLine": "The program holding the terminals. A patch never replaces it; a minor does.",
     "held": "Update with your package manager"
   },
   "theme": {

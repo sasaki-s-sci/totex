@@ -115,46 +115,52 @@ double-clicked, because it is not an installer. It is totex.
 ## Updating
 
 Two rows on the settings page. **persistent** is the program beside the
-window that holds the terminals — `totex-keep`, started by the first window
-that needs it and left running by every window after. **ephemeral** is one
-full release: the pages and the program that draws them, selected together
-because they are released and replaced together.
+window that holds the terminals — `totex-persistent`, started by the first
+window that needs it and left running by every window after. **ephemeral** is
+everything else: the window, the commands it answers and the pages it draws,
+which is what a release replaces.
 
 ephemeral is a pull-down, and can declare either a named version or `latest`.
-**sync** adjusts the app to its declaration; there is no separate Take button.
-The pages alone end in a reload. The program ends in a restart: the release is
-downloaded and checked while the window is open, the window closes, the release
-goes in, and the window opens again on it — in front of the same terminals,
-because none of them were in the window. Nothing anybody was working on goes
-with it.
+**Apply** adjusts the app to its declaration; there is no separate Take
+button. The release is downloaded and checked while the window is open, the
+window closes, the release goes in, and the window opens again on it — in
+front of the same terminals, because none of them were in the window. Nothing
+anybody was working on goes with it.
 
-persistent has no pull-down. It comes with a release of the program, and the
-next window to start replaces it at the one moment that costs nothing, which is
-when it holds no terminals. A window that finds an older one still holding
-shells keeps using it, and the row says so, and says what would move it.
+persistent has no pull-down. Which releases replace it is said by the version
+number: a **patch** (`0.1.30` to `0.1.31`) is the ephemeral half alone, and the
+program holding the terminals is the same program before and after, holding
+the same terminals; a **minor** (`0.1.x` to `0.2.0`) is that program too, and
+there is no putting it in without closing every terminal it holds. The row
+under the pull-down says which of the two the selected release is before
+anything is pressed. Within a line a window uses whichever program it finds
+running, and swaps it for the one it brought only at a start with no terminal
+open, which is the one moment that costs nothing.
 
-The ephemeral list contains only releases whose pages this program can draw.
-The compatibility number comes from each release manifest, so an unknown
+The release workflow keeps the number honest: a patch release is refused if
+anything under `src-tauri/persistent/` has changed since the release before it.
+
+The pull-down contains only releases whose pages this program can draw. The
+compatibility number comes from each release manifest, so an unknown
 combination is not offered. `latest` means the newest compatible version in
-the pull-down when **sync** is pressed.
+the pull-down when **Apply** is pressed. Choosing an older version is a
+rollback and is handled exactly like choosing a newer one.
 
 A `.deb` or an `.rpm` still leaves the program to its package manager. Its
-ephemeral selector therefore moves only the front, and lists only fronts
-that the installed program can run, so its sync ends in a reload rather than in
-a restart. Choosing an older version is a rollback and is handled exactly like
-choosing a newer one.
+pull-down therefore moves only the pages, and lists only pages that the
+installed program can run, so its Apply ends in a reload rather than in a
+restart.
 
 Pages that cannot draw a window are dropped on the next start of the app, so one
 restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the
 environment is the same way out without waiting to be asked: it opens the app on
 the pages built into it and throws away whatever had been taken. A program that
 will not start after an update leaves the terminals where they were: they are
-the keep's, and the copy that was running a moment ago is what opens next.
+the persistent half's, and the copy that was running a moment ago is what
+opens next.
 
-The pages come from `front-v*` as well as from the full `v*` release cycle;
-the program comes from `v*` alone, and the keep inside it. The declaration is
-remembered by the program, so it survives the reload and the restart used to
-reach it.
+The declaration is remembered by the program, so it survives the reload and
+the restart used to reach it.
 
 ## Letting the agents say what they are working on
 

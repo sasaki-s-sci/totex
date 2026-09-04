@@ -1,11 +1,11 @@
-//! Replacing the program, which is the layer that takes the window with it.
+//! Replacing the ephemeral half: this program, and the window with it.
 //!
 //! The expensive half, and no longer the one that ends every terminal: the
-//! shells are held by the program beside this one — see `keep` — and that is
-//! also the program that puts a release in, because it is the one still here
-//! when this window is not. What happens here is the release page read the way
-//! the pages' row reads it, and the download handed to the keep to bring down
-//! and check.
+//! shells are held by the persistent half — see `totex_persistent` — and that
+//! is also the program that puts a release in, because it is the one still
+//! here when this window is not. What happens here is the release page read
+//! the way the pages' row reads it, and the download handed across to be
+//! brought down and checked.
 //!
 //! A press here is the download and nothing else. What puts the release in is
 //! this window leaving so that the next can take its place — see [`super::ready`]
@@ -20,10 +20,10 @@ use tauri::utils::config::BundleType;
 use tauri::utils::platform::bundle_type;
 use tauri::{AppHandle, Manager, Runtime};
 
-use totex_keep::update::{Install, Kind, Taken};
+use totex_persistent::update::{Install, Kind, Taken};
 
 use crate::front::Serving;
-use crate::release::{self, Cycle};
+use crate::release;
 
 use super::ready::Ready;
 use super::{Coming, Took, whole_update_supported};
@@ -70,9 +70,8 @@ pub(super) fn standing() -> Option<(String, Kind, std::path::PathBuf)> {
 /// That is the whole of what naming one is for: the default comparison would
 /// turn down the release somebody just picked for the crime of being the one
 /// they were on last week. Unnamed, the ordinary rule stands — newer only.
-pub async fn take_core<R: Runtime>(
+pub async fn take_ephemeral<R: Runtime>(
     app: &AppHandle<R>,
-    cycle: &Cycle,
     version: Option<&str>,
     coming: &Channel<Coming>,
 ) -> Result<Took, String> {
@@ -84,7 +83,7 @@ pub async fn take_core<R: Runtime>(
     };
 
     let (endpoint, key) = release::declared(app)?;
-    let manifest = release::read(&endpoint, cycle, version).await?;
+    let manifest = release::read(&endpoint, version).await?;
     let release = Version::parse(&manifest.version)
         .map_err(|error| format!("unreadable version: {error}"))?;
     let running = Version::parse(env!("CARGO_PKG_VERSION")).expect("this program's version");
@@ -95,10 +94,10 @@ pub async fn take_core<R: Runtime>(
         return Ok(Took::Held);
     };
 
-    // Brought down by the program beside this one, which is the one that will
-    // put it in. The socket is not the event loop's to wait on: the whole of
-    // a release comes back down it.
-    let link = crate::keep::link(app);
+    // Brought down by the persistent half, which is the one that will put it
+    // in. The socket is not the event loop's to wait on: the whole of a
+    // release comes back down it.
+    let link = crate::persistent::link(app);
     let asking = serde_json::json!({
         "url": download.url,
         "signature": download.signature,

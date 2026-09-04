@@ -11,13 +11,7 @@ use super::super::take::{contract, ours, unpack};
 use super::TempDir;
 use crate::release::fetch::ask;
 use crate::release::url::{listing_url, versions};
-use crate::release::{self, Cycle, Cycles};
-
-/// The app's own cycle, which is what every layer follows until it is told
-/// otherwise.
-fn release() -> Cycle {
-    Cycles::Release.cycle()
-}
+use crate::release::{self};
 
 /// The address and the key this build is pointed at, read from the same place
 /// the app reads them: `tauri.conf.json`, which the test binary has no app to
@@ -39,7 +33,7 @@ fn declared() -> (String, String) {
 #[ignore = "reads the release page over the network"]
 fn the_newest_release_says_what_this_build_expects_it_to() {
     let (endpoint, _) = declared();
-    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, &release(), None))
+    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, None))
         .expect("the newest release's manifest");
     println!("newest release: {}", manifest.version);
     let front = manifest.front.expect("the newest release carries a front");
@@ -54,12 +48,12 @@ fn every_listed_release_can_be_named() {
     let url = listing_url(&endpoint).expect("the listing of the repository");
     let listing =
         tauri::async_runtime::block_on(ask(&url, release::SMALL)).expect("the listing answers");
-    let versions = versions(&listing, &release());
+    let versions = versions(&listing);
     println!("listed: {versions:?}");
     assert!(!versions.is_empty(), "the pull-down would be empty");
 
     for version in &versions {
-        match tauri::async_runtime::block_on(release::read(&endpoint, &release(), Some(version))) {
+        match tauri::async_runtime::block_on(release::read(&endpoint, Some(version))) {
             Ok(manifest) => println!(
                 "  v{version}: front {}",
                 manifest.front.map_or_else(
@@ -73,40 +67,10 @@ fn every_listed_release_can_be_named() {
 }
 
 #[test]
-#[ignore = "reads the release page over the network"]
-fn every_cycle_is_read_out_of_the_one_listing() {
-    let (endpoint, _) = declared();
-    let url = listing_url(&endpoint).expect("the listing of the repository");
-    let listing =
-        tauri::async_runtime::block_on(ask(&url, release::SMALL)).expect("the listing answers");
-
-    for which in [Cycles::Release, Cycles::Front] {
-        let cycle = which.cycle();
-        let found = versions(&listing, &cycle);
-        println!("{}{}: {found:?}", cycle.tag, cycle.manifest);
-        // A cycle nothing has been released on yet is not a failure -- it is a
-        // pull-down with one row in it, which is "whichever is newest".
-        let Some(newest) = found.first() else {
-            continue;
-        };
-        match tauri::async_runtime::block_on(release::read(&endpoint, &cycle, Some(newest))) {
-            Err(error) => println!("  v{newest}: {error}"),
-            Ok(manifest) => {
-                assert_eq!(&manifest.version, newest);
-                match manifest.front {
-                    None => println!("  v{newest}: no pages of its own"),
-                    Some(front) => println!("  v{newest}: pages needing {}", front.needs),
-                }
-            }
-        }
-    }
-}
-
-#[test]
 #[ignore = "downloads the front of the newest release"]
 fn the_front_of_the_newest_release_is_ours_and_unpacks() {
     let (endpoint, key) = declared();
-    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, &release(), None))
+    let manifest = tauri::async_runtime::block_on(release::read(&endpoint, None))
         .expect("the newest release's manifest");
     let front = manifest.front.expect("the newest release carries a front");
     let version = semver::Version::parse(&manifest.version).expect("a version");

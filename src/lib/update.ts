@@ -1,10 +1,11 @@
 /**
- * Declaring the two versions the app should be adjusted to.
+ * The version this copy of the app is on, and moving it to another.
  *
- * Core is the independently released application layer. Front / Program is a
- * full app release, filtered to the ones that speak the selected Core's
- * protocol. The backend still takes the three physical layers one at a time;
- * the settings present them as the two declarations a person actually makes.
+ * Two halves. The persistent half holds the terminals and is never moved from
+ * here; the ephemeral half is this program and its pages, and is what a
+ * release replaces. The backend takes the ephemeral half's pages on their own
+ * where that is all a copy can take; the settings present one declaration,
+ * which is the release to be on.
  */
 
 export * from "./update/model";

@@ -10,7 +10,7 @@
 //! on disk and out of what the sessions have already said.
 //!
 //! The line between the two is a process boundary. The shells are held by the
-//! program beside this one — see `keep` — and this window holds only the
+//! program beside this one — see `persistent` — and this window holds only the
 //! second kind, which is what lets it be replaced underneath a running agent
 //! without ending the agent: an update, a crash, a reload that went wrong. A
 //! line like that is worth nothing unless it is true, so it is written down
@@ -30,7 +30,7 @@
 //! own rather than out of anything a session drew, so there is nothing to work
 //! it out from: it is a thing that was said once, the same as the session's own
 //! backlog, and dropping it would not lose a reading but the report itself. So
-//! it is the keep's too. It goes when the session it belongs to goes, and not
+//! it is the persistent half's too. It goes when the session it belongs to goes, and not
 //! before.
 
 use tauri::{AppHandle, Manager, Runtime};
@@ -49,7 +49,7 @@ pub fn rederive<R: Runtime>(app: AppHandle<R>) {
     git::session::forget_all(&app);
     app.state::<BrowseWatch>().clear();
     ask::watch::rederive(&app);
-    // Nothing about the door is touched. It is held open by the keep and the
+    // Nothing about the door is touched. It is held open by the persistent half and the
     // reports behind it were said rather than read, so there is no version of
     // either that could be taken again from what is on disk or from what the
     // sessions have said.

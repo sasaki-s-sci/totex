@@ -132,7 +132,7 @@ fn fetch(url: &str, mut coming: impl FnMut(u64, Option<u64>)) -> Result<Vec<u8>,
     runtime.block_on(async {
         let client = reqwest::Client::builder()
             .timeout(FETCHING)
-            .user_agent(concat!("totex-keep/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("totex-persistent/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| format!("no client: {error}"))?;
         let mut response = client

@@ -68,12 +68,11 @@ function VersionMove({ standing }: { standing: Standing }) {
  * `latest` as it reads in the pull-down: the release it is on today, with the
  * word itself behind it in the small grey.
  *
- * The word on its own says nothing about where it points, and where a row is
- * following a cycle of its own that is how it comes to read as a step backwards
- * without ever saying so — the newest release of one cycle is not the newest
- * number on the page. The version is what is actually being chosen, so it is set
- * as one; the word is only why it will move again on its own, so it is set as a
- * footnote to it.
+ * The word on its own says nothing about where it points, and a copy whose
+ * program cannot move follows the newest release its program can draw the
+ * pages of, which is not always the newest number there is. The version is
+ * what is actually being chosen, so it is set as one; the word is only why it
+ * will move again on its own, so it is set as a footnote to it.
  *
  * There is no version to show before the release page has answered once, which
  * leaves the word standing alone — which is what it meant then anyway.
@@ -144,7 +143,7 @@ function VersionSelect({
         </MenuItem>
       )}
       {choices.map((choice) => (
-        <MenuItem key={`${choice.cycle}:${choice.version}`} value={choice.version}>
+        <MenuItem key={choice.version} value={choice.version}>
           {choice.version}
         </MenuItem>
       ))}

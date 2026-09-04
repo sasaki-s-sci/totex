@@ -34,7 +34,7 @@ use totex_host::sync::lock;
 
 use crate::session::Event;
 use crate::wire::{Address, Asked, Told, answered, hello};
-use crate::{Keep, door, update};
+use crate::{Persistent, door, update};
 
 /// The one address this listens on. Never the machine's own address on a
 /// network: what stands behind this socket is every terminal somebody has open.
@@ -77,7 +77,7 @@ impl Client {
 
 /// The listener and everyone connected to it.
 pub struct Serving {
-    keep: Arc<Keep>,
+    held: Arc<Persistent>,
     clients: Mutex<Vec<Arc<Client>>>,
     next: AtomicU64,
     ending: Ending,
@@ -91,7 +91,7 @@ pub struct Serving {
 /// The address file is written whole or not at all — beside where it goes and
 /// moved into place — because a window reads it the moment it appears, and
 /// half a port number is not one.
-pub fn stand(keep: Arc<Keep>, home: &Path, ending: Ending) -> Result<Arc<Serving>, String> {
+pub fn stand(held: Arc<Persistent>, home: &Path, ending: Ending) -> Result<Arc<Serving>, String> {
     let listener =
         TcpListener::bind((LOOPBACK, 0)).map_err(|error| format!("nowhere to listen: {error}"))?;
     let port = listener
@@ -101,7 +101,7 @@ pub fn stand(keep: Arc<Keep>, home: &Path, ending: Ending) -> Result<Arc<Serving
     let token = token();
 
     let serving = Arc::new(Serving {
-        keep: Arc::clone(&keep),
+        held: Arc::clone(&held),
         clients: Mutex::new(Vec::new()),
         next: AtomicU64::new(1),
         ending,
@@ -114,14 +114,14 @@ pub fn stand(keep: Arc<Keep>, home: &Path, ending: Ending) -> Result<Arc<Serving
     // it. Registered before the address is written, so that no window can
     // connect to a program that is not yet telling.
     let telling = Arc::clone(&serving);
-    keep.sessions.follow(Arc::new(move |id, event| {
+    held.sessions.follow(Arc::new(move |id, event| {
         telling.broadcast(&Told::of(id, event));
         if matches!(event, Event::Ended) {
             telling.end_if_empty();
         }
     }));
     let reporting = Arc::clone(&serving);
-    keep.door.follow(Arc::new(move |reported| {
+    held.door.follow(Arc::new(move |reported| {
         reporting.broadcast(&Told::Report {
             id: reported.id.clone(),
             report: reported.report.clone(),
@@ -135,7 +135,7 @@ pub fn stand(keep: Arc<Keep>, home: &Path, ending: Ending) -> Result<Arc<Serving
             token,
             pid: std::process::id(),
             version: crate::VERSION.to_string(),
-            protocol: crate::PROTOCOL,
+            line: crate::LINE,
         },
     )?;
 
@@ -179,7 +179,7 @@ impl Serving {
 
     /// Ends this program if there is nothing left to hold.
     fn end_if_empty(&self) {
-        if self.clients() == 0 && self.keep.sessions.count() == 0 {
+        if self.clients() == 0 && self.held.sessions.count() == 0 {
             (self.ending)();
         }
     }
@@ -289,41 +289,41 @@ fn answer(
     command: &str,
     with: Value,
 ) -> (Option<Result<Value, String>>, Option<Then>) {
-    let keep = &serving.keep;
+    let held = &serving.held;
     let answer = match command {
         "open" => read::<Opened>(with).and_then(|at| {
-            keep.sessions
+            held.sessions
                 .open(&at.id, &at.cwd, at.rows, at.cols, at.meta)
                 .map(|()| Value::Null)
         }),
-        "sessions" => said(keep.sessions.running()),
-        "attach" => read::<Named>(with).and_then(|at| said(keep.sessions.attach(&at.id))),
+        "sessions" => said(held.sessions.running()),
+        "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
         "write" => read::<Written>(with)
-            .and_then(|at| keep.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
+            .and_then(|at| held.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
         "resize" => read::<Resized>(with).and_then(|at| {
-            keep.sessions
+            held.sessions
                 .resize(&at.id, at.rows, at.cols)
                 .map(|()| Value::Null)
         }),
         "close" => read::<Named>(with).map(|at| {
-            keep.sessions.close(&at.id);
+            held.sessions.close(&at.id);
             Value::Null
         }),
-        "door_serving" => said(keep.door.serving()),
-        "door_serve" => keep.door.serve().and_then(said),
+        "door_serving" => said(held.door.serving()),
+        "door_serve" => held.door.serve().and_then(said),
         "door_stop" => {
-            keep.door.unserve();
+            held.door.unserve();
             Ok(Value::Null)
         }
-        "door_reports" => said(keep.door.reports()),
-        "door_setups" => said(keep.door.setups()),
+        "door_reports" => said(held.door.reports()),
+        "door_setups" => said(held.door.setups()),
         "door_install" => {
-            read::<Installing>(with).and_then(|at| keep.door.install(at.agent).and_then(said))
+            read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))
         }
-        "store_get" => read::<Stored>(with).and_then(|at| said(keep.store.get(&at.name)?)),
+        "store_get" => read::<Stored>(with).and_then(|at| said(held.store.get(&at.name)?)),
         "store_put" => read::<Putting>(with)
-            .and_then(|at| keep.store.put(&at.name, at.value).map(|()| Value::Null)),
-        "store_list" => said(keep.store.list()),
+            .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
+        "store_list" => said(held.store.list()),
         "take_program" => read::<update::Taking>(with).and_then(|taking| {
             let telling = Arc::clone(serving);
             update::take(&serving.home, &taking, move |taken, length| {
@@ -340,8 +340,8 @@ fn answer(
             // it was heard, and a socket closed by a process that has exited is
             // not an answer.
             let then: Then = Box::new(|serving| {
-                serving.keep.sessions.close_all();
-                serving.keep.door.unserve();
+                serving.held.sessions.close_all();
+                serving.held.door.unserve();
                 (serving.ending)();
             });
             return (Some(Ok(Value::Null)), Some(then));

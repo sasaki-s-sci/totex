@@ -20,7 +20,6 @@ use std::sync::Arc;
 use tauri::ipc::Channel;
 use tauri::test::{mock_builder, mock_context, noop_assets};
 
-use crate::release::Cycles;
 use crate::update::{Kept, Took};
 
 use super::{Page, TempDir};
@@ -141,13 +140,9 @@ fn a_press_downloads_the_pages_and_the_next_window_is_drawn_out_of_them() {
         .expect("an app pointed at the page this test is holding");
 
     let coming = Channel::new(|_| Ok(()));
-    let took = tauri::async_runtime::block_on(crate::front::take::take_front(
-        app.handle(),
-        &Cycles::Release.cycle(),
-        None,
-        &coming,
-    ))
-    .expect("the press");
+    let took =
+        tauri::async_runtime::block_on(crate::front::take::take_front(app.handle(), None, &coming))
+            .expect("the press");
     assert_eq!(took, Took::Taken);
 
     // The window on the screen is still the one that was there; what has moved

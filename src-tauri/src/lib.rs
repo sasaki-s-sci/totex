@@ -4,8 +4,8 @@ mod display;
 mod front;
 mod fs_watch;
 mod git;
-mod keep;
 mod mcp;
+mod persistent;
 mod pty;
 mod release;
 mod space;
@@ -122,10 +122,10 @@ fn fs_copy_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String>
 
 /// Whatever is left to do on the way out, which is one thing: the shells are
 /// ended, unless this window is leaving so that another can take its place —
-/// see `keep`.
+/// see `persistent`.
 fn on_the_way_out<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: &tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::Exit) {
-        keep::leaving(app);
+        persistent::leaving(app);
     }
 }
 
@@ -142,11 +142,10 @@ pub fn run() {
     let mut context = tauri::generate_context!();
     let serving = Arc::new(front::Serving::prepare(
         &context.config().identifier,
-        // The pages' own version and not this program's. They are the same
-        // number in a release that moves everything at once, and they are not
-        // in a release of the pages alone -- see `release::cycle`. Which front
-        // is newer than the built-in one is a question about the pages, so it
-        // is the pages' number that answers it.
+        // The pages' own version, which is this program's in every release
+        // that is cut -- see `release` -- and is read from the pages' side
+        // anyway, because which front is newer than the built-in one is a
+        // question about the pages.
         env!("FRONT_VERSION")
             .parse()
             .expect("build.rs writes this out of package.json"),
@@ -159,11 +158,11 @@ pub fn run() {
     // pages have been replaced -- see `update::kept`.
     let kept = Arc::new(update::Kept::prepare(&context.config().identifier));
 
-    // And the program holding the terminals, found or started before there is
-    // a window to draw them in -- see `keep`. A window that cannot reach one
-    // is a window with nothing to draw a terminal of, which is not a window
-    // worth opening.
-    let link = keep::reach(&context.config().identifier)
+    // And the persistent half, found or started before there is a window to
+    // draw its terminals in -- see `persistent`. A window that cannot reach
+    // one is a window with nothing to draw a terminal of, which is not a
+    // window worth opening.
+    let link = persistent::reach(&context.config().identifier)
         .expect("the program holding the terminals is beside this one");
 
     tauri::Builder::default()
@@ -180,13 +179,13 @@ pub fn run() {
         // What the sessions say is read for the questions agents ask, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
-        // `keep` for the whole of what joins them. The reading first and the
+        // `persistent` for the whole of what joins them. The reading first and the
         // pages second, so that a run of output has been read before it is
         // drawn; and then the sessions already running are read, because a
         // window that has just come up is standing in front of them.
         .setup(|app| {
             ask::watch::attend(app.handle());
-            keep::deliver(app.handle());
+            persistent::deliver(app.handle());
             ask::watch::rederive(app.handle());
             Ok(())
         })
@@ -212,9 +211,7 @@ pub fn run() {
             update::update_standing,
             update::update_take,
             update::update_pick,
-            update::update_follow,
             update::update_restart,
-            release::fetch::update_versions,
             release::fetch::update_choices,
             front::take::confirm_front,
             derived::rederive,
@@ -262,8 +259,8 @@ pub fn run() {
             mcp::mcp_reports,
             mcp::mcp_setups,
             mcp::mcp_install,
-            keep::keep_get,
-            keep::keep_put,
+            persistent::persistent_get,
+            persistent::persistent_put,
         ])
         .build(context)
         .expect("error while building tauri application")

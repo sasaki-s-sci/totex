@@ -30,9 +30,9 @@ fn contract() {
     println!("cargo:rustc-env=FRONT_CONTRACT={contract}");
 
     // And the version of the pages built into this binary, which is the version
-    // of the package they are built from. The same number as the crate's in a
-    // release that moves every layer at once, and not the same in a release of
-    // the pages alone -- see `src/release/cycle.rs`.
+    // of the package they are built from -- the crate's own number in every
+    // release that is cut, read from the pages' side because it is the pages'
+    // number that is compared against a taken front's.
     let version = read["version"]
         .as_str()
         .expect("package.json declares a version");

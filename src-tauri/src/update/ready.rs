@@ -1,14 +1,14 @@
 //! The release that is down and is not yet the one running.
 //!
-//! What came down is on the keep's disk and how it goes in is the keep's to do
-//! — see `totex_keep::update`. What is held here is only which release it is
+//! What came down is on the persistent half's disk and how it goes in is its to do
+//! — see `totex_persistent::update`. What is held here is only which release it is
 //! and what it replaces, so that the restart the pages ask for a moment later
 //! asks for the right thing, and so that a row moved to another version lets
 //! go of a release nothing is pointed at any more.
 
 use std::sync::Mutex;
 
-use totex_keep::update::Install;
+use totex_persistent::update::Install;
 
 /// A release that has come down, waiting for the restart that puts it in.
 struct Held {
