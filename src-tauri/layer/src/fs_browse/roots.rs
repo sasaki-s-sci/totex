@@ -43,6 +43,18 @@ fn platform_roots() -> Vec<Root> {
     // Named, not started: asking for a distribution's root is what boots it, and
     // listing the rail must not boot every one the machine has installed.
     for distro in wsl::distros() {
+        // Home first, as it is at the top of this rail — the account's own
+        // folder is where the work is, and its root is where the system is.
+        // Written `~` because that is all this side knows: which account the
+        // distribution runs as is something only the distribution can say, and
+        // asking is what starting it would be. It is folded into the real path
+        // when the row is picked, by which point the distribution is up anyway.
+        roots.push(Root {
+            kind: RootKind::WslDistro,
+            label: distro.clone(),
+            detail: Some("~".to_string()),
+            path: wsl::unc(&distro, "/~"),
+        });
         roots.push(Root {
             kind: RootKind::WslDistro,
             label: distro.clone(),

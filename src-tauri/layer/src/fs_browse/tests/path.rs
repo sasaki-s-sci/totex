@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::super::path::{clean_path, describe_folders, resolve_folder, shorten_home};
+use super::super::path::{clean_path, describe_folders, home_tail, resolve_folder, shorten_home};
 use super::temp_dir;
 
 #[test]
@@ -65,4 +65,23 @@ fn kept_folders_are_spelled_out_without_reading_them() {
     assert_eq!(places[0].path, "/home/someone/repo/totex");
     assert_eq!(places[0].label, "totex");
     assert_eq!(places[1].path, "/nowhere/at/all");
+}
+
+#[test]
+fn the_home_of_a_distribution_is_named_the_way_a_shell_names_it() {
+    // What the rail offers for a distribution's home, read back the way a path
+    // arriving over IPC is read: the two have to agree, or the row lands in a
+    // directory called `~` that is not there.
+    let offered = crate::wsl::unc("Ubuntu", "/~");
+    assert_eq!(offered, r"\\wsl.localhost\Ubuntu\~");
+    let found = crate::wsl::locate(&offered).expect("a distribution");
+    assert_eq!(found.distro, "Ubuntu");
+    assert_eq!(home_tail(&found.path), Some(""));
+
+    assert_eq!(home_tail("/~/repo/totex"), Some("/repo/totex"));
+    // A directory whose name merely begins with a tilde is a directory, and
+    // every other path is left for the distribution to answer for as it is.
+    assert_eq!(home_tail("/~backup"), None);
+    assert_eq!(home_tail("/home/a"), None);
+    assert_eq!(home_tail("/"), None);
 }

@@ -66,6 +66,26 @@ fn a_climbing_path_inside_a_distribution_is_folded_before_it_is_read() {
 
 #[test]
 #[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
+fn the_home_row_of_a_distribution_opens_the_folder_of_the_account_it_runs_as() {
+    let Some(distro) = crate::wsl::distros().into_iter().next() else {
+        eprintln!("skipped: no WSL distribution to reach");
+        return;
+    };
+    // The path the rail offers names no account — nothing on this side of the
+    // share knows one — and what it lands in is the home of whichever account
+    // the distribution runs as.
+    let listing = read_directory(&crate::wsl::unc(&distro, "/~"), false).expect("a listing");
+    let home = Host::Wsl(distro).home().expect("a home");
+    assert_eq!(Path::new(&listing.path), home);
+    assert!(
+        !listing.path.contains('~'),
+        "the pane moves to where that is: {}",
+        listing.path
+    );
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "reaches into WSL, which is Windows only")]
 fn a_card_reads_and_writes_a_file_inside_the_distribution() {
     let Some(dir) = wsl_dir("card") else {
         eprintln!("skipped: no WSL distribution to reach");

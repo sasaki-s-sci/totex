@@ -38,6 +38,39 @@ pub(super) fn expand_user_path(input: &str) -> PathBuf {
     PathBuf::from(trimmed)
 }
 
+/// What follows a leading `~` in a path inside a distribution, or `None` when
+/// the path does not begin with one. `~` alone answers with nothing after it.
+///
+/// Its own rule rather than a `starts_with`, because a directory whose name
+/// merely begins with a tilde is a directory: only `~` on its own, or `~` and a
+/// separator, is the home somebody meant.
+pub(super) fn home_tail(path: &str) -> Option<&str> {
+    let rest = path.strip_prefix("/~")?;
+    (rest.is_empty() || rest.starts_with('/')).then_some(rest)
+}
+
+/// Expands a leading `~` in a path inside a distribution, by asking the
+/// distribution where home is.
+///
+/// Asked of it rather than worked out here: the account a distribution runs as
+/// is its own, and nothing on the Windows side of the share knows which
+/// directory under `/home` belongs to whoever opened the app — or that it is
+/// under `/home` at all. Only a path that says `~` is asked about, so the rail
+/// can offer a distribution's home without starting the distribution; starting
+/// it is what picking that row does, the same as picking its root does.
+fn expand_remote_home(host: &Host, path: &str) -> String {
+    let Some(tail) = home_tail(path) else {
+        return path.to_string();
+    };
+    // A distribution that will not say leaves the path as it was, which is a
+    // directory called `~` that is almost certainly not there — refused where
+    // it was asked for, like any other path that names nothing.
+    let Some(home) = host.home() else {
+        return path.to_string();
+    };
+    format!("{}{tail}", host.native(&home))
+}
+
 /// The path with the home directory written `~`, the way a shell writes it. A
 /// path that is not under it is left exactly as it was, and the separator is
 /// whichever one the path is already using.
@@ -150,8 +183,10 @@ pub(super) fn resolve(raw: &str) -> Result<(Host, PathBuf), String> {
     }
     match wsl::locate(trimmed) {
         Some(found) => {
-            let path = wsl::unc(&found.distro, &wsl::clean(&found.path));
-            Ok((Host::Wsl(found.distro), PathBuf::from(path)))
+            let host = Host::Wsl(found.distro.clone());
+            let inside = expand_remote_home(&host, &found.path);
+            let path = wsl::unc(&found.distro, &wsl::clean(&inside));
+            Ok((host, PathBuf::from(path)))
         }
         None => Ok((Host::Local, clean_path(&expand_user_path(trimmed)))),
     }
