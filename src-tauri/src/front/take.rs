@@ -184,9 +184,9 @@ pub fn confirm_front<R: Runtime>(app: AppHandle<R>) {
 /// Whether this is the front the release page named, signed with our key.
 ///
 /// The two strings are base64 around the two halves of a minisign pair, which
-/// is the shape the updater plugin's own manifest carries and the shape
-/// `tauri signer` writes — the front is signed by the same command, with the
-/// same key, in the same job as the installers beside it.
+/// is the shape the release manifest carries and the shape `tauri signer`
+/// writes — the front is signed by the same command, with the same key, in the
+/// same job as the installers beside it.
 pub(crate) fn ours(tarball: &[u8], signature: &str, key: &str) -> Result<(), String> {
     let text = |encoded: &str, what: &str| {
         BASE64

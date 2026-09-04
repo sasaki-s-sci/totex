@@ -34,7 +34,7 @@ use totex_host::sync::lock;
 
 use crate::session::Event;
 use crate::wire::{Address, Asked, Told, answered, hello};
-use crate::{Keep, door};
+use crate::{Keep, door, update};
 
 /// The one address this listens on. Never the machine's own address on a
 /// network: what stands behind this socket is every terminal somebody has open.
@@ -47,12 +47,15 @@ const HELLO: Duration = Duration::from_secs(5);
 /// the process, and a test sets a flag.
 pub type Ending = Box<dyn Fn() + Send + Sync>;
 
-/// What a window asked to be started once it has gone.
+/// What a window asked to be started once it has gone — and, where a release
+/// came down first, what is to be put in before it is.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Relaunch {
     pub program: PathBuf,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub install: Option<update::Install>,
 }
 
 /// One window, for as long as it is connected.
@@ -80,6 +83,7 @@ pub struct Serving {
     ending: Ending,
     port: u16,
     token: String,
+    home: PathBuf,
 }
 
 /// Binds, writes down where, and starts taking windows.
@@ -103,6 +107,7 @@ pub fn stand(keep: Arc<Keep>, home: &Path, ending: Ending) -> Result<Arc<Serving
         ending,
         port,
         token: token.clone(),
+        home: home.to_path_buf(),
     });
 
     // What the sessions do goes to every window, and the door's reports with
@@ -235,10 +240,21 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
         }
     }
 
-    // The window has gone. Whatever it asked to have started is started, and
-    // if there is nothing left to hold, this program goes too.
+    // The window has gone. Whatever it asked to have started is started -- with
+    // whatever came down put in first -- and if there is nothing left to hold,
+    // this program goes too.
     serving.forget(client.id);
     if let Some(relaunch) = lock(&client.relaunch).take() {
+        if let Some(install) = &relaunch.install
+            && let Err(error) = update::install(install)
+        {
+            // The old program is started instead: a window that says the
+            // release did not go in is better than no window at all.
+            update::note(
+                &serving.home,
+                &format!("the release did not go in: {error}"),
+            );
+        }
         launch(&relaunch);
     }
     serving.end_if_empty();
@@ -297,6 +313,13 @@ fn answer(
         "store_put" => read::<Putting>(with)
             .and_then(|at| keep.store.put(&at.name, at.value).map(|()| Value::Null)),
         "store_list" => said(keep.store.list()),
+        "take_program" => read::<update::Taking>(with).and_then(|taking| {
+            let telling = Arc::clone(serving);
+            update::take(&serving.home, &taking, move |taken, length| {
+                telling.broadcast(&Told::Coming { taken, length });
+            })
+            .and_then(said)
+        }),
         "relaunch" => read::<Relaunch>(with).map(|relaunch| {
             *lock(&client.relaunch) = Some(relaunch);
             Value::Null

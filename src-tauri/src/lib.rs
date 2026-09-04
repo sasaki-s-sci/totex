@@ -23,8 +23,6 @@ pub use totex_host::{fs_browse, host, sync, wsl};
 
 use std::sync::Arc;
 
-use tauri::Manager;
-
 use fs_browse::{FileData, FileHead, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
@@ -122,20 +120,13 @@ fn fs_copy_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String>
     fs_browse::copy_into(&paths, &into)
 }
 
-/// Whatever is left to do on the way out, which is two things.
-///
-/// The shells are ended, unless this window is leaving so that another can
-/// take its place — see `keep`. And a release taken while the window was open
-/// is put in, because the installer that puts it there is the thing that would
-/// otherwise have closed the window — see `update::waiting`. On Windows that
-/// call does not come back.
+/// Whatever is left to do on the way out, which is one thing: the shells are
+/// ended, unless this window is leaving so that another can take its place —
+/// see `keep`.
 fn on_the_way_out<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: &tauri::RunEvent) {
-    if !matches!(event, tauri::RunEvent::Exit) {
-        return;
+    if matches!(event, tauri::RunEvent::Exit) {
+        keep::leaving(app);
     }
-    keep::leaving(app);
-    #[cfg(desktop)]
-    app.state::<Arc<update::Waiting>>().go_in();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -175,23 +166,13 @@ pub fn run() {
     let link = keep::reach(&context.config().identifier)
         .expect("the program holding the terminals is beside this one");
 
-    let builder = tauri::Builder::default();
-
-    // Only a desktop build has anything to replace: the plugin behind the
-    // settings dialog's update button is the download-and-swap, and it does not
-    // exist on a phone. Nor does anywhere to stand a release that has come down
-    // and is waiting for this app to be closed — see `update::waiting`.
-    #[cfg(desktop)]
-    let builder = builder
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Arc::new(update::Waiting::prepare(
-            &context.config().identifier,
-        )));
-
-    builder
+    tauri::Builder::default()
         .manage(serving)
         .manage(kept)
         .manage(link)
+        // A release that has come down and is waiting for the restart -- see
+        // `update::ready`.
+        .manage(Arc::new(update::Ready::default()))
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
@@ -232,6 +213,7 @@ pub fn run() {
             update::update_take,
             update::update_pick,
             update::update_follow,
+            update::update_restart,
             release::fetch::update_versions,
             release::fetch::update_choices,
             front::take::confirm_front,

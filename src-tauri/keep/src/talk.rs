@@ -89,7 +89,13 @@ pub struct Link {
     /// ending.
     known: Arc<Mutex<HashSet<String>>>,
     relaunching: AtomicBool,
+    /// Whoever is waiting to hear how much of a release has come down, while
+    /// one is coming.
+    coming: Arc<Mutex<Option<Coming>>>,
 }
+
+/// Something told how much of a release has come down, as it comes.
+pub type Coming = Box<dyn Fn(u64, Option<u64>) + Send + Sync>;
 
 impl std::fmt::Debug for Link {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -127,6 +133,7 @@ impl Link {
         let following: Arc<Mutex<Vec<Follower>>> = Arc::new(Mutex::new(Vec::new()));
         let reporting: Arc<Mutex<Vec<Reporter>>> = Arc::new(Mutex::new(Vec::new()));
         let known: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+        let coming: Arc<Mutex<Option<Coming>>> = Arc::new(Mutex::new(None));
 
         let (said, hears) = sync_channel(1);
         {
@@ -135,8 +142,11 @@ impl Link {
             let following = Arc::clone(&following);
             let reporting = Arc::clone(&reporting);
             let known = Arc::clone(&known);
+            let coming = Arc::clone(&coming);
             std::thread::spawn(move || {
-                read(stream, said, waiting, gone, following, reporting, known)
+                read(
+                    stream, said, waiting, gone, following, reporting, known, coming,
+                )
             });
         }
 
@@ -171,6 +181,7 @@ impl Link {
             reporting,
             known,
             relaunching: AtomicBool::new(false),
+            coming,
         })
     }
 
@@ -293,13 +304,37 @@ impl Link {
         let _ = self.ask("stop", json!({}));
     }
 
-    /// Asks the program to start something once this window has gone, and
-    /// remembers having asked: a window on its way to being replaced is not one
-    /// that should take the shells with it.
-    pub fn relaunch(&self, program: &Path, args: &[String]) -> Result<(), String> {
-        self.ask("relaunch", json!({ "program": program, "args": args }))?;
+    /// Asks the program to start something once this window has gone -- with a
+    /// release put in first, where one came down -- and remembers having asked:
+    /// a window on its way to being replaced is not one that should take the
+    /// shells with it.
+    pub fn relaunch(
+        &self,
+        program: &Path,
+        args: &[String],
+        install: Option<&crate::update::Install>,
+    ) -> Result<(), String> {
+        self.ask(
+            "relaunch",
+            json!({ "program": program, "args": args, "install": install }),
+        )?;
         self.relaunching.store(true, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Asks, with somebody told how much has arrived while the answer is
+    /// coming -- which is the one question here that takes long enough to be
+    /// worth watching.
+    pub fn ask_watching(
+        &self,
+        command: &str,
+        with: Value,
+        coming: Coming,
+    ) -> Result<Value, String> {
+        *lock(&self.coming) = Some(coming);
+        let answered = self.ask(command, with);
+        *lock(&self.coming) = None;
+        answered
     }
 
     /// Whether this window has asked to be replaced.
@@ -339,6 +374,7 @@ impl Link {
 /// The end of the socket is the end of the program. Everything still waiting is
 /// told so rather than left waiting, and every session this side knew of is
 /// told to have ended -- because from here, it has.
+#[allow(clippy::too_many_arguments)]
 fn read(
     stream: TcpStream,
     hello: SyncSender<Value>,
@@ -347,9 +383,10 @@ fn read(
     following: Arc<Mutex<Vec<Follower>>>,
     reporting: Arc<Mutex<Vec<Reporter>>>,
     known: Arc<Mutex<HashSet<String>>>,
+    coming: Arc<Mutex<Option<Coming>>>,
 ) {
     let (telling, told) = std::sync::mpsc::channel::<Told>();
-    std::thread::spawn(move || tell_each(told, following, reporting, known));
+    std::thread::spawn(move || tell_each(told, following, reporting, known, coming));
 
     let mut lines = BufReader::new(stream).lines();
     if let Some(Ok(line)) = lines.next()
@@ -395,9 +432,15 @@ fn tell_each(
     following: Arc<Mutex<Vec<Follower>>>,
     reporting: Arc<Mutex<Vec<Reporter>>>,
     known: Arc<Mutex<HashSet<String>>>,
+    coming: Arc<Mutex<Option<Coming>>>,
 ) {
     for told in told {
         match &told {
+            Told::Coming { taken, length } => {
+                if let Some(watching) = lock(&coming).as_ref() {
+                    watching(*taken, *length);
+                }
+            }
             Told::Report { id, report } => {
                 let reported = crate::door::Reported {
                     id: id.clone(),

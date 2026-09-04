@@ -15,12 +15,12 @@
  * release is what is already here, and `held` where this layer cannot bring
  * it.
  *
- * `ready` is the one that is not about this window at all. A program cannot be
- * put in underneath a window that is open, so what a press does is bring it
- * down; putting it in is the app being closed, which is a moment the person
- * picks. So the row says the next start rather than offering a press: this copy
- * goes on as it was, with every terminal in it, and the copy that opens next is
- * the one the release makes. See `src-tauri/src/update/waiting.rs`.
+ * `ready` is the one that ends this window. A program cannot be put in
+ * underneath a window that is open, so what a press does is bring it down; what
+ * puts it in is this window leaving so that the next can open on it, which the
+ * settings ask for the moment the download is here. The terminals are not in
+ * this window -- they are the keep's -- so every one of them is still there
+ * when the next window comes up. See `src-tauri/src/update/ready.rs`.
  */
 export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 

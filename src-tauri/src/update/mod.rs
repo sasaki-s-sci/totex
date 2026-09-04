@@ -10,10 +10,11 @@
 //!
 //! **The program.** That is the installer, and it is the one layer that cannot
 //! be put in underneath a window that is open. So a press is the download and
-//! nothing else, and what puts the release in is the app being closed — see
-//! [`waiting`]. Nothing goes away while somebody is working; the next start is
-//! the one on the new release. It is a row of its own because it is a different
-//! cost, and this is that cost paid where it costs nothing.
+//! nothing else, and what puts the release in is this window leaving so that
+//! the next can take its place — see [`ready`] and [`update_restart`]. The
+//! shells are not in this window — see `keep` — so nothing anybody was working
+//! on goes with it: the window closes, the release goes in, and the window
+//! opens again on it in front of the same terminals.
 //!
 //! ## What a copy can have
 //!
@@ -52,13 +53,9 @@
 
 mod core;
 mod kept;
+mod ready;
 #[cfg(test)]
 mod tests;
-/// A release that is down and waiting for the app to be closed, which is only
-/// ever a thing on a desktop: the updater the whole of this rests on is not
-/// built for a phone.
-#[cfg(desktop)]
-mod waiting;
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
@@ -70,8 +67,7 @@ use crate::front::Serving;
 use crate::release::Cycles;
 
 pub use kept::Kept;
-#[cfg(desktop)]
-pub use waiting::Waiting;
+pub use ready::Ready;
 
 /// Which of the two a row is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -91,7 +87,7 @@ pub const LAYERS: [Layer; 2] = [Layer::Front, Layer::Core];
 #[serde(rename_all = "camelCase")]
 pub enum Took {
     /// It is here. What is left is whatever finishes it — a reload for the
-    /// pages, the next start of the app for the program.
+    /// pages, the restart for the program.
     Taken,
     /// Nothing to do: that release is what is already being drawn, or already
     /// running.
@@ -175,8 +171,8 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
 /// Takes one layer of one release, or says why this copy cannot.
 ///
 /// The one press behind both rows. What it ends in is the layer's own: pages
-/// are unpacked and pointed at, and a program is installed and waits for the
-/// restart.
+/// are unpacked and pointed at, and a program is brought down and waits for
+/// the restart.
 #[tauri::command]
 pub async fn update_take<R: Runtime>(
     app: AppHandle<R>,
@@ -202,16 +198,41 @@ pub async fn update_take<R: Runtime>(
 #[tauri::command]
 pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
     // The row moved, and a release that came down for where it used to point is
-    // one nothing is pointed at any more — see [`waiting`]. Asked here rather
+    // one nothing is pointed at any more — see [`ready`]. Asked here rather
     // than on [`update_follow`] because every move of a row ends in a pick: a
     // row sent to another cycle is a row that names a version of that cycle a
     // moment later, and that is the naming worth reading.
-    #[cfg(desktop)]
     if layer == Layer::Core {
-        app.state::<std::sync::Arc<Waiting>>()
+        app.state::<std::sync::Arc<Ready>>()
             .let_go_unless(version.as_deref());
     }
     app.state::<std::sync::Arc<Kept>>().pick(layer, version);
+}
+
+/// Leaves, so that the release that came down can go in and the next window
+/// can open on it.
+///
+/// The keep is asked to start this program again once this window has gone,
+/// with the release put in first; then this window goes. Every terminal stays
+/// where it is throughout, because none of them were ever in here. Nothing
+/// waiting is a restart with nothing to put in, which is refused rather than
+/// made: a window that closes for no reason is a window somebody lost.
+#[tauri::command(async)]
+pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let install = app
+        .state::<std::sync::Arc<Ready>>()
+        .take()
+        .ok_or_else(|| "no release has come down".to_string())?;
+    let program = match install.kind {
+        // What the runtime mounted is what is started again, not the program
+        // inside the mount that is about to go away.
+        totex_keep::update::Kind::AppImage => install.target.clone(),
+        totex_keep::update::Kind::App => install.target.join("Contents/MacOS/totex"),
+        totex_keep::update::Kind::Nsis | totex_keep::update::Kind::Msi => install.target.clone(),
+    };
+    crate::keep::link(&app).relaunch(&program, &[], Some(&install))?;
+    app.exit(0);
+    Ok(())
 }
 
 /// Points one layer at a different cycle of releases, and remembers that too.

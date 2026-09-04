@@ -40,6 +40,7 @@ mod stream;
 pub mod talk;
 #[cfg(test)]
 mod tests;
+pub mod update;
 pub mod wire;
 
 use std::path::PathBuf;

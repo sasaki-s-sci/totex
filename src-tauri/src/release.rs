@@ -1,7 +1,7 @@
 //! Where the releases are, and what each of them says about itself.
 //!
-//! One document decides both halves. Every release carries a `latest.json`: the
-//! updater plugin reads it for the installer that replaces the program, and
+//! One document decides both halves. Every release carries a `latest.json`:
+//! [`crate::update`] reads it for the installer that replaces the program, and
 //! [`crate::front`] reads it for the pages that can be taken without one. What
 //! a release is, is one fact, and two files saying it are two files that can
 //! disagree — so there is one file, and this is the reading of it.
@@ -60,14 +60,21 @@ pub const SMALL: usize = 4 * 1024 * 1024;
 const BACK: usize = 30;
 
 /// As much of the release manifest as anything here reads.
-///
-/// The same document the updater plugin reads, from the same URL. The plugin
-/// ignores a key that is not part of its own shape, and everything here ignores
-/// `platforms`, which is the plugin's half of it.
 #[derive(Deserialize)]
 pub struct Manifest {
     pub version: String,
     pub front: Option<Entry>,
+    /// The program, by the kind of installed copy that can replace itself with
+    /// it — see `update::core::standing`, which is the other half of the names.
+    #[serde(default)]
+    pub platforms: std::collections::HashMap<String, Download>,
+}
+
+/// Where one kind of installed copy's replacement for itself is.
+#[derive(Deserialize)]
+pub struct Download {
+    pub url: String,
+    pub signature: String,
 }
 
 /// Where the pages of a release are, and what they need to run against.
@@ -110,4 +117,3 @@ pub(crate) mod url;
 
 pub use cycle::{Cycle, Cycles};
 pub use fetch::read;
-pub use url::manifest_url;

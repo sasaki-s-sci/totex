@@ -7,11 +7,12 @@ use super::{TempDir, asked, window};
 
 /// The names the settings page sends -- see `src/lib/update` and
 /// `src/components/settings/UpdateSection.tsx`.
-pub(super) const SENT: [&str; 6] = [
+pub(super) const SENT: [&str; 7] = [
     "update_standing",
     "update_take",
     "update_pick",
     "update_follow",
+    "update_restart",
     "update_choices",
     "confirm_front",
 ];

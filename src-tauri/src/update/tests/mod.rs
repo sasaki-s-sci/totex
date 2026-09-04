@@ -9,10 +9,9 @@
 
 mod kept;
 mod live;
+mod ready;
 pub(super) mod rows;
 mod serve;
-#[cfg(desktop)]
-mod waiting;
 mod whole;
 
 use std::path::{Path, PathBuf};

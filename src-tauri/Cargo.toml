@@ -37,31 +37,20 @@ notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 
 # Taking the front of a newer release without taking the program with it --
-# src/front. Every one of these is already in the build: they are what the
-# updater plugin is made of, asked for here by name rather than reached into.
+# src/front. The program itself is taken by the keep -- see keep/src/update.rs
+# -- with the same client and the same key.
 base64 = "0.22.1"
 dirs = "6.0.0"
 flate2 = "1.1.9"
 minisign-verify = "0.2.5"
 semver = "1.0.28"
 tar = "0.4.46"
-# No TLS feature of its own. The updater plugin already builds this same
-# reqwest with rustls, and cargo builds one crate per version -- asking for a
-# second stack here would be a second copy of the machinery, chosen by
-# whichever feature name happened to be written first.
-reqwest = { version = "0.13.4", default-features = false }
-# What that rustls has no opinion about: which implementation of the ciphers it
-# uses. The plugin picks one and installs it for the process, but it does that
-# on the way into its own download -- so a client built before anything has
-# been downloaded is built against no provider at all, which is a panic rather
-# than an error. This is the same provider the plugin picks, asked for here so
-# that the reading of a release page does not depend on having downloaded one
-# first. See `provider` in src/release/fetch.rs.
+# The same stack the keep reads a release with, chosen the same way: rustls,
+# with no provider of its own, and the provider named once by whichever crate
+# asks first. See `provider` in src/release/fetch.rs.
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 
 [dev-dependencies]
 # `test` brings in tauri's headless mock runtime, which the window tests drive.
 tauri = { version = "2.11.5", features = ["test"] }
-
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2.10.1"

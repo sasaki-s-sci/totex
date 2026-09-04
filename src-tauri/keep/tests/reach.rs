@@ -23,10 +23,8 @@ impl TempDir {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|elapsed| elapsed.as_nanos())
             .unwrap_or_default();
-        let path = std::env::temp_dir().join(format!(
-            "totex-reach-{tag}-{}-{unique}",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("totex-reach-{tag}-{}-{unique}", std::process::id()));
         std::fs::create_dir_all(&path).expect("create temp dir");
         Self(path)
     }
@@ -55,7 +53,11 @@ fn a_window_starts_the_program_and_the_next_window_finds_it() {
     let first = Link::reach(home, &program()).expect("the program comes up");
     assert_eq!(first.version(), totex_keep::VERSION);
     let address = Address::read(home).expect("the address was written");
-    assert_ne!(address.pid, std::process::id(), "it is a program of its own");
+    assert_ne!(
+        address.pid,
+        std::process::id(),
+        "it is a program of its own"
+    );
 
     // Something for it to hold, so that the first window leaving is not the
     // program's cue to go.
@@ -79,18 +81,27 @@ fn a_window_starts_the_program_and_the_next_window_finds_it() {
         "a second program was started beside the first"
     );
     assert_eq!(
-        second.ask("store_get", json!({ "name": "note" })).expect("asked"),
+        second
+            .ask("store_get", json!({ "name": "note" }))
+            .expect("asked"),
         json!("left")
     );
     #[cfg(unix)]
     {
         let listed = second.ask("sessions", json!({})).expect("asked");
-        assert_eq!(listed[0]["id"], json!("held"), "the shell went with the window");
+        assert_eq!(
+            listed[0]["id"],
+            json!("held"),
+            "the shell went with the window"
+        );
     }
 
     // Closing the app is what ends it.
     second.stop();
-    assert!(second.wait_gone(Duration::from_secs(5)), "stop did not end it");
+    assert!(
+        second.wait_gone(Duration::from_secs(5)),
+        "stop did not end it"
+    );
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
     while std::time::Instant::now() < deadline {
         if matches!(Link::connect(home), Err(Missing::Nobody)) {

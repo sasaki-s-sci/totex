@@ -17,6 +17,7 @@ import {
   askStanding,
   declare,
   reload,
+  restart,
   rungOf,
   stageOf,
   take,
@@ -38,10 +39,10 @@ import { VersionRow } from "./VersionRow";
  * has a release to be read against.
  *
  * `ready` is read after the other three because it is the weakest thing that
- * is still not nothing: a program that is down and waiting for the app to be
- * closed. Whatever else the press ran into is what the mark should be saying,
- * and where it ran into nothing this is what stops the row offering the same
- * release over again.
+ * is still not nothing: a program that is down and about to go in. Whatever
+ * else the press ran into is what the mark should be saying, and where it ran
+ * into nothing this is what stops the row offering the same release over
+ * again while the window is on its way out.
  */
 function activity(
   at: UpdateState,
@@ -81,16 +82,17 @@ export function UpdateSection() {
 
   // The program first, and where it moves it is the whole of the ephemeral
   // half: the release it comes out of carries its own pages, and they arrive
-  // with it at the next start. So the pages are taken on their own only in the
+  // with it at the restart. So the pages are taken on their own only in the
   // two places where they are the half that is behind — a program the package
   // manager owns, and a program already on the release the row is pointed at.
   const finishProgram = async (version: string) => {
     const rung = rungOf(at, "core");
     if (rung?.can) {
       const stage = await take("core", version);
-      // `ready` is the ending, not a step towards one: the release is down and
-      // goes in when this app is closed. Nothing is reloaded and nothing is
-      // restarted, which is the whole of why it is not `swapped`.
+      // `ready` is the release down and checked, and what is left is this
+      // window leaving so that the next can open on it. The terminals stay:
+      // they are not in this window.
+      if (stage === "ready") restart();
       if (stage === "ready" || stage === "failed") return;
     }
 
@@ -120,10 +122,9 @@ export function UpdateSection() {
   // of place: the release may well have arrived, and re-taking it is what says
   // so and takes the red off the button.
   const retry = mark.stage === "failed";
-  // And a release that is down and waiting for this app to be closed is one the
-  // row would otherwise go on offering, because what is running is still the
-  // program it replaces. The arrow on the row goes on saying that, truthfully;
-  // the button stops, because there is nothing left for a press to do.
+  // And a release that is down is one the row would otherwise go on offering
+  // for the moment this window is still on the screen, because what is running
+  // is still the program it replaces. The button stops: the window is leaving.
   const arrived = mark.stage === "ready";
 
   const sync = async () => {

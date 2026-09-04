@@ -65,6 +65,7 @@ pub const ANSWERS: &[&str] = &[
     "store_get",
     "store_put",
     "store_list",
+    "take_program",
     "stop",
     "relaunch",
 ];
@@ -123,6 +124,13 @@ pub enum Told {
         id: String,
         report: Option<Report>,
     },
+    /// How much of a release has come down, said as it arrives. Cumulative
+    /// rather than a chunk at a time, so that a window which missed one
+    /// message draws the same ring as one that missed none.
+    Coming {
+        taken: u64,
+        length: Option<u64>,
+    },
 }
 
 impl Told {
@@ -161,7 +169,7 @@ impl Told {
                 },
             ),
             Told::Ended { id } => (id, Event::Ended),
-            Told::Report { .. } => return None,
+            Told::Report { .. } | Told::Coming { .. } => return None,
         })
     }
 }
