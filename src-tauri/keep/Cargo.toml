@@ -2,7 +2,7 @@
 name = "totex-keep"
 # The app's own number: a release of the app carries this program inside it,
 # and the window compares the one running against the one it brought.
-version = "0.1.29"
+version = "0.1.30"
 edition = "2024"
 rust-version = "1.95"
 
