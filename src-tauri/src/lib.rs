@@ -1,4 +1,3 @@
-mod app_layer;
 mod ask;
 mod derived;
 mod display;
@@ -13,154 +12,114 @@ mod stream;
 mod tasks;
 mod update;
 
-/// The application layer, as this program carries it.
+/// The machine, as the app knows it.
 ///
 /// Written as a re-export rather than as modules of this crate because it is a
-/// crate of its own -- one that can be built as a program and downloaded, which
-/// is what makes it replaceable without this one being replaced. Everything
-/// here goes on being `crate::host`, `crate::wsl` and the rest to the program
-/// around it, because which crate a question is answered in is not something
-/// the asking should have to know. See `app_layer` for the other copy of it.
-pub use totex_layer::{fs_browse, host, sync, wsl};
+/// crate of its own, shared with every other program in the workspace.
+/// Everything here goes on being `crate::host`, `crate::wsl` and the rest to
+/// the program around it, because which crate a question is answered in is not
+/// something the asking should have to know.
+pub use totex_host::{fs_browse, host, sync, wsl};
 
 use std::sync::Arc;
 
-use serde_json::json;
-use tauri::{Manager, State};
+use tauri::Manager;
 
-use app_layer::Layers;
 use fs_browse::{FileData, FileHead, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
 /// Windows drives and the WSL distributions this platform can reach.
 ///
-/// The first of eleven that read the same way, and the reason they all do:
-/// every one of these is a question about the machine rather than about the
-/// app, so none of them is answered here. They are handed to whichever copy of
-/// the application layer is in front — see `app_layer` — which is what makes
-/// them replaceable while the window and everything running under it stays up.
+/// The first of fifteen that read the same way: every one of these is a
+/// question about the machine rather than about the app, and every one of
+/// them is answered by `fs_browse` on the spot.
 ///
-/// Off the UI thread, all of them: some ask a disk that is somebody else's, and
-/// one of them may ask a program running beside this one.
+/// Off the UI thread, all of them: some ask a disk that is somebody else's.
 #[tauri::command(async)]
-fn list_roots(layer: State<'_, Arc<Layers>>) -> Result<Vec<Root>, String> {
-    layer.ask("list_roots", json!({}))
+fn list_roots() -> Vec<Root> {
+    fs_browse::list_roots()
 }
 
 /// Settles one typed path into a folder to keep beside the roots, or refuses it.
 #[tauri::command(async)]
-fn resolve_folder(layer: State<'_, Arc<Layers>>, path: String) -> Result<Place, String> {
-    layer.ask("resolve_folder", json!({ "path": path }))
+fn resolve_folder(path: String) -> Result<Place, String> {
+    fs_browse::resolve_folder(&path)
 }
 
 /// Spells out the folders that were kept, which are stored as paths alone.
 /// Nothing here reads a disk — see `fs_browse::describe_folders`.
 #[tauri::command(async)]
-fn describe_folders(
-    layer: State<'_, Arc<Layers>>,
-    paths: Vec<String>,
-) -> Result<Vec<Place>, String> {
-    layer.ask("describe_folders", json!({ "paths": paths }))
+fn describe_folders(paths: Vec<String>) -> Vec<Place> {
+    fs_browse::describe_folders(&paths)
 }
 
 /// Reads one directory. `\\wsl.localhost\...` and `/mnt/c/...` are
 /// network-backed and can take a moment to answer.
 #[tauri::command(async)]
-fn read_directory(
-    layer: State<'_, Arc<Layers>>,
-    path: String,
-    show_hidden: bool,
-) -> Result<Listing, String> {
-    layer.ask(
-        "read_directory",
-        json!({ "path": path, "show_hidden": show_hidden }),
-    )
+fn read_directory(path: String, show_hidden: bool) -> Result<Listing, String> {
+    fs_browse::read_directory(&path, show_hidden)
 }
 
 /// Reads only enough of a file to draw its preview card on the canvas.
 #[tauri::command(async)]
-fn read_file_head(layer: State<'_, Arc<Layers>>, path: String) -> Result<FileHead, String> {
-    layer.ask("read_file_head", json!({ "path": path }))
+fn read_file_head(path: String) -> Result<FileHead, String> {
+    fs_browse::read_file_head(&path)
 }
 
 /// Reads the whole of a file, for a card drawing a picture of it rather than
-/// reading it. Bounded by the layer, which answers with nothing at all for a
-/// file too large to draw.
+/// reading it. Bounded, which answers with nothing at all for a file too large
+/// to draw.
 #[tauri::command(async)]
-fn read_file_data(layer: State<'_, Arc<Layers>>, path: String) -> Result<FileData, String> {
-    layer.ask("read_file_data", json!({ "path": path }))
+fn read_file_data(path: String) -> Result<FileData, String> {
+    fs_browse::read_file_data(&path)
 }
 
 /// Writes an edited card back to its file, and answers with how long it now is.
 #[tauri::command(async)]
-fn write_file(
-    layer: State<'_, Arc<Layers>>,
-    path: String,
-    text: String,
-    expect_size: u64,
-) -> Result<u64, String> {
-    layer.ask(
-        "write_file",
-        json!({ "path": path, "text": text, "expect_size": expect_size }),
-    )
+fn write_file(path: String, text: String, expect_size: u64) -> Result<u64, String> {
+    fs_browse::write_file(&path, &text, expect_size)
 }
 
 #[tauri::command(async)]
-fn fs_read_file(layer: State<'_, Arc<Layers>>, path: String) -> Result<Vec<u8>, String> {
-    layer.ask("fs_read_file", json!({ "path": path }))
+fn fs_read_file(path: String) -> Result<Vec<u8>, String> {
+    fs_browse::read_file(&path)
 }
 
 #[tauri::command(async)]
-fn fs_create_entry(
-    layer: State<'_, Arc<Layers>>,
-    parent: String,
-    name: String,
-    directory: bool,
-) -> Result<String, String> {
-    layer.ask(
-        "fs_create_entry",
-        json!({ "parent": parent, "name": name, "directory": directory }),
-    )
+fn fs_create_entry(parent: String, name: String, directory: bool) -> Result<String, String> {
+    fs_browse::create_entry(&parent, &name, directory)
 }
 
 #[tauri::command(async)]
-fn fs_duplicate_file(layer: State<'_, Arc<Layers>>, path: String) -> Result<String, String> {
-    layer.ask("fs_duplicate_file", json!({ "path": path }))
+fn fs_duplicate_file(path: String) -> Result<String, String> {
+    fs_browse::duplicate_file(&path)
 }
 
 #[tauri::command(async)]
-fn fs_rename_file(
-    layer: State<'_, Arc<Layers>>,
-    path: String,
-    name: String,
-) -> Result<String, String> {
-    layer.ask("fs_rename_file", json!({ "path": path, "name": name }))
+fn fs_rename_file(path: String, name: String) -> Result<String, String> {
+    fs_browse::rename_file(&path, &name)
 }
 
 #[tauri::command(async)]
-fn fs_delete_file(layer: State<'_, Arc<Layers>>, path: String) -> Result<(), String> {
-    layer.ask("fs_delete_file", json!({ "path": path }))
+fn fs_delete_file(path: String) -> Result<(), String> {
+    fs_browse::delete_file(&path)
 }
 
 /// The folder itself and everything under it, which is why it is asked for by a
 /// name of its own rather than by handing a folder to the one above.
 #[tauri::command(async)]
-fn fs_delete_folder(layer: State<'_, Arc<Layers>>, path: String) -> Result<(), String> {
-    layer.ask("fs_delete_folder", json!({ "path": path }))
+fn fs_delete_folder(path: String) -> Result<(), String> {
+    fs_browse::delete_folder(&path)
 }
 
 #[tauri::command(async)]
-fn fs_download(layer: State<'_, Arc<Layers>>, path: String) -> Result<String, String> {
-    layer.ask("fs_download", json!({ "path": path }))
+fn fs_download(path: String) -> Result<String, String> {
+    fs_browse::download(&path)
 }
 
 #[tauri::command(async)]
-fn fs_copy_into(
-    layer: State<'_, Arc<Layers>>,
-    paths: Vec<String>,
-    into: String,
-) -> Result<Vec<String>, String> {
-    layer.ask("fs_copy_into", json!({ "paths": paths, "into": into }))
+fn fs_copy_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String> {
+    fs_browse::copy_into(&paths, &into)
 }
 
 /// Whatever is left to do on the way out, which is one thing.
@@ -204,13 +163,9 @@ pub fn run() {
     let built_in = context.set_assets(Box::new(front::Nothing));
     context.set_assets(Box::new(front::Front::new(Arc::clone(&serving), built_in)));
 
-    // And which copy of the application layer this run asks its questions of,
-    // settled the same way and for the same reason -- see `app_layer`.
-    let layers = Arc::new(app_layer::Layers::prepare(&context.config().identifier));
-
     // And what the person left the update rows pointed at, which is this
-    // program's to remember because it is the only layer still there after
-    // either of the other two has been replaced -- see `update::kept`.
+    // program's to remember because it is the layer still there after the
+    // pages have been replaced -- see `update::kept`.
     let kept = Arc::new(update::Kept::prepare(&context.config().identifier));
 
     let builder = tauri::Builder::default();
@@ -228,7 +183,6 @@ pub fn run() {
 
     builder
         .manage(serving)
-        .manage(layers)
         .manage(kept)
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())

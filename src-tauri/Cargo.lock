@@ -4083,12 +4083,12 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-updater",
- "totex-layer",
+ "totex-host",
 ]
 
 [[package]]
-name = "totex-layer"
-version = "0.1.28"
+name = "totex-host"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",

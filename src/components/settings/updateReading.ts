@@ -1,28 +1,17 @@
 /**
- * The two declarations this page makes, read off the three physical layers.
+ * The declaration this page makes, read off the two physical layers.
  *
- * The backend replaces the pages, the application layer and the program one at
- * a time. What a person declares is two things: which application layer to
- * answer from, and which release of the app to be. This module is the whole of
- * the translation between them, kept out of the drawing because it is where the
- * compatibility rules live — and where "what would one press actually move" is
- * worked out, which is the question the arrows on the page and the one button
- * above them are both asking.
+ * The backend replaces the pages and the program one at a time. What a person
+ * declares is one thing: which release of the app to be. This module is the
+ * whole of the translation between them, kept out of the drawing because it is
+ * where the compatibility rule lives — and where "what would one press
+ * actually move" is worked out, which is the question the arrows on the page
+ * and the one button above them are both asking.
  */
 
-import {
-  newer,
-  type Rung,
-  rungOf,
-  type UpdateChoice,
-  type UpdateState,
-  wanted,
-} from "../../lib/update";
+import { rungOf, type UpdateChoice, type UpdateState } from "../../lib/update";
 
-/** The cycle the application layer is cut on, which is its own. */
-export const CORE_CYCLE = "layer";
-
-/** And the cycle a whole release of the app is cut on. */
+/** The cycle a whole release of the app is cut on. */
 export const PROGRAM_CYCLE = "release";
 
 /** The declaration that names no version and follows whatever is newest. */
@@ -43,8 +32,7 @@ export type Aside = { part: "pages" | "program"; version: string };
  * `at` is what is in place now and is drawn whatever else is true: the page says
  * what this copy is before it says anything about changing it. `to` is set only
  * where taking the declaration would land somewhere else, so a row with no arrow
- * is a row with nothing to do, and the two arrows together are what the one
- * button is offering.
+ * is a row with nothing to do, and the arrow is what the one button is offering.
  */
 export type Standing = {
   /** The version in place now, of the half this declaration moves. */
@@ -65,89 +53,12 @@ export type Standing = {
   can: boolean;
 };
 
-/** The dedicated Core releases whose protocol is known. */
-function coreChoices(at: UpdateState): UpdateChoice[] {
-  return at.choices.filter(
-    (choice) => choice.cycle === CORE_CYCLE && choice.layerProtocol !== null,
-  );
-}
-
-/**
- * Which Core declaration the first pull-down currently represents.
- *
- * Two kinds of answer, and only one of them is a layer named. A release of the
- * layer's own cycle is one somebody asked for and is answered with as it was
- * published. Anything else resolves to the layer already in place, and that one
- * is made up here out of what is running — a release the listing never offered,
- * because it is the layer this release carries rather than a release of its
- * own. What tells the two apart afterwards is whether the answer is one of
- * `coreChoices`, which is what [`programChoices`] asks of it.
- */
-function selectedCore(at: UpdateState): UpdateChoice | null {
-  const rung = rungOf(at, "app");
-  if (!rung) return null;
-  const version = rung.cycle === CORE_CYCLE ? wanted(at, "app") : rung.at;
-  const released = coreChoices(at).find((choice) => choice.version === version);
-  if (released) return released;
-  if (version !== rung.at || rung.protocol === null) return null;
-  return {
-    cycle: CORE_CYCLE,
-    version,
-    layerProtocol: rung.protocol,
-    frontContract: null,
-  };
-}
-
-/**
- * Whether the program and the application layer would still be talking to one
- * another once this release had been taken.
- *
- * Both halves are what would be in place afterwards rather than what is in
- * place now. The program is this release's where a copy can replace its
- * program, and the one running where it cannot. The layer is the one the Core
- * row names — and where it names none, this release's own, which a program out
- * of that same release speaks by construction.
- *
- * Asked of what is running now on both sides, this refused every release that
- * ever raised the protocol: a copy of 0.1.16 speaks 1, the release that follows
- * it speaks 2, and the one release that copy had to be able to take was the one
- * release it could not see. A release moves all three layers at once, which is
- * what makes it a release rather than three of them.
- */
-function talks(
-  choice: UpdateChoice,
-  core: UpdateChoice,
-  program: Rung | null,
-  named: boolean,
-): boolean {
-  const speaks = program?.can ? choice.layerProtocol : (program?.protocol ?? null);
-  const heard = named ? core.layerProtocol : choice.layerProtocol;
-  return speaks !== null && speaks === heard;
-}
-
-/** Front / Program releases compatible with the Core declaration. */
-function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoice[] {
-  if (core?.layerProtocol === null || core === null) return [];
+/** The releases of the app this copy could be moved to. */
+function programChoices(at: UpdateState): UpdateChoice[] {
   const program = rungOf(at, "core");
-  // Whether the Core row is on a layer of its own, which is the one case where
-  // what would be answering afterwards is not what the release carries.
-  //
-  // Being on that cycle is not enough to be on a layer of its own. A row
-  // following it with nothing named resolves to whichever is newer, the newest
-  // layer released on its own or the layer already in place — and the layer
-  // already in place is the one this release carries, of which the next release
-  // carries its own. Read as a naming, that is a row declaring the protocol
-  // this copy speaks today and refusing every release that ever raises it: the
-  // app draws a tick and says it is up to date while the release page has
-  // something newer on it, which is the trap `wanted` was fixed for reached by
-  // another road. So it is a naming only where what it named is a release.
-  const named =
-    rungOf(at, "app")?.cycle === CORE_CYCLE &&
-    coreChoices(at).some((choice) => choice.version === core.version);
   return at.choices.filter(
     (choice) =>
       choice.cycle === PROGRAM_CYCLE &&
-      talks(choice, core, program, named) &&
       choice.frontContract !== null &&
       // A package-managed program stays where it is, so a selected front must
       // also fit the program that is actually running. Where the program can
@@ -159,37 +70,12 @@ function programChoices(at: UpdateState, core: UpdateChoice | null): UpdateChoic
   );
 }
 
-/** What one pull-down is on: a version named outright, or `latest`. */
-function selectedVersion(at: UpdateState, layer: "app" | "core", cycle: string): string {
-  const rung = rungOf(at, layer);
+/** What the pull-down is on: a version named outright, or `latest`. */
+function selectedVersion(at: UpdateState): string {
+  const rung = rungOf(at, "core");
   if (!rung) return "";
-  if (rung.cycle !== cycle) return rung.at;
+  if (rung.cycle !== PROGRAM_CYCLE) return rung.at;
   return rung.picked ?? LATEST;
-}
-
-/** The persistent declaration: the application layer, on its own cycle. */
-export function coreStanding(at: UpdateState): Standing | null {
-  const rung = rungOf(at, "app");
-  if (!rung) return null;
-  const target = selectedCore(at);
-  return {
-    at: rung.at,
-    aside: null,
-    to: rung.can && target && target.version !== rung.at ? target.version : null,
-    picked: selectedVersion(at, "app", CORE_CYCLE),
-    // What this row means by `latest` however it is set now, because pressing
-    // the word is also what moves the row onto the layer's own cycle. Read the
-    // same way `wanted` reads it, the layer in place included: a cycle whose
-    // newest release is older than the layer this release carries is a cycle
-    // with nothing in it to take.
-    latest: newer(at.versions[CORE_CYCLE][0] ?? null, rung.at),
-    // Listed whether or not this copy can take one: the row says what the
-    // releases are either way, and `can` is what decides whether it can be
-    // pointed at one of them.
-    choices: coreChoices(at),
-    target,
-    can: rung.can,
-  };
 }
 
 /**
@@ -201,13 +87,13 @@ export function coreStanding(at: UpdateState): Standing | null {
  * package manager's, the pages are the only half that can be brought forward,
  * so they are what the arrow is about and the program is the aside.
  */
-export function programStanding(at: UpdateState, core: UpdateChoice | null): Standing | null {
+export function programStanding(at: UpdateState): Standing | null {
   const program = rungOf(at, "core");
   const front = rungOf(at, "front");
   if (!program || !front) return null;
   const can = program.can || front.can;
-  const choices = programChoices(at, core);
-  const picked = selectedVersion(at, "core", PROGRAM_CYCLE);
+  const choices = programChoices(at);
+  const picked = selectedVersion(at);
   const target =
     (program.picked === null ? choices[0] : choices.find((choice) => choice.version === picked)) ??
     null;

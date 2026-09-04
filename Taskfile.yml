@@ -2,10 +2,9 @@ version: "3"
 
 vars:
   # The Rust crates live under src-tauri/, and every cargo task is driven from
-  # the root. Two of them: the app, and the application layer beside it, which
-  # is a crate of its own because a release of it is a binary of its own -- see
-  # src-tauri/layer. `cargo fmt` reaches both through `--all`; the two below
-  # want to be told, which is what WORKSPACE is.
+  # the root. The app, and the crates beside it that other programs in the
+  # workspace share -- see src-tauri/host. `cargo fmt` reaches all of them
+  # through `--all`; the two below want to be told, which is what WORKSPACE is.
   CARGO: --manifest-path src-tauri/Cargo.toml
   WORKSPACE: --workspace
   # The standalone installer is a second crate, released on a cycle of its own.

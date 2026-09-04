@@ -14,7 +14,7 @@ use crate::release::url::{listing_url, versions};
 use crate::release::{self, Cycle, Cycles};
 
 /// The app's own cycle, which is what every layer follows until it is told
-/// otherwise -- and the only one the release page has anything under today.
+/// otherwise.
 fn release() -> Cycle {
     Cycles::Release.cycle()
 }
@@ -45,11 +45,6 @@ fn the_newest_release_says_what_this_build_expects_it_to() {
     let front = manifest.front.expect("the newest release carries a front");
     println!("  front needs {} and is at {}", front.needs, front.url);
     println!("  this build answers to contract {}", contract());
-    match manifest.layers.get(&crate::release::target()) {
-        None => println!("  no application layer for {}", crate::release::target()),
-        Some(layer) => println!("  a layer speaking {} at {}", layer.protocol, layer.url),
-    }
-    println!("  this build speaks {}", totex_layer::PROTOCOL);
 }
 
 #[test]
@@ -85,7 +80,7 @@ fn every_cycle_is_read_out_of_the_one_listing() {
     let listing =
         tauri::async_runtime::block_on(ask(&url, release::SMALL)).expect("the listing answers");
 
-    for which in [Cycles::Release, Cycles::Layer, Cycles::Front] {
+    for which in [Cycles::Release, Cycles::Front] {
         let cycle = which.cycle();
         let found = versions(&listing, &cycle);
         println!("{}{}: {found:?}", cycle.tag, cycle.manifest);
@@ -98,9 +93,9 @@ fn every_cycle_is_read_out_of_the_one_listing() {
             Err(error) => println!("  v{newest}: {error}"),
             Ok(manifest) => {
                 assert_eq!(&manifest.version, newest);
-                match manifest.layers.get(&crate::release::target()) {
-                    None => println!("  v{newest}: no layer for {}", crate::release::target()),
-                    Some(layer) => println!("  v{newest}: a layer speaking {}", layer.protocol),
+                match manifest.front {
+                    None => println!("  v{newest}: no pages of its own"),
+                    Some(front) => println!("  v{newest}: pages needing {}", front.needs),
                 }
             }
         }

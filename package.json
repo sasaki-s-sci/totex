@@ -3,7 +3,6 @@
   "version": "0.1.28",
   "private": true,
   "frontContract": 9,
-  "layerProtocol": 4,
   "type": "module",
   "scripts": {
     "dev": "vite",

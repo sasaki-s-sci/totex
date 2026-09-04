@@ -1,4 +1,4 @@
-//! Three layers taken against a release page that is not somebody else's.
+//! The layers taken against a release page that is not somebody else's.
 //!
 //! The parts of updating that cannot be checked by arithmetic over versions:
 //! reading a manifest off a server, deciding what a machine can do with what it
@@ -8,11 +8,9 @@
 //! it says something a real one never would.
 
 mod kept;
-pub(super) mod layer;
 mod live;
 pub(super) mod rows;
 mod serve;
-mod sessions;
 #[cfg(desktop)]
 mod waiting;
 mod whole;
@@ -23,13 +21,12 @@ use std::sync::Arc;
 use tauri::App;
 use tauri::test::{MockRuntime, mock_builder, mock_context, noop_assets};
 
-use crate::app_layer::Layers;
 use crate::update::Kept;
 
 pub(super) use serve::Page;
 
-/// A temporary directory that removes itself, so a failing test cannot leave a
-/// layer behind.
+/// A temporary directory that removes itself, so a failing test cannot leave
+/// pages behind.
 pub(super) struct TempDir(PathBuf);
 
 impl TempDir {
@@ -63,25 +60,6 @@ impl Drop for TempDir {
 /// download which was not signed with it is turned down, which is the one thing
 /// about a release page that has to be true whatever the page says.
 pub(super) const KEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg2RkI4MTZBQjRGMkNBNUIKUldSYnl2SzBhb0g3aGwzS1ZPY04wenRUdmdnSW5EdnlEMVpMYy8zRnNCb1hwRENvUzVGRllKeUkK";
-
-/// An app with a release page and somewhere to keep what it takes.
-///
-/// Built the way the real one is built, as far as the two things anything here
-/// reads: the address the updater is configured with, which every layer's
-/// releases are found through, and the key everything downloaded is checked
-/// against.
-pub(super) fn app(endpoint: &str, home: &Path) -> App<MockRuntime> {
-    let mut context = mock_context(noop_assets());
-    context.config_mut().plugins.0.insert(
-        "updater".to_string(),
-        serde_json::json!({ "endpoints": [endpoint], "pubkey": KEY }),
-    );
-    mock_builder()
-        .manage(Arc::new(Layers::at(Some(home.join("layer")))))
-        .manage(Arc::new(Kept::at(Some(home.join("update.json")))))
-        .build(context)
-        .expect("an app with a release page")
-}
 
 /// One question, asked the way the window asks it.
 ///
@@ -131,7 +109,6 @@ pub(super) fn window(home: &Path) -> (App<MockRuntime>, tauri::WebviewWindow<Moc
         );
     }
     let app = mock_builder()
-        .manage(Arc::new(Layers::at(Some(home.join("layer")))))
         .manage(Arc::new(Kept::at(Some(home.join("update.json")))))
         .manage(Arc::new(crate::front::Serving::prepare(
             "com.totex.test",

@@ -31,11 +31,35 @@ const KEPT: &str = "update.json";
 struct Written {
     /// Which cycle each layer follows. A layer that is not in here follows the
     /// app's own, which is what every layer does until it is told otherwise.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "known")]
     cycles: HashMap<Layer, Cycles>,
     /// Which version each layer is pointed at, where one was named by hand.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "known")]
     picked: HashMap<Layer, String>,
+}
+
+/// Reads one of the maps above, leaving out every entry this build has no name
+/// for.
+///
+/// The file outlives the builds that write it. A row that an older copy kept
+/// and a newer one no longer draws is an entry under a name nothing here
+/// answers to, and the choice is between reading the rest of the file and
+/// reading none of it — which would be every row somebody set, forgotten for
+/// the sake of one that is not there any more.
+fn known<'de, D, V>(deserializer: D) -> Result<HashMap<Layer, V>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    V: serde::de::DeserializeOwned,
+{
+    let written: HashMap<String, serde_json::Value> = HashMap::deserialize(deserializer)?;
+    Ok(written
+        .into_iter()
+        .filter_map(|(layer, value)| {
+            let layer = serde_json::from_value(serde_json::Value::String(layer)).ok()?;
+            let value = serde_json::from_value(value).ok()?;
+            Some((layer, value))
+        })
+        .collect())
 }
 
 /// The same, in memory, with somewhere to write it.

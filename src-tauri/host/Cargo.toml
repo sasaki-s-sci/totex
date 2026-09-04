@@ -1,0 +1,15 @@
+[package]
+name = "totex-host"
+# Never released on its own: every program in the workspace links it, and a
+# release of any of them carries it. The number here names nothing.
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.95"
+
+[lib]
+name = "totex_host"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"

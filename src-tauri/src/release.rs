@@ -68,34 +68,6 @@ const BACK: usize = 30;
 pub struct Manifest {
     pub version: String,
     pub front: Option<Entry>,
-    /// The application layer, by the kind of machine that can run it — see
-    /// [`target`]. A release cut before this was written names none, which is a
-    /// release whose layer is the one inside its program.
-    #[serde(default)]
-    pub layers: std::collections::HashMap<String, Layer>,
-}
-
-/// Where one machine's copy of the application layer is.
-#[derive(Deserialize)]
-pub struct Layer {
-    /// The conversation it speaks — see [`totex_layer::PROTOCOL`]. Read before
-    /// anything is downloaded, so that a layer this program could not talk to
-    /// is a row that says so rather than a download that ends in being unable
-    /// to start what arrived.
-    pub protocol: u32,
-    pub url: String,
-    pub signature: String,
-}
-
-/// Which machine's downloads this copy is asking for.
-///
-/// The kind of machine rather than the kind of installed copy: a layer is one
-/// program that is started and asked things, so the only thing that decides
-/// which one runs here is the operating system and the processor. The names are
-/// written the same way in `scripts/update-manifest.mjs`, which is what puts
-/// them in the document this reads.
-pub fn target() -> String {
-    format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
 /// Where the pages of a release are, and what they need to run against.

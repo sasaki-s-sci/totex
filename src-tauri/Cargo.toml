@@ -1,8 +1,9 @@
 [workspace]
-# The application layer is a crate of its own, and this is the whole of why:
-# what a release of it ships is a binary, so it has to be one cargo can build
-# without the program above it. See layer/src/lib.rs.
-members = ["layer"]
+# What the app knows about the machine -- which host a path is on, reading
+# through a WSL distribution, browsing a folder -- is a crate of its own, so
+# that every program in this workspace can link it without linking the window.
+# See host/src/lib.rs.
+members = ["host"]
 
 [package]
 name = "totex"
@@ -23,10 +24,8 @@ serde_json = "1.0.151"
 tauri = { version = "2.11.5", features = [] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-# The half of the backend that can be replaced without replacing this one.
-# Linked here as well as shipped on its own: this is the copy the app falls
-# back to, and the one it is built against.
-totex-layer = { path = "layer" }
+# The machine, as the app knows it -- see host/src/lib.rs.
+totex-host = { path = "host" }
 
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"

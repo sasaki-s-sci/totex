@@ -1,9 +1,8 @@
 //! What a listing, a root and a card are, as the window receives them.
 //!
-//! Read back as well as written, because these cross one more boundary than
-//! they used to: the layer that fills them in may be a program of its own -- see
-//! `crate::serve` -- and the program above it reads them back out of the JSON
-//! before handing them to the window.
+//! Read back as well as written: what fills them in and what draws them are
+//! joined by JSON, and a shape that only goes one way is a shape nothing can
+//! check the other way.
 
 use serde::{Deserialize, Serialize};
 

@@ -116,9 +116,9 @@ pub async fn along(
 /// and a window that has never had any offers the newest release instead, which
 /// is what every press meant before a version could be named at all.
 ///
-/// One reading of the release page serves all three cycles — they are tags on
-/// one repository — so the window asks for the cycles its rows are following
-/// and this answers each of them out of the one listing.
+/// One reading of the release page serves every cycle — they are tags on one
+/// repository — so the window asks for the cycles its rows are following and
+/// this answers each of them out of the one listing.
 #[tauri::command]
 pub async fn update_versions<R: Runtime>(
     app: AppHandle<R>,
@@ -142,33 +142,26 @@ pub async fn update_versions<R: Runtime>(
         .collect()
 }
 
-/// One version that can be declared in the update settings, with the two
-/// agreements needed to keep the independent application layer compatible
-/// with the front and program selected beside it.
+/// One version that can be declared in the update settings, with the agreement
+/// needed to keep the pages compatible with the program selected beside them.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateChoice {
     cycle: Cycles,
     version: String,
-    layer_protocol: Option<u32>,
     front_contract: Option<u32>,
 }
 
 fn update_choice(which: Cycles, version: String, manifest: super::Manifest) -> UpdateChoice {
-    let layer_protocol = manifest
-        .layers
-        .get(&super::target())
-        .map(|layer| layer.protocol);
     let front_contract = manifest.front.map(|front| front.needs);
     UpdateChoice {
         cycle: which,
         version,
-        layer_protocol,
         front_contract,
     }
 }
 
-/// The releases available to the two declarative update selectors.
+/// The releases available to the declarative update selector.
 ///
 /// The repository listing only says which versions exist. Compatibility lives
 /// in each release's manifest, so those small documents are read in parallel
@@ -278,16 +271,16 @@ mod tests {
 
     #[test]
     fn a_cycle_of_its_own_is_the_same_page_under_its_own_tag() {
-        let layer = Cycles::Layer.cycle();
+        let front = Cycles::Front.cycle();
         assert_eq!(
-            manifest_url(ENDPOINT, &layer, Some("0.2.0")).as_deref(),
-            Some("https://github.com/sasaki-s-sci/totex/releases/download/layer-v0.2.0/layer.json")
+            manifest_url(ENDPOINT, &front, Some("0.2.0")).as_deref(),
+            Some("https://github.com/sasaki-s-sci/totex/releases/download/front-v0.2.0/front.json")
         );
         // And it has no address for "whichever is newest": the one address
         // GitHub keeps pointed at a release is pointed at the newest release of
         // the repository, which is not the newest release of this cycle. Which
         // version is newest here is the listing's to say.
-        assert_eq!(manifest_url(ENDPOINT, &layer, None), None);
+        assert_eq!(manifest_url(ENDPOINT, &front, None), None);
     }
 
     #[test]
@@ -317,35 +310,24 @@ mod tests {
     }
 
     #[test]
-    fn one_listing_tells_three_cycles_apart() {
+    fn one_listing_tells_the_cycles_apart() {
         let listing = br#"[
-          {"tag_name": "layer-v0.2.0", "draft": false, "prerelease": false},
+          {"tag_name": "front-v0.2.0", "draft": false, "prerelease": false},
           {"tag_name": "v0.1.6",       "draft": false, "prerelease": false},
           {"tag_name": "front-v0.1.7", "draft": false, "prerelease": false},
           {"tag_name": "layer-v0.1.9", "draft": false, "prerelease": false}
         ]"#;
         assert_eq!(versions(listing, &release()), vec!["0.1.6".to_string()]);
-        assert_eq!(
-            versions(listing, &Cycles::Layer.cycle()),
-            vec!["0.2.0".to_string(), "0.1.9".to_string()]
-        );
+        // Newest first, and a tag of a cycle this build no longer has is not a
+        // version of any cycle it does.
         assert_eq!(
             versions(listing, &Cycles::Front.cycle()),
-            vec!["0.1.7".to_string()]
+            vec!["0.2.0".to_string(), "0.1.7".to_string()]
         );
     }
 
     #[test]
-    fn a_choice_carries_the_agreements_from_its_manifest() {
-        let mut layers = std::collections::HashMap::new();
-        layers.insert(
-            super::super::target(),
-            super::super::Layer {
-                protocol: 7,
-                url: String::new(),
-                signature: String::new(),
-            },
-        );
+    fn a_choice_carries_the_agreement_from_its_manifest() {
         let manifest = super::super::Manifest {
             version: "1.2.3".to_string(),
             front: Some(super::super::Entry {
@@ -353,13 +335,11 @@ mod tests {
                 url: String::new(),
                 signature: String::new(),
             }),
-            layers,
         };
 
         let choice = update_choice(Cycles::Release, "1.2.3".to_string(), manifest);
         assert_eq!(choice.cycle, Cycles::Release);
         assert_eq!(choice.version, "1.2.3");
-        assert_eq!(choice.layer_protocol, Some(7));
         assert_eq!(choice.front_contract, Some(9));
     }
 
