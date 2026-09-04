@@ -41,23 +41,24 @@
    branches somebody is working in. The inside of the ring was the one surface
    on this mark saying nothing.
 
-   A disc in the canvas's one light, which is what everything the window is
-   currently showing wears: the terminal the panel is holding, the commit the
-   cursor keys have walked to. The column is the other panel, so this is that
-   same `this one` rather than a reading of its own — and a ring with a dot in
-   the middle is a shape nobody has to be taught.
+   The folder the column's own heading carries, filled, and in the canvas's one
+   light — which is what everything the window is currently showing wears: the
+   terminal the panel is holding, the commit the cursor keys have walked to. The
+   column is the other panel, so the light is that same `this one` rather than a
+   reading of its own. A disc stood here first and wore the same light, but a
+   disc is only a place: the folder is the drawing the pane heading a few pixels
+   away is already headed with, so the two ends of the same reading are one
+   shape rather than two.
 
-   Six pixels of a fourteen-pixel ring: enough to be found down a column of
-   heads, and with clear canvas still showing round it so the ring is a ring
-   with something in it rather than a ring that has filled up. */
+   The drawing is `PaneFolderMark` at `FOLDER_GLYPH`, which is what leaves clear
+   canvas round it inside a fourteen-pixel ring; the colour reaches it as
+   `currentcolor`, the way the ink on the rim takes the ring's own. */
 .head__ring__here {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mui-palette-primary-main);
+  display: flex;
+  color: var(--mui-palette-primary-main);
   transform: translate(-50%, -50%);
   filter: var(--lit);
   /* The ring underneath is what is pressed; this is a reading laid on it. */

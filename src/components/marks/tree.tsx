@@ -77,6 +77,19 @@ export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
 }
 
 /**
+ * The size that folder is struck at on the canvas.
+ *
+ * Small, because of where it stands: inside a branch's ring, which is fourteen
+ * pixels across and spends one of them on a line of its own, leaving twelve for
+ * anything drawn in it. Nine is the largest this folder can be struck at with
+ * canvas still showing round its corners — a pixel out from each of them — so
+ * the ring reads as a ring with something in it rather than as one that has
+ * filled up. At ten the corners all but meet the line, and the drawing reads as
+ * a ring bursting rather than as a folder.
+ */
+export const FOLDER_GLYPH = 9;
+
+/**
  * A folder, and the same folder with its front let down.
  *
  * Hollow, like everything else drawn here: a filled block of colour is the one
