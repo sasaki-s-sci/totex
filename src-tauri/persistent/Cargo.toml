@@ -5,7 +5,7 @@ name = "totex-persistent"
 # the minor matters to whether the two can talk -- see LINE in src/lib.rs --
 # and .github/workflows/release.yml refuses a patch release that changed
 # anything under this directory.
-version = "0.1.31"
+version = "0.1.32"
 edition = "2024"
 rust-version = "1.95"
 
