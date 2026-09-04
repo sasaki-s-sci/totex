@@ -19,6 +19,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use totex_keep::door::Reported;
@@ -114,6 +115,29 @@ pub fn deliver<R: Runtime>(app: &AppHandle<R>) {
 /// The link, for the commands that forward through it.
 pub fn link<R: Runtime>(app: &AppHandle<R>) -> Arc<Link> {
     Arc::clone(&app.state::<Arc<Link>>())
+}
+
+/// A document the pages asked the keep to remember, or nothing under that name.
+///
+/// What is in it is the pages' business and nobody else's — see
+/// `totex_keep::store`, which is the whole of why the pages have somewhere to
+/// keep things that is not the webview's own storage: it is written by one
+/// program rather than by whichever window happens to be closing, and it is
+/// still there when the webview's storage is not.
+#[tauri::command(async)]
+pub fn keep_get<R: Runtime>(app: AppHandle<R>, name: String) -> Result<Option<Value>, String> {
+    link(&app).asked("store_get", serde_json::json!({ "name": name }))
+}
+
+/// Keeps a document under a name, replacing whatever was there.
+#[tauri::command(async)]
+pub fn keep_put<R: Runtime>(app: AppHandle<R>, name: String, value: Value) -> Result<(), String> {
+    link(&app)
+        .ask(
+            "store_put",
+            serde_json::json!({ "name": name, "value": value }),
+        )
+        .map(|_| ())
 }
 
 /// What is left to do on the way out: end the shells, unless this window is

@@ -60,9 +60,10 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
  * terminal stays where it is throughout, because none of them are in this
  * window.
  *
- * The pages end in `swapped`: a reload, which is the cheap one.
+ * The pages end in `swapped`: a reload, which is the cheap one. The keep's
+ * row is never pressed, and answers `held` if it ever were.
  */
-const ENDING = { front: "swapped", core: "ready" } as const;
+const ENDING = { front: "swapped", core: "ready", keep: "held" } as const;
 
 /**
  * Takes one physical layer to its declaration and returns the ending so the

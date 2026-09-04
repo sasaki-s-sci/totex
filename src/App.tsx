@@ -26,6 +26,7 @@ import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import type { CliPlace } from "./lib/graphNav";
 import { warmInTurn } from "./lib/onDemand";
 import { startShell, writeShell } from "./lib/pty";
+import { remember } from "./lib/remembered";
 import { type Session, shellSession } from "./lib/session";
 import { confirmFront, watchUpdateChoices } from "./lib/update";
 import { worktreeHomes } from "./lib/worktrees";
@@ -271,7 +272,7 @@ function Window() {
         onExpandedChange={setRoots}
         onFoldersChange={(folders) => {
           setBrowsing(folders);
-          localStorage.setItem(ROOTS_KEY, JSON.stringify(folders));
+          remember(ROOTS_KEY, folders);
         }}
         onOpenSettings={openSettings}
         onOpenFile={(path) => openFiles([path], null)}

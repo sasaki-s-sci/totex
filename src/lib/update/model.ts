@@ -24,8 +24,15 @@
  */
 export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | "held" | "failed";
 
-/** Which physical layer of the app an adjustment is about. */
-export type Layer = "front" | "core";
+/**
+ * Which physical layer of the app an adjustment is about.
+ *
+ * `keep` is the program beside the window that holds the terminals. It is
+ * never adjusted from here: it comes with a release of the program, and the
+ * next window replaces it at the one moment that costs nothing, which is when
+ * it holds nothing. Its row says what is running.
+ */
+export type Layer = "front" | "core" | "keep";
 
 /**
  * Which cycle of releases a row is looking at.

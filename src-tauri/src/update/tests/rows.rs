@@ -46,19 +46,23 @@ fn every_command_a_row_sends_is_one_the_app_answers() {
 }
 
 #[test]
-fn a_window_is_told_about_two_layers_and_what_each_is_at() {
+fn a_window_is_told_about_three_layers_and_what_each_is_at() {
     let temp = TempDir::new("rows");
     let (_app, view) = window(temp.path());
 
     let rungs = asked(&view, "update_standing", serde_json::json!({}))
         .expect("the rows the settings page draws");
     let rungs = rungs.as_array().expect("one entry per layer");
-    assert_eq!(rungs.len(), 2);
+    assert_eq!(rungs.len(), 3);
     assert_eq!(rungs[0]["layer"], "front");
     assert_eq!(rungs[1]["layer"], "core");
+    assert_eq!(rungs[2]["layer"], "keep");
 
     assert_eq!(rungs[1]["at"], env!("CARGO_PKG_VERSION"));
     assert_eq!(rungs[1]["frontContract"], crate::front::take::contract());
+    // The one row nothing can press: a program that is replaced only when it
+    // holds nothing, by the next window that finds it so.
+    assert_eq!(rungs[2]["can"], false);
     for rung in rungs {
         assert_eq!(
             rung["cycle"], "release",
@@ -88,7 +92,7 @@ fn what_a_row_is_pointed_at_is_asked_for_and_answered_by_name() {
     .expect("and at a cycle of releases");
 
     let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
-    let front_row = &rungs.as_array().expect("two rows")[0];
+    let front_row = &rungs.as_array().expect("three rows")[0];
     assert_eq!(front_row["cycle"], "front");
     // Moving a row to another cycle lets go of the version it was naming: 0.2.0
     // of one cycle is not 0.2.0 of another.
@@ -104,7 +108,7 @@ fn a_press_reaches_the_layer_it_names() {
     // so what comes back is the release page not answering -- which is the
     // press having reached the backend, been dispatched to the right layer,
     // and got as far as the network.
-    for layer in ["front", "core"] {
+    for layer in ["front", "core", "keep"] {
         let answered = asked(
             &view,
             "update_take",

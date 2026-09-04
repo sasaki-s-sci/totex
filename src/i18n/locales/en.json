@@ -145,6 +145,7 @@
     "adjusting": "Adjusting to the selected versions…",
     "adjustFailed": "Could not adjust to the selected versions",
     "incompatible": "That version is unavailable or incompatible",
+    "keepBehind": "Moves to {{version}} once every terminal has been closed",
     "held": "Update with your package manager"
   },
   "theme": {

@@ -23,7 +23,7 @@ export let state: UpdateState = {
   rungs: null,
   versions: { release: [], front: [] },
   choices: [],
-  presses: { front: RESTING, core: RESTING },
+  presses: { front: RESTING, core: RESTING, keep: RESTING },
 };
 
 const waiting = new Set<() => void>();

@@ -69,7 +69,7 @@ use crate::release::Cycles;
 pub use kept::Kept;
 pub use ready::Ready;
 
-/// Which of the two a row is about.
+/// Which layer a row is about.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Layer {
@@ -77,10 +77,16 @@ pub enum Layer {
     Front,
     /// The program itself.
     Core,
+    /// The program beside this one that holds the terminals -- see `keep`.
+    /// Never taken by a row: it comes with a release of the program, and is
+    /// replaced at the one moment it costs nothing, which is when it holds
+    /// nothing. The row says what is running, and that is all it can do.
+    Keep,
 }
 
-/// The two of them, in the order the rows are drawn: cheapest first.
-pub const LAYERS: [Layer; 2] = [Layer::Front, Layer::Core];
+/// The three of them, in the order the rows are drawn: cheapest first, and the
+/// one that cannot be pressed last.
+pub const LAYERS: [Layer; 3] = [Layer::Front, Layer::Core, Layer::Keep];
 
 /// What a press on one layer found, which is also what was done.
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -153,6 +159,13 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
             at: match layer {
                 Layer::Front => serving.version().to_string(),
                 Layer::Core => env!("CARGO_PKG_VERSION").to_string(),
+                // What is actually running beside this window, which may be
+                // the one an earlier release brought if it is still holding
+                // something.
+                Layer::Keep => app
+                    .try_state::<std::sync::Arc<totex_keep::talk::Link>>()
+                    .map(|link| link.version().to_string())
+                    .unwrap_or_default(),
             },
             can: match layer {
                 // Somewhere to keep a front is as much a condition as having
@@ -160,6 +173,7 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
                 // ever run the pages it was installed with.
                 Layer::Front => bundle_type().is_some() && serving.keeps(),
                 Layer::Core => whole_update_supported(),
+                Layer::Keep => false,
             },
             cycle: kept.cycle(layer),
             picked: kept.picked(layer),
@@ -170,7 +184,7 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
 
 /// Takes one layer of one release, or says why this copy cannot.
 ///
-/// The one press behind both rows. What it ends in is the layer's own: pages
+/// The one press behind the rows. What it ends in is the layer's own: pages
 /// are unpacked and pointed at, and a program is brought down and waits for
 /// the restart.
 #[tauri::command]
@@ -186,6 +200,9 @@ pub async fn update_take<R: Runtime>(
             crate::front::take::take_front(&app, &cycle, version.as_deref(), &coming).await
         }
         Layer::Core => core::take_core(&app, &cycle, version.as_deref(), &coming).await,
+        // Replaced by the next window that finds it holding nothing, and by
+        // nothing else.
+        Layer::Keep => Ok(Took::Held),
     }
 }
 

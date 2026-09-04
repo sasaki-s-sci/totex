@@ -144,9 +144,8 @@ tasks:
     cmds:
       # `--no-fail-fast` because the workspace is several test binaries and the
       # default stops at the first one that fails: a single failure in the app
-      # would hide whether the application layer's own suite still passes, which
-      # is the half most likely to explain it. Every binary runs, and the run
-      # still fails.
+      # would hide whether the keep's own suite still passes, which is the half
+      # most likely to explain it. Every binary runs, and the run still fails.
       - cargo test {{.CARGO}} {{.WORKSPACE}} --no-fail-fast
 
   check:

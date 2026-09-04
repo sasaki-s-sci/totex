@@ -169,6 +169,13 @@ jobs:
             echo "::error file=package.json::tag $GITHUB_REF_NAME does not name version $front"
             exit 1
           fi
+          # And the program that holds the terminals, which ships inside the
+          # release under the release's own number.
+          keep=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/keep/Cargo.toml | head -1)
+          if [ "$keep" != "$tagged" ]; then
+            echo "::error file=src-tauri/keep/Cargo.toml::tag $GITHUB_REF_NAME does not name version $keep"
+            exit 1
+          fi
 
       - name: Verify the release can be updated to
         # The updater takes a version whose signature matches the key in the

@@ -262,6 +262,8 @@ pub fn run() {
             mcp::mcp_reports,
             mcp::mcp_setups,
             mcp::mcp_install,
+            keep::keep_get,
+            keep::keep_put,
         ])
         .build(context)
         .expect("error while building tauri application")

@@ -79,6 +79,29 @@ function selectedVersion(at: UpdateState): string {
 }
 
 /**
+ * The persistent half: the program beside the window that holds the terminals.
+ *
+ * Nothing here is declared. What is running is what an earlier window started
+ * and left holding shells, or what this one brought; the row says which, and
+ * where the two differ it says what would move it -- every terminal closed,
+ * which is the one moment replacing it costs nothing.
+ */
+export function keepStanding(at: UpdateState): Standing | null {
+  const rung = rungOf(at, "keep");
+  if (!rung) return null;
+  return {
+    at: rung.at,
+    aside: null,
+    to: null,
+    picked: "",
+    latest: null,
+    choices: [],
+    target: null,
+    can: false,
+  };
+}
+
+/**
  * The ephemeral declaration: the release the program and its pages come out of.
  *
  * Two physical layers under one version, and which of them the row is headed by

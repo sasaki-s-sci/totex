@@ -27,7 +27,7 @@ import {
 } from "../../lib/update";
 import { UpdateMark } from "../marks";
 import { PageButton, Row } from "./Row";
-import { PROGRAM_CYCLE, programStanding, type Standing } from "./updateReading";
+import { keepStanding, PROGRAM_CYCLE, programStanding, type Standing } from "./updateReading";
 import { VersionRow } from "./VersionRow";
 
 /**
@@ -78,6 +78,7 @@ export function UpdateSection() {
   }, []);
 
   const program = programStanding(at);
+  const keep = keepStanding(at);
   const moving = (["core", "front"] as const).some((layer) => stageOf(at, layer) === "taking");
 
   // The program first, and where it moves it is the whole of the ephemeral
@@ -107,7 +108,7 @@ export function UpdateSection() {
     ]);
   };
 
-  if (!program) return null;
+  if (!program || !keep) return null;
 
   // Until the release page has answered once, nothing is known — neither that
   // there is something to take nor that there is not.
@@ -181,6 +182,21 @@ export function UpdateSection() {
         )}
       </Row>
       <Stack sx={{ gap: 0.5, pl: 1.5 }}>
+        {/* The program holding the terminals, which nothing on this page
+            moves: it is replaced by the next window that finds it holding
+            nothing, so where it is behind the program, the row says what
+            would let that happen. */}
+        <VersionRow
+          name={t("update.core")}
+          standing={keep}
+          hint={
+            keep.at && keep.at !== program.at
+              ? t("update.keepBehind", { version: program.at })
+              : undefined
+          }
+          disabled
+          onChange={() => undefined}
+        />
         <VersionRow
           name={t("update.frontProgram")}
           standing={program}

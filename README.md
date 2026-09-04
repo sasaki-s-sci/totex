@@ -105,53 +105,56 @@ until it is let out of it — `xattr -dr com.apple.quarantine
 /Applications/totex.app` — and Windows SmartScreen calls it an unknown
 publisher, which is More info, then Run anyway.
 
-`latest.json`, `totex-macos-universal.app.tar.gz`, `front.tar.gz` and the three
-`totex-layer-*.gz` sit beside them and are not downloads at all: they are what
-an installed copy updates itself from. `totex-windows-x86_64.exe` is the app
+`latest.json`, `totex-macos-universal.app.tar.gz` and `front.tar.gz` sit
+beside them and are not downloads at all: they are what an installed copy
+updates itself from. `totex-windows-x86_64.exe` is the app
 itself, out of its installer — what the version-selectable installer writes
 where the app goes, and the one file on the page that installs nothing if it is
 double-clicked, because it is not an installer. It is totex.
 
 ## Updating
 
-One horizontal row on the settings page declares two versions. **persistent**
-is the small application layer that answers filesystem and workspace questions
-beside the window. **ephemeral** is one full release: the pages and the program
-that carries them are selected together because they are released and replaced
-together.
+Two rows on the settings page. **persistent** is the program beside the
+window that holds the terminals — `totex-keep`, started by the first window
+that needs it and left running by every window after. **ephemeral** is one
+full release: the pages and the program that draws them, selected together
+because they are released and replaced together.
 
-Both are pull-downs, and each can declare either a named version or `latest`.
-**sync** adjusts both parts to their declarations; there is no separate Take
-button for either one. persistent swaps between two questions without reloading
-the window. ephemeral downloads the release and stops there — nothing in the
-window goes away, every terminal in it goes on running, and the row says the
-next start. Closing totex is what puts the release in, and the copy opened
-after that is the one it makes. So every terminal in the window is still the
-price of a new program; it is just paid at a moment somebody chose, on a window
-they had already finished with.
+ephemeral is a pull-down, and can declare either a named version or `latest`.
+**sync** adjusts the app to its declaration; there is no separate Take button.
+The pages alone end in a reload. The program ends in a restart: the release is
+downloaded and checked while the window is open, the window closes, the release
+goes in, and the window opens again on it — in front of the same terminals,
+because none of them were in the window. Nothing anybody was working on goes
+with it.
 
-The ephemeral list contains only releases compatible with the selected
-persistent version. The compatibility numbers come from each release manifest,
-so an unknown combination is not offered. `latest` means the newest compatible
-version in that pull-down when **sync** is pressed.
+persistent has no pull-down. It comes with a release of the program, and the
+next window to start replaces it at the one moment that costs nothing, which is
+when it holds no terminals. A window that finds an older one still holding
+shells keeps using it, and the row says so, and says what would move it.
+
+The ephemeral list contains only releases whose pages this program can draw.
+The compatibility number comes from each release manifest, so an unknown
+combination is not offered. `latest` means the newest compatible version in
+the pull-down when **sync** is pressed.
 
 A `.deb` or an `.rpm` still leaves the program to its package manager. Its
 ephemeral selector therefore moves only the front, and lists only fronts
 that the installed program can run, so its sync ends in a reload rather than in
-anything to be closed. persistent remains independently replaceable.
-Choosing an older version is a rollback and is handled exactly like choosing a
-newer one.
+a restart. Choosing an older version is a rollback and is handled exactly like
+choosing a newer one.
 
 Pages that cannot draw a window are dropped on the next start of the app, so one
 restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the
 environment is the same way out without waiting to be asked: it opens the app on
-the pages built into it and throws away whatever had been taken. A layer that
-will not start needs no such thing — the copy built into the program answers
-instead, from the next question onwards.
+the pages built into it and throws away whatever had been taken. A program that
+will not start after an update leaves the terminals where they were: they are
+the keep's, and the copy that was running a moment ago is what opens next.
 
-persistent versions come from `layer-v*`; ephemeral versions come from the full
-`v*` release cycle. Both declarations are remembered by the program, so they
-survive the swap, reload, and restart used to reach them.
+The pages come from `front-v*` as well as from the full `v*` release cycle;
+the program comes from `v*` alone, and the keep inside it. The declaration is
+remembered by the program, so it survives the reload and the restart used to
+reach it.
 
 ## Letting the agents say what they are working on
 
