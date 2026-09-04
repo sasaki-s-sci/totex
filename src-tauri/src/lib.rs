@@ -4,11 +4,11 @@ mod display;
 mod front;
 mod fs_watch;
 mod git;
+mod keep;
 mod mcp;
 mod pty;
 mod release;
 mod space;
-mod stream;
 mod tasks;
 mod update;
 
@@ -122,21 +122,21 @@ fn fs_copy_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String>
     fs_browse::copy_into(&paths, &into)
 }
 
-/// Whatever is left to do on the way out, which is one thing.
+/// Whatever is left to do on the way out, which is two things.
 ///
-/// A release taken while the window was open is put in here, because the
-/// installer that puts it there is the thing that would otherwise have closed
-/// the window — see `update::waiting`. On Windows this call does not come back.
-#[cfg(desktop)]
+/// The shells are ended, unless this window is leaving so that another can
+/// take its place — see `keep`. And a release taken while the window was open
+/// is put in, because the installer that puts it there is the thing that would
+/// otherwise have closed the window — see `update::waiting`. On Windows that
+/// call does not come back.
 fn on_the_way_out<R: tauri::Runtime>(app: &tauri::AppHandle<R>, event: &tauri::RunEvent) {
-    if matches!(event, tauri::RunEvent::Exit) {
-        app.state::<Arc<update::Waiting>>().go_in();
+    if !matches!(event, tauri::RunEvent::Exit) {
+        return;
     }
+    keep::leaving(app);
+    #[cfg(desktop)]
+    app.state::<Arc<update::Waiting>>().go_in();
 }
-
-/// And nothing at all where there is no updater to have taken one.
-#[cfg(not(desktop))]
-fn on_the_way_out<R: tauri::Runtime>(_app: &tauri::AppHandle<R>, _event: &tauri::RunEvent) {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -168,6 +168,13 @@ pub fn run() {
     // pages have been replaced -- see `update::kept`.
     let kept = Arc::new(update::Kept::prepare(&context.config().identifier));
 
+    // And the program holding the terminals, found or started before there is
+    // a window to draw them in -- see `keep`. A window that cannot reach one
+    // is a window with nothing to draw a terminal of, which is not a window
+    // worth opening.
+    let link = keep::reach(&context.config().identifier)
+        .expect("the program holding the terminals is beside this one");
+
     let builder = tauri::Builder::default();
 
     // Only a desktop build has anything to replace: the plugin behind the
@@ -184,21 +191,22 @@ pub fn run() {
     builder
         .manage(serving)
         .manage(kept)
+        .manage(link)
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
-        .manage(pty::PtyState::default())
         .manage(ask::watch::AskState::default())
-        .manage(mcp::McpState::default())
         // What the sessions say is read for the questions agents ask, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
-        // `pty::follow` for the whole of what joins them.
+        // `keep` for the whole of what joins them. The reading first and the
+        // pages second, so that a run of output has been read before it is
+        // drawn; and then the sessions already running are read, because a
+        // window that has just come up is standing in front of them.
         .setup(|app| {
             ask::watch::attend(app.handle());
-            // And what a session says of its own accord, which arrives through a
-            // door of its own rather than out of anything it drew.
-            mcp::attend(app.handle());
+            keep::deliver(app.handle());
+            ask::watch::rederive(app.handle());
             Ok(())
         })
         // Every command the window may ask for. The names here and the names
@@ -252,12 +260,12 @@ pub fn run() {
             tasks::directory_tasks,
             space::space_standing,
             space::space_tell,
-            pty::spawn::pty_open,
-            pty::control::pty_sessions,
-            pty::control::pty_attach,
-            pty::control::pty_write,
-            pty::control::pty_resize,
-            pty::control::pty_close,
+            pty::pty_open,
+            pty::pty_sessions,
+            pty::pty_attach,
+            pty::pty_write,
+            pty::pty_resize,
+            pty::pty_close,
             ask::watch::pty_asking,
             ask::watch::pty_typed,
             ask::watch::pty_doing,

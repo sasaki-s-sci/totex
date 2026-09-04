@@ -8,8 +8,9 @@
 //! at all of it — and `rederive` throws the whole of it away and takes it again
 //! out of what the sessions have already said.
 //!
-//! Which is why it is on this side of the line: `pty` owns processes and
-//! nothing else, and the reading is the part of the app that changes most often.
+//! Which is why it is on this side of the line: the program beside this one
+//! owns processes and nothing else, and the reading is the part of the app that
+//! changes most often.
 
 pub mod adjust;
 pub mod answer;
@@ -25,7 +26,9 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use crate::pty::{self, Event, PtyState};
+use totex_keep::talk::Link;
+
+use crate::pty::{self, Event};
 
 pub use watcher::Watcher;
 
@@ -132,11 +135,11 @@ fn pressed<R: Runtime>(
 }
 
 /// Starts following the sessions, for the life of the app. The one place the
-/// two sides are joined, and joined this way round on purpose: `pty` is told
+/// two sides are joined, and joined this way round on purpose: the link is told
 /// that something is following and never what it is for.
 pub fn attend<R: Runtime>(app: &AppHandle<R>) {
     let handle = app.clone();
-    app.state::<PtyState>().follow(Arc::new(move |id, event| {
+    app.state::<Arc<Link>>().follow(Arc::new(move |id, event| {
         let state = handle.state::<AskState>();
         match event {
             Event::Opened { rows, cols } => {

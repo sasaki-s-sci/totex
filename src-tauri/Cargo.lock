@@ -4073,7 +4073,6 @@ dependencies = [
  "minisign-verify",
  "notify",
  "notify-debouncer-full",
- "portable-pty",
  "reqwest",
  "rustls",
  "semver",
@@ -4084,6 +4083,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-updater",
  "totex-host",
+ "totex-keep",
 ]
 
 [[package]]
@@ -4092,6 +4092,16 @@ version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "totex-keep"
+version = "0.1.28"
+dependencies = [
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "totex-host",
 ]
 
 [[package]]

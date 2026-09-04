@@ -215,6 +215,14 @@ jobs:
       - name: Install npm dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build the program that holds the terminals
+        # A crate of its own beside the app -- see src-tauri/keep -- carried
+        # into every bundle beside the app's own binary. `tauri build` does not
+        # build it, and it is named on the command line below rather than in
+        # tauri.conf.json: see scripts/keep-sidecar.mjs for why.
+        shell: bash
+        run: node scripts/keep-sidecar.mjs --release --target ${{ matrix.target }}
+
       - name: Build the installers
         # `tauri build` runs `pnpm build` first via beforeBuildCommand, which
         # type-checks the frontend, so a type error fails this job too.
@@ -228,7 +236,8 @@ jobs:
           # copy will take as an update, and nothing but a tag is released.
           sign=""
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
-          pnpm tauri build --target ${{ matrix.target }} $sign
+          pnpm tauri build --target ${{ matrix.target }} $sign \
+            --config '{"bundle":{"externalBin":["binaries/totex-keep"]}}'
 
       - name: Collect the installers under names that do not move
         # Every platform bundles into its own subdirectories under one tree, so

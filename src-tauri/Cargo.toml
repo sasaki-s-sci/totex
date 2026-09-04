@@ -3,7 +3,10 @@
 # through a WSL distribution, browsing a folder -- is a crate of its own, so
 # that every program in this workspace can link it without linking the window.
 # See host/src/lib.rs.
-members = ["host"]
+members = ["host", "keep"]
+# Built whenever the app is, so that the program the window starts beside
+# itself is beside it in the target directory too.
+default-members = [".", "keep"]
 
 [package]
 name = "totex"
@@ -26,10 +29,12 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 # The machine, as the app knows it -- see host/src/lib.rs.
 totex-host = { path = "host" }
+# The half of the app that cannot be dropped, linked for the client end of
+# its socket and the shapes both ends share -- see keep/src/lib.rs.
+totex-keep = { path = "keep" }
 
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
-portable-pty = "0.9.0"
 
 # Taking the front of a newer release without taking the program with it --
 # src/front. Every one of these is already in the build: they are what the

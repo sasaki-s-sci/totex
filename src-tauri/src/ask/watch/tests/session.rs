@@ -23,7 +23,7 @@ macro_rules! session {
         $handle.listen(ASK_EVENT, move |event| {
             let _ = tx.send(event.payload().to_string());
         });
-        pty::spawn::pty_open(
+        pty::pty_open(
             $handle.clone(),
             $id.clone(),
             std::env::temp_dir().display().to_string(),
@@ -49,7 +49,7 @@ fn a_question_that_wants_words_is_answered_by_writing_at_it() {
     .expect("the shell takes input");
 
     let Some(said) = wait_for(&rx, |ask| ask["taking"] == "words") else {
-        pty::control::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone());
         panic!("the window was never told words were being asked for");
     };
     let ask = &said["ask"];
@@ -74,19 +74,27 @@ fn a_question_that_wants_words_is_answered_by_writing_at_it() {
         "an answer to a question that has been answered went through"
     );
 
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
 }
 
 /// The box is printed rather than an agent run: what an agent actually draws is
 /// the reading's own business, and is tested beside it.
+///
+/// Printed with the echo off. The shell would otherwise echo the line that
+/// prints the box, and an echoed line with a box's characters in it reads as a
+/// box -- once at the tty and again when the shell redraws it -- so the
+/// question would be asked, answered, and asked again by an echo, before
+/// anything had printed it at all.
 #[test]
 fn a_question_drawn_in_a_session_reaches_the_window_and_is_answered() {
     let id = "asking".to_string();
     session!(handle, id, rx);
+    pty::pty_write(handle.clone(), id.clone(), "stty -echo\n".to_string())
+        .expect("the shell takes input");
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::control::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone());
         panic!("the window was never told a question was being asked");
     };
     let ask = &said["ask"];
@@ -108,7 +116,7 @@ fn a_question_drawn_in_a_session_reaches_the_window_and_is_answered() {
         "an answer to a question that has been answered went through"
     );
 
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
 }
 
 /// A press the session does nothing about puts the question back.
@@ -127,7 +135,7 @@ fn a_press_nothing_came_of_puts_the_question_back() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::control::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone());
         panic!("the window was never told a question was being asked");
     };
     let seq = said["ask"]["seq"].as_u64().expect("the question is named");
@@ -138,7 +146,7 @@ fn a_press_nothing_came_of_puts_the_question_back() {
     );
     // Which is the card gone: the window is told so at the press.
     let back = wait_for(&rx, |ask| ask["seq"].as_u64() == Some(seq));
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
     assert!(
         back.is_some(),
         "a question the press did nothing about never came back"
@@ -156,7 +164,7 @@ fn an_answer_the_question_moved_on_from_says_what_is_being_asked_now() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::control::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone());
         panic!("the window was never told a question was being asked");
     };
     let stale = said["ask"]["seq"].as_u64().expect("the question is named");
@@ -179,7 +187,7 @@ fn an_answer_the_question_moved_on_from_says_what_is_being_asked_now() {
     let told = wait_for(&rx, |ask| {
         ask["question"] == serde_json::json!("Delete it?")
     });
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
 
     assert!(refused.is_err(), "an answer to the wrong question went in");
     assert!(
@@ -198,7 +206,7 @@ fn the_reading_can_be_thrown_away_and_taken_again() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::control::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone());
         panic!("the window was never told a question was being asked");
     };
     let before = said["ask"].clone();
@@ -221,7 +229,7 @@ fn the_reading_can_be_thrown_away_and_taken_again() {
         "a card drawn before the rebuild could no longer be answered"
     );
 
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
 }
 
 /// Nothing about a session is the window's to remember: what is running is only
@@ -233,7 +241,7 @@ fn what_is_running_is_asked_for_rather_than_remembered() {
     let id = "found".to_string();
     let cwd = std::env::temp_dir().display().to_string();
 
-    pty::spawn::pty_open(
+    pty::pty_open(
         handle.clone(),
         id.clone(),
         cwd.clone(),
@@ -251,5 +259,5 @@ fn what_is_running_is_asked_for_rather_than_remembered() {
     assert_eq!(found.cwd, cwd);
     assert_eq!(found.meta.as_deref(), Some("{\"branch\":\"main\"}"));
 
-    pty::control::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone());
 }

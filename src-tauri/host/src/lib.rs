@@ -13,5 +13,6 @@
 mod base64;
 pub mod fs_browse;
 pub mod host;
+pub mod space;
 pub mod sync;
 pub mod wsl;

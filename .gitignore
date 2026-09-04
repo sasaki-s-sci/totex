@@ -1,6 +1,8 @@
 node_modules/
 /dist
 /src-tauri/target
+# What scripts/keep-sidecar.mjs builds for the bundler to carry.
+/src-tauri/binaries
 /setup/target
 /src-tauri/gen/schemas
 
