@@ -162,13 +162,16 @@ pub fn run() {
     // draw its terminals in -- see `persistent`. A window that cannot reach
     // one is a window with nothing to draw a terminal of, which is not a
     // window worth opening.
-    let link = persistent::reach(&context.config().identifier)
-        .expect("the program holding the terminals is beside this one");
+    let reached = persistent::reach(
+        &context.config().identifier,
+        kept.picked(update::Layer::Persistent).as_deref(),
+    )
+    .expect("the program holding the terminals is beside this one");
 
     tauri::Builder::default()
         .manage(serving)
         .manage(kept)
-        .manage(link)
+        .manage(reached)
         // A release that has come down and is waiting for the restart -- see
         // `update::ready`.
         .manage(Arc::new(update::Ready::default()))
@@ -261,6 +264,7 @@ pub fn run() {
             mcp::mcp_install,
             persistent::persistent_get,
             persistent::persistent_put,
+            persistent::persistent_restart,
         ])
         .build(context)
         .expect("error while building tauri application")

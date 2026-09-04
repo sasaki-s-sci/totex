@@ -47,7 +47,7 @@ pub(super) fn mock_app() -> tauri::App<MockRuntime> {
     let link = Arc::new(Link::connect(&home).expect("the window connects"));
 
     let app = mock_builder()
-        .manage(link)
+        .manage(crate::persistent::Reached::holding(link))
         .manage(AskState::default())
         // Held for the life of the app, which is the life of the test.
         .manage(keep)

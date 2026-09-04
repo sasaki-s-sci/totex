@@ -127,15 +127,22 @@ window closes, the release goes in, and the window opens again on it — in
 front of the same terminals, because none of them were in the window. Nothing
 anybody was working on goes with it.
 
-persistent has no pull-down. Which releases replace it is said by the version
-number: a **patch** (`0.1.30` to `0.1.31`) is the ephemeral half alone, and the
-program holding the terminals is the same program before and after, holding
-the same terminals; a **minor** (`0.1.x` to `0.2.0`) is that program too, and
-there is no putting it in without closing every terminal it holds. The row
-under the pull-down says which of the two the selected release is before
-anything is pressed. Within a line a window uses whichever program it finds
-running, and swaps it for the one it brought only at a start with no terminal
-open, which is the one moment that costs nothing.
+persistent is not taken from a release page. Which releases replace it is
+said by the version number: a **patch** (`0.1.30` to `0.1.31`) is the
+ephemeral half alone, and the program holding the terminals is the same
+program before and after, holding the same terminals; a **minor** (`0.1.x` to
+`0.2.0`) is that program too, and there is no putting it in without closing
+every terminal it holds. The row says which of the two the selected release
+is before anything is pressed. Within a line a window uses whichever program
+it finds running, and swaps it for the one it brought only at a start with no
+terminal open, which is the one moment that costs nothing.
+
+Its pull-down offers the programs this machine holds — every release that has
+run here left one — with `latest` being the one this window brought. Where
+that differs from what is running, the button reads **Restart** and is red:
+pressing it stops the program holding the terminals and starts the chosen one
+in its place, and every terminal is closed. That is the same press a window
+makes on its own at a start with no terminal open, made on purpose.
 
 The release workflow keeps the number honest: a patch release is refused if
 anything under `src-tauri/persistent/` has changed since the release before it.

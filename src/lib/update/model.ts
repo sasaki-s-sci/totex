@@ -24,9 +24,10 @@ export type UpdateStage = "rest" | "taking" | "current" | "ready" | "swapped" | 
  * Which layer of the app a row is about.
  *
  * `persistent` is the program beside the window that holds the terminals. It
- * is never adjusted from here: it comes with a release of the program, and
- * which releases replace it is said by the version number -- see `lineOf`. Its
- * row says what is running.
+ * comes with a release of the program rather than from a release page, and
+ * which releases replace it is said by the version number -- see `lineOf`.
+ * Its row says what is running, offers the versions this machine holds, and
+ * the press that moves it ends every terminal -- see `restartPersistent`.
  *
  * `ephemeral` is this program and the pages inside it, which is what a release
  * replaces. `front` is the pages on their own: the part of the ephemeral half
@@ -46,6 +47,12 @@ export type Rung = {
   picked: string | null;
   /** The newest front contract this program answers, on the ephemeral row. */
   frontContract: number | null;
+  /**
+   * The versions of this layer this machine holds and could start, newest
+   * first, on the persistent row. Its releases are not a page somewhere: they
+   * are the programs earlier releases left on this machine.
+   */
+  held: string[];
 };
 
 /** One release, and the agreement its pages were built to. */

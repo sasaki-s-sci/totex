@@ -147,9 +147,11 @@
     "incompatible": "That version is unavailable or incompatible",
     "stays": "A patch on line {{line}}: the program holding the terminals stays, and so does every terminal.",
     "moves": "Line {{line}} is another program holding the terminals. Every terminal is closed to put it in.",
-    "persistentBehind": "On the window's line. Replaced by {{version}} at a start with no terminal open.",
+    "persistentBehind": "This window brought {{version}}. Restart puts it in; every terminal is closed.",
     "persistentLine": "The program holding the terminals. A patch never replaces it; a minor does.",
-    "held": "Update with your package manager"
+    "held": "Update with your package manager",
+    "restart": "Restart",
+    "persistentMove": "Stops the program holding the terminals and starts {{version}} in its place. Every terminal is closed."
   },
   "theme": {
     "system": "System",

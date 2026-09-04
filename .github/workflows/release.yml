@@ -127,6 +127,12 @@ jobs:
         # Compared against the last release that had the directory at all: the
         # release that put it under this name has nothing earlier to be read
         # against, and says so rather than refusing.
+        #
+        # The crate holds both ends of the socket, and only one of them is the
+        # program that goes on running: src/talk.rs is the window's end, linked
+        # into the window and asked from there, and tests/ are run and not
+        # shipped. Both are left out, because a change to how the window asks
+        # is a change to the window.
         if: inputs.part == 'patch'
         run: |
           set -euo pipefail
@@ -135,12 +141,13 @@ jobs:
             echo "::notice::${previous:-no release} has no src-tauri/persistent to compare against, so this patch is not checked for changes to it"
             exit 0
           fi
-          if ! git diff --quiet "$previous" HEAD -- src-tauri/persistent; then
-            echo "::error::src-tauri/persistent has changed since $previous, and a patch release promises it has not -- cut a minor"
-            git --no-pager diff --stat "$previous" HEAD -- src-tauri/persistent
+          program=(src-tauri/persistent ':!src-tauri/persistent/src/talk.rs' ':!src-tauri/persistent/tests')
+          if ! git diff --quiet "$previous" HEAD -- "${program[@]}"; then
+            echo "::error::the program under src-tauri/persistent has changed since $previous, and a patch release promises it has not -- cut a minor"
+            git --no-pager diff --stat "$previous" HEAD -- "${program[@]}"
             exit 1
           fi
-          echo "src-tauri/persistent is what it was at $previous"
+          echo "the program under src-tauri/persistent is what it was at $previous"
 
       - name: Write it into everything that carries it
         env:

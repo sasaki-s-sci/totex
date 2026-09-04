@@ -128,6 +128,32 @@ export function restart(): void {
 }
 
 /**
+ * Stops the program holding the terminals and starts one in its place, which
+ * ends every terminal.
+ *
+ * `version` names one of the programs this machine holds, or null for the one
+ * this window brought. The page says what this does before it is pressed; by
+ * here it has been. What comes back is the row's stage: `current` when the
+ * program is up again, and `failed` when it is not -- in which case what is
+ * running is whatever the backend managed, and the rows are asked again to
+ * say which.
+ */
+export async function restartPersistent(version: string | null): Promise<UpdateStage> {
+  if (state.presses.persistent.stage === "taking") return "taking";
+  settlePress("persistent", { stage: "taking", progress: null, version });
+  try {
+    await within(invoke("persistent_restart", { version }), SMALL_TIMEOUT);
+    settlePress("persistent", { stage: "current", progress: null });
+    await askStanding(true);
+    return "current";
+  } catch {
+    settlePress("persistent", { stage: "failed", progress: null });
+  }
+  await askStanding(true);
+  return "failed";
+}
+
+/**
  * Draws the window again, out of the front that has just arrived.
  *
  * Only the page: the program is the same program, so every terminal it is
