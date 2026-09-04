@@ -18,19 +18,11 @@ import {
   ListItemText,
   Menu,
   MenuItem,
-  TextField,
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  createEntry,
-  deleteFile,
-  deleteFolder,
-  downloadEntry,
-  duplicateFile,
-  readFile,
-  renameFile,
-} from "./api";
+import { deleteFile, deleteFolder, downloadEntry, duplicateFile, readFile } from "./api";
+import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
   /** What was right-clicked: a row, or the folder a pane is standing in. */
@@ -42,26 +34,37 @@ export type FileMenuTarget = {
    *  offered — see `deleteFolder`, which is what says how much it takes. */
   isDir: boolean;
   /** Where a new file or folder is made — inside the folder that was
-   *  right-clicked, or beside the file, in the directory listing it. */
+   *  right-clicked, or beside the file, in the directory listing it. This is
+   *  also the folder whose rows a name is typed among. */
   into: string;
   /** The pane's own folder, which relative paths are measured from. */
   root: string;
+  /** Which pane the row is drawn in. Two panes can be showing one folder, and
+   *  a name typed in answer to this menu is typed in one of the two. */
+  pane: number;
   at: { x: number; y: number };
 };
 
-type DialogMode = "new-file" | "new-folder" | "rename" | "delete";
-
 type Props = {
   target: FileMenuTarget | null;
+  /**
+   * Starts a name being typed among the rows, rather than in a box over them.
+   *
+   * The menu is where it is asked for and not where it is answered: the answer
+   * is a row's name, the place to type a row's name is the row, and the column
+   * is what holds it — see `Naming`.
+   */
+  onName: (kind: Naming["kind"]) => void;
   onClose: () => void;
 };
 
 /** The operations offered by a row — or by the folder a pane is showing — at
  *  the point it was right-clicked. */
-export function FileContextMenu({ target, onClose }: Props) {
+export function FileContextMenu({ target, onName, onClose }: Props) {
   const { t } = useTranslation();
-  const [dialog, setDialog] = useState<DialogMode | null>(null);
-  const [name, setName] = useState("");
+  /** The one thing here that is still asked in a box over the window: what a
+   *  removal takes away cannot be undone, and is not visible from the row. */
+  const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   /** Where a download put its copy, which is the one answer worth reading. */
@@ -70,26 +73,19 @@ export function FileContextMenu({ target, onClose }: Props) {
   // Nothing from one file's menu belongs to the next one opened.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the target itself is the opening
   useEffect(() => {
-    setDialog(null);
-    setName("");
+    setDeleting(false);
     setBusy(null);
     setFailed(false);
     setWent(null);
   }, [target]);
 
   if (!target) return null;
-  const { path, isDir, into, root } = target;
+  const { path, isDir, root } = target;
   /* The folder a pane is standing in is not offered for removal: the pane is
      standing in it, and what it would be left showing is a folder that is not
      there. It is a row in the pane above, where deleting it is deleting
      something you are looking at rather than something you are inside. */
   const removable = !isDir || path !== root;
-
-  const openName = (mode: Exclude<DialogMode, "delete">) => {
-    setFailed(false);
-    setName(mode === "rename" ? target.name : mode === "new-folder" ? t("file.newFolderName") : "");
-    setDialog(mode);
-  };
 
   /**
    * One press, and what became of it.
@@ -118,13 +114,10 @@ export function FileContextMenu({ target, onClose }: Props) {
     }
   };
 
-  const naming = dialog !== null && dialog !== "delete";
-  const wanted = name.trim();
-
   return (
     <>
       <Menu
-        open={dialog === null}
+        open={!deleting}
         onClose={busy ? undefined : onClose}
         anchorReference="anchorPosition"
         anchorPosition={{ top: target.at.y, left: target.at.x }}
@@ -135,13 +128,13 @@ export function FileContextMenu({ target, onClose }: Props) {
           icon={<InsertDriveFileOutlinedIcon />}
           label={t("file.newFile")}
           disabled={busy !== null}
-          onClick={() => openName("new-file")}
+          onClick={() => onName("new-file")}
         />
         <FileItem
           icon={<FolderOutlinedIcon />}
           label={t("file.newFolder")}
           disabled={busy !== null}
-          onClick={() => openName("new-folder")}
+          onClick={() => onName("new-folder")}
         />
         {/* What is read out of the file: its contents, a copy of it, and the
             file itself. A folder is none of these — and each item stands on
@@ -204,7 +197,7 @@ export function FileContextMenu({ target, onClose }: Props) {
             icon={<DriveFileRenameOutlineIcon />}
             label={t("file.rename")}
             disabled={busy !== null}
-            onClick={() => openName("rename")}
+            onClick={() => onName("rename")}
           />
         )}
         {removable && (
@@ -215,7 +208,7 @@ export function FileContextMenu({ target, onClose }: Props) {
             colour="error.main"
             onClick={() => {
               setFailed(false);
-              setDialog("delete");
+              setDeleting(true);
             }}
           />
         )}
@@ -229,43 +222,7 @@ export function FileContextMenu({ target, onClose }: Props) {
         )}
       </Menu>
 
-      <Dialog
-        open={naming}
-        onClose={busy ? undefined : () => setDialog(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>{dialog && t(`file.${dialog}`)}</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            fullWidth
-            size="small"
-            value={name}
-            error={failed}
-            helperText={failed ? t("file.failed") : " "}
-            slotProps={{ htmlInput: { spellCheck: false } }}
-            onFocus={(event) => event.currentTarget.select()}
-            onChange={(event) => {
-              setName(event.currentTarget.value);
-              setFailed(false);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && wanted && !busy) void submitName();
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button disabled={busy !== null} onClick={() => setDialog(null)}>
-            {t("file.cancel")}
-          </Button>
-          <Button disabled={!wanted || busy !== null} onClick={() => void submitName()}>
-            {t("file.confirm")}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog open={dialog === "delete"} onClose={busy ? undefined : () => setDialog(null)}>
+      <Dialog open={deleting} onClose={busy ? undefined : () => setDeleting(false)}>
         <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
         <DialogContent>
           {/* A folder takes everything under it with it, which is the whole of
@@ -277,7 +234,7 @@ export function FileContextMenu({ target, onClose }: Props) {
           {failed && <DialogContentText color="error">{t("file.failed")}</DialogContentText>}
         </DialogContent>
         <DialogActions>
-          <Button disabled={busy !== null} onClick={() => setDialog(null)}>
+          <Button disabled={busy !== null} onClick={() => setDeleting(false)}>
             {t("file.cancel")}
           </Button>
           <Button
@@ -293,15 +250,6 @@ export function FileContextMenu({ target, onClose }: Props) {
       </Dialog>
     </>
   );
-
-  async function submitName() {
-    if (!dialog || dialog === "delete" || !wanted) return;
-    await run(dialog, () =>
-      dialog === "rename"
-        ? renameFile(path, wanted)
-        : createEntry(into, wanted, dialog === "new-folder"),
-    );
-  }
 }
 
 function FileItem({
