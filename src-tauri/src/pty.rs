@@ -2,14 +2,14 @@
 //!
 //! A shell is a process with a history nobody else has a copy of, and this
 //! window is the half of the app that is replaced — so the shells are not here.
-//! They are held by the program beside this one, see `keep`, and everything
+//! They are held by the persistent half, see `persistent`, and everything
 //! below is one question to it. What the sessions are and do is the program's
 //! to say: the shapes here are the program's own, linked rather than copied.
 
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
 
-pub use totex_keep::session::{Event, Held, Running, Said, shell};
+pub use totex_persistent::session::{Event, Held, Running, Said, shell};
 
 /// Carries a run of a session's output to the pages.
 pub const DATA_EVENT: &str = "pty:data";
@@ -26,7 +26,7 @@ pub fn pty_open<R: Runtime>(
     cols: u16,
     meta: Option<String>,
 ) -> Result<(), String> {
-    let link = crate::keep::link(&app);
+    let link = crate::persistent::link(&app);
     link.ask(
         "open",
         json!({ "id": id, "cwd": cwd, "rows": rows, "cols": cols, "meta": meta }),
@@ -46,7 +46,7 @@ pub fn pty_sessions<R: Runtime>(app: AppHandle<R>) -> Vec<Running> {
 
 /// The same thing, for the rest of this side of the app.
 pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
-    let link = crate::keep::link(app);
+    let link = crate::persistent::link(app);
     let found: Vec<Running> = link.asked("sessions", json!({})).unwrap_or_default();
     for session in &found {
         link.know(&session.id);
@@ -58,7 +58,7 @@ pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
 /// for it. `None` when there is no such session.
 #[tauri::command(async)]
 pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Option<Held> {
-    crate::keep::link(&app)
+    crate::persistent::link(&app)
         .asked("attach", json!({ "id": id }))
         .unwrap_or(None)
 }
@@ -66,7 +66,7 @@ pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Option<Held> {
 /// Sends what was typed. Keystrokes, not lines: the shell does the editing.
 #[tauri::command(async)]
 pub fn pty_write<R: Runtime>(app: AppHandle<R>, id: String, data: String) -> Result<(), String> {
-    crate::keep::link(&app)
+    crate::persistent::link(&app)
         .ask("write", json!({ "id": id, "data": data }))
         .map(|_| ())
 }
@@ -80,7 +80,7 @@ pub fn pty_resize<R: Runtime>(
     rows: u16,
     cols: u16,
 ) -> Result<(), String> {
-    crate::keep::link(&app)
+    crate::persistent::link(&app)
         .ask("resize", json!({ "id": id, "rows": rows, "cols": cols }))
         .map(|_| ())
 }
@@ -88,5 +88,5 @@ pub fn pty_resize<R: Runtime>(
 /// Ends a session.
 #[tauri::command(async)]
 pub fn pty_close<R: Runtime>(app: AppHandle<R>, id: String) {
-    let _ = crate::keep::link(&app).ask("close", json!({ "id": id }));
+    let _ = crate::persistent::link(&app).ask("close", json!({ "id": id }));
 }

@@ -1,5 +1,5 @@
 /**
- * Adjusting one of the physical layers to its declared version.
+ * Adjusting one layer of the app to the version its row is pointed at.
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
@@ -55,15 +55,15 @@ function within<T>(work: Promise<T>, ms: number): Promise<T> {
 /**
  * Which ending each row reaches when the release is actually taken.
  *
- * The program's is `ready`: it is down and checked, and what puts it in is
- * this window leaving so that the next can open on it -- see `restart`. Every
- * terminal stays where it is throughout, because none of them are in this
- * window.
+ * The ephemeral half's is `ready`: it is down and checked, and what puts it
+ * in is this window leaving so that the next can open on it -- see `restart`.
+ * Every terminal stays where it is throughout, because none of them are in
+ * this window.
  *
- * The pages end in `swapped`: a reload, which is the cheap one. The keep's
- * row is never pressed, and answers `held` if it ever were.
+ * The pages end in `swapped`: a reload, which is the cheap one. The
+ * persistent half's row is never pressed, and answers `held` if it ever were.
  */
-const ENDING = { front: "swapped", core: "ready", keep: "held" } as const;
+const ENDING = { front: "swapped", ephemeral: "ready", persistent: "held" } as const;
 
 /**
  * Takes one physical layer to its declaration and returns the ending so the
@@ -110,7 +110,7 @@ function asked(layer: Layer, version: string | null): Promise<Took> {
   };
   return within(
     invoke<Took>("update_take", { layer, version, coming }),
-    layer === "core" ? WHOLE_TIMEOUT : SMALL_TIMEOUT,
+    layer === "ephemeral" ? WHOLE_TIMEOUT : SMALL_TIMEOUT,
   );
 }
 
@@ -118,9 +118,9 @@ function asked(layer: Layer, version: string | null): Promise<Took> {
  * Leaves, so that the release that came down can go in and the next window can
  * open on it.
  *
- * The backend hands the restart to the program holding the terminals and then
- * closes this window; the terminals are that program's, and are still there
- * when the next window comes up. Nothing is expected back: a window that was
+ * The backend hands the restart to the persistent half and then closes this
+ * window; the terminals are that program's, and are still there when the next
+ * window comes up. Nothing is expected back: a window that was
  * answered is a window that is already closing.
  */
 export function restart(): void {

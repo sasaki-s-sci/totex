@@ -1,17 +1,15 @@
 //! The rows, asked for the way the window asks for them.
 
-use crate::release::Cycles;
 use crate::update::Layer;
 
 use super::{TempDir, asked, window};
 
 /// The names the settings page sends -- see `src/lib/update` and
 /// `src/components/settings/UpdateSection.tsx`.
-pub(super) const SENT: [&str; 7] = [
+pub(super) const SENT: [&str; 6] = [
     "update_standing",
     "update_take",
     "update_pick",
-    "update_follow",
     "update_restart",
     "update_choices",
     "confirm_front",
@@ -54,20 +52,16 @@ fn a_window_is_told_about_three_layers_and_what_each_is_at() {
         .expect("the rows the settings page draws");
     let rungs = rungs.as_array().expect("one entry per layer");
     assert_eq!(rungs.len(), 3);
-    assert_eq!(rungs[0]["layer"], "front");
-    assert_eq!(rungs[1]["layer"], "core");
-    assert_eq!(rungs[2]["layer"], "keep");
+    assert_eq!(rungs[0]["layer"], "persistent");
+    assert_eq!(rungs[1]["layer"], "ephemeral");
+    assert_eq!(rungs[2]["layer"], "front");
 
     assert_eq!(rungs[1]["at"], env!("CARGO_PKG_VERSION"));
     assert_eq!(rungs[1]["frontContract"], crate::front::take::contract());
-    // The one row nothing can press: a program that is replaced only when it
-    // holds nothing, by the next window that finds it so.
-    assert_eq!(rungs[2]["can"], false);
+    // The one row nothing can press: a program that is replaced by the next
+    // window, when the version says so.
+    assert_eq!(rungs[0]["can"], false);
     for rung in rungs {
-        assert_eq!(
-            rung["cycle"], "release",
-            "every row starts on the app's own"
-        );
         assert_eq!(rung["picked"], serde_json::Value::Null);
         assert!(rung["can"].is_boolean());
     }
@@ -81,22 +75,25 @@ fn what_a_row_is_pointed_at_is_asked_for_and_answered_by_name() {
     asked(
         &view,
         "update_pick",
-        serde_json::json!({ "layer": Layer::Front, "version": "0.2.0" }),
+        serde_json::json!({ "layer": Layer::Ephemeral, "version": "0.2.0" }),
     )
     .expect("a row can be pointed at a version");
-    asked(
-        &view,
-        "update_follow",
-        serde_json::json!({ "layer": Layer::Front, "cycle": Cycles::Front }),
-    )
-    .expect("and at a cycle of releases");
 
     let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
-    let front_row = &rungs.as_array().expect("three rows")[0];
-    assert_eq!(front_row["cycle"], "front");
-    // Moving a row to another cycle lets go of the version it was naming: 0.2.0
-    // of one cycle is not 0.2.0 of another.
-    assert_eq!(front_row["picked"], serde_json::Value::Null);
+    let row = &rungs.as_array().expect("three rows")[1];
+    assert_eq!(row["picked"], "0.2.0");
+
+    asked(
+        &view,
+        "update_pick",
+        serde_json::json!({ "layer": Layer::Ephemeral, "version": null }),
+    )
+    .expect("and back at whatever is newest");
+    let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
+    assert_eq!(
+        rungs.as_array().expect("three rows")[1]["picked"],
+        serde_json::Value::Null
+    );
 }
 
 #[test]
@@ -108,7 +105,7 @@ fn a_press_reaches_the_layer_it_names() {
     // so what comes back is the release page not answering -- which is the
     // press having reached the backend, been dispatched to the right layer,
     // and got as far as the network.
-    for layer in ["front", "core", "keep"] {
+    for layer in ["persistent", "ephemeral", "front"] {
         let answered = asked(
             &view,
             "update_take",
@@ -136,11 +133,7 @@ fn compatible_choices_are_asked_for_in_one_go() {
     // Nothing answers the listing here, and the answer to that is an empty
     // list rather than a failure: a pull-down that cannot be filled is a row
     // that still works, pointed at whatever the release page says is newest.
-    let found = asked(
-        &view,
-        "update_choices",
-        serde_json::json!({ "cycles": ["release", "front"] }),
-    )
-    .expect("asking is not a failure");
+    let found =
+        asked(&view, "update_choices", serde_json::json!({})).expect("asking is not a failure");
     assert!(found.as_array().is_some_and(|found| found.is_empty()));
 }

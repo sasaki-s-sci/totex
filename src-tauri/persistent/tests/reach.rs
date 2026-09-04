@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::json;
-use totex_keep::talk::{Link, Missing};
-use totex_keep::wire::Address;
+use totex_persistent::talk::{Link, Missing};
+use totex_persistent::wire::Address;
 
 /// A temporary directory that removes itself, so a failing test cannot leave
 /// an address file behind for a real window to find.
@@ -38,7 +38,7 @@ impl Drop for TempDir {
 
 /// The program cargo built beside this test.
 fn program() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_totex-keep"))
+    PathBuf::from(env!("CARGO_BIN_EXE_totex-persistent"))
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn a_window_starts_the_program_and_the_next_window_finds_it() {
     );
 
     let first = Link::reach(home, &program()).expect("the program comes up");
-    assert_eq!(first.version(), totex_keep::VERSION);
+    assert_eq!(first.version(), totex_persistent::VERSION);
     let address = Address::read(home).expect("the address was written");
     assert_ne!(
         address.pid,

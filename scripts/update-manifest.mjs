@@ -25,11 +25,13 @@
  *
  * ## And the entries that are not platforms
  *
- * `front` is the other half of the app: the pages the window is drawn out of,
- * which every kind of installed copy can take on its own without replacing the
- * program under them, including the two the updater will not touch. They are
- * the same pages on all three platforms, so there is one download and no
- * platform in its name.
+ * `front` is the pages the window is drawn out of, which every kind of
+ * installed copy can take on its own without replacing the program under
+ * them, including the two the updater will not touch. They are the same pages
+ * on all three platforms, so there is one download and no platform in its
+ * name. `needs` beside it is the agreement they were built to -- see
+ * `frontContract` in package.json -- which is what a copy that cannot replace
+ * its program reads before it takes them.
  *
  * `programs` is the app's own executable, out of the installer rather than in
  * it. Nothing installed reads this one — an installed copy replaces its program
@@ -40,51 +42,31 @@
  * than another installer to run. Only Windows has one because only Windows has
  * that installer.
  *
- * What makes the two of them keys of their own rather than more platforms is
- * that nothing in the updater plugin reads either of them. It reads what it
- * knows and ignores the rest; `src-tauri/src/front` reads its own, out of the
- * same document, because what the newest release is should not be several
- * files that can disagree.
- *
  * ## Why every one of them is required
  *
  * A missing key is not a smaller release, it is a platform that silently never
  * updates again — nobody would find out until the version after next. So this
  * refuses to write a document it cannot fill.
  *
- * ## One document per cycle
+ * ## One cycle
  *
- * The pages can be released apart from the program — see
- * `src-tauri/src/release/cycle.rs` — and a cycle is a tag its versions are cut
- * under and a document each of its releases publishes. A release of the app is
- * the cycle where both move together and it publishes all of it; a release of
- * the pages alone publishes those alone, under a name of their own, and an
- * installed copy asks whichever of them its rows have been pointed at.
+ * Every release is tagged `vX.Y.Z` and publishes this one document. Which
+ * part of the number turned over says what the release replaces -- see
+ * `.github/workflows/release.yml` -- and nothing about the document depends
+ * on it: a patch and a minor are the same file, and the app reads the
+ * version out of it.
  *
- * Usage: node scripts/update-manifest.mjs <directory> <tag> [release|front]
+ * Usage: node scripts/update-manifest.mjs <directory> <tag>
  */
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/**
- * Which cycle publishes what, and under which name.
- *
- * The names on the left are the ones `src-tauri/src/release/cycle.rs` knows,
- * and the two fields are the two halves of what a cycle is there: what its
- * versions are tagged under, and what a release of it publishes. Two lists in
- * two languages, which is what the app's own reading of this document holds
- * them together.
- */
-const CYCLES = {
-  release: {
-    tag: "v",
-    manifest: "latest.json",
-    holds: ["platforms", "front", "programs"],
-  },
-  front: { tag: "front-v", manifest: "front.json", holds: ["front"] },
-};
+/** What a release is tagged under, and what it publishes -- the names
+ * `src-tauri/src/release/url.rs` reads back. */
+const TAG = "v";
+const MANIFEST = "latest.json";
 
 /** The pages of the release, packed by the build job that produced `dist`. */
 const FRONT = "front.tar.gz";
@@ -118,18 +100,14 @@ const KINDS = [
   { suffix: ".app.tar.gz", targets: ["darwin-aarch64", "darwin-x86_64"] },
 ];
 
-const [directory, tag, named = "release"] = process.argv.slice(2);
+const [directory, tag] = process.argv.slice(2);
 if (!directory || !tag) {
-  fail("usage: node scripts/update-manifest.mjs <directory> <tag> [release|front]");
+  fail("usage: node scripts/update-manifest.mjs <directory> <tag>");
 }
-const cycle = CYCLES[named];
-if (!cycle) {
-  fail(`${named} is not a cycle: ${Object.keys(CYCLES).join(", ")}`);
+if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
+  fail(`${tag} is not a tag of a release, which is ${TAG}X.Y.Z`);
 }
-if (!tag.startsWith(cycle.tag)) {
-  fail(`${tag} is not a tag of the ${named} cycle, which cuts ${cycle.tag}X.Y.Z`);
-}
-const version = tag.slice(cycle.tag.length);
+const version = tag.slice(TAG.length);
 
 // Actions names the repository; anywhere else this is a repository with one
 // place to be released from, which is where the app is pointed.
@@ -144,13 +122,16 @@ const files = readdirSync(directory).sort();
 const packageJson = fileURLToPath(new URL("../package.json", import.meta.url));
 const { frontContract } = JSON.parse(readFileSync(packageJson, "utf8"));
 
-const manifest = { version, pub_date: new Date().toISOString() };
 const said = [];
-for (const holds of cycle.holds) {
-  manifest[holds] = { platforms, front, programs }[holds]();
-}
+const manifest = {
+  version,
+  pub_date: new Date().toISOString(),
+  platforms: platforms(),
+  front: front(),
+  programs: programs(),
+};
 
-const out = join(directory, cycle.manifest);
+const out = join(directory, MANIFEST);
 writeFileSync(out, `${JSON.stringify(manifest, null, 2)}\n`);
 process.stdout.write(`${out}\n`);
 for (const line of said) process.stdout.write(`  ${line}\n`);

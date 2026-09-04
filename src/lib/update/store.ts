@@ -1,29 +1,28 @@
 /**
  * Held for the window rather than for the settings page.
  *
- * The settings page unmounts when it closes, while an automatic adjustment can
- * still be downloading. The compatible release list also starts filling when
- * the window opens rather than when the page is opened.
+ * The settings page unmounts when it closes, while an adjustment can still be
+ * downloading. The list of releases also starts filling when the window opens
+ * rather than when the page is opened.
  *
  * What is *not* here is which release each row is pointed at. That is the
  * backend's — see `src-tauri/src/update/kept.rs` — because the pages are
  * replaced while the app is running and are not a place anything can be kept.
  * A row left on a version is on it again after the reload that finishes the
- * pages, and after the next start of the app, which is where a taken program
- * arrives.
+ * pages, and after the restart that a program takes.
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
-import type { Cycle, Layer, Press, Rung, UpdateChoice, UpdateState } from "./model";
+import type { Layer, Press, Rung, UpdateChoice, UpdateState } from "./model";
 
 const RESTING: Press = { stage: "rest", progress: null, version: null };
 
 export let state: UpdateState = {
   rungs: null,
-  versions: { release: [], front: [] },
+  versions: [],
   choices: [],
-  presses: { front: RESTING, core: RESTING, keep: RESTING },
+  presses: { persistent: RESTING, ephemeral: RESTING, front: RESTING },
 };
 
 const waiting = new Set<() => void>();
@@ -33,7 +32,7 @@ export function settle(change: Partial<UpdateState>): void {
   for (const wake of waiting) wake();
 }
 
-/** The same, for one of the physical layers. */
+/** The same, for one of the layers. */
 export function settlePress(layer: Layer, change: Partial<Press>): void {
   settle({ presses: { ...state.presses, [layer]: { ...state.presses[layer], ...change } } });
 }
@@ -79,17 +78,11 @@ export function newer(one: string | null, other: string | null): string | null {
 }
 
 /**
- * Which release one row is pointed at: the one named, or the newest of the
- * cycle it is following.
+ * Which release one row is pointed at: the one named, or whatever is newest.
  *
- * What is in place counts as one of the releases that cycle offers, so that
- * following it is a declaration to keep up rather than a declaration to move.
- * The cycles are numbered apart from one another — pages cut on their own are
- * at 0.1.11 while the app is at 0.1.17 — and without this the newest pages
- * there are read as a step backwards from the pages inside the release that is
- * already here, which is exactly what they are not.
- *
- * A version named outright is left alone whichever way it points. That is what
+ * What is in place counts as one of the releases on offer, so that following
+ * `latest` is a declaration to keep up rather than a declaration to move. A
+ * version named outright is left alone whichever way it points. That is what
  * naming one is for: the row that cannot go backwards is the row nobody told
  * where to go.
  */
@@ -97,7 +90,7 @@ export function wanted(at: UpdateState, layer: Layer): string | null {
   const rung = rungOf(at, layer);
   if (!rung) return null;
   if (rung.picked !== null) return rung.picked;
-  return newer(at.versions[rung.cycle][0] ?? null, rung.at);
+  return newer(at.versions[0] ?? null, rung.at);
 }
 
 /**
@@ -117,18 +110,16 @@ export function stageOf(at: UpdateState, layer: Layer): Press["stage"] {
 }
 
 /**
- * Points one row at one release of one cycle, and has the backend remember it.
+ * Points rows at one release, and has the backend remember it.
  *
- * `version` is null for "whichever compatible release is newest". Sync resolves
- * that moving declaration against the current listing before taking it.
+ * `version` is null for "whichever release is newest". A press resolves that
+ * moving declaration against the current listing before taking it.
  */
 export async function declare(
-  declarations: readonly { layer: Layer; cycle: Cycle; version: string | null }[],
+  declarations: readonly { layer: Layer; version: string | null }[],
 ): Promise<void> {
   try {
-    for (const { layer, cycle, version } of declarations) {
-      const rung = rungOf(state, layer);
-      if (rung && rung.cycle !== cycle) await invoke("update_follow", { layer, cycle });
+    for (const { layer, version } of declarations) {
       await invoke("update_pick", { layer, version });
     }
   } catch {
@@ -169,7 +160,7 @@ export function askStanding(again = false): Promise<Rung[]> {
 const EVERY = 30 * 60_000;
 
 /**
- * Keeps both version declarations filled, from the moment the window opens.
+ * Keeps the list of releases filled, from the moment the window opens.
  *
  * The one thing here that happens without a press. A list has to be full before
  * it is opened rather than after, and the release page is somebody else's
@@ -178,34 +169,24 @@ const EVERY = 30 * 60_000;
  * on a slow loop instead — twice an hour, which is nothing beside a rate limit
  * and is far more often than releases are cut.
  *
- * The releases' manifests add the compatibility terms the listing itself does
- * not carry.
- *
  * Nothing is asked at all where nothing could be taken. A copy nobody installed
  * has no rows to fill a list for, and phoning a release page on its behalf
  * would be the window doing something on the person's network for no reason.
  *
- * An ask that fails leaves the lists as they were: a version already offered is
+ * An ask that fails leaves the list as it was: a version already offered is
  * one the release page had a moment ago, and a rate limit is not a reason to
  * empty a pull-down somebody is reading.
  */
 export function watchUpdateChoices(): () => void {
   let alive = true;
   let again: ReturnType<typeof setTimeout> | undefined;
-  const cycles: Cycle[] = ["release"];
 
   const round = () => {
-    invoke<UpdateChoice[]>("update_choices", { cycles })
+    invoke<UpdateChoice[]>("update_choices")
       .then((choices) => {
         if (!alive) return;
-        const versions: Record<Cycle, string[]> = { ...state.versions, front: [] };
-        for (const cycle of cycles) {
-          const releases = choices
-            .filter((choice) => choice.cycle === cycle)
-            .map((choice) => choice.version);
-          if (releases.length > 0) versions[cycle] = releases;
-        }
-        settle({ choices, versions });
+        const versions = choices.map((choice) => choice.version);
+        settle({ choices, versions: versions.length > 0 ? versions : state.versions });
       })
       .catch(() => undefined)
       .finally(() => {

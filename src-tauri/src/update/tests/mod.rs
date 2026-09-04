@@ -109,6 +109,7 @@ pub(super) fn window(home: &Path) -> (App<MockRuntime>, tauri::WebviewWindow<Moc
     }
     let app = mock_builder()
         .manage(Arc::new(Kept::at(Some(home.join("update.json")))))
+        .manage(Arc::new(crate::update::Ready::default()))
         .manage(Arc::new(crate::front::Serving::prepare(
             "com.totex.test",
             "0.1.0".parse().expect("a version"),
@@ -121,8 +122,6 @@ pub(super) fn window(home: &Path) -> (App<MockRuntime>, tauri::WebviewWindow<Moc
             crate::update::update_standing,
             crate::update::update_take,
             crate::update::update_pick,
-            crate::update::update_follow,
-            crate::release::fetch::update_versions,
             crate::release::fetch::update_choices,
             crate::front::take::confirm_front,
         ])

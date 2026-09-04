@@ -18,7 +18,7 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, Runtime};
 
 use super::{Serving, TAKEN, Taken, Unpacked};
-use crate::release::{self, Cycle};
+use crate::release;
 use crate::update::{Coming, Took};
 
 /// The most of a front that will be read off the network.
@@ -93,14 +93,13 @@ pub(crate) fn contract() -> u32 {
 /// newest, exactly as every press meant before a version could be named.
 pub async fn take_front<R: Runtime>(
     app: &AppHandle<R>,
-    cycle: &Cycle,
     version: Option<&str>,
     coming: &Channel<Coming>,
 ) -> Result<Took, String> {
     let serving = Arc::clone(app.state::<Arc<Serving>>().inner());
     let (endpoint, key) = release::declared(app)?;
 
-    let manifest = release::read(&endpoint, cycle, version).await?;
+    let manifest = release::read(&endpoint, version).await?;
     let release = Version::parse(&manifest.version)
         .map_err(|error| format!("unreadable version: {error}"))?;
 

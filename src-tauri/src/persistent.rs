@@ -1,11 +1,11 @@
-//! The program that holds the terminals, found or started beside this window.
+//! The persistent half, found or started beside this window.
 //!
-//! This window owns nothing that cannot be worked out again — see `derived`.
-//! What cannot be is held by `totex-keep`, a program of its own that this
-//! window starts if it is not already running, and talks to down a loopback
-//! socket. See `totex_keep` for the whole of why; what is here is the window's
-//! side of it: where the program is, where it keeps its things, and how what it
-//! says reaches the pages.
+//! This window is the ephemeral half and owns nothing that cannot be worked
+//! out again — see `derived`. What cannot be is held by `totex-persistent`, a
+//! program of its own that this window starts if it is not already running,
+//! and talks to down a loopback socket. See `totex_persistent` for the whole
+//! of why; what is here is the window's side of it: where the program is,
+//! where it keeps its things, and how what it says reaches the pages.
 //!
 //! ## Where the program is
 //!
@@ -22,20 +22,25 @@ use std::sync::Arc;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use totex_keep::door::Reported;
-use totex_keep::session::Event;
-use totex_keep::talk::Link;
+use totex_persistent::door::Reported;
+use totex_persistent::session::Event;
+use totex_persistent::talk::Link;
 
 use crate::mcp::REPORT_EVENT;
 use crate::pty::{DATA_EVENT, EXIT_EVENT, Said};
 
 /// The name of the program, as cargo leaves it.
 #[cfg(windows)]
-const PROGRAM: &str = "totex-keep.exe";
+const PROGRAM: &str = "totex-persistent.exe";
 #[cfg(not(windows))]
-const PROGRAM: &str = "totex-keep";
+const PROGRAM: &str = "totex-persistent";
 
 /// Where the program keeps its things, for one identifier.
+///
+/// Under the name the line was started with. This is where a window looks for
+/// the address of a program an earlier window started, and a window of one
+/// patch has to find the program of another -- see `totex_persistent::LINE` --
+/// so the name stays what it was until the minor turns over.
 pub fn home(identifier: &str) -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join(identifier).join("keep"))
 }
@@ -53,10 +58,10 @@ pub fn reach(identifier: &str) -> Result<Arc<Link>, String> {
 
 /// The program, copied out under its version and ready to run.
 ///
-/// `TOTEX_KEEP` in the environment names one to run instead, as it is, for
+/// `TOTEX_PERSISTENT` in the environment names one to run instead, as it is, for
 /// somebody working on the program itself.
 fn placed(home: &Path) -> Result<PathBuf, String> {
-    if let Some(named) = std::env::var_os("TOTEX_KEEP") {
+    if let Some(named) = std::env::var_os("TOTEX_PERSISTENT") {
         return Ok(PathBuf::from(named));
     }
     let beside = std::env::current_exe()
@@ -65,7 +70,7 @@ fn placed(home: &Path) -> Result<PathBuf, String> {
         .filter(|program| program.is_file())
         .ok_or_else(|| format!("{PROGRAM} is not beside this program"))?;
 
-    let dir = home.join(totex_keep::VERSION);
+    let dir = home.join(totex_persistent::VERSION);
     let placed = dir.join(PROGRAM);
     if !placed.is_file() {
         std::fs::create_dir_all(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
@@ -117,21 +122,29 @@ pub fn link<R: Runtime>(app: &AppHandle<R>) -> Arc<Link> {
     Arc::clone(&app.state::<Arc<Link>>())
 }
 
-/// A document the pages asked the keep to remember, or nothing under that name.
+/// A document the pages asked the persistent half to remember, or nothing
+/// under that name.
 ///
 /// What is in it is the pages' business and nobody else's — see
-/// `totex_keep::store`, which is the whole of why the pages have somewhere to
+/// `totex_persistent::store`, which is the whole of why the pages have somewhere to
 /// keep things that is not the webview's own storage: it is written by one
 /// program rather than by whichever window happens to be closing, and it is
 /// still there when the webview's storage is not.
 #[tauri::command(async)]
-pub fn keep_get<R: Runtime>(app: AppHandle<R>, name: String) -> Result<Option<Value>, String> {
+pub fn persistent_get<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+) -> Result<Option<Value>, String> {
     link(&app).asked("store_get", serde_json::json!({ "name": name }))
 }
 
 /// Keeps a document under a name, replacing whatever was there.
 #[tauri::command(async)]
-pub fn keep_put<R: Runtime>(app: AppHandle<R>, name: String, value: Value) -> Result<(), String> {
+pub fn persistent_put<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+    value: Value,
+) -> Result<(), String> {
     link(&app)
         .ask(
             "store_put",

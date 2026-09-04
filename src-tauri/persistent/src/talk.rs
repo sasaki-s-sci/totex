@@ -12,10 +12,13 @@
 //!
 //! A window does not know whether a program is already holding terminals for
 //! it. It reads the address file and knocks; if nobody answers, it starts one
-//! and knocks again. If somebody answers speaking a version this window did
-//! not bring and holding nothing, it is asked to stop and the one this window
-//! brought is started instead — that is how the program is replaced, at the
-//! one moment it costs nothing.
+//! and knocks again. If somebody answers on the same line -- see
+//! [`crate::LINE`] -- it is the program this window asks, whatever patch it
+//! is: a patch release replaces the window and nothing else. One on the same
+//! line holding nothing is still swapped for the one this window brought,
+//! because that costs nothing. One on another line is stopped whatever it
+//! holds, and the one this window brought is started instead — the one cost
+//! here, and one a minor release pays on purpose.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
@@ -75,7 +78,8 @@ pub enum Missing {
 /// A program holding the terminals, at the other end of a socket.
 pub struct Link {
     version: String,
-    protocol: u32,
+    /// The line it is on -- see [`crate::LINE`].
+    line: u32,
     /// What it announced it can answer. A name that is not in here is not sent.
     answers: HashSet<String>,
     next: AtomicU64,
@@ -101,7 +105,7 @@ impl std::fmt::Debug for Link {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Link")
             .field("version", &self.version)
-            .field("protocol", &self.protocol)
+            .field("line", &self.line)
             .field("gone", &self.gone())
             .finish()
     }
@@ -158,7 +162,8 @@ impl Link {
             .as_str()
             .ok_or_else(|| Missing::Refused("that is not the program".to_string()))?
             .to_string();
-        let protocol = hello["protocol"].as_u64().unwrap_or(0) as u32;
+        // Under the name the line was started with -- see `wire::hello`.
+        let line = hello["protocol"].as_u64().unwrap_or(0) as u32;
         let answers = hello["answers"]
             .as_array()
             .map(|names| {
@@ -171,7 +176,7 @@ impl Link {
 
         Ok(Self {
             version,
-            protocol,
+            line,
             answers,
             next: AtomicU64::new(1),
             waiting,
@@ -187,17 +192,17 @@ impl Link {
 
     /// Finds the program, or starts `program` and finds that.
     ///
-    /// One already running is kept whenever it holds anything, whatever version
-    /// it is: what it holds is the whole point. One holding nothing that is not
-    /// the version this window brought is stopped and replaced, and one that
-    /// speaks a conversation this window cannot is stopped whatever it holds —
-    /// the one cost here, and one a release pays on purpose.
+    /// One already running on this window's line is kept whenever it holds
+    /// anything, whatever its patch: what it holds is the whole point. One
+    /// holding nothing that is not the version this window brought is stopped
+    /// and replaced, and one on another line is stopped whatever it holds —
+    /// the one cost here, and one a minor release pays on purpose.
     pub fn reach(home: &Path, program: &Path) -> Result<Self, String> {
         match Self::connect(home) {
             Ok(link) => {
                 let same = link.version == crate::VERSION;
                 let empty = link.sessions_empty();
-                if link.protocol == crate::PROTOCOL && (same || !empty) {
+                if link.line == crate::LINE && (same || !empty) {
                     return Ok(link);
                 }
                 link.stop();
@@ -210,12 +215,12 @@ impl Link {
         let deadline = Instant::now() + STARTING;
         loop {
             match Self::connect(home) {
-                Ok(link) if link.protocol == crate::PROTOCOL => return Ok(link),
+                Ok(link) if link.line == crate::LINE => return Ok(link),
                 Ok(link) => {
                     return Err(format!(
-                        "the program that started speaks {} and this window speaks {}",
-                        link.protocol,
-                        crate::PROTOCOL
+                        "the program that started is on line {} and this window is on {}",
+                        link.line,
+                        crate::LINE
                     ));
                 }
                 Err(_) if Instant::now() < deadline => std::thread::sleep(STARTING_PAUSE),
@@ -228,8 +233,9 @@ impl Link {
         &self.version
     }
 
-    pub fn protocol(&self) -> u32 {
-        self.protocol
+    /// The line it is on -- see [`crate::LINE`].
+    pub fn line(&self) -> u32 {
+        self.line
     }
 
     /// Whether the program has stopped being one.

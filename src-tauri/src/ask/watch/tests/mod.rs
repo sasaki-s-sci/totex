@@ -14,8 +14,8 @@ use tauri::AppHandle;
 use tauri::Listener;
 use tauri::test::{MockRuntime, mock_builder, mock_context, noop_assets};
 
-use totex_keep::talk::Link;
-use totex_keep::{Keep, serve};
+use totex_persistent::talk::Link;
+use totex_persistent::{Persistent, serve};
 
 use super::super::Ask;
 use super::{AskState, Watcher, attend, pty_asking};
@@ -41,7 +41,7 @@ pub(super) fn mock_app() -> tauri::App<MockRuntime> {
     let home = std::env::temp_dir().join(format!("totex-ask-{}-{unique}", std::process::id()));
     std::fs::create_dir_all(&home).expect("create temp dir");
 
-    let keep = Keep::new(None);
+    let keep = Persistent::new(None);
     let serving =
         serve::stand(Arc::clone(&keep), &home, Box::new(|| {})).expect("the program stands");
     let link = Arc::new(Link::connect(&home).expect("the window connects"));
@@ -56,7 +56,7 @@ pub(super) fn mock_app() -> tauri::App<MockRuntime> {
         .build(mock_context(noop_assets()))
         .expect("mock app");
     attend(app.handle());
-    crate::keep::deliver(app.handle());
+    crate::persistent::deliver(app.handle());
     app
 }
 

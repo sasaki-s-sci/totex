@@ -17,7 +17,7 @@ if (!container) {
   throw new Error("#root is missing from index.html");
 }
 
-// What the last window left with the keep, brought across before the column
+// What the last window left with the persistent half, brought across before the column
 // reads where it was -- see `remembered`. One round trip on the loopback,
 // which is nothing beside the first paint.
 prime().finally(() => {

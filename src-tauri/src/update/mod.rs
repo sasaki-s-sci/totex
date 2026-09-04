@@ -1,20 +1,30 @@
-//! Replacing this copy of the app, a layer at a time.
+//! Replacing this copy of the app, one half at a time.
 //!
-//! The app is two layers and they are taken apart from one another, because
+//! The app is two halves, and they are taken apart from one another because
 //! they cost different things to replace and nobody should pay the expensive
 //! one by having pressed the cheap one.
 //!
-//! **The pages.** About a megabyte, and it ends in a reload. The program
-//! underneath is untouched, so every terminal it is holding stays open and is
-//! redrawn from its own backlog as the window comes back. See [`crate::front`].
+//! **The ephemeral half.** This program — the window, the commands it answers
+//! and the pages it draws — and everything in it can be thrown away and drawn
+//! again. Replacing it is the installer, and an installer cannot be put in
+//! underneath a window that is open. So a press is the download and nothing
+//! else, and what puts the release in is this window leaving so that the next
+//! can take its place — see [`ready`] and [`update_restart`]. The terminals
+//! are not in this window, so nothing anybody was working on goes with it: the
+//! window closes, the release goes in, and the window opens again on it in
+//! front of the same terminals.
 //!
-//! **The program.** That is the installer, and it is the one layer that cannot
-//! be put in underneath a window that is open. So a press is the download and
-//! nothing else, and what puts the release in is this window leaving so that
-//! the next can take its place — see [`ready`] and [`update_restart`]. The
-//! shells are not in this window — see `keep` — so nothing anybody was working
-//! on goes with it: the window closes, the release goes in, and the window
-//! opens again on it in front of the same terminals.
+//! **The persistent half.** The program beside this one that holds the
+//! terminals — see `totex_persistent`. Never taken by a row: it comes with a
+//! release of the ephemeral half, and which releases replace it is said by the
+//! version number itself. A patch release leaves it exactly where it is; a
+//! minor release is one it cannot be kept across, and the next window says so
+//! before it presses — see `totex_persistent::LINE`.
+//!
+//! **And the pages on their own.** About a megabyte, and a reload. The half
+//! of the ephemeral half that a copy can take without an installer, which is
+//! the whole of the update a copy the package manager owns can have — see
+//! [`crate::front`].
 //!
 //! ## What a copy can have
 //!
@@ -24,12 +34,7 @@
 //! re-run over themselves. A `.deb` or an `.rpm` is none of those — the files
 //! belong to the package manager, the app is not running as root, and replacing
 //! them behind the manager's back would leave it describing a version that is no
-//! longer there.
-//!
-//! That is the whole answer for the program, and it is not the answer for the
-//! pages. They are kept in the app's own data directory and touch nothing
-//! anything else owns, so a `.deb` and an `.rpm` are copies that can be brought
-//! forward half the way, and are offered exactly that half.
+//! longer there. Such a copy is offered its pages and nothing else.
 //!
 //! A binary run straight out of `target/` is offered nothing. It was never
 //! installed, so there is nothing for an installer to overwrite, and the pages
@@ -38,20 +43,12 @@
 //!
 //! ## Naming a version
 //!
-//! Every layer takes a version rather than "whatever is newest", and the same
-//! version can be handed to both. That is what makes a release page something
-//! to choose from rather than a direction to be carried in: the pages of 0.1.9
-//! can be tried on the program of 0.1.7, and what is running can be said
-//! exactly rather than described as "the latest".
-//!
-//! ## And which releases a layer is looking at
-//!
-//! One more choice per layer, and it is the one that makes them independent for
-//! real: which cycle its releases are cut on — see [`crate::release::cycle`].
-//! Left alone, both follow the app's own, which is the arrangement where one
-//! release moves everything.
+//! The row takes a version rather than "whatever is newest". That is what
+//! makes a release page something to choose from rather than a direction to
+//! be carried in: the release of last week can be gone back to, and what is
+//! running can be said exactly rather than described as "the latest".
 
-mod core;
+mod ephemeral;
 mod kept;
 mod ready;
 #[cfg(test)]
@@ -64,7 +61,6 @@ use tauri::utils::platform::bundle_type;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::front::Serving;
-use crate::release::Cycles;
 
 pub use kept::Kept;
 pub use ready::Ready;
@@ -73,20 +69,22 @@ pub use ready::Ready;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Layer {
-    /// The pages the window is drawn out of.
+    /// The program beside this one that holds the terminals -- see
+    /// `totex_persistent`. Never taken by a row: it comes with a release of
+    /// the ephemeral half, and is replaced by the next window at the moment
+    /// the version says it has to be. The row says what is running, and that
+    /// is all it can do.
+    Persistent,
+    /// This program, with its pages inside it: what a release replaces.
+    Ephemeral,
+    /// The pages on their own -- the part of the ephemeral half that can be
+    /// taken without an installer, see [`crate::front`].
     Front,
-    /// The program itself.
-    Core,
-    /// The program beside this one that holds the terminals -- see `keep`.
-    /// Never taken by a row: it comes with a release of the program, and is
-    /// replaced at the one moment it costs nothing, which is when it holds
-    /// nothing. The row says what is running, and that is all it can do.
-    Keep,
 }
 
-/// The three of them, in the order the rows are drawn: cheapest first, and the
-/// one that cannot be pressed last.
-pub const LAYERS: [Layer; 3] = [Layer::Front, Layer::Core, Layer::Keep];
+/// The three of them, in the order the rows are drawn: the one that cannot be
+/// pressed first, because it is what everything else stands on.
+pub const LAYERS: [Layer; 3] = [Layer::Persistent, Layer::Ephemeral, Layer::Front];
 
 /// What a press on one layer found, which is also what was done.
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -135,11 +133,9 @@ pub struct Rung {
     pub at: String,
     /// Whether this copy can replace this layer at all.
     pub can: bool,
-    /// Which cycle this layer's releases are cut on.
-    pub cycle: Cycles,
     /// The version it is pointed at, if one has been named.
     pub picked: Option<String>,
-    /// The newest front contract this program answers, on the program row.
+    /// The newest front contract this program answers, on the ephemeral row.
     pub front_contract: Option<u32>,
 }
 
@@ -157,27 +153,26 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
         .map(|layer| Rung {
             layer,
             at: match layer {
-                Layer::Front => serving.version().to_string(),
-                Layer::Core => env!("CARGO_PKG_VERSION").to_string(),
                 // What is actually running beside this window, which may be
-                // the one an earlier release brought if it is still holding
+                // an earlier patch of this line if it is still holding
                 // something.
-                Layer::Keep => app
-                    .try_state::<std::sync::Arc<totex_keep::talk::Link>>()
+                Layer::Persistent => app
+                    .try_state::<std::sync::Arc<totex_persistent::talk::Link>>()
                     .map(|link| link.version().to_string())
                     .unwrap_or_default(),
+                Layer::Ephemeral => env!("CARGO_PKG_VERSION").to_string(),
+                Layer::Front => serving.version().to_string(),
             },
             can: match layer {
+                Layer::Persistent => false,
+                Layer::Ephemeral => whole_update_supported(),
                 // Somewhere to keep a front is as much a condition as having
                 // been installed: a machine with no data directory can only
                 // ever run the pages it was installed with.
                 Layer::Front => bundle_type().is_some() && serving.keeps(),
-                Layer::Core => whole_update_supported(),
-                Layer::Keep => false,
             },
-            cycle: kept.cycle(layer),
             picked: kept.picked(layer),
-            front_contract: (layer == Layer::Core).then_some(crate::front::take::contract()),
+            front_contract: (layer == Layer::Ephemeral).then_some(crate::front::take::contract()),
         })
         .collect()
 }
@@ -194,15 +189,12 @@ pub async fn update_take<R: Runtime>(
     version: Option<String>,
     coming: Channel<Coming>,
 ) -> Result<Took, String> {
-    let cycle = app.state::<std::sync::Arc<Kept>>().cycle(layer).cycle();
     match layer {
-        Layer::Front => {
-            crate::front::take::take_front(&app, &cycle, version.as_deref(), &coming).await
-        }
-        Layer::Core => core::take_core(&app, &cycle, version.as_deref(), &coming).await,
-        // Replaced by the next window that finds it holding nothing, and by
+        // Replaced by the next window, when the version says so, and by
         // nothing else.
-        Layer::Keep => Ok(Took::Held),
+        Layer::Persistent => Ok(Took::Held),
+        Layer::Ephemeral => ephemeral::take_ephemeral(&app, version.as_deref(), &coming).await,
+        Layer::Front => crate::front::take::take_front(&app, version.as_deref(), &coming).await,
     }
 }
 
@@ -215,11 +207,8 @@ pub async fn update_take<R: Runtime>(
 #[tauri::command]
 pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
     // The row moved, and a release that came down for where it used to point is
-    // one nothing is pointed at any more — see [`ready`]. Asked here rather
-    // than on [`update_follow`] because every move of a row ends in a pick: a
-    // row sent to another cycle is a row that names a version of that cycle a
-    // moment later, and that is the naming worth reading.
-    if layer == Layer::Core {
+    // one nothing is pointed at any more — see [`ready`].
+    if layer == Layer::Ephemeral {
         app.state::<std::sync::Arc<Ready>>()
             .let_go_unless(version.as_deref());
     }
@@ -229,11 +218,12 @@ pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<
 /// Leaves, so that the release that came down can go in and the next window
 /// can open on it.
 ///
-/// The keep is asked to start this program again once this window has gone,
-/// with the release put in first; then this window goes. Every terminal stays
-/// where it is throughout, because none of them were ever in here. Nothing
-/// waiting is a restart with nothing to put in, which is refused rather than
-/// made: a window that closes for no reason is a window somebody lost.
+/// The persistent half is asked to start this program again once this window
+/// has gone, with the release put in first; then this window goes. Every
+/// terminal stays where it is throughout, because none of them were ever in
+/// here. Nothing waiting is a restart with nothing to put in, which is refused
+/// rather than made: a window that closes for no reason is a window somebody
+/// lost.
 #[tauri::command(async)]
 pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let install = app
@@ -243,19 +233,15 @@ pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let program = match install.kind {
         // What the runtime mounted is what is started again, not the program
         // inside the mount that is about to go away.
-        totex_keep::update::Kind::AppImage => install.target.clone(),
-        totex_keep::update::Kind::App => install.target.join("Contents/MacOS/totex"),
-        totex_keep::update::Kind::Nsis | totex_keep::update::Kind::Msi => install.target.clone(),
+        totex_persistent::update::Kind::AppImage => install.target.clone(),
+        totex_persistent::update::Kind::App => install.target.join("Contents/MacOS/totex"),
+        totex_persistent::update::Kind::Nsis | totex_persistent::update::Kind::Msi => {
+            install.target.clone()
+        }
     };
-    crate::keep::link(&app).relaunch(&program, &[], Some(&install))?;
+    crate::persistent::link(&app).relaunch(&program, &[], Some(&install))?;
     app.exit(0);
     Ok(())
-}
-
-/// Points one layer at a different cycle of releases, and remembers that too.
-#[tauri::command]
-pub fn update_follow<R: Runtime>(app: AppHandle<R>, layer: Layer, cycle: Cycles) {
-    app.state::<std::sync::Arc<Kept>>().follow(layer, cycle);
 }
 
 /// Whether the updater can replace the whole of this copy in place.

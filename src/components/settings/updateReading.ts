@@ -1,5 +1,5 @@
 /**
- * The declaration this page makes, read off the two physical layers.
+ * The declaration this page makes, read off the layers the backend reports.
  *
  * The backend replaces the pages and the program one at a time. What a person
  * declares is one thing: which release of the app to be. This module is the
@@ -9,10 +9,7 @@
  * and the one button above them are both asking.
  */
 
-import { rungOf, type UpdateChoice, type UpdateState } from "../../lib/update";
-
-/** The cycle a whole release of the app is cut on. */
-export const PROGRAM_CYCLE = "release";
+import { lineOf, rungOf, type UpdateChoice, type UpdateState } from "../../lib/update";
 
 /** The declaration that names no version and follows whatever is newest. */
 export const LATEST = "latest";
@@ -54,11 +51,10 @@ export type Standing = {
 };
 
 /** The releases of the app this copy could be moved to. */
-function programChoices(at: UpdateState): UpdateChoice[] {
-  const program = rungOf(at, "core");
+function ephemeralChoices(at: UpdateState): UpdateChoice[] {
+  const program = rungOf(at, "ephemeral");
   return at.choices.filter(
     (choice) =>
-      choice.cycle === PROGRAM_CYCLE &&
       choice.frontContract !== null &&
       // A package-managed program stays where it is, so a selected front must
       // also fit the program that is actually running. Where the program can
@@ -72,9 +68,8 @@ function programChoices(at: UpdateState): UpdateChoice[] {
 
 /** What the pull-down is on: a version named outright, or `latest`. */
 function selectedVersion(at: UpdateState): string {
-  const rung = rungOf(at, "core");
+  const rung = rungOf(at, "ephemeral");
   if (!rung) return "";
-  if (rung.cycle !== PROGRAM_CYCLE) return rung.at;
   return rung.picked ?? LATEST;
 }
 
@@ -82,12 +77,10 @@ function selectedVersion(at: UpdateState): string {
  * The persistent half: the program beside the window that holds the terminals.
  *
  * Nothing here is declared. What is running is what an earlier window started
- * and left holding shells, or what this one brought; the row says which, and
- * where the two differ it says what would move it -- every terminal closed,
- * which is the one moment replacing it costs nothing.
+ * and left holding shells, or what this one brought; the row says which.
  */
-export function keepStanding(at: UpdateState): Standing | null {
-  const rung = rungOf(at, "keep");
+export function persistentStanding(at: UpdateState): Standing | null {
+  const rung = rungOf(at, "persistent");
   if (!rung) return null;
   return {
     at: rung.at,
@@ -110,12 +103,12 @@ export function keepStanding(at: UpdateState): Standing | null {
  * package manager's, the pages are the only half that can be brought forward,
  * so they are what the arrow is about and the program is the aside.
  */
-export function programStanding(at: UpdateState): Standing | null {
-  const program = rungOf(at, "core");
+export function ephemeralStanding(at: UpdateState): Standing | null {
+  const program = rungOf(at, "ephemeral");
   const front = rungOf(at, "front");
   if (!program || !front) return null;
   const can = program.can || front.can;
-  const choices = programChoices(at);
+  const choices = ephemeralChoices(at);
   const picked = selectedVersion(at);
   const target =
     (program.picked === null ? choices[0] : choices.find((choice) => choice.version === picked)) ??
@@ -140,4 +133,21 @@ export function programStanding(at: UpdateState): Standing | null {
     target,
     can,
   };
+}
+
+/**
+ * Whether moving the ephemeral half to `version` leaves the persistent half
+ * where it is: the two are on the same line -- see `lineOf`.
+ *
+ * Null where there is nothing to compare: no persistent half reported, or a
+ * version that is not one. That is drawn as nothing rather than as a promise
+ * either way.
+ */
+export function keepsTerminals(at: UpdateState, version: string): boolean | null {
+  const persistent = rungOf(at, "persistent");
+  if (!persistent) return null;
+  const running = lineOf(persistent.at);
+  const going = lineOf(version);
+  if (running === null || going === null) return null;
+  return running === going;
 }

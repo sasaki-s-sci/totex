@@ -1,20 +1,23 @@
 [package]
-name = "totex-keep"
+name = "totex-persistent"
 # The app's own number: a release of the app carries this program inside it,
-# and the window compares the one running against the one it brought.
+# and the window compares the one running against the one it brought. Only
+# the minor matters to whether the two can talk -- see LINE in src/lib.rs --
+# and .github/workflows/release.yml refuses a patch release that changed
+# anything under this directory.
 version = "0.1.30"
 edition = "2024"
 rust-version = "1.95"
 
 [lib]
 # What the window links, for the client half and the shapes both ends share.
-name = "totex_keep"
+name = "totex_persistent"
 path = "src/lib.rs"
 
 [[bin]]
 # And the program itself, which the window starts beside itself and which
 # outlives it.
-name = "totex-keep"
+name = "totex-persistent"
 path = "src/main.rs"
 
 [dependencies]
@@ -34,3 +37,8 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no
 rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 tar = "0.4.46"
 tokio = { version = "1.53.1", default-features = false, features = ["rt"] }
+
+[dev-dependencies]
+# Signing a release of this test's own, for the one test that runs a release
+# the whole way through this program -- see tests/relaunch.rs.
+minisign = "0.9.1"

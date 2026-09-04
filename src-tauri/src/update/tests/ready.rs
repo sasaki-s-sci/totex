@@ -1,6 +1,6 @@
 //! The release that came down and is waiting for the restart.
 
-use totex_keep::update::{Install, Kind};
+use totex_persistent::update::{Install, Kind};
 
 use crate::update::Ready;
 

@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use super::{addressed, keep, post, reported, session};
+use super::{addressed, held, post, reported, session};
 
 /// The switch is a switch, and not a way of cutting off every agent that is
 /// already running.
@@ -14,15 +14,15 @@ use super::{addressed, keep, post, reported, session};
 #[cfg(unix)]
 #[test]
 fn switching_the_server_off_and_on_leaves_the_addresses_where_they_were() {
-    let keep = keep();
+    let held = held();
     let id = "kept";
     let cwd = std::env::temp_dir().display().to_string();
-    let before = session(&keep, id);
+    let before = session(&held, id);
 
-    keep.door.unserve();
-    keep.door.serve().expect("the server stands again");
+    held.door.unserve();
+    held.door.serve().expect("the server stands again");
 
-    let after = addressed(&keep.door, id, &cwd).expect("the session still has one");
+    let after = addressed(&held.door, id, &cwd).expect("the session still has one");
     assert_eq!(
         before, after,
         "a terminal was left holding the wrong address"
@@ -37,10 +37,10 @@ fn switching_the_server_off_and_on_leaves_the_addresses_where_they_were() {
     assert_eq!(status, "HTTP/1.1 200 OK");
     assert!(called["result"]["isError"].is_null());
     assert_eq!(
-        reported(&keep.door, id).map(|said| said.doing),
+        reported(&held.door, id).map(|said| said.doing),
         Some("still here".to_string())
     );
 
-    keep.sessions.close(id);
-    keep.door.unserve();
+    held.sessions.close(id);
+    held.door.unserve();
 }

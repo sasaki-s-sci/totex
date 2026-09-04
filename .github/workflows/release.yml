@@ -4,8 +4,16 @@ name: Release
 # and this is the whole of it. The number is worked out from what the tree
 # already says it is, written into every file that carries it, committed and
 # tagged, and the tag is handed to the build. Nothing about a release is typed
-# by hand, so a tag can never name a version the tree does not, and the three
+# by hand, so a tag can never name a version the tree does not, and the four
 # places the version lives cannot drift apart at the one moment it matters.
+#
+# Which part turns over says what the release replaces. A patch is the
+# ephemeral half alone -- the window and its pages -- and the program holding
+# the terminals goes on holding them across it. A minor is that program too,
+# and every terminal it holds is closed to put it in. See LINE in
+# src-tauri/persistent/src/lib.rs, which is where an installed copy applies
+# the rule; this is where the rule is kept true, by refusing a patch that
+# touched the persistent half.
 on:
   workflow_dispatch:
     inputs:
@@ -65,41 +73,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Three files carry a version, and they are not always the same
-          # number. The pages can be released on a cycle of their own -- see
-          # src-tauri/src/release/cycle.rs -- so they can have moved since the
-          # last release of the app without the app having moved with them.
-          #
-          # This is the cycle where all three move together, and they move to
-          # one number: the next one after the highest of them. Not after the
-          # program's own, because that would hand a number to the program that
-          # pages released on their own have already been published under, and
-          # a version is only worth naming while it names one thing.
+          # Four files carry a version and they are one number: every release
+          # moves all of them together, and a tree where they disagree is a
+          # tree something was done to by hand.
           conf=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
           crate=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml | head -1)
           pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
-
-          # The two the program is described by are one thing said twice, and a
-          # bundle that claims a different version from the crate inside it is
-          # a release nobody could ask for by name.
-          if [ "$crate" != "$conf" ]; then
-            echo "::error::the program disagrees about its own version: tauri.conf.json $conf, Cargo.toml $crate"
-            exit 1
-          fi
-
-          # Three numbers and nothing else: this adds to them, and there is
-          # nothing sensible to add to a version with a suffix on it.
-          for carried in "$conf" "$pkg"; do
-            if ! printf '%s' "$carried" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-              echo "::error::$carried is not a version this knows how to turn over"
+          persistent=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/persistent/Cargo.toml | head -1)
+          for carried in "$crate" "$pkg" "$persistent"; do
+            if [ "$carried" != "$conf" ]; then
+              echo "::error::the tree disagrees about its own version: tauri.conf.json $conf, Cargo.toml $crate, package.json $pkg, persistent/Cargo.toml $persistent"
               exit 1
             fi
           done
 
-          highest=$(printf '%s\n' "$conf" "$pkg" | sort -V | tail -1)
-          echo "the program is at $conf, the pages at $pkg"
+          # Three numbers and nothing else: this adds to them, and there is
+          # nothing sensible to add to a version with a suffix on it.
+          if ! printf '%s' "$conf" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::$conf is not a version this knows how to turn over"
+            exit 1
+          fi
+          echo "the app is at $conf"
 
-          IFS=. read -r major minor patch <<<"$highest"
+          IFS=. read -r major minor patch <<<"$conf"
           case "$PART" in
             major) major=$((major + 1)); minor=0; patch=0 ;;
             minor) minor=$((minor + 1)); patch=0 ;;
@@ -116,9 +112,35 @@ jobs:
             exit 1
           fi
 
-          echo "from=$highest" >>"$GITHUB_OUTPUT"
+          echo "from=$conf" >>"$GITHUB_OUTPUT"
           echo "to=$next" >>"$GITHUB_OUTPUT"
-          echo "cutting v$highest -> v$next"
+          echo "cutting v$conf -> v$next"
+
+      - name: Refuse a patch that touched the persistent half
+        # A patch promises that the program holding the terminals is the same
+        # program before and after, so that an installed copy keeps using the
+        # one it has. That promise is read off the number by every copy that
+        # updates, and it is only worth reading if nothing under the persistent
+        # half's own directory moved since the release before this one. A
+        # change there is a minor release, whatever it was for.
+        #
+        # Compared against the last release that had the directory at all: the
+        # release that put it under this name has nothing earlier to be read
+        # against, and says so rather than refusing.
+        if: inputs.part == 'patch'
+        run: |
+          set -euo pipefail
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -z "$previous" ] || ! git cat-file -e "$previous:src-tauri/persistent/Cargo.toml" 2>/dev/null; then
+            echo "::notice::${previous:-no release} has no src-tauri/persistent to compare against, so this patch is not checked for changes to it"
+            exit 0
+          fi
+          if ! git diff --quiet "$previous" HEAD -- src-tauri/persistent; then
+            echo "::error::src-tauri/persistent has changed since $previous, and a patch release promises it has not -- cut a minor"
+            git --no-pager diff --stat "$previous" HEAD -- src-tauri/persistent
+            exit 1
+          fi
+          echo "src-tauri/persistent is what it was at $previous"
 
       - name: Write it into everything that carries it
         env:
@@ -128,15 +150,14 @@ jobs:
 
           # The first match in each file is the package's own version; the ones
           # further down belong to dependencies. Written by position rather
-          # than by what was there, because the three are not all coming from
-          # the same number -- see the step above.
+          # than by what was there, which is what lets one line do all four.
           sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" package.json
           sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" src-tauri/tauri.conf.json
           sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/Cargo.toml
-          # The program that holds the terminals carries the app's number: it
-          # ships inside every release, and the window compares the one running
-          # against the one it brought -- see src-tauri/keep/Cargo.toml.
-          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/keep/Cargo.toml
+          # The persistent half carries the app's number too: it ships inside
+          # every release, and the window reads the line off it -- see
+          # src-tauri/persistent/Cargo.toml.
+          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/persistent/Cargo.toml
 
           # The lock says the version of every crate in the build, these two
           # included, and cargo rewrites it on the next build either way. Doing
@@ -145,7 +166,7 @@ jobs:
           # names.
           awk -v to="$TO" '
             found && /^version = / { $0 = "version = \"" to "\"" }
-            { found = ($0 == "name = \"totex\"" || $0 == "name = \"totex-keep\""); print }
+            { found = ($0 == "name = \"totex\"" || $0 == "name = \"totex-persistent\""); print }
           ' src-tauri/Cargo.lock >Cargo.lock.next
           mv Cargo.lock.next src-tauri/Cargo.lock
 
@@ -155,9 +176,9 @@ jobs:
           grep -q "^  \"version\": \"$TO\"" package.json &&
             grep -q "^  \"version\": \"$TO\"" src-tauri/tauri.conf.json &&
             grep -q "^version = \"$TO\"" src-tauri/Cargo.toml &&
-            grep -q "^version = \"$TO\"" src-tauri/keep/Cargo.toml &&
+            grep -q "^version = \"$TO\"" src-tauri/persistent/Cargo.toml &&
             grep -A1 '^name = "totex"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" &&
-            grep -A1 '^name = "totex-keep"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
+            grep -A1 '^name = "totex-persistent"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
               echo "::error::the version was not written everywhere it lives"
               git --no-pager diff --stat
               exit 1
@@ -185,7 +206,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -aqm "Turn the version over to $TO" -m \
-            "Cut by .github/workflows/release.yml, which is where the number is worked out, written into the three files that carry it, and tagged."
+            "Cut by .github/workflows/release.yml, which is where the number is worked out, written into the four files that carry it, and tagged."
 
           printf 'totex %s\n\n%s\n' "$TO" "$landed" >"$RUNNER_TEMP/tag-message.txt"
           git tag -a "v$TO" -F "$RUNNER_TEMP/tag-message.txt"

@@ -12,7 +12,7 @@ use serde_json::json;
 use crate::session::Event;
 use crate::talk::Link;
 use crate::wire::Address;
-use crate::{Keep, serve};
+use crate::{Persistent, serve};
 
 /// A temporary directory that removes itself, so a failing test cannot leave
 /// an address file behind for a real window to find.
@@ -24,8 +24,10 @@ impl TempDir {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|elapsed| elapsed.as_nanos())
             .unwrap_or_default();
-        let path =
-            std::env::temp_dir().join(format!("totex-keep-{tag}-{}-{unique}", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "totex-persistent-{tag}-{}-{unique}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&path).expect("create temp dir");
         Self(path)
     }
@@ -42,18 +44,25 @@ impl Drop for TempDir {
 }
 
 /// A program standing in a temporary home, and whether it has been ended.
-pub(crate) fn standing(tag: &str) -> (TempDir, Arc<Keep>, Arc<serve::Serving>, Arc<AtomicBool>) {
+pub(crate) fn standing(
+    tag: &str,
+) -> (
+    TempDir,
+    Arc<Persistent>,
+    Arc<serve::Serving>,
+    Arc<AtomicBool>,
+) {
     let temp = TempDir::new(tag);
-    let keep = Keep::new(Some(temp.path().to_path_buf()));
+    let program = Persistent::new(Some(temp.path().to_path_buf()));
     let ended = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&ended);
     let serving = serve::stand(
-        Arc::clone(&keep),
+        Arc::clone(&program),
         temp.path(),
         Box::new(move || flag.store(true, Ordering::Relaxed)),
     )
     .expect("the program stands");
-    (temp, keep, serving, ended)
+    (temp, program, serving, ended)
 }
 
 #[test]
@@ -61,12 +70,12 @@ fn a_window_finds_the_program_by_the_address_it_wrote() {
     let (temp, _keep, serving, _) = standing("address");
     let address = Address::read(temp.path()).expect("the address was written");
     assert_eq!(address.port, serving.port());
-    assert_eq!(address.protocol, crate::PROTOCOL);
+    assert_eq!(address.line, crate::LINE);
     assert_eq!(address.version, crate::VERSION);
 
     let link = Link::connect(temp.path()).expect("the window connects");
     assert_eq!(link.version(), crate::VERSION);
-    assert_eq!(link.protocol(), crate::PROTOCOL);
+    assert_eq!(link.line(), crate::LINE);
     assert_eq!(serving.clients(), 1);
 
     let listed = link.ask("sessions", json!({})).expect("asked");
@@ -117,7 +126,7 @@ fn what_the_window_keeps_is_there_for_the_next_window() {
 #[cfg(unix)]
 #[test]
 fn a_window_replaced_under_a_running_shell_is_a_shell_that_never_finds_out() {
-    let (temp, keep, serving, ended) = standing("sessions");
+    let (temp, program, serving, ended) = standing("sessions");
     let cwd = std::env::temp_dir().display().to_string();
 
     let first = Link::connect(temp.path()).expect("the first window connects");
@@ -155,7 +164,11 @@ fn a_window_replaced_under_a_running_shell_is_a_shell_that_never_finds_out() {
         !ended.load(Ordering::Relaxed),
         "the program went with the window"
     );
-    assert_eq!(keep.sessions.count(), 1, "the shell went with the window");
+    assert_eq!(
+        program.sessions.count(),
+        1,
+        "the shell went with the window"
+    );
 
     // And the next window finds the same shell, with what it said and what
     // was left beside it.
@@ -196,7 +209,7 @@ fn a_window_replaced_under_a_running_shell_is_a_shell_that_never_finds_out() {
         ended.load(Ordering::Relaxed),
         "stop did not end the program"
     );
-    assert_eq!(keep.sessions.count(), 0);
+    assert_eq!(program.sessions.count(), 0);
 }
 
 #[test]

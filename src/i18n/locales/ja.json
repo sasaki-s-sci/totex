@@ -132,8 +132,8 @@
   },
   "update": {
     "title": "Updates",
-    "core": "persistent",
-    "frontProgram": "ephemeral",
+    "persistent": "persistent",
+    "ephemeral": "ephemeral",
     "pin": "{{name}} のバージョンを固定",
     "pagesAt": "(画面 {{version}})",
     "programAt": "(本体 {{version}})",
@@ -145,7 +145,10 @@
     "adjusting": "指定したバージョンに調整中…",
     "adjustFailed": "指定したバージョンに調整できませんでした",
     "incompatible": "利用できないか、互換性のないバージョンです",
-    "keepBehind": "端末をすべて閉じると {{version}} に移ります",
+    "stays": "{{line}} 系列内の patch。端末を抱えるプログラムはそのままで、端末もすべて残ります。",
+    "moves": "{{line}} 系列は端末を抱えるプログラムごと入れ替わります。入れ替えのため端末はすべて閉じられます。",
+    "persistentBehind": "窓と同じ系列。端末が一つも無い状態で起動したとき {{version}} に入れ替わります。",
+    "persistentLine": "端末を抱えるプログラム。patch では入れ替わらず、minor で入れ替わります。",
     "held": "パッケージ管理から更新"
   },
   "theme": {
