@@ -116,6 +116,19 @@ export function followRepository(repoId: string): Promise<void> {
   return invoke("follow_repository", { repoId });
 }
 
+/**
+ * The same round over one repository, asked for by hand.
+ *
+ * What it does to the branches is exactly what `followRepository` does — see
+ * `round`, which is the one piece of work behind both. The difference is that
+ * somebody pressed for this one, so a remote that would not answer comes back
+ * as the reason rather than as silence. What did answer is taken and drawn
+ * before that is raised.
+ */
+export function fetchRepository(repoId: string): Promise<void> {
+  return invoke("fetch_repository", { repoId });
+}
+
 /** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });

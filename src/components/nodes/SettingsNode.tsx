@@ -6,7 +6,7 @@ import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { SettingsFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
-import { FollowRow } from "../settings/FollowRow";
+import { FollowSection } from "../settings/FollowSection";
 import { LanguageRow } from "../settings/LanguageRow";
 import { McpSection } from "../settings/McpSection";
 import { RevealRow } from "../settings/RevealRow";
@@ -52,8 +52,8 @@ export function SettingsNode(_props: NodeProps<SettingsFlowNode>) {
           <ThemeRow />
           <LanguageRow />
           <RevealRow />
-          <FollowRow />
           <SaidSection />
+          <FollowSection />
           <McpSection controls={mcp} />
           <UpdateSection />
         </Stack>

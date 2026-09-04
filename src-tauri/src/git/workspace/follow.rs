@@ -1,14 +1,20 @@
-//! Keeping every branch up with the remote end it follows, while the window is
-//! left open.
+//! Keeping every branch up with the remote end it follows, over a whole
+//! repository at once.
 //!
-//! Nobody's press, which is the whole of what shapes it. The gesture that
+//! Every branch at once, which is the whole of what shapes it. The gesture that
 //! brings one branch level with its remote is `sync_branch`, over in `history`:
 //! somebody asking for what is out there, on the branch they asked it on, and
-//! there to be told how far it got. This is a timer instead, over every branch
-//! at once, in a window that may not be being looked at. So it takes only the
+//! there to be told how far it got. This is the other reading -- the lot of
+//! them, in a window that may not be being looked at. So it takes only the
 //! branches that were purely behind and leaves every other one exactly where it
-//! was -- a window that made merge commits while nobody was watching would be a
+//! was: a window that made merge commits while nobody was watching would be a
 //! window nobody could leave open.
+//!
+//! Two things ask for it, and the rule above is the same for both. A timer,
+//! while the setting for it is on, which is a round nobody pressed for. And a
+//! press on the settings page, which is one somebody is waiting on. The only
+//! difference that makes is whether a remote that would not answer is said out
+//! loud -- see `round`.
 
 use std::path::{Path, PathBuf};
 
@@ -21,43 +27,98 @@ use crate::git::session::{report_all, repository_dir};
 /// What a branch that moved on its own says in its reflog.
 const NOTE: &str = "totex: followed the remote";
 
+/// What one round found. Neither half is a failure: a round that reached
+/// nothing still says so as an answer, because what it did before that is worth
+/// having either way.
+pub(super) struct Round {
+    /// Whether anything actually moved. A rescan is the expensive half of a
+    /// round, and one that found the world exactly as it left it has nothing to
+    /// redraw.
+    pub(super) moved: bool,
+    /// Why a remote could not be reached, where one could not. Read by the
+    /// caller somebody is waiting on and dropped by the one nobody is.
+    pub(super) missed: Option<String>,
+}
+
 /// Asks every remote of one repository, and takes the branches that were only
 /// behind up to what came back.
 ///
-/// The whole of what the automatic setting does. Fast-forward and nothing else:
-/// a branch that has commits of its own is two ends that have parted, and
-/// joining them is a decision somebody makes rather than something a timer does.
-/// A branch that is checked out is somebody's directory as well as a ref, so it
-/// is only moved when nothing is uncommitted in it.
+/// The whole of what both callers do, and the same rule for each. Fast-forward
+/// and nothing else: a branch that has commits of its own is two ends that have
+/// parted, and joining them is a decision somebody makes rather than something a
+/// timer does. A branch that is checked out is somebody's directory as well as a
+/// ref, so it is only moved when nothing is uncommitted in it.
 ///
-/// Nothing here is reported. The round is nobody's press — there is no mark
-/// waiting on it and no gesture to answer — so a remote that would not answer,
-/// or a branch that would not move, is simply a branch that is where it was.
+/// A remote that would not answer is carried back rather than thrown, because it
+/// does not stop the round: `--all` crosses to the others whatever one of them
+/// did, and a remote that is down does not make the branches behind the ones
+/// that are up any less behind. So what did answer is taken first, and who — if
+/// anybody — is told about the one that did not is the caller's to decide.
+pub(super) fn round(repo: &Path) -> Result<Round, String> {
+    // One crossing for every remote rather than one for every branch: a round
+    // that asked branch by branch would open a connection per branch, on a
+    // timer, for a window nobody is necessarily looking at.
+    let before = remote_refs(repo);
+    let reached = cmd::run(repo, &["fetch", "--quiet", "--all"]);
+    let mut moved = remote_refs(repo) != before;
+
+    let checkouts = worktrees_by_branch(repo).unwrap_or_default();
+    for behind in behind_branches(repo)? {
+        if forward(repo, &behind, checkouts.get(&behind.branch)) {
+            moved = true;
+        }
+    }
+    Ok(Round {
+        moved,
+        missed: reached.err(),
+    })
+}
+
+/// The round on a timer, while the window is told to follow.
+///
+/// Nobody's press, and nothing is reported because of it: there is no mark
+/// waiting on this and no gesture to answer, so a remote that would not answer
+/// is simply a branch that is where it was. Saying otherwise would be the window
+/// complaining about a network nobody asked it to cross.
 #[tauri::command]
 pub async fn follow_repository(app: AppHandle, repo_id: String) -> Result<(), String> {
     off_thread!({
         let repo = repository_dir(&app, &repo_id)?;
-
-        // One crossing for every remote rather than one for every branch: a
-        // round that asked branch by branch would open a connection per branch,
-        // on a timer, for a window nobody is necessarily looking at.
-        let before = remote_refs(&repo);
-        let _ = cmd::run(&repo, &["fetch", "--quiet", "--all"]);
-        let mut moved = remote_refs(&repo) != before;
-
-        let checkouts = worktrees_by_branch(&repo).unwrap_or_default();
-        for behind in behind_branches(&repo)? {
-            if forward(&repo, &behind, checkouts.get(&behind.branch)) {
-                moved = true;
-            }
-        }
-
-        // A rescan is the expensive half of this, and a round that found the
-        // world exactly as it left it has nothing to redraw.
-        if moved {
+        if round(&repo)?.moved {
             report_all(&app)?;
         }
         Ok(())
+    })
+}
+
+/// The same round, asked for by hand.
+///
+/// The press behind the setting rather than a second kind of following: what it
+/// does to the branches is exactly what the timer does, so there is nothing to
+/// be had by pressing that leaving the window open would not have done on its
+/// own. What is different is when — the news now, rather than in however much of
+/// the round is left — and that somebody is there to be told.
+///
+/// Told last. A press is a question and a question that goes quiet has not been
+/// answered, so a remote that could not be reached comes back as the reason it
+/// could not; but the graph is redrawn before that is raised, because what did
+/// answer has been taken and the graph is what says so.
+///
+/// Offered whether or not the window is following. The setting is about what
+/// this window does unasked, and somebody who will not have it on their network
+/// unasked still wants to ask.
+#[tauri::command]
+pub async fn fetch_repository(app: AppHandle, repo_id: String) -> Result<(), String> {
+    off_thread!({
+        let repo = repository_dir(&app, &repo_id)?;
+        let done = round(&repo)?;
+        if done.moved {
+            report_all(&app)?;
+        }
+        match done.missed {
+            Some(reason) => Err(reason),
+            None => Ok(()),
+        }
     })
 }
 

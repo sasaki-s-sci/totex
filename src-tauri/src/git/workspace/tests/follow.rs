@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::super::follow::{Behind, behind_branches, forward};
+use super::super::follow::{Behind, behind_branches, forward, round};
 use super::head_of;
 use crate::git::tests::{TempDir, commit, git};
 
@@ -155,4 +155,55 @@ fn a_worktree_with_work_in_it_is_left_where_it_is() {
     );
     assert_eq!(head_of(&here, "main"), moved, "main is not at the remote");
     assert!(here.join("two.txt").exists(), "the files did not follow");
+}
+
+#[test]
+fn a_round_takes_what_the_remote_has_and_says_whether_anything_moved() {
+    let temp = TempDir::new("round");
+    let Pair { here, there } = pair(&temp, &["topic"]);
+    let moved = push_from_there(&there, "topic", "two.txt");
+
+    // The whole of a round in one call: nothing here has asked about the remote
+    // yet, so this is the fetch and the fast-forward together.
+    let done = round(&here).expect("a round");
+    assert!(done.moved, "the round found nothing");
+    assert_eq!(done.missed, None, "the remote is right there");
+    assert_eq!(head_of(&here, "topic"), moved, "topic is not at the remote");
+
+    // And again, against a remote that has not moved since. The refs are where
+    // they were and no branch is behind, which is the answer that saves the
+    // window a rescan.
+    assert!(
+        !round(&here).expect("a second round").moved,
+        "a round over a world that did not move said it had"
+    );
+}
+
+/// A remote that will not answer is carried back rather than thrown, and every
+/// remote that did answer is taken first.
+///
+/// The one thing the two callers read differently, so the round itself must
+/// leave them both able to: the timer drops the reason, and the press is told
+/// it. Neither is allowed to lose the branches.
+#[test]
+fn a_remote_that_will_not_answer_is_carried_back_and_stops_nothing() {
+    let temp = TempDir::new("unreachable");
+    let Pair { here, there } = pair(&temp, &["topic"]);
+    let moved = push_from_there(&there, "topic", "two.txt");
+
+    // A second remote with nothing on the end of it. `--all` crosses to both,
+    // and the one that is there has news on it.
+    git(&here, &["remote", "add", "gone", "/nowhere/at/all.git"]);
+
+    let done = round(&here).expect("a round is not a failure");
+    assert!(
+        done.missed.is_some(),
+        "a remote that is not there was not carried back"
+    );
+    assert!(done.moved, "the round said nothing moved");
+    assert_eq!(
+        head_of(&here, "topic"),
+        moved,
+        "the branch behind the remote that did answer was left behind"
+    );
 }

@@ -2,7 +2,7 @@
   "name": "totex",
   "version": "0.1.27",
   "private": true,
-  "frontContract": 8,
+  "frontContract": 9,
   "layerProtocol": 4,
   "type": "module",
   "scripts": {
