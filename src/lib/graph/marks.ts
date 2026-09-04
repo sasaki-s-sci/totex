@@ -71,10 +71,13 @@ export type CliNodeData = {
    * The row it is hanging on: a repository's band, a folded repository's mark,
    * or a folder's own row.
    *
-   * Nothing on the mark is drawn from this. It is here because the panel's
-   * strip reads the terminals off what is drawn — the same order the numbers
-   * are given out in — and what it cannot work out from a session alone is
-   * which of them are standing in the same place. See `cliRun`.
+   * It is here because the panel's strip reads the terminals off what is drawn
+   * — the same order the numbers are given out in — and what it cannot work out
+   * from a session alone is which of them are standing in the same place. See
+   * `cliRun`.
+   *
+   * The mark draws one thing from it, and only the mark the panel is holding:
+   * that row's name, over the glyph while Ctrl is held. See `.cli__place`.
    */
   group: string;
 };

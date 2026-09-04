@@ -103,6 +103,8 @@
     "language": "Language",
     "said": "Keep the lines on",
     "saidHint": "Show what each terminal was last told to run beside its mark, rather than only while Ctrl is held.",
+    "reveal": "Follow the walk",
+    "revealHint": "How far the canvas moves to keep the commit the cursor keys reached in view.",
     "follow": "Follow remotes",
     "followHint": "Fetch every few minutes, and take branches that are only behind up to their remote end.",
     "mcp": "MCP server",
@@ -152,6 +154,11 @@
     "system": "System",
     "english": "English",
     "japanese": "Japanese"
+  },
+  "reveal": {
+    "never": "Never",
+    "edge": "At the edge",
+    "centre": "Always centre"
   },
   "filePreview": {
     "unsaved": "{{name}} is unsaved",

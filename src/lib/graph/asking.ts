@@ -271,8 +271,10 @@ function split(word: string, width: number): [string, string] {
   return [word.slice(0, at), word.slice(at)];
 }
 
-/** How many columns a run of text takes. */
-function cellsOf(text: string): number {
+/** How many columns a run of text takes. Shared with anything that has to say
+ *  how wide a run of these lines came out — the same reckoning `wrap` breaks by,
+ *  so the two cannot disagree about what fits. */
+export function cellsOf(text: string): number {
   let cells = 0;
   for (const letter of text) cells += wide(letter) ? 2 : 1;
   return cells;

@@ -103,6 +103,8 @@
     "language": "言語",
     "said": "行を出したままにする",
     "saidHint": "各ターミナルに最後に打たれた行を、Ctrl を押している間だけでなく常にマークの横へ出します。",
+    "reveal": "歩いた先を追う",
+    "revealHint": "カーソルキーで選んだコミットを画面に入れるために、canvas をどこまで動かすか。",
     "follow": "リモートに追従",
     "followHint": "数分おきに fetch し、遅れているだけのブランチをリモートの先まで進めます。",
     "mcp": "MCPサーバー",
@@ -152,6 +154,11 @@
     "system": "システム",
     "english": "英語",
     "japanese": "日本語"
+  },
+  "reveal": {
+    "never": "動かさない",
+    "edge": "端に来たら",
+    "centre": "常に中央へ"
   },
   "filePreview": {
     "unsaved": "{{name}}は未保存",

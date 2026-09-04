@@ -3,6 +3,7 @@ import { memo, useMemo } from "react";
 import type { AppNode, Band, CommitFlowNode } from "../lib/graph";
 import { Bands, type Batch, Reach } from "./lines/bands";
 import { CommitEmphasis, Hover } from "./lines/hover";
+import { CommitMessages } from "./lines/messages";
 
 /**
  * Every line on the canvas, drawn as a handful of paths.
@@ -28,6 +29,8 @@ export const GraphLines = memo(function GraphLines({
   nodes,
   selected,
   picked,
+  reading,
+  message,
   onCommit,
 }: {
   bands: readonly Band[];
@@ -47,6 +50,12 @@ export const GraphLines = memo(function GraphLines({
   nodes: readonly AppNode[];
   selected: string | null;
   picked: string | null;
+  /** Whether the keys that read the history are held, which is the whole of
+   *  what puts what each commit says on the canvas. */
+  reading: boolean;
+  /** And the whole of what the one the walk is standing on says, or null while
+   *  it is standing on something that is not a commit. */
+  message: string | null;
   onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 }) {
   // Where every mark is standing, which is where the lines into it are drawn
@@ -67,6 +76,12 @@ export const GraphLines = memo(function GraphLines({
             another, and what they cross is not theirs to obscure. */}
         <Reach reach={reach} standing={standing} />
         <Bands bands={bands} standing={standing} />
+        {/* Over the history and under the marks that say where the walk is: what
+            a commit says is read off the canvas, and the light on the one it is
+            standing on is what says which of them is being read. */}
+        {reading && (
+          <CommitMessages bands={bands} standing={standing} picked={picked} message={message} />
+        )}
         <CommitEmphasis
           bands={bands}
           standing={standing}
