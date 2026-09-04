@@ -210,10 +210,21 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
         writing: Mutex::new(writing),
         relaunch: Mutex::new(None),
     });
-    if client.say(&hello(crate::VERSION).to_string()).is_err() {
-        return;
+    // Counted before the hello has gone, under the lock a broadcast would
+    // need, so that the first line the window reads is the hello and the
+    // window is one of the clients by the time it has read it.
+    {
+        let mut writing = lock(&client.writing);
+        let line = hello(crate::VERSION).to_string();
+        if writing
+            .write_all(format!("{line}\n").as_bytes())
+            .and_then(|()| writing.flush())
+            .is_err()
+        {
+            return;
+        }
+        lock(&serving.clients).push(Arc::clone(&client));
     }
-    lock(&serving.clients).push(Arc::clone(&client));
 
     let mut lines = reading.lines();
     while let Some(Ok(line)) = lines.next() {
