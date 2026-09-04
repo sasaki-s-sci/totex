@@ -8,11 +8,12 @@
  * that: the pull-down names where the app should be, the arrow says where that
  * differs from where it is, and the button takes it there.
  *
- * Two rows. **persistent** is the program holding the terminals, and nothing
- * on this page moves it: which releases replace it is said by the version
- * number, and the row says what that means for the release the pull-down is
- * on. **ephemeral** is this program and its pages, and is what the press
- * replaces.
+ * Two rows. **persistent** is the program holding the terminals. Which
+ * releases replace it is said by the version number, and the row says what
+ * that means for the release the other pull-down is on; its own pull-down
+ * offers the programs this machine holds, and moving it is a restart that
+ * ends every terminal, which the page says before the press. **ephemeral** is
+ * this program and its pages, and is what a release replaces.
  */
 
 import { Divider, Stack } from "@mui/material";
@@ -25,6 +26,7 @@ import {
   lineOf,
   reload,
   restart,
+  restartPersistent,
   rungOf,
   stageOf,
   take,
@@ -60,7 +62,7 @@ function activity(
   at: UpdateState,
   offering: boolean,
 ): { stage: UpdateStage; progress: number | null } {
-  const layers = ["ephemeral", "front"] as const;
+  const layers = ["ephemeral", "front", "persistent"] as const;
   const presses = layers.map((layer) => ({ ...at.presses[layer], stage: stageOf(at, layer) }));
   const taking = presses.find((press) => press.stage === "taking");
   if (taking) return taking;
@@ -91,7 +93,9 @@ export function UpdateSection() {
 
   const ephemeral = ephemeralStanding(at);
   const persistent = persistentStanding(at);
-  const moving = (["ephemeral", "front"] as const).some((layer) => stageOf(at, layer) === "taking");
+  const moving = (["ephemeral", "front", "persistent"] as const).some(
+    (layer) => stageOf(at, layer) === "taking",
+  );
 
   // The program first, and where it moves it is the whole of the ephemeral
   // half: the release it comes out of carries its own pages, and they arrive
@@ -120,13 +124,30 @@ export function UpdateSection() {
     ]);
   };
 
+  const choosePersistent = async (version: string | null) => {
+    await declare([{ layer: "persistent", version }]);
+  };
+
+  // The persistent half moves by a restart and not by a download, and the
+  // pages are drawn again afterwards: everything they were showing of the
+  // sessions is gone with the program that held them.
+  const finishPersistent = async (version: string) => {
+    const stage = await restartPersistent(version);
+    if (stage === "current") reload();
+  };
+
   if (!ephemeral || !persistent) return null;
 
   // Until the release page has answered once, nothing is known — neither that
   // there is something to take nor that there is not.
   const asked = at.choices.length > 0;
   const known = asked && resolved(ephemeral);
-  const waiting = Boolean(ephemeral.to);
+  // The ephemeral half first, where it has somewhere to go: the release it
+  // moves to brings a persistent half with it, and that one is what the
+  // persistent row is read against once the next window is up.
+  const ephemeralMoves = Boolean(ephemeral.to);
+  const persistentMoves = !ephemeralMoves && Boolean(persistent.to);
+  const waiting = ephemeralMoves || persistentMoves;
   // What the button is holding out: something to take, or a question nobody
   // has the answer to yet. Either way it is not a tick.
   const offering = waiting || !known;
@@ -143,6 +164,10 @@ export function UpdateSection() {
   const sync = async () => {
     if (ephemeral.can && ephemeral.target && (ephemeral.to || retry)) {
       await finishEphemeral(ephemeral.target.version);
+      return;
+    }
+    if (persistent.can && persistent.target && persistent.to) {
+      await finishPersistent(persistent.target.version);
     }
   };
 
@@ -155,9 +180,11 @@ export function UpdateSection() {
     ? t("update.failed")
     : arrived
       ? t("update.ready")
-      : offering
-        ? t("update.apply")
-        : t("update.current");
+      : persistentMoves
+        ? t("update.restart")
+        : offering
+          ? t("update.apply")
+          : t("update.current");
 
   // A copy the package manager owns can still bring its pages forward, and the
   // program under them is not this window's to replace.
@@ -170,12 +197,16 @@ export function UpdateSection() {
   const going = ephemeral.to && rungOf(at, "ephemeral")?.can ? ephemeral.to : null;
   const stays = going === null ? null : keepsTerminals(at, going);
   const line = going === null ? null : lineOf(going);
-  const terminals =
-    stays === null || line === null
+  const terminals = persistentMoves
+    ? t("update.persistentMove", { version: persistent.to })
+    : stays === null || line === null
       ? undefined
       : stays
         ? t("update.stays", { line })
         : t("update.moves", { line });
+  // Red before the press that ends every terminal, whichever row it is for:
+  // a restart of the persistent half, or a release on another line.
+  const closes = persistentMoves || (ephemeralMoves && stays === false);
 
   // The persistent half is behind the window only within a line: any further
   // behind and the window that found it would have replaced it.
@@ -200,9 +231,9 @@ export function UpdateSection() {
       >
         {/* A copy that can replace neither half of itself keeps its version
             and loses the press: what is left is a page saying what this is. */}
-        {ephemeral.can && (
+        {(ephemeral.can || persistent.can) && (
           <PageButton
-            danger={retry}
+            danger={retry || closes}
             disabled={moving || arrived || !(waiting || retry)}
             icon={<UpdateMark stage={mark.stage} progress={mark.progress} />}
             onClick={() => void sync()}
@@ -220,8 +251,8 @@ export function UpdateSection() {
               ? t("update.persistentBehind", { version: ephemeral.at })
               : t("update.persistentLine")
           }
-          disabled
-          onChange={() => undefined}
+          disabled={moving}
+          onChange={(version) => void choosePersistent(version)}
         />
         <VersionRow
           name={t("update.ephemeral")}

@@ -111,3 +111,51 @@ fn a_window_starts_the_program_and_the_next_window_finds_it() {
     }
     panic!("the program is still answering after stop");
 }
+
+/// The one press that replaces the program while a window is open: what was
+/// running is stopped, shells and all, and the one the window names is
+/// started in its place.
+#[test]
+fn a_window_can_restart_the_program_and_the_shells_go_with_the_old_one() {
+    let temp = TempDir::new("restart");
+    let home = &temp.0;
+
+    let first = Link::reach(home, &program()).expect("the program comes up");
+    let before = Address::read(home).expect("the address").pid;
+    #[cfg(unix)]
+    first
+        .ask(
+            "open",
+            json!({ "id": "held", "cwd": std::env::temp_dir(), "rows": 24, "cols": 80 }),
+        )
+        .expect("a shell starts");
+    first
+        .ask("store_put", json!({ "name": "note", "value": "left" }))
+        .expect("kept");
+
+    let second = Link::restart(home, &program()).expect("a program starts in its place");
+    assert!(
+        first.wait_gone(Duration::from_secs(5)),
+        "the first program is still answering the old link"
+    );
+    let after = Address::read(home).expect("the address").pid;
+    assert_ne!(before, after, "the same program is still running");
+    let listed = second.ask("sessions", json!({})).expect("asked");
+    assert!(
+        listed.as_array().is_some_and(Vec::is_empty),
+        "a shell came across: {listed}"
+    );
+    // The store is on disk and not in the program, so it is still there.
+    assert_eq!(
+        second
+            .ask("store_get", json!({ "name": "note" }))
+            .expect("asked"),
+        json!("left")
+    );
+
+    second.stop();
+    assert!(
+        second.wait_gone(Duration::from_secs(5)),
+        "stop did not end it"
+    );
+}

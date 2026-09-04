@@ -26,8 +26,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use totex_persistent::talk::Link;
-
 use crate::pty::{self, Event};
 
 pub use watcher::Watcher;
@@ -139,7 +137,7 @@ fn pressed<R: Runtime>(
 /// that something is following and never what it is for.
 pub fn attend<R: Runtime>(app: &AppHandle<R>) {
     let handle = app.clone();
-    app.state::<Arc<Link>>().follow(Arc::new(move |id, event| {
+    crate::persistent::link(app).follow(Arc::new(move |id, event| {
         let state = handle.state::<AskState>();
         match event {
             Event::Opened { rows, cols } => {

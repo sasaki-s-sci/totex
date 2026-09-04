@@ -9,7 +9,13 @@
  * and the one button above them are both asking.
  */
 
-import { lineOf, rungOf, type UpdateChoice, type UpdateState } from "../../lib/update";
+import {
+  lineOf,
+  persistentLatest,
+  rungOf,
+  type UpdateChoice,
+  type UpdateState,
+} from "../../lib/update";
 
 /** The declaration that names no version and follows whatever is newest. */
 export const LATEST = "latest";
@@ -76,21 +82,32 @@ function selectedVersion(at: UpdateState): string {
 /**
  * The persistent half: the program beside the window that holds the terminals.
  *
- * Nothing here is declared. What is running is what an earlier window started
- * and left holding shells, or what this one brought; the row says which.
+ * What is running is what an earlier window started and left holding shells,
+ * or what this one brought. What it can be pointed at is not a release page
+ * but the programs this machine holds, on this window's line -- every release
+ * that has run here left one -- and `latest` among them is the one this
+ * window brought. Where the two differ the arrow says so, and the press that
+ * follows it is a restart: every terminal is closed.
  */
 export function persistentStanding(at: UpdateState): Standing | null {
   const rung = rungOf(at, "persistent");
   if (!rung) return null;
+  const choices = rung.held.map((version) => ({ version, frontContract: null }));
+  const latest = persistentLatest(at);
+  const picked = rung.picked ?? LATEST;
+  const target =
+    (rung.picked === null
+      ? choices.find((choice) => choice.version === latest)
+      : choices.find((choice) => choice.version === picked)) ?? null;
   return {
     at: rung.at,
     aside: null,
-    to: null,
-    picked: "",
-    latest: null,
-    choices: [],
-    target: null,
-    can: false,
+    to: target && target.version !== rung.at ? target.version : null,
+    picked,
+    latest,
+    choices,
+    target,
+    can: rung.can,
   };
 }
 

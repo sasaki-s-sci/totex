@@ -198,9 +198,16 @@ impl Link {
     /// and replaced, and one on another line is stopped whatever it holds —
     /// the one cost here, and one a minor release pays on purpose.
     pub fn reach(home: &Path, program: &Path) -> Result<Self, String> {
+        Self::reach_version(home, program, crate::VERSION)
+    }
+
+    /// The same, for a window that brought a program of another version than
+    /// its own -- one it was told to start instead, see the window's settings
+    /// page -- so that "the version this window brought" is that one.
+    pub fn reach_version(home: &Path, program: &Path, version: &str) -> Result<Self, String> {
         match Self::connect(home) {
             Ok(link) => {
-                let same = link.version == crate::VERSION;
+                let same = link.version == version;
                 let empty = link.sessions_empty();
                 if link.line == crate::LINE && (same || !empty) {
                     return Ok(link);
@@ -210,7 +217,26 @@ impl Link {
             }
             Err(Missing::Nobody) | Err(Missing::Refused(_)) => {}
         }
+        Self::start_and_find(home, program)
+    }
 
+    /// Stops whatever is running, whatever it holds, and starts `program` in
+    /// its place.
+    ///
+    /// The one way the program is replaced on purpose while a window is open,
+    /// and the one press on the settings page that ends every terminal: the
+    /// shells go with the program that held them, and the window that asked
+    /// for this is the window that said so first.
+    pub fn restart(home: &Path, program: &Path) -> Result<Self, String> {
+        if let Ok(link) = Self::connect(home) {
+            link.stop();
+            link.wait_gone(STOPPING);
+        }
+        Self::start_and_find(home, program)
+    }
+
+    /// Starts `program` beside this window and waits for it to say where it is.
+    fn start_and_find(home: &Path, program: &Path) -> Result<Self, String> {
         start(program, home)?;
         let deadline = Instant::now() + STARTING;
         loop {

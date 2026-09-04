@@ -70,10 +70,11 @@ pub use ready::Ready;
 #[serde(rename_all = "camelCase")]
 pub enum Layer {
     /// The program beside this one that holds the terminals -- see
-    /// `totex_persistent`. Never taken by a row: it comes with a release of
-    /// the ephemeral half, and is replaced by the next window at the moment
-    /// the version says it has to be. The row says what is running, and that
-    /// is all it can do.
+    /// `totex_persistent`. Not taken from a release page: it comes with a
+    /// release of the ephemeral half, and the row offers the ones this
+    /// machine holds. Replaced by the next window at the moment the version
+    /// says it has to be, or by the one press that ends every terminal -- see
+    /// `crate::persistent::persistent_restart`.
     Persistent,
     /// This program, with its pages inside it: what a release replaces.
     Ephemeral,
@@ -137,6 +138,10 @@ pub struct Rung {
     pub picked: Option<String>,
     /// The newest front contract this program answers, on the ephemeral row.
     pub front_contract: Option<u32>,
+    /// The versions of this layer this machine holds and could start, on the
+    /// persistent row -- see `crate::persistent::held`. Its releases are not
+    /// a page somewhere: they are the programs earlier releases left here.
+    pub held: Vec<String>,
 }
 
 /// What the update rows are drawn from.
@@ -147,6 +152,7 @@ pub struct Rung {
 pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
     let serving = app.state::<std::sync::Arc<Serving>>();
     let kept = app.state::<std::sync::Arc<Kept>>();
+    let identifier = app.config().identifier.clone();
 
     LAYERS
         .into_iter()
@@ -157,14 +163,15 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
                 // an earlier patch of this line if it is still holding
                 // something.
                 Layer::Persistent => app
-                    .try_state::<std::sync::Arc<totex_persistent::talk::Link>>()
-                    .map(|link| link.version().to_string())
+                    .try_state::<std::sync::Arc<crate::persistent::Reached>>()
+                    .map(|reached| reached.link().version().to_string())
                     .unwrap_or_default(),
                 Layer::Ephemeral => env!("CARGO_PKG_VERSION").to_string(),
                 Layer::Front => serving.version().to_string(),
             },
             can: match layer {
-                Layer::Persistent => false,
+                // Replaced by a press only with something to replace it with.
+                Layer::Persistent => !crate::persistent::held_versions(&identifier).is_empty(),
                 Layer::Ephemeral => whole_update_supported(),
                 // Somewhere to keep a front is as much a condition as having
                 // been installed: a machine with no data directory can only
@@ -173,6 +180,10 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
             },
             picked: kept.picked(layer),
             front_contract: (layer == Layer::Ephemeral).then_some(crate::front::take::contract()),
+            held: match layer {
+                Layer::Persistent => crate::persistent::held_versions(&identifier),
+                Layer::Ephemeral | Layer::Front => Vec::new(),
+            },
         })
         .collect()
 }
@@ -190,8 +201,9 @@ pub async fn update_take<R: Runtime>(
     coming: Channel<Coming>,
 ) -> Result<Took, String> {
     match layer {
-        // Replaced by the next window, when the version says so, and by
-        // nothing else.
+        // Replaced by a restart and not by a download -- see
+        // `crate::persistent::persistent_restart`, which the page asks for
+        // instead of this.
         Layer::Persistent => Ok(Took::Held),
         Layer::Ephemeral => ephemeral::take_ephemeral(&app, version.as_deref(), &coming).await,
         Layer::Front => crate::front::take::take_front(&app, version.as_deref(), &coming).await,
