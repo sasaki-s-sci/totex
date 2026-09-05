@@ -89,7 +89,7 @@ export function useFilePreviewCard(
 
   /** Switches the content while retaining the common panel and its geometry. */
   const setFilePreviewView = useCallback(
-    (requestId: number, view: "text" | "diff" | "settings") => {
+    (requestId: number, view: import("../lib/filePreview").FilePreviewView) => {
       setNodes((current) =>
         current.map((node) =>
           node.type === "file-preview" && node.data.requestId === requestId
@@ -145,7 +145,7 @@ export function useFilePreviewCard(
           // A pinned card is drawn over the canvas rather than on it, so the
           // room there is for it is the pane itself — the zoom is something it
           // stepped out of when it was pinned.
-          const most = node.data.pinnedAt ? room : room / zoom;
+          const most = room / (node.data.pinnedAt ? (node.data.pinnedScale ?? 1) : zoom);
           const width = room > 0 ? Math.min(wanted, most) : wanted;
           return { ...node, width, data: { ...node.data, box: { ...fileSize(node), width } } };
         }),
@@ -168,19 +168,8 @@ export function useFilePreviewCard(
    * over, and the node is put there. A card pinned, the graph panned across a
    * repository, and the card let go stays on screen where the reader left it.
    *
-   * Its box does not cross with it. The zoom is a scale the whole card is drawn
-   * at — the reading inside it as much as the edges around it — and only the
-   * edges are a number kept here, so a box multiplied by the zoom on the way out
-   * would hold the card at the size it looked while leaving what is in it at
-   * another size entirely: the same card, pinned off a graph at half scale, is
-   * five lines of a file where it had just been twelve. So the box crosses
-   * untouched and a pinned card is drawn at its own size, which is the size the
-   * canvas draws it at with the zoom at one. That is the whole of the step: a
-   * card standing at the zoom, and one standing at none.
-   *
-   * Nothing but the position, then, and the position is the one thing that has
-   * to be said in the other's units — where the card is on screen is where the
-   * reader is looking, and the two sides measure that from different corners.
+   * Keep the canvas scale on the floating card so pinning preserves both its
+   * visible dimensions and the size of its contents.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const pinFilePreview = useCallback(
@@ -201,11 +190,13 @@ export function useFilePreviewCard(
             };
           }
           const corner = flow.flowToScreenPosition(node.position);
+          const pinnedScale = flow.getViewport().zoom;
           return {
             ...node,
             hidden: true,
             data: {
               ...node.data,
+              pinnedScale,
               // Held inside the pane by the same rule a drag is, so that a card
               // pinned while it is half off the canvas is not pinned half out
               // of the window. Its own width, because that is what it will be
@@ -213,7 +204,7 @@ export function useFilePreviewCard(
               pinnedAt: heldInPane(
                 { x: corner.x - pane.left, y: corner.y - pane.top },
                 pane,
-                fileSize(node).width,
+                fileSize(node).width * pinnedScale,
               ),
             },
           };

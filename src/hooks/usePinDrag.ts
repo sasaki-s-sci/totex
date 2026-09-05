@@ -69,7 +69,7 @@ export function usePinDrag(
       // The header and nothing else — a reading is selected and typed into, and
       // the marks in the header are pressed rather than dragged.
       if (!target.closest(".page__header")) return;
-      if (target.closest(".page__tool")) return;
+      if (target.closest(".page__tool, button, select, input, label")) return;
 
       const card = event.currentTarget;
       const box = pane.current?.getBoundingClientRect();
@@ -85,7 +85,7 @@ export function usePinDrag(
         requestId,
         card,
         grab: { x: event.clientX - card.offsetLeft, y: event.clientY - card.offsetTop },
-        width: card.offsetWidth,
+        width: card.getBoundingClientRect().width,
         pane: { width: box.width, height: box.height },
       };
       card.setPointerCapture(event.pointerId);

@@ -59,3 +59,76 @@
   font-size: 10px;
   white-space: nowrap;
 }
+
+.file-preview__mode {
+  max-width: 90px;
+  min-width: 0;
+  font: inherit;
+  font-size: 10px;
+  color: var(--mui-palette-text-primary);
+  background: var(--mui-palette-background-paper);
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 3px;
+}
+
+.schema-reading {
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
+  font-size: 12px;
+}
+
+.schema-reading__attachment,
+.schema-reading .form-group {
+  margin-bottom: 12px;
+}
+
+.schema-reading__attachment label,
+.schema-reading .control-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.schema-reading input:not([type="checkbox"]),
+.schema-reading select,
+.schema-reading textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.schema-reading input,
+.schema-reading select,
+.schema-reading textarea,
+.schema-reading button {
+  font: inherit;
+  color: inherit;
+  background: var(--mui-palette-background-paper);
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 4px;
+  padding: 5px;
+}
+
+.schema-reading fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.schema-reading legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.schema-reading .field-description {
+  color: var(--mui-palette-text-secondary);
+}
+.schema-reading [role="alert"],
+.schema-reading .text-danger,
+.schema-reading .error-detail {
+  color: var(--mui-palette-error-main);
+}
+.schema-reading button {
+  cursor: pointer;
+}
+.schema-reading button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

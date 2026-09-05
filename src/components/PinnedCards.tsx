@@ -36,6 +36,8 @@ export function PinnedCards({
               left: node.data.pinnedAt?.x,
               top: node.data.pinnedAt?.y,
               width: box.width,
+              transform: `scale(${node.data.pinnedScale ?? 1})`,
+              transformOrigin: "top left",
               // Put away, a card is as tall as its header, which is
               // the header's own answer and not a number kept here.
               height: node.data.collapsed ? undefined : box.height,

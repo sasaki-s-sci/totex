@@ -10,7 +10,7 @@ export const FILE_DRAG_TYPE = "application/x-totex-file";
  * against each other — except for a file that is nothing but a picture, which
  * opens as one because there is no reading of it to stand beside.
  */
-export type FilePreviewView = "text" | "diff" | "markdown" | "picture" | "settings";
+export type FilePreviewView = "text" | "diff" | "markdown" | "picture" | "settings" | "schema";
 
 /** One request to put a file card on the canvas. */
 export type FilePreviewRequest = {

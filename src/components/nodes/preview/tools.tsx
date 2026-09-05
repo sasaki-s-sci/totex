@@ -11,18 +11,15 @@
  */
 
 import CloseIcon from "@mui/icons-material/Close";
-import CodeIcon from "@mui/icons-material/Code";
 import DifferenceIcon from "@mui/icons-material/Difference";
 import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
-import PreviewIcon from "@mui/icons-material/Preview";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
-import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
 import { useSettingsDocument } from "../../../lib/appSettings";
-import { drawn, previewable } from "../../../lib/filePreview";
+import { drawn, type FilePreviewView, previewable, previewView } from "../../../lib/filePreview";
 import type { FilePreviewNodeData } from "../../../lib/graph";
 import { useGraphActions } from "../../graphActions";
 import { PageTool } from "../Page";
@@ -45,34 +42,47 @@ export function FileTools({
   const { t } = useTranslation();
   const config = useSettingsDocument();
   const isSettings = config?.path === data.path;
-  const {
-    closeFilePreview,
-    collapseFilePreview,
-    setFilePreviewView,
-    previewFilePreview,
-    pinFilePreview,
-  } = useGraphActions();
+  const { closeFilePreview, collapseFilePreview, setFilePreviewView, pinFilePreview } =
+    useGraphActions();
 
   return (
     <>
-      {isSettings && (
-        <PageTool
-          label={t(data.view === "settings" ? "settings.showJson" : "settings.showForm")}
-          onClick={() =>
-            void save().then(
-              (saved) =>
-                saved &&
-                setFilePreviewView(data.requestId, data.view === "settings" ? "text" : "settings"),
-            )
-          }
+      <select
+        className="file-preview__mode nodrag"
+        aria-label={t("filePreview.mode")}
+        value={
+          data.view === "settings" || data.view === "markdown" || data.view === "picture"
+            ? "preview"
+            : data.view === "schema"
+              ? "schema"
+              : "text"
+        }
+        onChange={(event) => {
+          const mode = event.target.value;
+          const next: FilePreviewView =
+            mode === "preview"
+              ? isSettings
+                ? "settings"
+                : previewView(data.path)
+              : mode === "schema"
+                ? "schema"
+                : "text";
+          void save().then((saved) => saved && setFilePreviewView(data.requestId, next));
+        }}
+      >
+        <option
+          value="preview"
+          disabled={!isSettings && !previewable(data.path) && data.picture === null}
         >
-          {data.view === "settings" ? (
-            <CodeIcon sx={{ fontSize: 12 }} />
-          ) : (
-            <SettingsIcon sx={{ fontSize: 12 }} />
-          )}
-        </PageTool>
-      )}
+          Preview
+        </option>
+        <option value="text" disabled={data.state === "ready" && data.text === null}>
+          Native
+        </option>
+        <option value="schema" disabled={!/\.json$/i.test(data.path)}>
+          Schemaed
+        </option>
+      </select>
       {/* The patch, in place of the reading. Drawn only while there is one,
           which is the same moment the gutter has bars in it: a file the commit
           under it agrees with has nothing to turn over to. */}
@@ -90,18 +100,6 @@ export function FileTools({
           }
         >
           <DifferenceIcon sx={{ fontSize: 12 }} />
-        </PageTool>
-      )}
-
-      {/* The file drawn as the page it is written to be, beside the file itself
-          — the same as Ctrl, Shift and V. Beside rather than in place of,
-          because the two are read against each other. */}
-      {!drawn(data.view) && previewable(data.path) && (
-        <PageTool
-          label={t("filePreview.preview", { name: data.name })}
-          onClick={() => void save().then((saved) => saved && previewFilePreview(data.requestId))}
-        >
-          <PreviewIcon sx={{ fontSize: 12 }} />
         </PageTool>
       )}
 

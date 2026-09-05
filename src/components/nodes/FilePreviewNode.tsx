@@ -5,13 +5,14 @@ import { useReadingSize } from "../../hooks/useReadingSize";
 import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
-import { markdownPart, settingsPart } from "../../parts";
+import { markdownPart, schemaPart, settingsPart } from "../../parts";
 import { useGraphActions } from "../graphActions";
 import { Page, PageFrame } from "./Page";
 import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
 import { useDraft } from "./preview/draft";
 import { widthWithout } from "./preview/measure";
 import { useReading } from "./preview/reading";
+import type { SchemaHandle } from "./preview/SchemaReading";
 import { formatSize } from "./preview/text";
 import { FileTools } from "./preview/tools";
 
@@ -53,11 +54,21 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const detail = data.size === null ? null : formatSize(data.size);
   const view = useReading();
   const { setBody, sheet, gutter, setPaper, across, down, move, home, onWheel, showCaret } = view;
-  const { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput } = useDraft(
-    data,
-    view,
-    saveFilePreview,
-  );
+  const {
+    editable,
+    reading,
+    lines,
+    numbers,
+    unsaved,
+    refused,
+    save: saveNative,
+    typing,
+    onInput,
+  } = useDraft(data, view, saveFilePreview);
+  const Schema = schemaPart.use(data.view === "schema");
+  const schemaRef = useRef<SchemaHandle>(null);
+  const save = () =>
+    data.view === "schema" ? (schemaRef.current?.save() ?? Promise.resolve(true)) : saveNative();
   // What became of the file since the commit under it: the bars down the gutter,
   // and the patch the header offers in place of the reading. A card drawing a
   // page of its file is not the one asking — the file it is a page of is the
@@ -68,8 +79,12 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const tints = useMemo(() => tintRuns(patch), [patch]);
   // What draws a page, fetched the first time one is opened and never before.
   const Markdown = markdownPart.use(data.view === "markdown");
+  const picture =
+    vector(data.path) && reading !== null && !data.truncated
+      ? `data:image/svg+xml,${encodeURIComponent(reading)}`
+      : data.picture;
   /** There is something in the card that can be moved about. */
-  const ready = data.state === "ready" && (data.text !== null || data.picture !== null);
+  const ready = data.state === "ready" && (data.text !== null || picture !== null);
   /** The header, measured alongside the reading when the card is asked to fit:
    *  the name in it is as much what the card is showing as the lines are. */
   const bar = useRef<HTMLElement>(null);
@@ -147,7 +162,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       pinned={data.pinnedAt !== null}
       headerRef={bar}
       bodyRef={setBody}
-      onBodyWheel={data.view === "settings" ? undefined : onWheel}
+      onBodyWheel={data.view === "settings" || data.view === "schema" ? undefined : onWheel}
       footnote={footnote}
       // Said once on the card, so that the gutter and the text are always the
       // same size as one another, and so that the size is the only thing the
@@ -207,6 +222,13 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         ) : (
           <p className="file-preview__message">{t("filePreview.loading")}</p>
         ))}
+      {data.view === "schema" &&
+        data.state === "ready" &&
+        (Schema ? (
+          <Schema data={data} ref={schemaRef} write={saveFilePreview} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
       {data.state === "loading" && (
         <p className="file-preview__message">{t("filePreview.loading")}</p>
       )}
@@ -216,7 +238,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       {data.view !== "settings" &&
         data.state === "ready" &&
         data.text === null &&
-        data.picture === null && (
+        picture === null && (
           <p className="file-preview__message">
             {t(data.view === "picture" ? "filePreview.tooLarge" : "filePreview.notText")}
           </p>
@@ -271,20 +293,20 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
           is what it is read larger at, and the canvas's own zoom is the other.
           Nothing of it is this app's to read — the bytes go to the engine as
           they came off the disk. */}
-      {ready && data.view === "picture" && data.picture !== null && (
+      {ready && data.view === "picture" && picture !== null && (
         <div
           className={`file-preview__picture${vector(data.path) ? " is-drawing" : ""}`}
           ref={sheet}
         >
-          {undrawn === data.picture ? (
+          {undrawn === picture ? (
             <p className="file-preview__message">{t("filePreview.notPicture")}</p>
           ) : (
             <img
-              src={data.picture}
+              src={picture}
               alt={data.name}
               ref={drawing}
               draggable={false}
-              onError={() => setUndrawn(data.picture)}
+              onError={() => setUndrawn(picture)}
             />
           )}
         </div>
@@ -301,7 +323,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       )}
 
       {/* How far down and across what is in the card has been moved. */}
-      {ready && data.view !== "settings" && (
+      {ready && data.view !== "settings" && data.view !== "schema" && (
         <>
           <i className="file-preview__reach file-preview__reach--y" ref={down} />
           <i className="file-preview__reach file-preview__reach--x" ref={across} />
