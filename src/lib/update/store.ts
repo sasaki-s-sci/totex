@@ -14,6 +14,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
+import { notifications } from "../notifications";
 import type { Layer, Press, Rung, UpdateChoice, UpdateState } from "./model";
 
 const RESTING: Press = { stage: "rest", progress: null, version: null };
@@ -25,11 +26,11 @@ export let state: UpdateState = {
   presses: { persistent: RESTING, ephemeral: RESTING, front: RESTING },
 };
 
-const waiting = new Set<() => void>();
+const changes = notifications();
 
 export function settle(change: Partial<UpdateState>): void {
   state = { ...state, ...change };
-  for (const wake of waiting) wake();
+  changes.notify();
 }
 
 /** The same, for one of the layers. */
@@ -37,17 +38,10 @@ export function settlePress(layer: Layer, change: Partial<Press>): void {
   settle({ presses: { ...state.presses, [layer]: { ...state.presses[layer], ...change } } });
 }
 
-const listen = (wake: () => void) => {
-  waiting.add(wake);
-  return () => {
-    waiting.delete(wake);
-  };
-};
-
 const read = () => state;
 
 export function useUpdate(): UpdateState {
-  return useSyncExternalStore(listen, read, read);
+  return useSyncExternalStore(changes.subscribe, read, read);
 }
 
 /** One row, or nothing where the backend has not said yet. */

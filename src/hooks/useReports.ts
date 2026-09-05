@@ -1,8 +1,8 @@
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import { onReport, type Report, reportsNow } from "../lib/mcp";
-import { EXIT_EVENT } from "../lib/pty";
+import { onShellExit } from "../lib/pty";
+import { watchReadings } from "../lib/watchReadings";
 
 /** Nothing is saying anything, which is the ordinary state of the machine. */
 const NOTHING: ReadonlyMap<string, Report> = new Map();
@@ -32,32 +32,15 @@ export function useReports() {
     });
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-
-    const listening = onReport(({ id, report }) => {
-      if (alive) put(id, report);
-    });
-    // A session that has ended is not working on anything, and the report it
-    // left behind is a claim about a process that no longer exists. The other
-    // side drops it too — this is the window not waiting to be told.
-    const finished = listen<string>(EXIT_EVENT, (event) => {
-      if (alive) put(event.payload, null);
-    });
-
-    reportsNow()
-      .then((standing) => {
-        if (!alive) return;
-        for (const { id, report } of standing) put(id, report);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      alive = false;
-      void listening.then((off) => off()).catch(() => undefined);
-      void finished.then((off) => off()).catch(() => undefined);
-    };
-  }, [put]);
+  useEffect(
+    () =>
+      watchReadings(
+        { listen: onReport, read: reportsNow, exit: onShellExit },
+        ({ id, report }) => put(id, report),
+        (id) => put(id, null),
+      ),
+    [put],
+  );
 
   return reports;
 }

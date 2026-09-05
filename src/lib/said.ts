@@ -31,6 +31,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { notifications } from "./notifications";
 
 /** Which face a line is set in. */
 export type SaidFace =
@@ -120,7 +121,7 @@ function stored(): Said {
 
 let said = stored();
 
-const waiting = new Set<() => void>();
+const changes = notifications();
 
 /** How the lines are set, without subscribing to it. */
 export function saidNow(): Said {
@@ -155,18 +156,11 @@ export function setSaid(next: Partial<Said>): void {
   if (after.lines !== before.lines) write(KEYS.lines, String(after.lines));
   if (after.width !== before.width) write(KEYS.width, String(after.width));
   if (after.fitting !== before.fitting) write(KEYS.fitting, after.fitting ? ON : "off");
-  for (const wake of waiting) wake();
+  changes.notify();
 }
 
-const listen = (wake: () => void) => {
-  waiting.add(wake);
-  return () => {
-    waiting.delete(wake);
-  };
-};
-
 export function useSaid(): Said {
-  return useSyncExternalStore(listen, saidNow, saidNow);
+  return useSyncExternalStore(changes.subscribe, saidNow, saidNow);
 }
 
 /** Whether the lines are being kept on, without subscribing to it. */
@@ -174,10 +168,6 @@ export function isShowingSaid(): boolean {
   return said.showing;
 }
 
-export function setShowingSaid(showing: boolean): void {
-  setSaid({ showing });
-}
-
 export function useShowingSaid(): boolean {
-  return useSyncExternalStore(listen, isShowingSaid, isShowingSaid);
+  return useSyncExternalStore(changes.subscribe, isShowingSaid, isShowingSaid);
 }

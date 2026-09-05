@@ -1,4 +1,5 @@
 import { type ComponentType, useEffect, useSyncExternalStore } from "react";
+import { notifications } from "./notifications";
 
 // biome-ignore lint/suspicious/noExplicitAny: how React types `lazy` itself — the props are the module's own
 type Drawable = ComponentType<any>;
@@ -38,7 +39,7 @@ export interface Part<T extends Drawable> {
 export function onDemand<T extends Drawable>(load: () => Promise<T>): Part<T> {
   let held: T | null = null;
   let started: Promise<unknown> | null = null;
-  const waiting = new Set<() => void>();
+  const changes = notifications();
 
   const warm = () => {
     // The same promise every time: `warm` and a first draw are two ways of
@@ -46,7 +47,7 @@ export function onDemand<T extends Drawable>(load: () => Promise<T>): Part<T> {
     started ??= load()
       .then((part) => {
         held = part;
-        for (const wake of waiting) wake();
+        changes.notify();
         return part;
       })
       .catch((cause) => {
@@ -58,16 +59,9 @@ export function onDemand<T extends Drawable>(load: () => Promise<T>): Part<T> {
     return started;
   };
 
-  const listen = (wake: () => void) => {
-    waiting.add(wake);
-    return () => {
-      waiting.delete(wake);
-    };
-  };
-
   const usePart = (wanted = true) => {
     const part = useSyncExternalStore(
-      listen,
+      changes.subscribe,
       () => (wanted ? held : null),
       () => null,
     );

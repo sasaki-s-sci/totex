@@ -30,14 +30,14 @@ serde_json = "1.0.151"
 # The machine, as the app knows it -- see host/src/lib.rs.
 totex-host = { path = "host" }
 # The half of the app that cannot be dropped, linked for the client end of
-# its socket and the shapes both ends share -- see keep/src/lib.rs.
+# its socket and the shapes both ends share -- see persistent/src/lib.rs.
 totex-persistent = { path = "persistent" }
 
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 
 # Taking the front of a newer release without taking the program with it --
-# src/front. The program itself is taken by the keep -- see keep/src/update.rs
+# src/front. The program itself is taken by the persistent half -- see persistent/src/update.rs
 # -- with the same client and the same key.
 base64 = "0.22.1"
 dirs = "6.0.0"
@@ -45,7 +45,7 @@ flate2 = "1.1.9"
 minisign-verify = "0.2.5"
 semver = "1.0.28"
 tar = "0.4.46"
-# The same stack the keep reads a release with, chosen the same way: rustls,
+# The same stack the persistent half reads a release with, chosen the same way: rustls,
 # with no provider of its own, and the provider named once by whichever crate
 # asks first. See `provider` in src/release/fetch.rs.
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }

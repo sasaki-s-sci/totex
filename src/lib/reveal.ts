@@ -16,6 +16,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { notifications } from "./notifications";
 
 /** Where the choice is kept. Its absence means the middle of the three. */
 export const REVEAL_KEY = "totex.reveal";
@@ -46,7 +47,7 @@ function stored(): Reveal {
 
 let following = stored();
 
-const waiting = new Set<() => void>();
+const changes = notifications();
 
 /** How far the canvas goes, without subscribing to it: the walk reads it at
  *  every step, and a walk is not a thing to re-render the window for. */
@@ -63,16 +64,9 @@ export function setRevealing(next: Reveal): void {
     // The choice still holds for as long as this window is open. Nothing is
     // worth saying about a preference that will not be remembered.
   }
-  for (const wake of waiting) wake();
+  changes.notify();
 }
 
-const listen = (wake: () => void) => {
-  waiting.add(wake);
-  return () => {
-    waiting.delete(wake);
-  };
-};
-
 export function useRevealing(): Reveal {
-  return useSyncExternalStore(listen, revealing, revealing);
+  return useSyncExternalStore(changes.subscribe, revealing, revealing);
 }

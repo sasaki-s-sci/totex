@@ -47,6 +47,23 @@ fn refuses_names_that_can_leave_the_parent_or_replace_an_entry() {
 }
 
 #[test]
+fn file_operations_agree_on_missing_paths_and_directories() {
+    let root = temp_dir("file-operation-refusals");
+    let missing = root.join("missing");
+    for (path, error) in [(&root, "is-a-directory"), (&missing, "no-such-file")] {
+        let raw = path.to_string_lossy();
+        assert_eq!(read_file(&raw).unwrap_err(), error);
+        assert_eq!(duplicate_file(&raw).unwrap_err(), error);
+        assert_eq!(rename_file(&raw, "renamed").unwrap_err(), error);
+        assert_eq!(delete_file(&raw).unwrap_err(), error);
+        // Names are checked before paths, even when both are invalid.
+        assert_eq!(rename_file(&raw, "..").unwrap_err(), "invalid-name");
+    }
+    assert!(root.is_dir(), "refusing a file operation leaves the folder");
+    fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
 fn deletes_a_folder_and_everything_under_it() {
     let root = temp_dir("folder-deletion");
     let raw_root = root.to_string_lossy();

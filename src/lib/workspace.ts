@@ -67,11 +67,6 @@ export function openWorkspace(repoId: string, branch: string): Promise<Workspace
   return invoke("open_workspace", { repoId, branch });
 }
 
-/** Takes a worktree away. Refuses uncommitted work unless `force`. */
-export function removeWorkspace(repoId: string, path: string, force: boolean): Promise<void> {
-  return invoke("remove_workspace", { repoId, path, force });
-}
-
 /**
  * Deletes a local branch and everything standing on it: its linked worktree,
  * and whatever was left uncommitted in there. A branch nothing has merged goes
@@ -147,18 +142,6 @@ export function syncBranch(repoId: string, remote: string, branch: string): Prom
   return invoke("sync_branch", { repoId, remote, branch });
 }
 
-export function revertCommit(repoId: string, branch: string, oid: string): Promise<void> {
-  return invoke("revert_commit", { repoId, branch, oid });
-}
-
-export function cherryPickCommit(repoId: string, branch: string, oid: string): Promise<void> {
-  return invoke("cherry_pick_commit", { repoId, branch, oid });
-}
-
-export function undoCommit(repoId: string, branch: string, oid: string): Promise<void> {
-  return invoke("undo_commit", { repoId, branch, oid });
-}
-
 /**
  * Whether git would take this as a branch name.
  *
@@ -186,25 +169,6 @@ export function branchTaken(repository: Repository, name: string): boolean {
   return repository.branches.some(
     (branch) => branch.kind === "local" && branch.name === name.trim(),
   );
-}
-
-/**
- * The name a branch cut from `from` gets, when nobody was asked for one.
- *
- * Named after where it came from and numbered from there, so the graph reads
- * as `main`, `main-1`, `main-2` — and cutting from `main-1` gives `main-3`
- * rather than `main-1-1`, because the number says which sibling it is and not
- * how many times someone has clicked.
- */
-export function nextBranchName(repository: Repository, from: string): string {
-  const taken = new Set(
-    repository.branches.filter((branch) => branch.kind === "local").map((branch) => branch.name),
-  );
-  const base = from.replace(/-\d+$/, "");
-  for (let counter = 1; ; counter++) {
-    const name = `${base}-${counter}`;
-    if (!taken.has(name)) return name;
-  }
 }
 
 /** The prefix the box opens under, and the whole of what it suggests. */

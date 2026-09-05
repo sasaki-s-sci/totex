@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
@@ -11,7 +10,8 @@ import {
   replyAsk,
   takeAsk,
 } from "../lib/ask";
-import { EXIT_EVENT } from "../lib/pty";
+import { onShellExit } from "../lib/pty";
+import { watchReadings } from "../lib/watchReadings";
 
 /** Nothing is being asked, which is the ordinary state of the machine. */
 const NOTHING: ReadonlyMap<string, Ask> = new Map();
@@ -81,31 +81,18 @@ export function useAsks() {
   );
 
   useEffect(() => {
-    let alive = true;
     const timers = settling.current;
-
-    const listening = onAsking(({ id, ask }) => {
-      if (alive) hold(id, ask);
-    });
-    // A session that has ended is not asking anything, and nothing will ever
-    // come to say so: the process it was being read from is gone.
-    const finished = listen<string>(EXIT_EVENT, (event) => {
-      if (alive) settle(event.payload, null);
-    });
-
-    askingNow()
-      .then((standing) => {
-        if (!alive) return;
-        for (const { id, ask } of standing) settle(id, ask);
-      })
-      .catch(() => undefined);
+    const stop = watchReadings(
+      { listen: onAsking, read: askingNow, exit: onShellExit },
+      ({ id, ask }) => hold(id, ask),
+      (id) => settle(id, null),
+      ({ id, ask }) => settle(id, ask),
+    );
 
     return () => {
-      alive = false;
+      stop();
       for (const timer of timers.values()) window.clearTimeout(timer);
       timers.clear();
-      void listening.then((off) => off()).catch(() => undefined);
-      void finished.then((off) => off()).catch(() => undefined);
     };
   }, [hold, settle]);
 

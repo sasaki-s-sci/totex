@@ -1,8 +1,8 @@
-import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 import { type Doing, doingNow, onDoing } from "../lib/doing";
-import { EXIT_EVENT } from "../lib/pty";
+import { onShellExit } from "../lib/pty";
+import { watchReadings } from "../lib/watchReadings";
 
 /** Nothing is running anywhere, which is a window that has just come up. */
 const NOTHING: ReadonlyMap<string, Doing> = new Map();
@@ -34,31 +34,15 @@ export function useDoings(): ReadonlyMap<string, Doing> {
     });
   }, []);
 
-  useEffect(() => {
-    let alive = true;
-
-    const listening = onDoing(({ id, doing }) => {
-      if (alive) put(id, doing);
-    });
-    // A session that has ended is not doing anything, and nothing will ever
-    // come to say so: the screen it was being read from is gone with it.
-    const finished = listen<string>(EXIT_EVENT, (event) => {
-      if (alive) put(event.payload, null);
-    });
-
-    doingNow()
-      .then((standing) => {
-        if (!alive) return;
-        for (const { id, doing } of standing) put(id, doing);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      alive = false;
-      void listening.then((off) => off()).catch(() => undefined);
-      void finished.then((off) => off()).catch(() => undefined);
-    };
-  }, [put]);
+  useEffect(
+    () =>
+      watchReadings(
+        { listen: onDoing, read: doingNow, exit: onShellExit },
+        ({ id, doing }) => put(id, doing),
+        (id) => put(id, null),
+      ),
+    [put],
+  );
 
   return doings;
 }

@@ -140,8 +140,9 @@ tasks:
       - cargo clippy {{.CARGO}} {{.WORKSPACE}} --all-targets --all-features -- -D warnings
 
   test:
-    desc: Run the Rust test suite
+    desc: Run the frontend and Rust test suites
     cmds:
+      - pnpm test
       # `--no-fail-fast` because the workspace is several test binaries and the
       # default stops at the first one that fails: a single failure in the app
       # would hide whether the persistent half's own suite still passes, which is the half

@@ -19,6 +19,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { notifications } from "./notifications";
 
 /** Where the choice is kept. Its absence means the window follows nothing. */
 export const FOLLOW_KEY = "totex.follow";
@@ -44,7 +45,7 @@ function stored(): boolean {
 
 let following = stored();
 
-const waiting = new Set<() => void>();
+const changes = notifications();
 
 /** Whether the window is following, without subscribing to it. */
 export function isFollowing(): boolean {
@@ -60,18 +61,11 @@ export function setFollowing(next: boolean): void {
     // The choice still holds for as long as this window is open. Nothing is
     // worth saying about a preference that will not be remembered.
   }
-  for (const wake of waiting) wake();
+  changes.notify();
 }
 
-const listen = (wake: () => void) => {
-  waiting.add(wake);
-  return () => {
-    waiting.delete(wake);
-  };
-};
-
 export function useFollowing(): boolean {
-  return useSyncExternalStore(listen, isFollowing, isFollowing);
+  return useSyncExternalStore(changes.subscribe, isFollowing, isFollowing);
 }
 
 /**
@@ -88,7 +82,7 @@ export type Fetching = "rest" | "asking" | "failed";
 let fetching: Fetching = "rest";
 
 /** Drawn from `fetching`, which is what the button is. */
-const watching = new Set<() => void>();
+const fetchingChanges = notifications();
 
 /** The round itself, which is the only thing that can actually go and ask. */
 const rounds = new Set<() => void>();
@@ -104,20 +98,11 @@ export function isFetching(): Fetching {
 export function sayFetching(next: Fetching): void {
   if (next === fetching) return;
   fetching = next;
-  for (const wake of watching) wake();
+  fetchingChanges.notify();
 }
 
 export function useFetching(): Fetching {
-  return useSyncExternalStore(
-    (wake) => {
-      watching.add(wake);
-      return () => {
-        watching.delete(wake);
-      };
-    },
-    isFetching,
-    isFetching,
-  );
+  return useSyncExternalStore(fetchingChanges.subscribe, isFetching, isFetching);
 }
 
 /**

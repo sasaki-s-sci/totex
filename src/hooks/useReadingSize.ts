@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { reading } from "../lib/keys";
+import { notifications } from "../lib/notifications";
 
 /** The smallest and largest a reading is still worth drawing at, in pixels. */
 const SMALLEST = 8;
@@ -41,14 +42,7 @@ function read(): number {
  */
 let size = read();
 
-const listeners = new Set<() => void>();
-
-function subscribe(changed: () => void): () => void {
-  listeners.add(changed);
-  return () => {
-    listeners.delete(changed);
-  };
-}
+const changes = notifications();
 
 function snapshot(): number {
   return size;
@@ -64,12 +58,12 @@ function resize(by: number) {
   } catch {
     // A window that cannot remember the size can still be read at it.
   }
-  for (const changed of listeners) changed();
+  changes.notify();
 }
 
 /** The size a card draws its reading at, redrawn when it changes. */
 export function useReadingSize(): number {
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  return useSyncExternalStore(changes.subscribe, snapshot, snapshot);
 }
 
 /**

@@ -9,11 +9,7 @@ use crate::host::Host;
 
 /// Reads a complete file for copying or downloading.
 pub fn read_file(raw_path: &str) -> Result<Vec<u8>, String> {
-    let (host, path) = resolve(raw_path)?;
-    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
-    if stat.is_dir {
-        return Err("is-a-directory".to_string());
-    }
+    let (host, path) = resolve_file(raw_path)?;
     host.read(&path)
 }
 
@@ -38,11 +34,7 @@ pub fn create_entry(raw_parent: &str, raw_name: &str, directory: bool) -> Result
 
 /// Copies a file beside itself, choosing the first unused `copy` name.
 pub fn duplicate_file(raw_path: &str) -> Result<String, String> {
-    let (host, path) = resolve(raw_path)?;
-    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
-    if stat.is_dir {
-        return Err("is-a-directory".to_string());
-    }
+    let (host, path) = resolve_file(raw_path)?;
     let parent = host.parent(&path).ok_or_else(|| "no-parent".to_string())?;
     let name = host.name(&path);
     let candidate = unused_name(&host, &parent, &name)?;
@@ -140,11 +132,7 @@ fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
 /// Gives one file another name in the same directory.
 pub fn rename_file(raw_path: &str, raw_name: &str) -> Result<String, String> {
     let name = valid_name(raw_name)?;
-    let (host, path) = resolve(raw_path)?;
-    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
-    if stat.is_dir {
-        return Err("is-a-directory".to_string());
-    }
+    let (host, path) = resolve_file(raw_path)?;
     let parent = host.parent(&path).ok_or_else(|| "no-parent".to_string())?;
     let destination = host.join(&parent, name);
     if destination == path {
@@ -160,11 +148,7 @@ pub fn rename_file(raw_path: &str, raw_name: &str) -> Result<String, String> {
 /// Removes exactly one file. Directories are refused here — see
 /// [`delete_folder`], which is the name the other one is asked for by.
 pub fn delete_file(raw_path: &str) -> Result<(), String> {
-    let (host, path) = resolve(raw_path)?;
-    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
-    if stat.is_dir {
-        return Err("is-a-directory".to_string());
-    }
+    let (host, path) = resolve_file(raw_path)?;
     host.remove_file(&path)
 }
 
@@ -195,6 +179,16 @@ pub fn delete_folder(raw_path: &str) -> Result<(), String> {
         return host.remove_link(&path);
     }
     host.remove_dir_all(&path)
+}
+
+/// Resolves a file operation's path, preserving the same refusals for each verb.
+fn resolve_file(raw: &str) -> Result<(Host, PathBuf), String> {
+    let (host, path) = resolve(raw)?;
+    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
+    if stat.is_dir {
+        return Err("is-a-directory".to_string());
+    }
+    Ok((host, path))
 }
 
 fn valid_name(raw: &str) -> Result<&str, String> {

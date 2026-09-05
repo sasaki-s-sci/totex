@@ -256,23 +256,3 @@ function toSegment(at: Point, x1: number, y1: number, x2: number, y2: number): n
     span === 0 ? 0 : Math.max(0, Math.min(1, ((at.x - x1) * runX + (at.y - y1) * runY) / span));
   return Math.hypot(at.x - (x1 + along * runX), at.y - (y1 + along * runY));
 }
-
-/** The box a run of points fits in, which is what the grid is filled from. */
-export function boundsOf(run: readonly number[]): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-  for (let index = 0; index + 1 < run.length; index += 2) {
-    if (run[index] < left) left = run[index];
-    if (run[index] > right) right = run[index];
-    if (run[index + 1] < top) top = run[index + 1];
-    if (run[index + 1] > bottom) bottom = run[index + 1];
-  }
-  return { left, top, right, bottom };
-}

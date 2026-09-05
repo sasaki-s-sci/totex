@@ -9,6 +9,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import { type Session, sessionMeta } from "./session";
 
@@ -16,6 +17,11 @@ import { type Session, sessionMeta } from "./session";
 export const DATA_EVENT = "pty:data";
 /** Carries the session that has ended. */
 export const EXIT_EVENT = "pty:exit";
+
+/** A session ending invalidates every reading held for it. */
+export function onShellExit(receive: (id: string) => void): Promise<() => void> {
+  return listen<string>(EXIT_EVENT, (event) => receive(event.payload));
+}
 
 /** A run of what a session said. */
 export type Said = {
