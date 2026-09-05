@@ -12,8 +12,7 @@
    edges, half of each one outside the box, and contained paint would clip away
    the half that is easiest to aim at. There are a handful of pages against a
    cell per commit, so what the layout half buys is untouched. */
-.graph .react-flow__node-file-preview,
-.graph .react-flow__node-settings {
+.graph .react-flow__node-file-preview {
   contain: layout;
 }
 

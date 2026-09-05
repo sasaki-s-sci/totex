@@ -6,6 +6,7 @@
 import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
+import { settingsDocument, writeSettingsText } from "../lib/appSettings";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize } from "./filePreviewBox";
@@ -30,14 +31,18 @@ export function useFilePreviewCard(
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const saveFilePreview = useCallback(
-    async (requestId: number, text: string) => {
+    async (requestId: number, text: string, expected?: string) => {
       const node = standing.current.find(
         (candidate): candidate is FilePreviewFlowNode =>
           candidate.type === "file-preview" && candidate.data.requestId === requestId,
       );
       if (!node || node.data.size === null || node.data.truncated) return false;
       try {
-        const size = await writeFile(node.data.path, text, node.data.size);
+        const config = settingsDocument();
+        const size =
+          config?.path === node.data.path
+            ? await writeSettingsText(text, expected ?? node.data.text ?? "")
+            : await writeFile(node.data.path, text, node.data.size);
         // Every card on that file, not only the one that was typed into: a
         // preview stands beside the card it is of, and what it is a preview of
         // is what has just gone to disk.
@@ -82,25 +87,15 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  /**
-   * Shows the patch in place of the reading, or puts the reading back.
-   *
-   * The card is the same card either way — the same file, the same box, the
-   * same place on the canvas — so this is what it is showing of it and not
-   * another card. A preview is the other kind: it stands beside its file
-   * rather than in place of it, which is what `previewFilePreview` opens.
-   */
-  const diffFilePreview = useCallback(
-    (requestId: number) => {
+  /** Switches the content while retaining the common panel and its geometry. */
+  const setFilePreviewView = useCallback(
+    (requestId: number, view: "text" | "diff" | "settings") => {
       setNodes((current) =>
-        current.map((node) => {
-          if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
-          // A card that is already a drawing of its file has no reading to
-          // turn over: the file it is drawn from is the card beside it.
-          if (drawn(node.data.view)) return node;
-          const view = node.data.view === "diff" ? "text" : "diff";
-          return { ...node, data: { ...node.data, view } };
-        }),
+        current.map((node) =>
+          node.type === "file-preview" && node.data.requestId === requestId
+            ? { ...node, data: { ...node.data, view } }
+            : node,
+        ),
       );
     },
     [setNodes],
@@ -261,7 +256,7 @@ export function useFilePreviewCard(
   return {
     saveFilePreview,
     collapseFilePreview,
-    diffFilePreview,
+    setFilePreviewView,
     previewFilePreview,
     fitFilePreview,
     pinFilePreview,

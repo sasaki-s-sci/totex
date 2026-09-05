@@ -142,8 +142,6 @@ export type GraphActions = {
   take: (session: Session, ask: Ask) => void;
   /** Take one file card off the canvas. */
   closeFilePreview: (requestId: number) => void;
-  /** Take the settings page off the canvas. */
-  closeSettings: () => void;
   /**
    * Write one file card's reading back to its file, and say whether it went.
    *
@@ -151,18 +149,11 @@ export type GraphActions = {
    * being typed belongs to the card until it is kept, and the graph is not
    * rebuilt for a keystroke.
    */
-  saveFilePreview: (requestId: number, text: string) => Promise<boolean>;
+  saveFilePreview: (requestId: number, text: string, expected?: string) => Promise<boolean>;
   /** Put a file card's reading away, leaving its header, or take it back out. */
   collapseFilePreview: (requestId: number) => void;
-  /**
-   * Show the patch in place of a card's reading, or put the reading back.
-   *
-   * The same card either way: what it is showing of its file, and not another
-   * card of it. Offered only where there is something to show — a file the
-   * commit under it agrees with has no patch, and the header says so by having
-   * nothing to press.
-   */
-  diffFilePreview: (requestId: number) => void;
+  /** Switch between a file, its diff, and the settings form. */
+  setFilePreviewView: (requestId: number, view: "text" | "diff" | "settings") => void;
   /**
    * Open a rendering of a card's file beside it — Ctrl, Shift and V, or the
    * button on its header.
@@ -215,10 +206,9 @@ const GraphActionsContext = createContext<GraphActions>({
   pick: () => {},
   take: () => {},
   closeFilePreview: () => {},
-  closeSettings: () => {},
   saveFilePreview: async () => false,
   collapseFilePreview: () => {},
-  diffFilePreview: () => {},
+  setFilePreviewView: () => {},
   previewFilePreview: () => {},
   fitFilePreview: () => {},
   pinFilePreview: () => {},

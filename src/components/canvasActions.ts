@@ -36,10 +36,9 @@ export function useCanvasActions({
   onPick,
   onTake,
   onCloseFilePreview,
-  onCloseSettings,
   saveFilePreview,
   collapseFilePreview,
-  diffFilePreview,
+  setFilePreviewView,
   previewFilePreview,
   fitFilePreview,
   pinFilePreview,
@@ -65,10 +64,9 @@ export function useCanvasActions({
   onPick: GraphActions["pick"];
   onTake: GraphActions["take"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
-  onCloseSettings: GraphActions["closeSettings"];
   saveFilePreview: GraphActions["saveFilePreview"];
   collapseFilePreview: GraphActions["collapseFilePreview"];
-  diffFilePreview: GraphActions["diffFilePreview"];
+  setFilePreviewView: GraphActions["setFilePreviewView"];
   previewFilePreview: GraphActions["previewFilePreview"];
   fitFilePreview: GraphActions["fitFilePreview"];
   pinFilePreview: GraphActions["pinFilePreview"];
@@ -96,10 +94,9 @@ export function useCanvasActions({
       pick: onPick,
       take: onTake,
       closeFilePreview: onCloseFilePreview,
-      closeSettings: onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
-      diffFilePreview,
+      setFilePreviewView,
       previewFilePreview,
       fitFilePreview,
       pinFilePreview,
@@ -126,10 +123,9 @@ export function useCanvasActions({
       onPick,
       onTake,
       onCloseFilePreview,
-      onCloseSettings,
       saveFilePreview,
       collapseFilePreview,
-      diffFilePreview,
+      setFilePreviewView,
       previewFilePreview,
       fitFilePreview,
       pinFilePreview,

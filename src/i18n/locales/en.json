@@ -94,6 +94,13 @@
     "working": "is working"
   },
   "settings": {
+    "fileTitle": "File title",
+    "fileName": "File name",
+    "fullPath": "Full path",
+    "showJson": "Edit settings JSON",
+    "showForm": "Show settings form",
+    "saveFailed": "Could not read or save settings.",
+    "retrySave": "Retry",
     "title": "Settings",
     "theme": "Theme",
     "language": "Language",

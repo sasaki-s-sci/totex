@@ -15,7 +15,6 @@ import { JunctionNode } from "./nodes/JunctionNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
 import { ReportNode } from "./nodes/ReportNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
-import { SettingsNodePart } from "./nodes/SettingsNodePart";
 
 export const nodeTypes = {
   repository: RepositoryNode,
@@ -28,7 +27,6 @@ export const nodeTypes = {
   ask: AskNode,
   report: ReportNode,
   "file-preview": FilePreviewNode,
-  settings: SettingsNodePart,
 } satisfies NodeTypes;
 
 /** The canvas is the whole window here; the badge sits on top of the graph. */
@@ -68,11 +66,11 @@ export function retainLineNodes(
   let index = 0;
   let same = true;
   for (const node of nodes) {
-    if (node.type === "file-preview" || node.type === "settings") continue;
+    if (node.type === "file-preview") continue;
     if (held[index] !== node) same = false;
     index += 1;
   }
 
   if (same && held.length === index) return held;
-  return nodes.filter((node) => node.type !== "file-preview" && node.type !== "settings");
+  return nodes.filter((node) => node.type !== "file-preview");
 }

@@ -112,6 +112,35 @@ itself, out of its installer — what the version-selectable installer writes
 where the app goes, and the one file on the page that installs nothing if it is
 double-clicked, because it is not an installer. It is totex.
 
+## Settings and file panels
+
+The gear opens `~/.totex/totex.json` as a settings form in the same panel used
+for files, with pin, fit-width, fold, and close controls. Pressing the gear
+centers the panel again unless it is pinned. The code button switches between
+the form and editable JSON; Ctrl/Cmd+S saves the JSON.
+
+Form changes save to this file automatically. On first use, when the file does
+not exist, existing preferences are migrated into it. An existing file takes
+precedence; omitted settings use defaults, and form edits preserve unknown
+JSON fields. External edits are reread when the window regains focus or the
+gear is pressed. Invalid JSON and conflicting raw edits are refused without
+discarding the draft.
+
+**File title** selects the file name or full path for every panel header. For
+example, this partial configuration selects full paths and the smallest line
+size:
+
+```json
+{
+  "fileTitle": "path",
+  "said": { "size": 1 }
+}
+```
+
+Other preferences in this document include `theme`, `language`, `reveal`,
+`follow`, `mcpServing`, `readingSize`, and the remaining `said` options. The
+repository-specific `.totex/settings.json` continues to control each space.
+
 ## Updating
 
 Two rows on the settings page. **persistent** is the program beside the

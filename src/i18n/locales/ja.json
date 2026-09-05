@@ -94,6 +94,13 @@
     "working": "作業中"
   },
   "settings": {
+    "fileTitle": "ファイルの表示名",
+    "fileName": "ファイル名",
+    "fullPath": "フルパス",
+    "showJson": "設定 JSON を編集",
+    "showForm": "設定フォームを表示",
+    "saveFailed": "設定の読み込み・保存に失敗しました。",
+    "retrySave": "再試行",
     "title": "設定",
     "theme": "テーマ",
     "language": "言語",

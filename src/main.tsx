@@ -4,6 +4,7 @@ import App from "./App";
 // Side effect: settles the language and loads the catalogues before anything
 // calls `useTranslation`.
 import "./i18n";
+import { flushSettings, loadSettings, refreshSettings } from "./lib/appSettings";
 import { prime } from "./lib/remembered";
 import { applyStoredMode } from "./theme";
 
@@ -20,7 +21,14 @@ if (!container) {
 // What the last window left with the persistent half, brought across before the column
 // reads where it was -- see `remembered`. One round trip on the loopback,
 // which is nothing beside the first paint.
-prime().finally(() => {
+Promise.all([prime(), loadSettings()]).finally(() => {
+  applyStoredMode();
+  window.addEventListener("focus", () => {
+    void refreshSettings();
+  });
+  window.addEventListener("pagehide", () => {
+    void flushSettings();
+  });
   createRoot(container).render(
     <StrictMode>
       <App />

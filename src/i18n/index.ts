@@ -15,6 +15,7 @@
 
 import i18next from "i18next";
 import { initReactI18next } from "react-i18next";
+import { settingsNow, subscribeSettings, updateSettings } from "../lib/appSettings";
 import en from "./locales/en.json";
 import japanese from "./locales/ja.json";
 
@@ -27,9 +28,6 @@ export type Locale = (typeof LOCALES)[number];
 export type LanguageMode = "system" | Locale;
 
 export const FALLBACK_LOCALE: Locale = "en";
-
-/** Where an explicit choice is kept. Its absence means to follow the machine. */
-export const LANGUAGE_KEY = "totex.language";
 
 /* English is the shape every other locale is held to: a key added to en.json is
    a type error here until ja.json answers it, which is a cheaper way to find a
@@ -56,13 +54,7 @@ function preferred(): Locale {
 
 /** The last choice made in settings, or the machine's own if none was made. */
 export function storedLanguage(): LanguageMode {
-  try {
-    const stored = localStorage.getItem(LANGUAGE_KEY);
-    if (stored === "en" || stored === "ja" || stored === "system") return stored;
-  } catch {
-    // A window that cannot remember the choice still follows the machine.
-  }
-  return "system";
+  return settingsNow().language;
 }
 
 /** The catalogue a choice resolves to right now. */
@@ -91,14 +83,18 @@ void i18next.use(initReactI18next).init({
 document.documentElement.lang = i18next.resolvedLanguage ?? FALLBACK_LOCALE;
 
 /** Remember and immediately apply a choice made in settings. */
-export async function changeLanguage(mode: LanguageMode): Promise<void> {
-  try {
-    localStorage.setItem(LANGUAGE_KEY, mode);
-  } catch {
-    // The choice still applies to this window even when it cannot be kept.
-  }
-  await i18next.changeLanguage(languageFor(mode));
-  document.documentElement.lang = i18next.resolvedLanguage ?? FALLBACK_LOCALE;
+export function changeLanguage(mode: LanguageMode): void {
+  updateSettings({ language: mode });
 }
+
+let appliedLanguage = storedLanguage();
+subscribeSettings(() => {
+  const mode = storedLanguage();
+  if (mode === appliedLanguage) return;
+  appliedLanguage = mode;
+  void i18next.changeLanguage(languageFor(mode)).then(() => {
+    document.documentElement.lang = i18next.resolvedLanguage ?? FALLBACK_LOCALE;
+  });
+});
 
 export default i18next;

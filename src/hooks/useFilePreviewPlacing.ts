@@ -9,7 +9,12 @@
 import { useEffect, useRef } from "react";
 import { readFileData, readFileHead } from "../folder/api";
 import { baseName } from "../folder/format";
-import { type FilePreviewRequest, openingView, pictureType } from "../lib/filePreview";
+import {
+  type FilePreviewRequest,
+  openingView,
+  pictureType,
+  SETTINGS_REQUEST_ID,
+} from "../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../lib/graph";
 import { FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
@@ -27,7 +32,7 @@ export function useFilePreviewPlacing(
   const placedFiles = useRef(new Set<number>());
   useEffect(() => {
     if (!flowReady || !instance.current) return;
-    const wanted = new Set(requests.map((preview) => preview.id));
+    const wanted = new Set([SETTINGS_REQUEST_ID, ...requests.map((preview) => preview.id)]);
     for (const id of placedFiles.current) {
       if (!wanted.has(id)) placedFiles.current.delete(id);
     }

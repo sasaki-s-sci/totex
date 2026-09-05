@@ -11,6 +11,7 @@
  */
 
 import CloseIcon from "@mui/icons-material/Close";
+import CodeIcon from "@mui/icons-material/Code";
 import DifferenceIcon from "@mui/icons-material/Difference";
 import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -18,7 +19,9 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import PreviewIcon from "@mui/icons-material/Preview";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { useTranslation } from "react-i18next";
+import { useSettingsDocument } from "../../../lib/appSettings";
 import { drawn, previewable } from "../../../lib/filePreview";
 import type { FilePreviewNodeData } from "../../../lib/graph";
 import { useGraphActions } from "../../graphActions";
@@ -36,30 +39,55 @@ export function FileTools({
   changed: boolean;
   /** What is being typed goes to disk before anything that redraws the card:
    *  the patch is against what is on screen, and so is the page. */
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   onFit: () => void;
 }) {
   const { t } = useTranslation();
+  const config = useSettingsDocument();
+  const isSettings = config?.path === data.path;
   const {
     closeFilePreview,
     collapseFilePreview,
-    diffFilePreview,
+    setFilePreviewView,
     previewFilePreview,
     pinFilePreview,
   } = useGraphActions();
 
   return (
     <>
+      {isSettings && (
+        <PageTool
+          label={t(data.view === "settings" ? "settings.showJson" : "settings.showForm")}
+          onClick={() =>
+            void save().then(
+              (saved) =>
+                saved &&
+                setFilePreviewView(data.requestId, data.view === "settings" ? "text" : "settings"),
+            )
+          }
+        >
+          {data.view === "settings" ? (
+            <CodeIcon sx={{ fontSize: 12 }} />
+          ) : (
+            <SettingsIcon sx={{ fontSize: 12 }} />
+          )}
+        </PageTool>
+      )}
       {/* The patch, in place of the reading. Drawn only while there is one,
           which is the same moment the gutter has bars in it: a file the commit
           under it agrees with has nothing to turn over to. */}
-      {!drawn(data.view) && changed && (
+      {!isSettings && !drawn(data.view) && changed && (
         <PageTool
           label={t(data.view === "diff" ? "filePreview.showFile" : "filePreview.showDiff", {
             name: data.name,
           })}
           on={data.view === "diff"}
-          onClick={() => void save().then(() => diffFilePreview(data.requestId))}
+          onClick={() =>
+            void save().then(
+              (saved) =>
+                saved && setFilePreviewView(data.requestId, data.view === "diff" ? "text" : "diff"),
+            )
+          }
         >
           <DifferenceIcon sx={{ fontSize: 12 }} />
         </PageTool>
@@ -71,7 +99,7 @@ export function FileTools({
       {!drawn(data.view) && previewable(data.path) && (
         <PageTool
           label={t("filePreview.preview", { name: data.name })}
-          onClick={() => void save().then(() => previewFilePreview(data.requestId))}
+          onClick={() => void save().then((saved) => saved && previewFilePreview(data.requestId))}
         >
           <PreviewIcon sx={{ fontSize: 12 }} />
         </PageTool>
@@ -83,7 +111,7 @@ export function FileTools({
           which is why the mark fills in rather than changes. */}
       <PageTool
         label={t(data.pinnedAt ? "filePreview.unpin" : "filePreview.pin", { name: data.name })}
-        onClick={() => pinFilePreview(data.requestId)}
+        onClick={() => void save().then((saved) => saved && pinFilePreview(data.requestId))}
       >
         {data.pinnedAt ? (
           <PushPinIcon sx={{ fontSize: 12 }} />
@@ -104,7 +132,7 @@ export function FileTools({
         label={t(data.collapsed ? "filePreview.expand" : "filePreview.collapse", {
           name: data.name,
         })}
-        onClick={() => collapseFilePreview(data.requestId)}
+        onClick={() => void save().then((saved) => saved && collapseFilePreview(data.requestId))}
       >
         {data.collapsed ? (
           <KeyboardArrowDownIcon sx={{ fontSize: 12 }} />
@@ -115,7 +143,7 @@ export function FileTools({
 
       <PageTool
         label={t("filePreview.close", { name: data.name })}
-        onClick={() => closeFilePreview(data.requestId)}
+        onClick={() => void save().then((saved) => saved && closeFilePreview(data.requestId))}
       >
         <CloseIcon sx={{ fontSize: 12 }} />
       </PageTool>

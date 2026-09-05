@@ -13,7 +13,7 @@ import { countLines, draftOf, lineNumbers } from "./text";
 export function useDraft(
   data: FilePreviewNodeData,
   view: ReturnType<typeof useReading>,
-  saveFilePreview: (requestId: number, text: string) => Promise<boolean>,
+  saveFilePreview: (requestId: number, text: string, expected?: string) => Promise<boolean>,
 ) {
   const { paper, move, home, showCaret } = view;
 
@@ -34,7 +34,8 @@ export function useDraft(
   const crlf = data.text?.includes("\r\n") ?? false;
   // Read by the handlers, which are not rebuilt for a save.
   const kept = useRef(reading);
-  kept.current = reading;
+  const disk = useRef(data.text);
+  const dirty = useRef(false);
 
   const [lines, setLines] = useState(1);
   const numbers = useMemo(() => lineNumbers(lines), [lines]);
@@ -42,7 +43,7 @@ export function useDraft(
   const [unsaved, setUnsaved] = useState(false);
   /** The last write did not go through, and what is in the card is all there is. */
   const [refused, setRefused] = useState(false);
-  const writing = useRef(false);
+  const writing = useRef<Promise<boolean> | null>(null);
   const inputTimer = useRef<number | null>(null);
 
   /**
@@ -56,13 +57,19 @@ export function useDraft(
    */
   useLayoutEffect(() => {
     if (!paper || reading === null) return;
+    if (dirty.current && draftOf(paper) !== reading) {
+      setRefused(true);
+      return;
+    }
+    kept.current = reading;
+    disk.current = data.text;
     if (draftOf(paper) === reading) return;
     paper.textContent = reading;
     setLines(countLines(reading));
     setUnsaved(false);
     setRefused(false);
     home();
-  }, [paper, reading, home]);
+  }, [paper, reading, data.text, home]);
 
   /** Cancels the deferred inspection when a save or unmount supersedes it. */
   const cancelInputInspection = useCallback(() => {
@@ -75,25 +82,35 @@ export function useDraft(
 
   /** Keep what the file holds, and say nothing when it already holds it. */
   const save = useCallback(async () => {
-    if (!paper || !editable || writing.current) return;
+    if (writing.current && !(await writing.current)) return false;
+    if (!paper || !editable) return true;
     cancelInputInspection();
     const draft = draftOf(paper);
     setLines(countLines(draft));
     move(0, 0);
     if (draft === kept.current) {
+      dirty.current = false;
       setUnsaved(false);
-      return;
+      setRefused(false);
+      return true;
     }
-    writing.current = true;
-    const went = await saveFilePreview(
+    writing.current = saveFilePreview(
       data.requestId,
       crlf ? draft.split("\n").join("\r\n") : draft,
+      disk.current ?? undefined,
     );
-    writing.current = false;
+    const went = await writing.current;
+    writing.current = null;
     // Typing carries on while a write is in flight, and what went to disk is
     // then already behind what is on screen.
-    setUnsaved(!went || draftOf(paper) !== draft);
+    dirty.current = !went || draftOf(paper) !== draft;
+    if (went) {
+      kept.current = draft;
+      disk.current = crlf ? draft.split("\n").join("\r\n") : draft;
+    }
+    setUnsaved(dirty.current);
     setRefused(!went);
+    return went && !dirty.current;
   }, [cancelInputInspection, crlf, data.requestId, editable, move, paper, saveFilePreview]);
 
   /**
@@ -115,6 +132,7 @@ export function useDraft(
     // rebuilding the gutter and measuring the reading can wait until typing
     // pauses; repeated input replaces this one pending job instead of stacking
     // work on the input event.
+    dirty.current = true;
     setUnsaved(true);
     setRefused(false);
     showCaret();
