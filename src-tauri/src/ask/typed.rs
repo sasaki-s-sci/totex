@@ -69,7 +69,7 @@ fn at_the_caret(screen: &Screen) -> Option<String> {
     {
         return None;
     }
-    let line = screen.upto(standing.row, standing.col);
+    let line = screen.before_caret();
     if standing.alt && standing.shown && line.trim_start().starts_with('▌') {
         return written(undressed(&line)).map(str::to_string);
     }
@@ -86,7 +86,7 @@ fn at_the_caret(screen: &Screen) -> Option<String> {
     let mut continuation = vec![undressed(&line).trim().to_string()];
     for previous in lines[..standing.row].iter().rev() {
         let previous = undressed(previous);
-        if blank(previous) || super::glyph::is_edge(previous) {
+        if super::glyph::is_edge(previous) {
             break;
         }
         if let Some(first) = opened(previous) {
@@ -94,7 +94,7 @@ fn at_the_caret(screen: &Screen) -> Option<String> {
             continuation.reverse();
             return Some(continuation.join("\n"));
         }
-        if !previous.starts_with(' ') {
+        if !blank(previous) && !previous.starts_with(' ') {
             break;
         }
         continuation.push(previous.trim().to_string());
@@ -119,8 +119,17 @@ fn a_place_to_type(line: &str) -> bool {
 /// of these lines with nothing after the mark, so it is passed over rather than
 /// read as an empty answer.
 fn in_the_transcript(screen: &Screen) -> Option<String> {
-    screen
-        .lines()
+    let lines = screen.lines();
+    let standing = screen.standing();
+    let current = undressed(&lines[standing.row]);
+    // The active composer's text after the caret may be a placeholder. Only
+    // at_the_caret may read this row; transcript fallback reads earlier turns.
+    let end = if standing.shown && a_place_to_type(current) && choice_of(current).is_none() {
+        standing.row
+    } else {
+        lines.len()
+    };
+    lines[..end]
         .iter()
         .rev()
         .find_map(|line| opened(undressed(line)).map(str::to_string))

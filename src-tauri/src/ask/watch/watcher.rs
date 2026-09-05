@@ -106,7 +106,11 @@ impl Watcher {
             let end = part.len() - usize::from(boundary);
             self.screen.feed(&part[..end]);
             if boundary {
-                self.remember();
+                // Capture shell commands before they scroll away, but read an
+                // agent's input only after its redraw has positioned the caret.
+                if !self.screen.standing().taken {
+                    self.remember();
+                }
                 self.screen.feed(&part[end..]);
             }
         }
@@ -143,7 +147,10 @@ impl Watcher {
         // taken over — see `started`. Taken here rather than beside the state
         // it is read for, because this is the one place that knows the reading
         // is fresh.
-        if !self.screen.standing().taken && self.started != self.typed {
+        // A carriage return parks the caret at the start of a wrapped row.
+        // Its preceding rows contain only a prefix of the submitted command.
+        let standing = self.screen.standing();
+        if !standing.taken && standing.col > 0 && self.started != self.typed {
             self.started = self.typed.clone();
         }
     }

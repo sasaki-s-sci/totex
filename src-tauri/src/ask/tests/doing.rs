@@ -309,3 +309,29 @@ fn combined_private_modes_enable_agent_detection() {
     let screen = screen_of("\x1b[?25;1004h\r\nesc interrupt");
     assert_eq!(doing(&screen, Some("opencode")), Doing::Working);
 }
+
+#[test]
+fn agents_launched_from_a_wrapped_shell_prompt_keep_their_identity() {
+    for agent in ["claude", "codex", "opencode"] {
+        for width in [38, 39, 40, 45] {
+            for chunked in [false, true] {
+                let mut watcher = Watcher::new(24, width);
+                let prompt = format!("user@host:/{}$ ", "d".repeat(26));
+                let text = format!("{prompt}{agent}\r\n{}", inline_agent("? for shortcuts"));
+                if chunked {
+                    for (at, letter) in text.char_indices() {
+                        watcher.keep(at, &letter.to_string());
+                    }
+                } else {
+                    watcher.keep(0, &text);
+                }
+                assert_eq!(watcher.doing(), Doing::Agent, "{agent}, {width}, {chunked}");
+                let busy = inline_agent("esc to interrupt");
+                watcher.keep(text.len(), &busy);
+                assert_eq!(watcher.doing(), Doing::Working);
+                watcher.keep(text.len() + busy.len(), "\x1b[?1004l\r\nuser@host:~$ ");
+                assert_eq!(watcher.doing(), Doing::Idle);
+            }
+        }
+    }
+}

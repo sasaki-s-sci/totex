@@ -108,7 +108,7 @@ pub fn doing(screen: &Screen, started: Option<&str>) -> Doing {
     // the space after a shell's sigil is the whole of what says the sigil is a
     // prompt rather than the last letter of a word, and a line trimmed to fit
     // would have thrown it away.
-    if waiting(&screen.upto(standing.row, standing.col)) {
+    if waiting(&screen.before_caret()) {
         return Doing::Idle;
     }
     Doing::Running

@@ -5,6 +5,7 @@ use super::Screen;
 impl Screen {
     pub(super) fn reset(&mut self) {
         self.cells.fill(' ');
+        self.continued.fill(false);
         self.row = 0;
         self.col = 0;
         self.top = 0;
@@ -22,6 +23,7 @@ impl Screen {
         if self.wrapping || self.col + width > self.cols {
             self.col = 0;
             self.newline();
+            self.continued[self.row] = self.row > 0;
             self.wrapping = false;
         }
         let at = self.row * self.cols + self.col;
@@ -42,14 +44,24 @@ impl Screen {
         } else {
             self.row += 1;
         }
+        self.continued[self.row] = false;
     }
 
     pub(super) fn erase_screen(&mut self, mode: usize) {
         let at = self.row * self.cols + self.col;
         match mode {
-            0 => self.cells[at..].fill(' '),
-            1 => self.cells[..=at].fill(' '),
-            _ => self.cells.fill(' '),
+            0 => {
+                self.cells[at..].fill(' ');
+                self.continued[self.row + usize::from(self.col > 0)..].fill(false);
+            }
+            1 => {
+                self.cells[..=at].fill(' ');
+                self.continued[..=self.row].fill(false);
+            }
+            _ => {
+                self.cells.fill(' ');
+                self.continued.fill(false);
+            }
         }
     }
 
@@ -60,6 +72,9 @@ impl Screen {
             0 => self.cells[at..start + self.cols].fill(' '),
             1 => self.cells[start..=at].fill(' '),
             _ => self.cells[start..start + self.cols].fill(' '),
+        }
+        if mode != 0 || self.col == 0 {
+            self.continued[self.row] = false;
         }
     }
 
@@ -98,6 +113,9 @@ impl Screen {
         let to = (last + 1) * self.cols;
         self.cells.copy_within(from..to, first * self.cols);
         self.cells[to - count * self.cols..to].fill(' ');
+        self.continued.copy_within(first + count..last + 1, first);
+        self.continued[first] = false;
+        self.continued[last + 1 - count..last + 1].fill(false);
     }
 
     /// And down, blanking what comes in at the top.
@@ -111,6 +129,12 @@ impl Screen {
         self.cells
             .copy_within(from..to, (first + count) * self.cols);
         self.cells[from..from + count * self.cols].fill(' ');
+        self.continued
+            .copy_within(first..last + 1 - count, first + count);
+        self.continued[first..first + count].fill(false);
+        if first + count <= last {
+            self.continued[first + count] = false;
+        }
     }
 }
 

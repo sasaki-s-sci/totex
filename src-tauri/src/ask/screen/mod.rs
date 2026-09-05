@@ -60,6 +60,8 @@ pub struct Screen {
     /// Row-major, `rows * cols` of them. The second half of a wide character is
     /// held as a nul, which reads as nothing and is skipped on the way out.
     cells: Vec<char>,
+    /// Whether each row continues the preceding row through automatic wrapping.
+    continued: Vec<bool>,
     row: usize,
     col: usize,
     /// The rows scrolling happens between, which is all of them by default.
@@ -92,6 +94,7 @@ impl Screen {
             rows,
             cols,
             cells: vec![' '; rows * cols],
+            continued: vec![false; rows],
             row: 0,
             col: 0,
             top: 0,
@@ -156,21 +159,15 @@ impl Screen {
             .collect()
     }
 
-    /// One row, up to a column: what is written in front of the caret when the
-    /// caret is standing on that row.
-    ///
-    /// Cut in columns rather than in characters, because columns are what the
-    /// caret counts in. A row with a wide character on it holds fewer
-    /// characters than the columns it fills, and a string cut at the caret's
-    /// own number would be cut in the wrong place — which for a question typed
-    /// in Japanese is the middle of a word.
-    pub fn upto(&self, row: usize, col: usize) -> String {
-        if row >= self.rows {
-            return String::new();
+    /// The logical line before the caret, including automatic wraps but never
+    /// explicit newlines. Shell prompts and commands can span several rows.
+    pub fn before_caret(&self) -> String {
+        let mut first = self.row;
+        while first > 0 && self.continued[first] {
+            first -= 1;
         }
-        let from = row * self.cols;
-        let to = from + col.min(self.cols);
-        self.cells[from..to]
+        let end = self.row * self.cols + self.col + usize::from(self.wrapping);
+        self.cells[first * self.cols..end]
             .iter()
             .filter(|cell| **cell != '\0')
             .collect()
