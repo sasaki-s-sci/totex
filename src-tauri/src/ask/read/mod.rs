@@ -38,6 +38,10 @@ pub fn read(screen: &Screen) -> Option<Reading> {
     let inner: Vec<&str> = lines.iter().map(|line| undressed(line)).collect();
     let standing = screen.standing();
 
+    if composing(&inner, &standing) {
+        return None;
+    }
+
     // OpenCode's active composer uses a left bar instead of a turn marker.
     let composer = standing.alt
         && standing.shown
@@ -56,6 +60,24 @@ pub fn read(screen: &Screen) -> Option<Reading> {
                 .then(|| prompt::written(&inner, &standing))
                 .flatten()
         })
+}
+
+/// Input can contain blank lines, questions and numbered lists. Follow the
+/// indented input back to its turn marker before trying any question reader.
+fn composing(inner: &[&str], standing: &Standing) -> bool {
+    if !standing.shown || (standing.col == 0 && blank(inner[standing.row])) {
+        return false;
+    }
+    for line in inner[..=standing.row].iter().rev() {
+        let text = line.trim();
+        if text.starts_with(['❯', '›', '>', '▶', '»']) && choice_of(text).is_none() {
+            return true;
+        }
+        if is_edge(line) || (!blank(line) && !line.starts_with(' ')) {
+            break;
+        }
+    }
+    false
 }
 
 /// What a question is drawn in, as far as the lines above it say. Three rather

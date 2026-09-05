@@ -190,3 +190,31 @@ fn full_screen_bar_composer_is_input_even_when_it_asks_a_question() {
     assert_eq!(typed(&screen).as_deref(), Some("why does this fail?"));
     assert!(super::super::read(&screen).is_none());
 }
+
+#[test]
+fn idle_codex_placeholder_is_not_a_user_turn() {
+    let screen = screen_of("› Ask codex to do anything\x1b[1;3H");
+    assert_eq!(typed(&screen), None);
+    assert!(super::super::read(&screen).is_none());
+}
+
+#[test]
+fn codex_input_preserves_blank_lines() {
+    let screen = screen_of("› Explain this\r\n\r\n  why does this fail?");
+    assert_eq!(
+        typed(&screen).as_deref(),
+        Some("Explain this\n\nwhy does this fail?")
+    );
+}
+
+#[test]
+fn a_completed_codex_turn_keeps_the_request_instead_of_the_placeholder() {
+    let mut watcher = Watcher::new(24, 60);
+    let start = "$ codex\r\n\x1b[?1004h\x1b[2J\x1b[H› fix the bug";
+    watcher.keep(0, start);
+    assert_eq!(watcher.typed(), Some("fix the bug"));
+    let idle = "\x1b[2J\x1b[H› Ask codex to do anything\x1b[1;3H";
+    watcher.keep(start.len(), idle);
+    assert_eq!(watcher.typed(), Some("fix the bug"));
+    assert!(watcher.asking().is_none());
+}

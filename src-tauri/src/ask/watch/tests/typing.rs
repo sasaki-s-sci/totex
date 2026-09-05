@@ -130,3 +130,17 @@ fn replay_preserves_agent_identity() {
         assert_eq!(watcher.typed(), Some("fix the bug"));
     }
 }
+
+#[test]
+fn replay_preserves_an_agent_command_split_across_rows() {
+    for agent in ["claude", "codex", "opencode"] {
+        let mut watcher = Watcher::new(24, 40);
+        let text = format!(
+            "user@host:/{}$ {agent}\r\n\x1b[?1004h\x1b[2J\x1b[H› fix the bug\r\nesc to interrupt",
+            "d".repeat(26)
+        );
+        watcher.replay(&text, text.len());
+        assert_eq!(watcher.doing(), crate::ask::Doing::Working, "{agent}");
+        assert_eq!(watcher.typed(), Some("fix the bug"));
+    }
+}

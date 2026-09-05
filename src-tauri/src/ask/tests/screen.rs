@@ -28,3 +28,26 @@ fn a_sequence_split_between_two_runs_still_arrives() {
     screen.feed(";1Hten");
     assert_eq!(screen.lines(), vec!["ten", "two", ""]);
 }
+
+#[test]
+fn logical_lines_join_only_automatic_wraps_and_include_the_last_column() {
+    let mut screen = Screen::new(3, 5);
+    screen.feed("$ codex");
+    assert_eq!(screen.before_caret(), "$ codex");
+    screen.feed("123");
+    assert_eq!(screen.before_caret(), "$ codex123");
+    screen.feed("\r\nnext");
+    assert_eq!(screen.before_caret(), "next");
+}
+
+#[test]
+fn logical_lines_survive_scrolling_and_forget_erased_rows() {
+    let mut screen = Screen::new(3, 5);
+    screen.feed("old\r\n$ codex1234");
+    assert_eq!(screen.before_caret(), "$ codex1234");
+    screen.feed("\x1b[2J\x1b[Hnew\x1b[2;1Htext");
+    assert_eq!(screen.before_caret(), "text");
+
+    screen.feed("\x1b[2J\x1b[H$ codex\r\x1b[2Ktext");
+    assert_eq!(screen.before_caret(), "text");
+}

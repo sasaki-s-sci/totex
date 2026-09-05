@@ -85,3 +85,14 @@ fn user_numbered_lists_are_not_choices() {
     let screen = super::screen_of("› Please implement:\r\n  1. Read input\r\n  2. Show state");
     assert!(super::super::read(&screen).is_none());
 }
+
+#[test]
+fn codex_multiline_input_with_blank_lines_is_not_elicitation() {
+    for text in [
+        "› Explain this\r\n\r\n  why does this fail?",
+        "› Explain this\r\n\r\n  Continue? [y/N]",
+        "› Implement this\r\n\r\n  Requirements:\r\n  1. Read input\r\n  2. Show state",
+    ] {
+        assert!(read(&screen_of(text)).is_none(), "{text}");
+    }
+}
