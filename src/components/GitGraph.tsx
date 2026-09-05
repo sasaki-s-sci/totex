@@ -258,7 +258,7 @@ export function GitGraph({
   // held for as long as the key is — or kept on all the time, where the window
   // has been told to in settings. The numbers are what a key would reach; the
   // lines are which terminal is which.
-  const typed = useCliTyped(jumps !== null, asks, reports);
+  const typed = useCliTyped(jumps !== null, showing, asks, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,

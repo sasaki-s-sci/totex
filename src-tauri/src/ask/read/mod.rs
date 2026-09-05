@@ -38,10 +38,24 @@ pub fn read(screen: &Screen) -> Option<Reading> {
     let inner: Vec<&str> = lines.iter().map(|line| undressed(line)).collect();
     let standing = screen.standing();
 
+    // OpenCode's active composer uses a left bar instead of a turn marker.
+    let composer = standing.alt
+        && standing.shown
+        && lines
+            .get(standing.row)
+            .is_some_and(|line| line.trim_start().starts_with('▌'));
     lists::keyed(&inner, &standing)
         .or_else(|| lists::marked(&inner, &standing))
-        .or_else(|| prompt::confirmed(&inner, &standing))
-        .or_else(|| prompt::written(&inner, &standing))
+        .or_else(|| {
+            (!composer)
+                .then(|| prompt::confirmed(&inner, &standing))
+                .flatten()
+        })
+        .or_else(|| {
+            (!composer)
+                .then(|| prompt::written(&inner, &standing))
+                .flatten()
+        })
 }
 
 /// What a question is drawn in, as far as the lines above it say. Three rather

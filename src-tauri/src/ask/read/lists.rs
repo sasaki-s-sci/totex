@@ -1,7 +1,7 @@
 //! The two readings that find a list of answers drawn under a question.
 
 use super::super::choice::{Key, choice_of, item_at, key_column, marked_at};
-use super::super::glyph::{beside, blank, indent, is_edge, is_rule};
+use super::super::glyph::{beside, blank, indent, is_edge, is_rule, typed_at};
 use super::super::screen::Standing;
 use super::super::{Choice, Reading, Taking};
 use super::{BREAK_LINES, Framing, asked_above, last_thing};
@@ -30,6 +30,10 @@ pub fn keyed(inner: &[&str], standing: &Standing) -> Option<Reading> {
 
     let (choices, picking) = counted(&inner[start..=foot])?;
     let (detail, question, framing) = asked_above(&inner[..start]);
+    // A list written inside a user turn is not an interactive question.
+    if typed_at(question.trim()) && !choices.iter().any(|choice| choice.selected) {
+        return None;
+    }
     // One answer is a question when the box says so, and nothing at all when it
     // is a line of somebody's answer that happens to begin with a number.
     if choices.len() < 2 && framing != Framing::Boxed {

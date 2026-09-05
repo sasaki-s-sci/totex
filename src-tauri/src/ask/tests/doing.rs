@@ -236,10 +236,8 @@ fn an_agent_started_at_a_shell_says_so_for_as_long_as_it_is_up() {
         told(&mut watcher, &mut at, &full_screen_box()),
         Some(Doing::Agent)
     );
-    // What it says it was last told to do is now the agent's own drawing, which
-    // is right for the label on the canvas and is why it cannot be what says
-    // an agent is running.
-    assert_eq!(watcher.typed(), Some("1. Yes, run it"));
+    // Permission choices must not replace the last user command.
+    assert_eq!(watcher.typed(), Some("claude"));
 
     // Quitting hands the screen back, and the session is a shell again.
     assert_eq!(
@@ -293,4 +291,21 @@ fn an_agent_drawing_down_the_ordinary_screen_says_so_too() {
         told(&mut watcher, &mut at, "\u{1b}[?1004l\r\na@box:~/repo$ "),
         Some(Doing::Idle)
     );
+}
+
+#[test]
+fn coalesced_agent_start_keeps_identity_and_working_state() {
+    for agent in ["codex", "claude", "opencode"] {
+        let mut watcher = Watcher::new(24, 60);
+        let text = format!("a@box:~$ {agent}\r\n{}", inline_agent("esc to interrupt"));
+        watcher.keep(0, &text);
+        assert_eq!(watcher.doing(), Doing::Working, "{agent}");
+        assert_eq!(watcher.typed(), Some("explain this repository"));
+    }
+}
+
+#[test]
+fn combined_private_modes_enable_agent_detection() {
+    let screen = screen_of("\x1b[?25;1004h\r\nesc interrupt");
+    assert_eq!(doing(&screen, Some("opencode")), Doing::Working);
 }

@@ -7,12 +7,8 @@
  * thing to a terminal, and this is that thing: one line, whatever it was that
  * somebody typed.
  *
- * Asked for rather than listened to, which is the whole difference between this
- * and a question. A question is a turn nobody has taken and has to reach the
- * window the moment it is put; this is a label, wanted only while somebody is
- * holding Ctrl to look at what is running — and a session says it over and over
- * while somebody types at it. So the window asks when there is somebody to read
- * it, and what comes back is a moment's reading rather than a subscription.
+ * Polled while labels are visible. Open terminals and keyboard navigation use
+ * a fast interval; unchanged readings do not trigger another canvas render.
  */
 
 import { invoke } from "@tauri-apps/api/core";

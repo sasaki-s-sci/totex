@@ -118,3 +118,15 @@ fn a_mark_is_walked_without_the_return_that_would_answer() {
     assert_eq!(walking(&ask, 2).as_deref(), Some("\u{1b}[B"));
     assert_eq!(typing(&ask, "3").as_deref(), Some("\u{1b}[B\r"));
 }
+
+#[test]
+fn replay_preserves_agent_identity() {
+    for agent in ["codex", "claude", "opencode"] {
+        let mut watcher = Watcher::new(24, 60);
+        let text =
+            format!("$ {agent}\r\n\x1b[?1004h\x1b[2J\x1b[H› fix the bug\r\nesc to interrupt");
+        watcher.replay(&text, text.len());
+        assert_eq!(watcher.doing(), crate::ask::Doing::Working);
+        assert_eq!(watcher.typed(), Some("fix the bug"));
+    }
+}

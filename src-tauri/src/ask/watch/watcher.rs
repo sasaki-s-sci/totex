@@ -78,7 +78,7 @@ impl Watcher {
             return None;
         }
         self.fed = at + data.len();
-        self.screen.feed(data);
+        self.follow(data);
         self.remember();
         self.reckon();
         self.settle(read(&self.screen))
@@ -87,26 +87,29 @@ impl Watcher {
     /// Takes a whole backlog at once and stands wherever it leaves the screen.
     /// Nothing is reported: this is a question already being asked, arrived at a
     /// second time. A window that has just come up asks via `pty_asking`.
-    ///
-    /// One thing does not survive it: a session already running an agent comes
-    /// back as running something, because what says it is an agent is the line
-    /// that started it — and the whole backlog goes in at once, so there is no
-    /// moment here at which that line was the last thing typed. It is right
-    /// again the next time the session is left at a prompt. Nothing calls this
-    /// from the window today; `rederive` is a command for the day something
-    /// does.
     pub(super) fn replay(&mut self, text: &str, upto: usize) {
-        self.screen.feed(text);
+        self.follow(text);
         self.asking = read(&self.screen).map(Ask::of);
-        // Whatever is on the screen this backlog leaves, and no more: the runs
-        // it was made of went by in one, so there is nothing here to have
-        // watched somebody type.
         self.remember();
         self.reckon();
         // Nothing was told, so nothing is owed: a window that has just come up
         // asks for the lot of these through `pty_doing`.
         self.turned = false;
         self.fed = upto;
+    }
+
+    /// Observe commands before a newline or escape sequence can erase them.
+    /// PTY chunk boundaries and backlog replay must produce the same identity.
+    fn follow(&mut self, text: &str) {
+        for part in text.split_inclusive(['\r', '\n', '\u{1b}']) {
+            let boundary = part.ends_with(['\r', '\n', '\u{1b}']);
+            let end = part.len() - usize::from(boundary);
+            self.screen.feed(&part[..end]);
+            if boundary {
+                self.remember();
+                self.screen.feed(&part[end..]);
+            }
+        }
     }
 
     pub fn resize(&mut self, rows: u16, cols: u16) {
@@ -131,7 +134,9 @@ impl Watcher {
     /// finished — so the reading that found nothing leaves the last one that
     /// found something where it is.
     fn remember(&mut self) {
-        if let Some(said) = typed(&self.screen) {
+        if let Some(said) = typed(&self.screen)
+            && read(&self.screen).is_none()
+        {
             self.typed = Some(said);
         }
         // And the same reading again, kept only off a terminal nothing has
