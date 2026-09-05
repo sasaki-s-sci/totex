@@ -3,9 +3,9 @@
  */
 
 import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
-import { useColorScheme } from "@mui/material/styles";
 import { useTranslation } from "react-i18next";
 
+import { updateSettings, useAppSettings } from "../../lib/appSettings";
 import type { ThemeMode } from "../../theme";
 import { Row } from "./Row";
 
@@ -32,19 +32,16 @@ const THEME_LABELS = {
  */
 export function ThemeRow() {
   const { t } = useTranslation();
-  const { mode, setMode } = useColorScheme();
-  // Undefined for the frame before the provider has read what was stored. The
-  // document already carries the answer by then — `applyStoredMode` wrote it —
-  // so this is only which of the three is lit, and the machine's own is what a
-  // window that has never been told is set to.
-  const current = mode ?? "system";
+  const { theme: current } = useAppSettings();
 
   return (
     <Row label={t("settings.theme")}>
       <Select
         size="small"
         value={current}
-        onChange={(event: SelectChangeEvent<ThemeMode>) => setMode(event.target.value as ThemeMode)}
+        onChange={(event: SelectChangeEvent<ThemeMode>) =>
+          updateSettings({ theme: event.target.value as ThemeMode })
+        }
         inputProps={{ "aria-label": t("settings.theme") }}
         sx={{ minWidth: 132 }}
       >

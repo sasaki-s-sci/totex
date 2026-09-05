@@ -2,9 +2,10 @@ import type { NodeProps } from "@xyflow/react";
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../../hooks/useReadingSize";
+import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
-import { markdownPart } from "../../parts";
+import { markdownPart, settingsPart } from "../../parts";
 import { useGraphActions } from "../graphActions";
 import { Page, PageFrame } from "./Page";
 import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
@@ -30,7 +31,11 @@ const HEAD_KB = 64;
 export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
   return (
     <>
-      <PageFrame minWidth={MIN_WIDTH} minHeight={MIN_HEIGHT} widthOnly={data.collapsed} />
+      <PageFrame
+        minWidth={data.view === "settings" ? 520 : MIN_WIDTH}
+        minHeight={data.view === "settings" ? 220 : MIN_HEIGHT}
+        widthOnly={data.collapsed}
+      />
       <FilePreviewCard data={data} />
     </>
   );
@@ -42,6 +47,8 @@ export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
  *  has to know. */
 export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const { t } = useTranslation();
+  const { fileTitle } = useAppSettings();
+  const Settings = settingsPart.use(data.view === "settings");
   const { saveFilePreview, previewFilePreview, fitFilePreview } = useGraphActions();
   const detail = data.size === null ? null : formatSize(data.size);
   const view = useReading();
@@ -110,7 +117,10 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     // to the room there is on screen the same way it holds a line of text. A
     // drawing has no size of its own and answers with none, which leaves the
     // card measured the way every other one is.
-    const held = drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
+    const held =
+      data.view === "settings"
+        ? 520
+        : drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
     fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, held) + BORDERS));
   }
 
@@ -130,14 +140,14 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   // offering it.
   return (
     <Page
-      kind="file-preview"
-      name={data.name}
+      kind={data.view === "settings" ? "settings-page" : "file-preview"}
+      name={fileTitle === "path" ? data.path : data.name}
       title={data.path}
       collapsed={data.collapsed}
       pinned={data.pinnedAt !== null}
       headerRef={bar}
       bodyRef={setBody}
-      onBodyWheel={onWheel}
+      onBodyWheel={data.view === "settings" ? undefined : onWheel}
       footnote={footnote}
       // Said once on the card, so that the gutter and the text are always the
       // same size as one another, and so that the size is the only thing the
@@ -163,7 +173,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         // being typed, because a page is drawn from the file on disk.
         if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") {
           event.preventDefault();
-          void save().then(() => previewFilePreview(data.requestId));
+          void save().then((saved) => saved && previewFilePreview(data.requestId));
           return;
         }
         // What every other window keeps a file with. There is nothing else to
@@ -191,17 +201,26 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         </>
       }
     >
+      {data.view === "settings" &&
+        (Settings ? (
+          <Settings />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
       {data.state === "loading" && (
         <p className="file-preview__message">{t("filePreview.loading")}</p>
       )}
       {data.state === "failed" && (
         <p className="file-preview__message is-error">{t("filePreview.failed")}</p>
       )}
-      {data.state === "ready" && data.text === null && data.picture === null && (
-        <p className="file-preview__message">
-          {t(data.view === "picture" ? "filePreview.tooLarge" : "filePreview.notText")}
-        </p>
-      )}
+      {data.view !== "settings" &&
+        data.state === "ready" &&
+        data.text === null &&
+        data.picture === null && (
+          <p className="file-preview__message">
+            {t(data.view === "picture" ? "filePreview.tooLarge" : "filePreview.notText")}
+          </p>
+        )}
       {ready && data.view === "text" && (
         <div className="file-preview__code" ref={sheet}>
           {/* The numbers, and the bars saying what became of the lines beside
@@ -282,7 +301,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       )}
 
       {/* How far down and across what is in the card has been moved. */}
-      {ready && (
+      {ready && data.view !== "settings" && (
         <>
           <i className="file-preview__reach file-preview__reach--y" ref={down} />
           <i className="file-preview__reach file-preview__reach--x" ref={across} />

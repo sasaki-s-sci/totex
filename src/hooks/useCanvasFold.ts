@@ -187,12 +187,8 @@ export function useCanvasFold({
     applied.current = graph;
     const from = new Map(standing.current.map((node) => [node.id, node.position] as const));
     setNodes((current) => {
-      const pages = current.filter(
-        (node) => node.type === "file-preview" || node.type === "settings",
-      );
-      const history = current.filter(
-        (node) => node.type !== "file-preview" && node.type !== "settings",
-      );
+      const pages = current.filter((node) => node.type === "file-preview");
+      const history = current.filter((node) => node.type !== "file-preview");
       const merged = reconcile(history, graph.nodes, before?.nodes, (rebuilt, holding) => ({
         ...rebuilt,
         selected: holding.selected,

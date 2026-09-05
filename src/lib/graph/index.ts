@@ -66,7 +66,6 @@ export {
   type RepoMarkFlowNode,
   type RepositoryFlowNode,
   type RepositoryNodeData,
-  type SettingsFlowNode,
   STEP,
   type StrokeStyle,
 } from "./model";

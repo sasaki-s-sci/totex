@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-
+import { useCallback, useEffect, useRef, useState } from "react";
+import { updateSettings, useAppSettings } from "../lib/appSettings";
 import {
   type Agent,
   setups as askSetups,
@@ -9,9 +9,6 @@ import {
   servingNow,
   stopServing,
 } from "../lib/mcp";
-
-/** Where the choice is kept, so that it outlives the window. */
-const KEY = "totex.mcp.serving";
 
 /** What the last press against one agent did, for the button to draw. */
 export type Installing = "rest" | "working" | "done" | "failed";
@@ -63,68 +60,43 @@ export function useServing(): ServingControls {
       .catch(() => setSetups([]));
   }, []);
 
+  const wanted = useAppSettings().mcpServing;
+  const operations = useRef(Promise.resolve());
+  const [retry, setRetry] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retry requests the same operation again after a server failure
   useEffect(() => {
     let alive = true;
-
-    // What is actually up, not what was wanted: a window that was reloaded is
-    // in front of a server this process already stood, and the two answers only
-    // differ while one of them is a lie.
-    const restore = async () => {
+    setActivity("changing");
+    operations.current = operations.current.then(async () => {
+      if (!alive) return;
       try {
         const port = await servingNow();
-        if (!alive) return;
-        if (port !== null) {
-          setServing(true);
-        } else if (wanted()) {
-          await serve();
-          if (alive) setServing(true);
+        if (wanted && port === null) await serve();
+        if (!wanted && port !== null) await stopServing();
+        if (alive) {
+          setServing(wanted);
+          setActivity("idle");
+          read();
         }
       } catch {
-        if (alive) setActivity("failed");
-        return;
-      }
-      if (alive) {
-        setActivity("idle");
-        read();
-      }
-    };
-
-    void restore();
-
-    return () => {
-      alive = false;
-    };
-  }, [read]);
-
-  /** Stands it up, or takes it down, and remembers which was asked for. */
-  const change = useCallback(
-    (next: boolean) => {
-      remember(next);
-      setServing(next);
-      setActivity("changing");
-
-      const settle = async () => {
-        try {
-          await (next ? serve() : stopServing());
-          setActivity("idle");
-        } catch {
-          // An invoke can fail after the command reached the program. Ask the
-          // server itself before drawing a state that may be the opposite of
-          // the one it is actually in.
+        if (alive) {
           try {
             setServing((await servingNow()) !== null);
           } catch {
-            setServing(!next);
+            /* Keep the last observed state. */
           }
           setActivity("failed");
         }
-        read();
-      };
-
-      void settle();
-    },
-    [read],
-  );
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [wanted, read, retry]);
+  const change = useCallback((next: boolean) => {
+    updateSettings({ mcpServing: next });
+    setRetry((attempt) => attempt + 1);
+  }, []);
 
   /**
    * Writes the setup into one coding agent on this machine.
@@ -146,23 +118,4 @@ export function useServing(): ServingControls {
   }, []);
 
   return { serving, activity, change, setups, installing, register };
-}
-
-function wanted(): boolean {
-  try {
-    return localStorage.getItem(KEY) === "yes";
-  } catch {
-    // A window that cannot remember opens without a server, which is where
-    // every window starts.
-    return false;
-  }
-}
-
-function remember(serving: boolean) {
-  try {
-    localStorage.setItem(KEY, serving ? "yes" : "no");
-  } catch {
-    // The server is standing either way; it is only the next window that will
-    // not know it was asked for.
-  }
 }

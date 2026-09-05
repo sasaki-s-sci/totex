@@ -21,6 +21,7 @@ import { useNodeGlide } from "../hooks/useNodeGlide";
 import { useSaidStyle } from "../hooks/useSaidStyle";
 import { useSettingsPage } from "../hooks/useSettingsPage";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
+import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
 import { BrowsingProvider } from "./browsing";
@@ -83,7 +84,7 @@ export function GitGraph({
   filePreviews,
   onPreviewFile,
   onCloseFilePreview,
-  settingsOpen,
+  settingsRequest,
   mcp,
   onCloseSettings,
 }: GraphProps) {
@@ -150,7 +151,7 @@ export function GitGraph({
   const {
     saveFilePreview,
     collapseFilePreview,
-    diffFilePreview,
+    setFilePreviewView,
     previewFilePreview,
     fitFilePreview,
     pinFilePreview,
@@ -161,7 +162,7 @@ export function GitGraph({
     { host, instance, standing, nodes, setNodes, flowReady },
     onPreviewFile,
   );
-  useSettingsPage(settingsOpen, { host, instance, standing, nodes, setNodes, flowReady });
+  useSettingsPage(settingsRequest, { host, instance, standing, nodes, setNodes, flowReady });
 
   // Re-framing is for a canvas that is no longer the one being looked at: a
   // repository appeared or went away. A commit landing must not move the
@@ -271,6 +272,14 @@ export function GitGraph({
     onSync,
   });
 
+  const closePage = useCallback(
+    (id: number) => {
+      if (id === SETTINGS_REQUEST_ID) onCloseSettings();
+      else onCloseFilePreview(id);
+    },
+    [onCloseSettings, onCloseFilePreview],
+  );
+
   const actions = useCanvasActions({
     onOpenWork,
     onBrowseWorktree,
@@ -292,11 +301,10 @@ export function GitGraph({
     onPoint,
     onPick,
     onTake,
-    onCloseFilePreview,
-    onCloseSettings,
+    onCloseFilePreview: closePage,
     saveFilePreview,
     collapseFilePreview,
-    diffFilePreview,
+    setFilePreviewView,
     previewFilePreview,
     fitFilePreview,
     pinFilePreview,

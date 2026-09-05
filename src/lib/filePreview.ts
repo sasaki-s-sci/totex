@@ -10,7 +10,7 @@ export const FILE_DRAG_TYPE = "application/x-totex-file";
  * against each other — except for a file that is nothing but a picture, which
  * opens as one because there is no reading of it to stand beside.
  */
-export type FilePreviewView = "text" | "diff" | "markdown" | "picture";
+export type FilePreviewView = "text" | "diff" | "markdown" | "picture" | "settings";
 
 /** One request to put a file card on the canvas. */
 export type FilePreviewRequest = {
@@ -112,5 +112,8 @@ export function openingView(path: string): FilePreviewView {
  * and no preview to open from it — it is the preview.
  */
 export function drawn(view: FilePreviewView): boolean {
-  return view === "markdown" || view === "picture";
+  return view === "markdown" || view === "picture" || view === "settings";
 }
+
+/** The gear owns one ordinary file card outside the drop request sequence. */
+export const SETTINGS_REQUEST_ID = -1;

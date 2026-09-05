@@ -23,15 +23,11 @@
  * on, the width and the line count are taken from the canvas itself rather than
  * from what was typed here. See `useSaidStyle`.
  *
- * Kept beside the theme and the language rather than in the backend, for the
- * same reason those are: it is a fact about this window and not about any
- * repository. A store rather than a value read where it is wanted, because two
- * things read it and they must agree — the page that is drawn from it, and the
- * canvas that answers the moment it is pressed.
+ * Stored in the application settings document alongside theme and language.
  */
 
 import { useSyncExternalStore } from "react";
-import { notifications } from "./notifications";
+import { settingsNow, subscribeSettings, updateSettings } from "./appSettings";
 
 /** Which face a line is set in. */
 export type SaidFace =
@@ -62,112 +58,23 @@ export type Said = {
  * whatever else changes here, a window that opens this page and closes it again
  * is drawing exactly what it drew before.
  */
-export const SIZE = { least: 7, most: 20, start: 9 } as const;
+export const SIZE = { least: 1, most: 20, start: 9 } as const;
 export const LINES = { least: 1, most: 6, start: 1 } as const;
 export const WIDTH = { least: 80, most: 640, start: 220 } as const;
 
-/** Where each choice is kept. The first is the one that was here before. */
-const KEYS = {
-  showing: "totex.said",
-  face: "totex.said.face",
-  size: "totex.said.size",
-  lines: "totex.said.lines",
-  width: "totex.said.width",
-  fitting: "totex.said.fit",
-} as const;
-
-/** What a yes is written down as, spelled as a word rather than as a flag. */
-const ON = "on";
-
-function held(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    // A webview with no storage at all is a window nobody has told, which is a
-    // window drawing what it always drew.
-    return null;
-  }
-}
-
-function write(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // The choice still holds for as long as this window is open. Nothing is
-    // worth saying about a preference that will not be remembered.
-  }
-}
-
-function clamp(value: number, room: { least: number; most: number }): number {
-  return Math.min(room.most, Math.max(room.least, Math.round(value)));
-}
-
-/** A number as it was written down, or the start where it was not a number. */
-function number(key: string, room: { least: number; most: number; start: number }): number {
-  const written = Number(held(key));
-  return Number.isFinite(written) && written > 0 ? clamp(written, room) : room.start;
-}
-
-function stored(): Said {
-  return {
-    showing: held(KEYS.showing) === ON,
-    face: held(KEYS.face) === "window" ? "window" : "terminal",
-    size: number(KEYS.size, SIZE),
-    lines: number(KEYS.lines, LINES),
-    width: number(KEYS.width, WIDTH),
-    fitting: held(KEYS.fitting) === ON,
-  };
-}
-
-let said = stored();
-
-const changes = notifications();
-
-/** How the lines are set, without subscribing to it. */
+/** The same live document is read by the form and the canvas. */
 export function saidNow(): Said {
-  return said;
+  return settingsNow().said;
 }
-
-/**
- * Sets whichever of them was named, and leaves the rest where they are.
- *
- * The whole record is replaced rather than changed in place, because what is
- * handed out is read by `useSyncExternalStore` and a record it has already seen
- * is a record it will not redraw for.
- */
 export function setSaid(next: Partial<Said>): void {
-  const before = said;
-  const after: Said = { ...before, ...next };
-  if (
-    after.showing === before.showing &&
-    after.face === before.face &&
-    after.size === before.size &&
-    after.lines === before.lines &&
-    after.width === before.width &&
-    after.fitting === before.fitting
-  ) {
-    return;
-  }
-
-  said = after;
-  if (after.showing !== before.showing) write(KEYS.showing, after.showing ? ON : "off");
-  if (after.face !== before.face) write(KEYS.face, after.face);
-  if (after.size !== before.size) write(KEYS.size, String(after.size));
-  if (after.lines !== before.lines) write(KEYS.lines, String(after.lines));
-  if (after.width !== before.width) write(KEYS.width, String(after.width));
-  if (after.fitting !== before.fitting) write(KEYS.fitting, after.fitting ? ON : "off");
-  changes.notify();
+  updateSettings({ said: next });
 }
-
 export function useSaid(): Said {
-  return useSyncExternalStore(changes.subscribe, saidNow, saidNow);
+  return useSyncExternalStore(subscribeSettings, saidNow, saidNow);
 }
-
-/** Whether the lines are being kept on, without subscribing to it. */
 export function isShowingSaid(): boolean {
-  return said.showing;
+  return saidNow().showing;
 }
-
 export function useShowingSaid(): boolean {
-  return useSyncExternalStore(changes.subscribe, isShowingSaid, isShowingSaid);
+  return useSyncExternalStore(subscribeSettings, isShowingSaid, isShowingSaid);
 }

@@ -6,6 +6,7 @@ import {
   useTheme,
 } from "@mui/material/styles";
 
+import { settingsNow } from "../lib/appSettings";
 import { DEFAULT_PRESET, presetById } from "./presets";
 import { type Preset, readPreset, type Scheme } from "./scheme";
 
@@ -23,9 +24,6 @@ export type ThemeMode = "system" | "light" | "dark";
  * answer. This is that: a mode with the question taken out of it.
  */
 export type Half = "light" | "dark";
-
-/** Where the choice is kept, and what the provider is told to keep it under. */
-export const MODE_KEY = "totex.mode";
 
 /** Where the colours are kept: a preset's name, or a whole preset. See `storedPreset`. */
 export const PRESET_KEY = "totex.preset";
@@ -142,13 +140,7 @@ export const theme = themeFrom(storedPreset());
  * turns dark a frame later is the flash this avoids.
  */
 export function storedMode(): ThemeMode {
-  try {
-    const stored = localStorage.getItem(MODE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "system") return stored;
-  } catch {
-    // A window that cannot remember the choice still follows the machine.
-  }
-  return "system";
+  return settingsNow().theme;
 }
 
 /**

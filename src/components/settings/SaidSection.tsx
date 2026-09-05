@@ -1,6 +1,15 @@
 /** The line beside a terminal: whether it stands on its own, and how it is set. */
 
-import { Checkbox, Divider, MenuItem, Select, type SelectChangeEvent, Stack } from "@mui/material";
+import {
+  Checkbox,
+  Divider,
+  MenuItem,
+  Select,
+  type SelectChangeEvent,
+  Slider,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import { LINES, type SaidFace, SIZE, setSaid, useSaid, WIDTH } from "../../lib/said";
@@ -15,16 +24,7 @@ const FACE_LABELS = {
   window: "said.window",
 } as const;
 
-/**
- * One measure, offered as the numbers it can be rather than as a field.
- *
- * A pull-down rather than something to type in. Every one of these has a small
- * range with both ends worth having — seven pixels to twenty, one line to six —
- * and a list of those is a list somebody can run down and pick from without
- * first finding out what the ends are. What is typed into a field has to be
- * caught and put back when it is nonsense, which is a conversation about a
- * number nobody wanted to have.
- */
+/** A numeric preference with a slider and its current value. */
 function Measure({
   label,
   value,
@@ -41,29 +41,28 @@ function Measure({
   disabled?: boolean;
   onPick: (next: number) => void;
 }) {
-  const offered: number[] = [];
-  for (let at = room.least; at <= room.most; at += step) offered.push(at);
-  // What was stored is always one of the choices, even where a step walked past
-  // it: the numbers moved under a window that had already been told one.
-  if (!offered.includes(value)) offered.push(value);
-  offered.sort((one, other) => one - other);
-
   return (
     <Row label={label}>
-      <Select
-        size="small"
-        value={value}
-        disabled={disabled}
-        onChange={(event: SelectChangeEvent<number>) => onPick(Number(event.target.value))}
-        inputProps={{ "aria-label": label }}
-        sx={{ minWidth: 132 }}
-      >
-        {offered.map((option) => (
-          <MenuItem key={option} value={option}>
-            {option}
-          </MenuItem>
-        ))}
-      </Select>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 2, width: 180 }}>
+        <Slider
+          size="small"
+          aria-label={label}
+          value={value}
+          min={room.least}
+          max={room.most}
+          step={step}
+          disabled={disabled}
+          onChange={(_, next) => {
+            if (typeof next === "number") onPick(next);
+          }}
+        />
+        <Typography
+          variant="body2"
+          sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+        >
+          {value}
+        </Typography>
+      </Stack>
     </Row>
   );
 }

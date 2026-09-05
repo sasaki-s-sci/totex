@@ -1,10 +1,10 @@
 /** Which language the window's words are drawn in. */
 
 import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { changeLanguage, type LanguageMode, storedLanguage } from "../../i18n";
+import { changeLanguage, type LanguageMode } from "../../i18n";
+import { useAppSettings } from "../../lib/appSettings";
 import { Row } from "./Row";
 
 /** The machine's answer first, followed by each language the window carries. */
@@ -25,7 +25,7 @@ const LANGUAGE_LABELS = {
  */
 export function LanguageRow() {
   const { t } = useTranslation();
-  const [current, setCurrent] = useState(storedLanguage);
+  const { language: current } = useAppSettings();
 
   return (
     <Row label={t("settings.language")}>
@@ -34,7 +34,6 @@ export function LanguageRow() {
         value={current}
         onChange={(event: SelectChangeEvent<LanguageMode>) => {
           const next = event.target.value as LanguageMode;
-          setCurrent(next);
           void changeLanguage(next);
         }}
         inputProps={{ "aria-label": t("settings.language") }}

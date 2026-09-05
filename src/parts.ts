@@ -33,7 +33,7 @@ export const tasksPart = onDemand(() =>
   import("./components/TaskMenu").then((part) => part.TaskMenu),
 );
 export const settingsPart = onDemand(() =>
-  import("./components/nodes/SettingsNode").then((part) => part.SettingsNode),
+  import("./components/settings/SettingsContent").then((part) => part.SettingsContent),
 );
 /** What draws a markdown file as a page: a parser and a sanitiser, and neither
  *  of them anything the window needs until a preview is asked for. */

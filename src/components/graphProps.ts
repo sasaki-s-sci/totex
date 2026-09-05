@@ -156,7 +156,8 @@ export type GraphProps = {
   onPreviewFile: (path: string, beside: number) => void;
   onCloseFilePreview: (requestId: number) => void;
   /** The window's one settings page, and the controls it draws. */
-  settingsOpen: boolean;
+  /** Zero closes it; each new request places it in the viewport's center. */
+  settingsRequest: number;
   mcp: ServingControls;
   onCloseSettings: () => void;
 };

@@ -1,5 +1,5 @@
 import { Box, CssBaseline } from "@mui/material";
-import { ThemeProvider } from "@mui/material/styles";
+import { ThemeProvider, useColorScheme } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CommitTarget } from "./components/CommitMenu";
@@ -22,6 +22,7 @@ import { useSessionKeys } from "./hooks/useSessionKeys";
 import { useSessions } from "./hooks/useSessions";
 import { useTaskKeys } from "./hooks/useTaskKeys";
 import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
+import { useAppSettings } from "./lib/appSettings";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import type { CliPlace } from "./lib/graphNav";
 import { warmInTurn } from "./lib/onDemand";
@@ -41,7 +42,7 @@ import {
   tasksPart,
   worktreePart,
 } from "./parts";
-import { MODE_KEY, storedMode, theme } from "./theme";
+import { storedMode, theme } from "./theme";
 import type { Repository } from "./types/git";
 
 export default function App() {
@@ -54,13 +55,21 @@ export default function App() {
     <ThemeProvider
       theme={theme}
       defaultMode={storedMode()}
-      modeStorageKey={MODE_KEY}
+      storageManager={null}
       disableTransitionOnChange
     >
+      <SettingsTheme />
       <CssBaseline />
       <Window />
     </ThemeProvider>
   );
+}
+
+function SettingsTheme() {
+  const { theme } = useAppSettings();
+  const { setMode } = useColorScheme();
+  useEffect(() => setMode(theme), [theme, setMode]);
+  return null;
 }
 
 function Window() {
@@ -78,9 +87,9 @@ function Window() {
   const [folderDestination, setFolderDestination] = useState<FolderDestination | null>(null);
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const openSettings = useCallback(() => setSettingsOpen(true), []);
-  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const [settingsRequest, setSettingsRequest] = useState(0);
+  const openSettings = useCallback(() => setSettingsRequest((request) => request + 1), []);
+  const closeSettings = useCallback(() => setSettingsRequest(0), []);
   // This lives with the window rather than inside the settings page: a
   // remembered server must come back when the app starts, without waiting for
   // its settings page to be opened first.
@@ -332,7 +341,7 @@ function Window() {
             filePreviews={filePreviews}
             onPreviewFile={previewFile}
             onCloseFilePreview={closeFilePreview}
-            settingsOpen={settingsOpen}
+            settingsRequest={settingsRequest}
             mcp={mcp}
             onCloseSettings={closeSettings}
           />

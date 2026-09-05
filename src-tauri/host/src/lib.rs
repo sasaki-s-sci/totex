@@ -10,6 +10,7 @@
 //! question about the machine asked and answered on the spot, which is what
 //! makes it a library rather than a place anything is kept.
 
+pub mod app_settings;
 mod base64;
 pub mod fs_browse;
 pub mod host;

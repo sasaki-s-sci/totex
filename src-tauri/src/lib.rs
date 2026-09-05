@@ -1,3 +1,4 @@
+mod app_settings;
 mod ask;
 mod derived;
 mod display;
@@ -200,6 +201,9 @@ pub fn run() {
             resolve_folder,
             describe_folders,
             read_directory,
+            app_settings::app_settings_read,
+            app_settings::app_settings_patch,
+            app_settings::app_settings_write,
             read_file_head,
             read_file_data,
             write_file,
