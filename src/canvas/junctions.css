@@ -13,26 +13,18 @@
    this is not one. Struck rather than filled, and under a commit's size with
    it, is how it says so without a word.
 
-   Three arms crossed at sixty degrees, one of them upright, drawn in the
-   canvas's own ink: two of them are the pseudo-elements and the third is the
-   disc's own background, because three bars want three boxes and an element has
-   only the two to give.
-
-   The disc under them is the canvas's own colour rather than paint — it is the
-   clearance every mark on this grid carries, so the lines that run into the
-   knot and out of it stop short of the arms rather than touching them, and the
-   arms keep the canvas showing between them at every angle. `JUNCTION_TRIM` is
-   where those lines are cut; this is what covers the pixel between. The size is
-   `JUNCTION_SIZE`, handed down the cell as `--knot`, so the drawing and the
-   trim are the one measure. */
+   This element is the disc under the arms, in the canvas's own colour rather
+   than paint: it is the clearance every mark on this grid carries, so the lines
+   that run into the knot and out of it stop short of the arms rather than
+   touching them, and the arms keep the canvas showing between them at every
+   angle. `JUNCTION_TRIM` is where those lines are cut; this is what covers the
+   pixel between. The size is `JUNCTION_SIZE`, handed down the cell as
+   `--knot`, so the drawing and the trim are the one measure. */
 .junction__knot {
   width: var(--knot);
   height: var(--knot);
   border-radius: 50%;
-  /* The upright arm, over the clearance disc. */
-  background:
-    linear-gradient(var(--mark), var(--mark)) center / 1px 100% no-repeat,
-    var(--mui-palette-background-default);
+  background: var(--mui-palette-background-default);
   box-shadow: var(--clearance);
   /* It answers the pointer only so that the count it gathers can be read off
      it. There is nothing to press: no `nopan` in the markup, so the hand that
@@ -40,23 +32,20 @@
   cursor: inherit;
 }
 
-/* The two arms that lean, each the same bar turned about the knot's own centre.
-   Outside the disc's rounding, which clips a background and not a child, so
-   they are drawn whole. */
-.junction__knot::before,
-.junction__knot::after {
-  content: "";
+/* The arms, drawn over the disc: three lines through the one centre, in the
+   canvas's own ink and at the weight of a hairline. See `ARMS` in
+   `JunctionNode`, which is where they are worked out and why they are lines —
+   they were bars of paint once, one the disc's own background and two the
+   pseudo-elements turned, and a bar is set down on a whole pixel before it is
+   turned, so the three of them crossed at three different places. */
+.junction__arms {
   position: absolute;
   inset: 0;
-  background: linear-gradient(var(--mark), var(--mark)) center / 1px 100% no-repeat;
-}
-
-.junction__knot::before {
-  transform: rotate(60deg);
-}
-
-.junction__knot::after {
-  transform: rotate(-60deg);
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1;
+  /* The pointer is answered by the disc, which is what carries the count. */
+  pointer-events: none;
 }
 
 /* The path the knot gathers, on the line above it.

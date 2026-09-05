@@ -39,7 +39,42 @@ export function JunctionNode({ data }: NodeProps<JunctionFlowNode>) {
       <span
         className="mark mark--centred junction__knot"
         title={t("graph.junction", { prefix, count: members })}
-      />
+      >
+        <svg
+          className="junction__arms"
+          viewBox={`0 0 ${JUNCTION_SIZE} ${JUNCTION_SIZE}`}
+          aria-hidden="true"
+        >
+          {ARMS.map(({ degrees, ...ends }) => (
+            <line key={degrees} {...ends} />
+          ))}
+        </svg>
+      </span>
     </div>
   );
 }
+
+/**
+ * The three arms of the asterisk: one upright, and one leaning sixty degrees
+ * off it either way. Each is a line from one edge of the knot's disc to the
+ * other through its centre, in the square the knot is drawn in.
+ *
+ * Drawn as lines rather than as bars of paint, because they were bars once and
+ * did not cross. A one-pixel gradient tile centred in a ten-pixel box begins
+ * four and a half pixels in, and the engine sets a tile down on a whole pixel
+ * before it turns the box — so each arm was a half-pixel off its own centre,
+ * and each in a different direction once turned. Three arms off centre by half
+ * a pixel apiece is an asterisk with three near-misses for a middle. A line has
+ * no tile to snap: it is geometry, and three of them through one point cross
+ * at that point at every size the canvas is zoomed to.
+ */
+const ARMS = [90, 30, 150].map((degrees) => {
+  const half = JUNCTION_SIZE / 2;
+  const angle = (degrees * Math.PI) / 180;
+  // Rounded so the upright arm is written at the centre and not a hair off it
+  // in the sixteenth decimal, which is what the cosine of a right angle comes
+  // out as.
+  const dx = Math.round(half * Math.cos(angle) * 1000) / 1000;
+  const dy = Math.round(half * Math.sin(angle) * 1000) / 1000;
+  return { degrees, x1: half - dx, y1: half - dy, x2: half + dx, y2: half + dy };
+});
