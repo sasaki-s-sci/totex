@@ -144,8 +144,10 @@ pressing it stops the program holding the terminals and starts the chosen one
 in its place, and every terminal is closed. That is the same press a window
 makes on its own at a start with no terminal open, made on purpose.
 
-The release workflow keeps the number honest: a patch release is refused if
-anything under `src-tauri/persistent/` has changed since the release before it.
+The release workflow chooses patch or minor from the changes since the previous
+release. Changes to the persistent program, its shared host crate or its shipped
+dependencies require a minor. A major is a milestone explicitly chosen by a
+developer. See **Releasing from main** below.
 
 The pull-down contains only releases whose pages this program can draw. The
 compatibility number comes from each release manifest, so an unknown
@@ -168,6 +170,60 @@ opens next.
 
 The declaration is remembered by the program, so it survives the reload and
 the restart used to reach it.
+
+## Releasing from main
+
+Every push to `main` runs **Build**: the checks and the Linux, macOS and Windows
+builds. After it succeeds, **Release** compares main with the latest reachable
+`vX.Y.Z` tag. The comparison covers all changes since that release, not just the
+most recent commit, so several merges produce one release of their combined
+changes when they arrive together.
+
+| Change | Release |
+| --- | --- |
+| Window, frontend, app assets, app installers or window-only dependencies | Patch: `1.2.3` → `1.2.4` |
+| Persistent program, shared `src-tauri/host`, persistent dependencies, Rust toolchain or shared build configuration | Minor: `1.2.3` → `1.3.0` |
+| Developer milestone, requested with **Release → Run workflow → major** on main | Major: `1.2.3` → `2.0.0` |
+| Documentation, standalone tests, release automation or the separate `setup/` installer | No app release |
+
+Persistent changes take precedence over ephemeral ones. The window's socket
+client, `src-tauri/persistent/src/talk.rs`, is ephemeral. Dependency comparisons
+walk the locked graph for all platforms, including indirect dependencies;
+development-only dependencies are excluded. Changes inside a production Rust
+source file count even if they only edit an inline test. The policy lives in
+`scripts/release.py`; shared build configuration, including `build.yml`, is
+conservatively treated as persistent because it builds both programs. Markdown
+shipped under source or asset directories is app content, not excluded documentation.
+The policy is covered by temporary-repository tests in
+`tests/test_release.py`. `task check` includes these tests and needs Python 3.11
+or newer; CI installs Python 3.12.
+
+Do not edit app version numbers manually. Release updates the four manifests
+and both app package entries in Cargo.lock together, commits the result to main,
+and pushes that commit and its annotated tag atomically. If main advanced in the
+meantime, the push fails without publishing either ref. A release is cut only
+from a main commit whose complete Build succeeded, and the tag is built and
+checked again before its signed assets are published. Required Build checks in
+main's branch protection should also gate merges; the workflow cannot prevent a
+person with bypass permission from pushing broken code.
+
+The version commit does not start another main build. Release explicitly
+starts Build for the tag, and version-only changes do not request another
+release. If a tag was created but its build or publication failed, rerun Build
+on that tag, or run Release in `auto` mode: it reuses the unpublished tag instead
+of consuming another version. An active build for that tag is left to finish.
+New releases remain draft until every asset has uploaded successfully, so a
+failed upload can also be resumed without exposing an incomplete release.
+After publication, Release checks main again for changes that arrived meanwhile.
+A repeated major request from an older main commit is refused; use `auto` to
+resume it, or start a new milestone request on current main.
+An unfinished release must be completed in `auto` mode before a new major is requested.
+
+The repository needs `TAURI_SIGNING_PRIVATE_KEY` for signed releases. The Release
+job needs permission to push its version commit and tags to main, and to dispatch
+Build. If branch rules require pull requests for every writer, configure a
+release bot exception consistent with those rules; no force push is used.
+The standalone version-selectable installer retains its separate Setup workflow.
 
 ## Letting the agents say what they are working on
 

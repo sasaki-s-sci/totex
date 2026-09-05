@@ -5,7 +5,8 @@ on:
     branches: [main]
     # A tag is what turns a build into a release. Tags come from
     # .github/workflows/release.yml, which works the number out and pushes both
-    # the bump and the tag -- and then asks for this build by hand, because a
+    # the bump and the tag after main passes Build -- and then dispatches this
+    # build explicitly, because a
     # tag pushed by a workflow starts nothing. A tag pushed by a person starts
     # it here, and the two runs are the same run.
     tags: ["v*"]
@@ -37,6 +38,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+
+      - name: Install Python for release policy tests
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
 
       - name: Install node, pnpm and task
         uses: jdx/mise-action@v4
@@ -410,7 +416,8 @@ jobs:
 
   release:
     name: Release
-    # A tag is a release; a push to main is a build somebody may want to look at.
+    # Only tags publish. A successful main build lets Release compare changes
+    # and choose a patch or minor; a major is explicitly requested there.
     if: startsWith(github.ref, 'refs/tags/v')
     # Nothing is published that the tests have not been run against: a release
     # is the one moment where finding out later is finding out too late.
@@ -451,9 +458,25 @@ jobs:
         # was cut with.
         run: cp scripts/install.sh scripts/install.ps1 dist-release/
 
-      - name: Publish the release
+      - name: Keep new releases draft until every asset has arrived
+        id: publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" >"$RUNNER_TEMP/releases.json"
+          # A retry of an already published tag must not hide that release.
+          published=$(jq --arg tag "$GITHUB_REF_NAME" 'any(.[][]; .tag_name == $tag and .draft == false)' "$RUNNER_TEMP/releases.json")
+          if [ "$published" = true ]; then
+            echo "draft=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "draft=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the release
         uses: softprops/action-gh-release@v3
         with:
+          draft: ${{ steps.publication.outputs.draft == 'true' }}
           files: dist-release/*
           fail_on_unmatched_files: true
           generate_release_notes: true
@@ -521,3 +544,9 @@ jobs:
             quarantine until it is let out of it:
             `xattr -dr com.apple.quarantine /Applications/totex.app`. Windows
             SmartScreen says "unknown publisher" — More info, then Run anyway.
+
+      - name: Publish the complete release
+        if: steps.publication.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

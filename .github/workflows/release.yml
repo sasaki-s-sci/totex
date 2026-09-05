@@ -1,246 +1,173 @@
 name: Release
 
-# Cutting a release is one decision -- which part of the version turns over --
-# and this is the whole of it. The number is worked out from what the tree
-# already says it is, written into every file that carries it, committed and
-# tagged, and the tag is handed to the build. Nothing about a release is typed
-# by hand, so a tag can never name a version the tree does not, and the four
-# places the version lives cannot drift apart at the one moment it matters.
-#
-# Which part turns over says what the release replaces. A patch is the
-# ephemeral half alone -- the window and its pages -- and the program holding
-# the terminals goes on holding them across it. A minor is that program too,
-# and every terminal it holds is closed to put it in. See LINE in
-# src-tauri/persistent/src/lib.rs, which is where an installed copy applies
-# the rule; this is where the rule is kept true, by refusing a patch that
-# touched the persistent half.
+# Build validates main on every push. Only successful, trusted builds may cut
+# a release. A completed tag build also wakes this workflow so changes that
+# landed while the preceding release was being published can be picked up.
 on:
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
   workflow_dispatch:
     inputs:
-      part:
-        description: Which part of the version turns over
+      mode:
+        description: Automatic patch/minor, or an explicit major milestone
         type: choice
         required: true
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
+        default: auto
+        options: [auto, major]
 
 permissions:
   contents: read
 
-# Two of these at once would work the same number out twice and race to push it.
-concurrency: release
-
 jobs:
   cut:
-    name: Cut a ${{ inputs.part }} release
+    name: Release tested main
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
+       (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'v')))
     runs-on: ubuntu-latest
+    # Only eligible jobs enter the queue. A failed or PR Build must not replace
+    # a pending release merely by completing while another release is running.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
-      # The bump commit and the tag.
       contents: write
-      # Handing the tag to the build -- see the last step.
       actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - uses: actions/checkout@v7
         with:
-          # A release is cut from main whichever branch this was started from:
-          # what is released is what is on main, and a tag on anything else
-          # names a version nobody can get back to.
           ref: main
-          # The tag message says what has landed since the last release, which
-          # takes the history and the tags to read it against.
           fetch-depth: 0
 
-      - name: Refuse a release nothing could update to
-        # The same gate the build puts on a tag, applied before the tag exists.
-        # Without the key the installers are ones every installed copy turns
-        # down, and a tag is not a thing to have to take back.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Compare shipped changes with the preceding release
+        id: plan
+        env:
+          MODE: ${{ inputs.mode || 'auto' }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" >"$RUNNER_TEMP/releases.json"
+          python3 scripts/release.py plan --mode "$MODE" \
+            --published "$RUNNER_TEMP/releases.json" --output "$GITHUB_OUTPUT" >"$RUNNER_TEMP/release-plan.json"
+          cat "$RUNNER_TEMP/release-plan.json"
+          {
+            echo '```json'
+            cat "$RUNNER_TEMP/release-plan.json"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Require a successful Build of this exact main commit
+        id: tested
+        if: steps.plan.outputs.action == 'cut'
+        env:
+          MODE: ${{ inputs.mode || 'auto' }}
+          REQUESTED_SHA: ${{ github.sha }}
+          PREVIOUS: ${{ steps.plan.outputs.previous }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          if [ "$MODE" = major ] && [ "$head" != "$REQUESTED_SHA" ]; then
+            echo "::error::main moved since this milestone was requested; use auto to resume an existing tag, or request a new milestone on main"
+            exit 1
+          fi
+          # GitHub may expose a release while its assets are still uploading.
+          # Wait for that tag's Build to finish before cutting the next one.
+          if [ -n "$PREVIOUS" ]; then
+            gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+              -f branch="$PREVIOUS" -f per_page=100 >"$RUNNER_TEMP/previous-runs.json"
+            active=$(jq '[.workflow_runs[] | select(.status != "completed")] | length' "$RUNNER_TEMP/previous-runs.json")
+            if [ "$active" -gt 0 ]; then
+              if [ "$MODE" = major ]; then
+                echo "::error::$PREVIOUS is still building; request the milestone after it finishes"
+                exit 1
+              fi
+              echo "The preceding release $PREVIOUS is still building; its completion will try again." >>"$GITHUB_STEP_SUMMARY"
+              echo "ready=false" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+            -f head_sha="$head" -f status=success -f per_page=100 >"$RUNNER_TEMP/build-runs.json"
+          count=$(jq --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[] |
+            select(.head_repository.full_name == $repo) |
+            select(.event == "push" or .event == "workflow_dispatch") |
+            select(.head_branch == "main" or (.head_branch | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | length' \
+            "$RUNNER_TEMP/build-runs.json")
+          if [ "$count" -eq 0 ]; then
+            if [ "$MODE" = major ]; then
+              echo "::error::main at $head has not passed Build; retry the milestone after it succeeds"
+              exit 1
+            fi
+            echo "main at $head is still waiting for a successful Build; its completion will try again" >>"$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >>"$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Require the signing key before creating a tag
+        if: steps.plan.outputs.action == 'build' || (steps.plan.outputs.action == 'cut' && steps.tested.outputs.ready == 'true')
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           if [ -z "$KEY" ]; then
-            echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is unset, so nothing could be signed"
+            echo "::error::TAURI_SIGNING_PRIVATE_KEY is unset; no release can be signed"
             exit 1
           fi
 
-      - name: Work out what this turns over to
-        id: version
+      - name: Write the version, commit and push main with its tag atomically
+        if: steps.plan.outputs.action == 'cut' && steps.tested.outputs.ready == 'true'
         env:
-          PART: ${{ inputs.part }}
+          TO: ${{ steps.plan.outputs.to }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          PREVIOUS: ${{ steps.plan.outputs.previous }}
+          TESTED_SHA: ${{ steps.plan.outputs.sha }}
         run: |
           set -euo pipefail
-
-          # Four files carry a version and they are one number: every release
-          # moves all of them together, and a tree where they disagree is a
-          # tree something was done to by hand.
-          conf=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
-          crate=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/Cargo.toml | head -1)
-          pkg=$(sed -n 's/^  "version": *"\([^"]*\)".*/\1/p' package.json)
-          persistent=$(sed -n 's/^version = "\([^"]*\)".*/\1/p' src-tauri/persistent/Cargo.toml | head -1)
-          for carried in "$crate" "$pkg" "$persistent"; do
-            if [ "$carried" != "$conf" ]; then
-              echo "::error::the tree disagrees about its own version: tauri.conf.json $conf, Cargo.toml $crate, package.json $pkg, persistent/Cargo.toml $persistent"
-              exit 1
-            fi
-          done
-
-          # Three numbers and nothing else: this adds to them, and there is
-          # nothing sensible to add to a version with a suffix on it.
-          if ! printf '%s' "$conf" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::$conf is not a version this knows how to turn over"
-            exit 1
-          fi
-          echo "the app is at $conf"
-
-          IFS=. read -r major minor patch <<<"$conf"
-          case "$PART" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-            *) echo "::error::$PART is not a part of a version"; exit 1 ;;
-          esac
-          next="$major.$minor.$patch"
-
-          # A tag that is already there is a release that already happened, and
-          # taking it over would leave installed copies pointed at a download
-          # that is no longer what they were told it was.
-          if git rev-parse -q --verify "refs/tags/v$next" >/dev/null; then
-            echo "::error::v$next is already a tag"
-            exit 1
-          fi
-
-          echo "from=$conf" >>"$GITHUB_OUTPUT"
-          echo "to=$next" >>"$GITHUB_OUTPUT"
-          echo "cutting v$conf -> v$next"
-
-      - name: Refuse a patch that touched the persistent half
-        # A patch promises that the program holding the terminals is the same
-        # program before and after, so that an installed copy keeps using the
-        # one it has. That promise is read off the number by every copy that
-        # updates, and it is only worth reading if nothing under the persistent
-        # half's own directory moved since the release before this one. A
-        # change there is a minor release, whatever it was for.
-        #
-        # Compared against the last release that had the directory at all: the
-        # release that put it under this name has nothing earlier to be read
-        # against, and says so rather than refusing.
-        #
-        # The crate holds both ends of the socket, and only one of them is the
-        # program that goes on running: src/talk.rs is the window's end, linked
-        # into the window and asked from there, and tests/ are run and not
-        # shipped. Both are left out, because a change to how the window asks
-        # is a change to the window.
-        if: inputs.part == 'patch'
-        run: |
-          set -euo pipefail
-          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
-          if [ -z "$previous" ] || ! git cat-file -e "$previous:src-tauri/persistent/Cargo.toml" 2>/dev/null; then
-            echo "::notice::${previous:-no release} has no src-tauri/persistent to compare against, so this patch is not checked for changes to it"
-            exit 0
-          fi
-          program=(src-tauri/persistent ':!src-tauri/persistent/src/talk.rs' ':!src-tauri/persistent/tests')
-          if ! git diff --quiet "$previous" HEAD -- "${program[@]}"; then
-            echo "::error::the program under src-tauri/persistent has changed since $previous, and a patch release promises it has not -- cut a minor"
-            git --no-pager diff --stat "$previous" HEAD -- "${program[@]}"
-            exit 1
-          fi
-          echo "the program under src-tauri/persistent is what it was at $previous"
-
-      - name: Write it into everything that carries it
-        env:
-          TO: ${{ steps.version.outputs.to }}
-        run: |
-          set -euo pipefail
-
-          # The first match in each file is the package's own version; the ones
-          # further down belong to dependencies. Written by position rather
-          # than by what was there, which is what lets one line do all four.
-          sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" package.json
-          sed -i "0,/^  \"version\": \"[^\"]*\"/s//  \"version\": \"$TO\"/" src-tauri/tauri.conf.json
-          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/Cargo.toml
-          # The persistent half carries the app's number too: it ships inside
-          # every release, and the window reads the line off it -- see
-          # src-tauri/persistent/Cargo.toml.
-          sed -i "0,/^version = \"[^\"]*\"/s//version = \"$TO\"/" src-tauri/persistent/Cargo.toml
-
-          # The lock says the version of every crate in the build, these two
-          # included, and cargo rewrites it on the next build either way. Doing
-          # it here is what keeps the committed lock true of the committed
-          # manifests. The lines wanted are the ones under the crates' own
-          # names.
-          awk -v to="$TO" '
-            found && /^version = / { $0 = "version = \"" to "\"" }
-            { found = ($0 == "name = \"totex\"" || $0 == "name = \"totex-persistent\""); print }
-          ' src-tauri/Cargo.lock >Cargo.lock.next
-          mv Cargo.lock.next src-tauri/Cargo.lock
-
-          # None of them is allowed to have been missed: a file left on the old
-          # number is a release that ships pages claiming to be something else,
-          # and the app compares the two.
-          grep -q "^  \"version\": \"$TO\"" package.json &&
-            grep -q "^  \"version\": \"$TO\"" src-tauri/tauri.conf.json &&
-            grep -q "^version = \"$TO\"" src-tauri/Cargo.toml &&
-            grep -q "^version = \"$TO\"" src-tauri/persistent/Cargo.toml &&
-            grep -A1 '^name = "totex"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" &&
-            grep -A1 '^name = "totex-persistent"$' src-tauri/Cargo.lock | grep -q "^version = \"$TO\"$" || {
-              echo "::error::the version was not written everywhere it lives"
-              git --no-pager diff --stat
-              exit 1
-            }
-
-          git --no-pager diff
-
-      - name: Commit it, tag it, and push both
-        id: cut
-        env:
-          TO: ${{ steps.version.outputs.to }}
-        run: |
-          set -euo pipefail
-
-          # What has landed since the last release, read before the bump commit
-          # exists so that the tag says what is in it rather than that it is a
-          # tag. With no release before this one, that is the whole history.
-          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
-          if [ -n "$previous" ]; then
-            landed=$(git log --format='- %s' "$previous..HEAD")
-          else
-            landed=$(git log --format='- %s' HEAD)
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -aqm "Turn the version over to $TO" -m \
-            "Cut by .github/workflows/release.yml, which is where the number is worked out, written into the four files that carry it, and tagged."
-
-          printf 'totex %s\n\n%s\n' "$TO" "$landed" >"$RUNNER_TEMP/tag-message.txt"
-          git tag -a "v$TO" -F "$RUNNER_TEMP/tag-message.txt"
-          git push origin main "refs/tags/v$TO"
-
-          echo "tag=v$TO" >>"$GITHUB_OUTPUT"
-
-      - name: Hand the tag to the build
-        # A tag pushed with this workflow's own token starts nothing -- that is
-        # GitHub refusing to let a workflow set workflows off, and it is why the
-        # build is asked for here rather than left to the push. Started on the
-        # tag, the run is the one a tag push would have made: everything in the
-        # build that asks whether this is a release asks the ref, and the ref is
-        # the tag.
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.cut.outputs.tag }}
-        run: gh workflow run build.yml --ref "$TAG"
-
-      - name: Say what was cut
-        env:
-          FROM: ${{ steps.version.outputs.from }}
-          TAG: ${{ steps.cut.outputs.tag }}
-        run: |
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          python3 scripts/release.py bump --version "$TO"
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml \
+            src-tauri/persistent/Cargo.toml src-tauri/Cargo.lock
+          git commit -m "Turn the version over to $TO"
           {
-            echo "Cut **$TAG** from $FROM."
-            echo
-            echo "The installers are being built now — see the Build workflow on $TAG,"
-            echo "which is what publishes the release."
-          } >>"$GITHUB_STEP_SUMMARY"
+            printf 'totex %s\n\n' "$TO"
+            if [ -n "$PREVIOUS" ]; then
+              git log --format='- %s' "$PREVIOUS..$TESTED_SHA"
+            else
+              git log --format='- %s' "$TESTED_SHA"
+            fi
+          } >"$RUNNER_TEMP/tag-message.txt"
+          git tag -a "$TAG" -F "$RUNNER_TEMP/tag-message.txt"
+          # A newer main makes the entire push fail: neither its history nor
+          # the tag is overwritten. The newer main's Build will plan again.
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$TAG"
+
+      - name: Build the new tag or resume an unpublished one
+        if: steps.plan.outputs.action == 'build' || (steps.plan.outputs.action == 'cut' && steps.tested.outputs.ready == 'true')
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # GITHUB_TOKEN pushes do not trigger another workflow. Dispatch is
+          # explicit, and retrying after a failed build reuses the same tag.
+          gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+            -f branch="$TAG" -f per_page=100 >"$RUNNER_TEMP/tag-runs.json"
+          active=$(jq '[.workflow_runs[] | select(.status != "completed")] | length' "$RUNNER_TEMP/tag-runs.json")
+          if [ "$active" -gt 0 ]; then
+            echo "Build is already running for $TAG." >>"$GITHUB_STEP_SUMMARY"
+          else
+            gh workflow run build.yml --ref "$TAG"
+            echo "Dispatched Build for $TAG; it publishes only after all checks and platform builds succeed." >>"$GITHUB_STEP_SUMMARY"
+          fi

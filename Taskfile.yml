@@ -140,8 +140,10 @@ tasks:
       - cargo clippy {{.CARGO}} {{.WORKSPACE}} --all-targets --all-features -- -D warnings
 
   test:
-    desc: Run the frontend and Rust test suites
+    desc: Run the release policy, frontend and Rust test suites
     cmds:
+      - python3 -B scripts/release.py verify
+      - python3 -B -m unittest discover -s tests -p 'test_*.py'
       - pnpm test
       # `--no-fail-fast` because the workspace is several test binaries and the
       # default stops at the first one that fails: a single failure in the app
