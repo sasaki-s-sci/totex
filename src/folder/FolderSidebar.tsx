@@ -1,7 +1,7 @@
 import { Box, Divider, Stack } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AddMark, MARK_BUTTON, MarkButton, SettingsMark } from "../components/marks";
+import { AddMark, Frame, MARK_BUTTON, MarkButton, SettingsMark } from "../components/marks";
 import { ResizeGrip } from "../components/useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET } from "../components/WindowControls";
 import type { Drops } from "../hooks/useDrops";
@@ -39,6 +39,7 @@ export interface FolderDestination {
 
 export interface FolderSidebarProps {
   open: boolean;
+  onClose: () => void;
   /** Panes to stand up on the first render, e.g. paths restored from storage.
    *  They start browsing, and off the graph: what goes on the graph is asked
    *  for, so restoring a column does not scan anything. */
@@ -100,6 +101,7 @@ export function useReport(paths: string[], report?: (paths: string[]) => void) {
  */
 export function FolderSidebar({
   open,
+  onClose,
   initialFolders,
   onExpandedChange,
   onFoldersChange,
@@ -251,7 +253,8 @@ export function FolderSidebar({
             // Sitting on the band's floor, which is where the window's own
             // marks sit: the two clusters line up across the window.
             alignItems: "flex-end",
-            pl: `${HEADER_INSET + MARK_BUTTON + 2}px`,
+            pl: `${HEADER_INSET}px`,
+            pr: `${HEADER_INSET + MARK_BUTTON + 2}px`,
             // See-through in the gaps, so the sheet behind gets those presses.
             pointerEvents: "none",
             "& > *": { pointerEvents: "auto" },
@@ -266,6 +269,18 @@ export function FolderSidebar({
             </MarkButton>
           )}
         </Stack>
+        <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_INSET }}>
+          <MarkButton
+            label={t("folder.collapseSidebar")}
+            aria-expanded={open}
+            aria-controls="folder-sidebar"
+            onClick={onClose}
+          >
+            <Frame>
+              <path d="M15 6 9 12 15 18" />
+            </Frame>
+          </MarkButton>
+        </Box>
       </Box>
 
       {/* Where a pane starts, not where it stays: the rest is browsing.
