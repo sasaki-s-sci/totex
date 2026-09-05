@@ -25,10 +25,10 @@ fn validate(value: &Value) -> Result<(), String> {
         ("reveal", &["never", "edge", "centre"][..]),
         ("fileTitle", &["name", "path"][..]),
     ] {
-        if let Some(v) = object.get(key) {
-            if !v.as_str().is_some_and(|s| choices.contains(&s)) {
-                return Err(format!("Invalid {key}"));
-            }
+        if let Some(v) = object.get(key)
+            && !v.as_str().is_some_and(|s| choices.contains(&s))
+        {
+            return Err(format!("Invalid {key}"));
         }
     }
     for key in ["follow", "mcpServing"] {
@@ -57,10 +57,10 @@ fn validate(value: &Value) -> Result<(), String> {
     Ok(())
 }
 fn range(value: &Value, key: &str, least: u64, most: u64) -> Result<(), String> {
-    if let Some(v) = value.get(key) {
-        if !v.as_u64().is_some_and(|n| (least..=most).contains(&n)) {
-            return Err(format!("{key} must be an integer from {least} to {most}"));
-        }
+    if let Some(v) = value.get(key)
+        && !v.as_u64().is_some_and(|n| (least..=most).contains(&n))
+    {
+        return Err(format!("{key} must be an integer from {least} to {most}"));
     }
     Ok(())
 }
@@ -94,11 +94,12 @@ pub fn read(path: &Path, initial: &Value) -> Result<Document, String> {
 fn merge(value: &mut Value, patch: &Value) {
     if let (Some(target), Some(patch)) = (value.as_object_mut(), patch.as_object()) {
         for (key, next) in patch {
-            if let Some(current) = target.get_mut(key) {
-                if current.is_object() && next.is_object() {
-                    merge(current, next);
-                    continue;
-                }
+            if let Some(current) = target.get_mut(key)
+                && current.is_object()
+                && next.is_object()
+            {
+                merge(current, next);
+                continue;
             }
             target.insert(key.clone(), next.clone());
         }
