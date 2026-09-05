@@ -64,3 +64,7 @@ export function storedRoots(): string[] {
   }
   return [];
 }
+
+export const schemaPart = onDemand(() =>
+  import("./components/nodes/preview/SchemaReading").then((part) => part.SchemaReading),
+);

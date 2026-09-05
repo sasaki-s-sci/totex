@@ -332,3 +332,21 @@ Branches whose names start the same way are gathered on the way out to their
 column: one small mark per shared name, which the group leaves as a single line
 and fans out of. Nothing is configured for that — it is what a namespace looks
 like once there is more than one branch in it.
+
+### File views
+
+The file header switches between **Preview**, **Native**, and **Schemaed**. Preview
+renders supported files (including the existing settings page); Native shows the
+source. Schemaed edits JSON using a JSON Schema draft-07 form. `totex.json` has a
+built-in schema. Attach another `.json` schema to customize a file's form; the
+attachment is remembered locally by file path. Bundle `$ref` targets in the same
+schema document; remote references and other schema drafts are not loaded.
+
+Forms provide enum dropdowns, nested objects, arrays, and validation before saving.
+Unknown JSON properties are retained. Save writes the JSON with two-space indentation;
+Discard edits restores the current file. Header actions and Ctrl/Cmd+S also save.
+Truncated or invalid JSON must be corrected in Native before form editing.
+
+The form and validator load only when Schemaed opens. The desktop CSP permits
+`unsafe-eval` for Ajv's runtime schema compilation; scripts still load only from
+`self`, and schema references do not enable network access.

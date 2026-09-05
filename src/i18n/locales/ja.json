@@ -195,7 +195,18 @@
     "tooLarge": "画像が大きすぎて描画できません",
     "notPicture": "画像として表示できません",
     "truncated": "先頭 {{kilobytes}} KB を表示",
-    "patchCut": "差分の先頭のみ表示"
+    "patchCut": "差分の先頭のみ表示",
+    "mode": "ファイル表示モード",
+    "attachSchema": "JSON Schemaを添付",
+    "schemaEmpty": "JSON Schema（draft-07）を添付するとフォームで編集できます。参照先のスキーマも同じドキュメントに含めてください。",
+    "schemaInvalid": "このスキーマを表示できません。",
+    "schemaJsonInvalid": "完全なJSONファイルが必要です。NativeモードでJSONを確認してください。",
+    "schemaConflict": "編集中にファイルが変更されました。変更内容を控えてから表示を開き直してください。",
+    "schemaSaveFailed": "保存できませんでした。編集内容は保持されています。",
+    "schemaStorageFailed": "このセッションにスキーマを添付しましたが、次回用には記憶できませんでした。",
+    "schemaSave": "保存",
+    "schemaSaving": "保存中…",
+    "schemaDiscard": "編集を破棄"
   },
   "said": {
     "terminal": "ターミナルの書体",

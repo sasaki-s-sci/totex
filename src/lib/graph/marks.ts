@@ -161,5 +161,6 @@ export type FilePreviewNodeData = {
    * the one it is in instead. The position it left behind is kept on the node,
    * unread until it is put back.
    */
+  pinnedScale?: number;
   pinnedAt: { x: number; y: number } | null;
 };

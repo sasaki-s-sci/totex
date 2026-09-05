@@ -153,7 +153,10 @@ export type GraphActions = {
   /** Put a file card's reading away, leaving its header, or take it back out. */
   collapseFilePreview: (requestId: number) => void;
   /** Switch between a file, its diff, and the settings form. */
-  setFilePreviewView: (requestId: number, view: "text" | "diff" | "settings") => void;
+  setFilePreviewView: (
+    requestId: number,
+    view: import("../lib/filePreview").FilePreviewView,
+  ) => void;
   /**
    * Open a rendering of a card's file beside it — Ctrl, Shift and V, or the
    * button on its header.

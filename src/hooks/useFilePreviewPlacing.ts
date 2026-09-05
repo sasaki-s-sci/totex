@@ -68,7 +68,10 @@ export function useFilePreviewPlacing(
       // beside it, in the pane's own pixels: the two are being read against
       // each other, and one of them left the canvas.
       const pinnedAt = from?.data.pinnedAt
-        ? { x: from.data.pinnedAt.x + box.width + BESIDE_GAP, y: from.data.pinnedAt.y }
+        ? {
+            x: from.data.pinnedAt.x + box.width * (from.data.pinnedScale ?? 1) + BESIDE_GAP,
+            y: from.data.pinnedAt.y,
+          }
         : null;
       return {
         id: fileNodeId(preview.id),
@@ -95,6 +98,7 @@ export function useFilePreviewPlacing(
           collapsed: false,
           box,
           pinnedAt,
+          pinnedScale: from?.data.pinnedScale,
         },
       };
     });
@@ -159,9 +163,11 @@ async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {
 async function drawnFile(path: string): Promise<Partial<FilePreviewNodeData>> {
   const read = await readFileData(path);
   const type = pictureType(read.path) ?? "application/octet-stream";
+  const source = type === "image/svg+xml" ? await readFile(path) : {};
   return {
     path: read.path,
     name: read.name,
+    ...source,
     picture: read.data === null ? null : `data:${type};base64,${read.data}`,
     size: read.size,
   };
