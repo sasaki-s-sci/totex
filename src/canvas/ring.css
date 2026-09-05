@@ -31,36 +31,41 @@
   pointer-events: none;
 }
 
-/* The copy the folder column is standing in, drawn inside the ring that stands
-   for it.
+/* The copy the folder column is standing in, worn on the ring that stands for
+   it: the folder the column's own heading carries, hollow, over the lower
+   right of the rim.
 
-   Inside rather than on the line, because the line is spoken for four times
-   over — plain ink for a copy with nothing in it, three colours for what is
-   uncommitted, dashes for a branch that has no copy yet, red for a refusal —
-   and a fifth reading laid over those would be invisible on exactly the
-   branches somebody is working in. The inside of the ring was the one surface
-   on this mark saying nothing.
+   Over the rim rather than inside the ring or along its line. The line is
+   spoken for four times over — plain ink for a copy with nothing in it, three
+   colours for what is uncommitted, dashes for a branch that has no copy yet,
+   red for a refusal — and a fifth reading laid along it would be invisible on
+   exactly the branches somebody is working in. Inside was where it stood
+   first, filled and in the canvas's one light, and it filled the ring: nine
+   pixels of drawing in twelve of room is a ring that has something in it
+   rather than a ring with something on it, and the ring is the mark. Pinned to
+   the rim it is small, the ring is still a ring, and the folder is still the
+   folder the pane a few pixels away is headed with.
 
-   The folder the column's own heading carries, filled, and in the canvas's one
-   light — which is what everything the window is currently showing wears: the
-   terminal the panel is holding, the commit the cursor keys have walked to. The
-   column is the other panel, so the light is that same `this one` rather than a
-   reading of its own. A disc stood here first and wore the same light, but a
-   disc is only a place: the folder is the drawing the pane heading a few pixels
-   away is already headed with, so the two ends of the same reading are one
-   shape rather than two.
+   The lower right, because the other three quarters are taken: the line in
+   from the history arrives at the left, the lines out to the terminals leave
+   at the right, both level with the centre, and the terminal button stands
+   straight above. Nothing else is drawn down here.
 
-   The drawing is `PaneFolderMark` at `FOLDER_GLYPH`, which is what leaves clear
-   canvas round it inside a fourteen-pixel ring; the colour reaches it as
-   `currentcolor`, the way the ink on the rim takes the ring's own. */
+   No colour and no light. The drawing is what says here — a folder is the
+   column's own mark — and the ink is the ring's own, reaching it as
+   `currentcolor`, so a refusal turns it red with the ring and a wait breathes
+   it with the ring. What the drawing is, and what keeps the rim from running
+   through it, is `RimFolderMark`'s. */
 .head__ring__here {
   position: absolute;
   top: 50%;
   left: 50%;
   display: flex;
-  color: var(--mui-palette-primary-main);
-  transform: translate(-50%, -50%);
-  filter: var(--lit);
+  /* Centred on the rim, five pixels down and across from the middle of a
+     fourteen-pixel ring: the outer edge is seven from the centre, which is
+     five along each axis at the corner, so the folder straddles the line with
+     its own clearance either side of it. */
+  transform: translate(calc(-50% + 5px), calc(-50% + 5px));
   /* The ring underneath is what is pressed; this is a reading laid on it. */
   pointer-events: none;
 }

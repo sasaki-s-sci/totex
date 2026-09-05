@@ -5,7 +5,7 @@
 
 import { Box } from "@mui/material";
 
-import { Frame, ROW_SIZE } from "../marks";
+import { Frame, ROW_SIZE, struck } from "../marks";
 
 export function ExpandMark({ on }: { on: boolean }) {
   return (
@@ -55,6 +55,9 @@ export function GraphMark({ on, count }: { on: boolean; count: number }) {
   );
 }
 
+/** A folder that is shut, which is the shape every folder here is drawn from. */
+const SHUT = "M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z";
+
 /**
  * The folder a pane is showing: the same folder, filled.
  *
@@ -71,23 +74,53 @@ export function GraphMark({ on, count }: { on: boolean; count: number }) {
 export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
   return (
     <Frame size={size}>
-      <path d="M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z" fill="currentColor" />
+      <path d={SHUT} fill="currentColor" />
     </Frame>
   );
 }
 
 /**
- * The size that folder is struck at on the canvas.
+ * The size a folder is struck at on the canvas.
  *
- * Small, because of where it stands: inside a branch's ring, which is fourteen
- * pixels across and spends one of them on a line of its own, leaving twelve for
- * anything drawn in it. Nine is the largest this folder can be struck at with
- * canvas still showing round its corners — a pixel out from each of them — so
- * the ring reads as a ring with something in it rather than as one that has
- * filled up. At ten the corners all but meet the line, and the drawing reads as
- * a ring bursting rather than as a folder.
+ * Small, because of where it stands: over the rim of a branch's ring, which is
+ * fourteen pixels across. It stood inside the ring first, at nine, which was
+ * the largest a folder could be with canvas still showing round its corners;
+ * on the rim it is something pinned to the ring rather than something the ring
+ * holds, and a pin half the size of what it is pinned to has stopped being a
+ * pin. Seven is where the outline still reads as a folder — the tab is a pixel
+ * of step — and the ring is still the mark.
  */
-export const FOLDER_GLYPH = 9;
+export const FOLDER_GLYPH = 7;
+
+/**
+ * The folder a ring on the canvas wears, over its rim.
+ *
+ * Hollow, like `FolderMark`, and in no colour of its own: the ring's ink reaches
+ * it as `currentcolor`, and a colour laid on a line that already carries four
+ * readings would be one more thing to tell apart on exactly the branches
+ * somebody is working in. It is the drawing that says here, not the ink.
+ *
+ * Drawn twice. First in the canvas's own colour and wider than the line, then
+ * the line itself over it. The first is the clearance every mark on the canvas
+ * carries — see `--clearance` — cut to the shape of the folder rather than a
+ * square round it: the ring's rim runs under this, and a line passing behind a
+ * mark stops short of it rather than running through. The inside is that same
+ * canvas colour, which is what keeps a hollow folder hollow over a line — the
+ * rim stops at the outline instead of showing through it.
+ *
+ * `spill`, because the clearance is wider than the square the drawing is cut
+ * to, and a clearance trimmed to the square would leave the rim touching the
+ * folder's own corners.
+ */
+export function RimFolderMark({ size = FOLDER_GLYPH }: { size?: number }) {
+  const canvas = "var(--mui-palette-background-default)";
+  return (
+    <Frame size={size} spill>
+      <path d={SHUT} style={{ fill: canvas, stroke: canvas }} strokeWidth={struck(size, 3)} />
+      <path d={SHUT} />
+    </Frame>
+  );
+}
 
 /**
  * A folder, and the same folder with its front let down.
@@ -110,7 +143,7 @@ export function FolderMark({ on, size = ROW_SIZE }: { on: boolean; size?: number
           <path d="M2.5 18.5 H17.5 L21.5 11 H6.5 Z" />
         </>
       ) : (
-        <path d="M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z" />
+        <path d={SHUT} />
       )}
     </Frame>
   );
