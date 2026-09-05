@@ -9,6 +9,8 @@
     "width": "Width"
   },
   "folder": {
+    "expandSidebar": "Expand root folders",
+    "collapseSidebar": "Collapse root folders",
     "add": "Add",
     "pathHint": "Path, e.g. ~/repo",
     "noFolder": "No folder there",

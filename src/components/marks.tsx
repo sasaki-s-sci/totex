@@ -125,7 +125,10 @@ export function MarkButton({
   faint,
   onClick,
   children,
+  ...aria
 }: {
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
   /** What the mark is, for something reading the window aloud. Never drawn:
    *  the mark is the whole of what is said, and a word beside it would be the
    *  same thing said twice. */
@@ -143,6 +146,7 @@ export function MarkButton({
       component="button"
       type="button"
       aria-label={label}
+      {...aria}
       onClick={onClick}
       sx={{
         display: "flex",

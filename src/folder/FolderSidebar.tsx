@@ -1,7 +1,7 @@
 import { Box, Divider, Stack } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AddMark, MarkButton, SettingsMark } from "../components/marks";
+import { AddMark, MARK_BUTTON, MarkButton, SettingsMark } from "../components/marks";
 import { ResizeGrip } from "../components/useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET } from "../components/WindowControls";
 import type { Drops } from "../hooks/useDrops";
@@ -38,6 +38,7 @@ export interface FolderDestination {
 }
 
 export interface FolderSidebarProps {
+  open: boolean;
   /** Panes to stand up on the first render, e.g. paths restored from storage.
    *  They start browsing, and off the graph: what goes on the graph is asked
    *  for, so restoring a column does not scan anything. */
@@ -98,6 +99,7 @@ export function useReport(paths: string[], report?: (paths: string[]) => void) {
  * to be scanned. Nothing is scanned because a pane happened to walk past it.
  */
 export function FolderSidebar({
+  open,
   initialFolders,
   onExpandedChange,
   onFoldersChange,
@@ -182,6 +184,7 @@ export function FolderSidebar({
 
   return (
     <Box
+      id="folder-sidebar"
       ref={sidebar}
       /* A row dragged out of one folder and onto another. The same hit test the
          native drop uses, so a drag from Explorer and a drag from two rows up
@@ -214,7 +217,7 @@ export function FolderSidebar({
         position: "relative",
         width,
         flex: "none",
-        display: "flex",
+        display: open ? "flex" : "none",
         flexDirection: "column",
         bgcolor: "background.paper",
         borderRight: 1,
@@ -248,7 +251,7 @@ export function FolderSidebar({
             // Sitting on the band's floor, which is where the window's own
             // marks sit: the two clusters line up across the window.
             alignItems: "flex-end",
-            pl: `${HEADER_INSET}px`,
+            pl: `${HEADER_INSET + MARK_BUTTON + 2}px`,
             // See-through in the gaps, so the sheet behind gets those presses.
             pointerEvents: "none",
             "& > *": { pointerEvents: "auto" },
