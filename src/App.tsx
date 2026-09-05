@@ -281,20 +281,23 @@ function Window() {
     <Box
       sx={{ position: "relative", display: "flex", height: "100vh", bgcolor: "background.default" }}
     >
-      <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
-        <MarkButton
-          label={t(foldersOpen ? "folder.collapseSidebar" : "folder.expandSidebar")}
-          aria-expanded={foldersOpen}
-          aria-controls="folder-sidebar"
-          onClick={() => setFoldersOpen((open) => !open)}
-        >
-          <Frame>
-            <path d={foldersOpen ? "M15 6 9 12 15 18" : "M9 6 15 12 9 18"} />
-          </Frame>
-        </MarkButton>
-      </Box>
+      {!foldersOpen && (
+        <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
+          <MarkButton
+            label={t("folder.expandSidebar")}
+            aria-expanded={foldersOpen}
+            aria-controls="folder-sidebar"
+            onClick={() => setFoldersOpen(true)}
+          >
+            <Frame>
+              <path d="M9 6 15 12 9 18" />
+            </Frame>
+          </MarkButton>
+        </Box>
+      )}
       <FolderSidebar
         open={foldersOpen}
+        onClose={() => setFoldersOpen(false)}
         initialFolders={initialFolders}
         onExpandedChange={setRoots}
         onFoldersChange={(folders) => {

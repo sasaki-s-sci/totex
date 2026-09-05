@@ -5,7 +5,7 @@ import {
   useNodesState,
   type Viewport,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useBrowsedWorktrees } from "../hooks/useBrowsedWorktrees";
 import { useCanvasDrag } from "../hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
@@ -130,6 +130,30 @@ export function GitGraph({
   heldLineNodes.current = lineNodes;
 
   useCanvasZoom({ pane, instance });
+
+  useLayoutEffect(() => {
+    const canvas = host.current;
+    if (!flowReady || !canvas) return;
+    let previous = canvas.getBoundingClientRect();
+    // Sidebar changes move the canvas origin. Offset the viewport by the
+    // opposite amount so graph content keeps its screen position and zoom.
+    const observer = new ResizeObserver(() => {
+      const next = canvas.getBoundingClientRect();
+      const dx = previous.left - next.left;
+      const dy = previous.top - next.top;
+      previous = next;
+      const flow = instance.current;
+      if (!flow || (dx === 0 && dy === 0)) return;
+      const viewport = flow.getViewport();
+      void flow.setViewport({
+        ...viewport,
+        x: viewport.x + dx,
+        y: viewport.y + dy,
+      });
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [flowReady]);
 
   // How the lines beside the terminals are set, written onto the canvas for the
   // marks to inherit. What comes back is how the canvas tells it the zoom,
