@@ -9,6 +9,8 @@
     "width": "幅"
   },
   "folder": {
+    "expandSidebar": "ルートフォルダー一覧を開く",
+    "collapseSidebar": "ルートフォルダー一覧を閉じる",
     "add": "追加",
     "pathHint": "パス（例: ~/repo）",
     "noFolder": "そのフォルダはありません",

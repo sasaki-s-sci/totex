@@ -1,11 +1,13 @@
 import { Box, CssBaseline } from "@mui/material";
 import { ThemeProvider, useColorScheme } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { CommitTarget } from "./components/CommitMenu";
 import type { BranchPick } from "./components/GitGraph";
+import { Frame, MarkButton } from "./components/marks";
 import { WindowBand } from "./components/WindowBand";
-import { WindowControls } from "./components/WindowControls";
+import { HEADER_INSET, WindowControls } from "./components/WindowControls";
 import type { WorktreeTarget } from "./components/WorktreeMenu";
 import { type FolderDestination, FolderSidebar } from "./folder/FolderSidebar";
 import { useAskActions } from "./hooks/useAskActions";
@@ -21,7 +23,7 @@ import { useServing } from "./hooks/useServing";
 import { useSessionKeys } from "./hooks/useSessionKeys";
 import { useSessions } from "./hooks/useSessions";
 import { useTaskKeys } from "./hooks/useTaskKeys";
-import { useGitMissing, useWorkspaces } from "./hooks/useWorkspace";
+import { useWorkspaces } from "./hooks/useWorkspace";
 import { useAppSettings } from "./lib/appSettings";
 import { FILE_DRAG_TYPE } from "./lib/filePreview";
 import type { CliPlace } from "./lib/graphNav";
@@ -73,6 +75,8 @@ function SettingsTheme() {
 }
 
 function Window() {
+  const { t } = useTranslation();
+  const [foldersOpen, setFoldersOpen] = useState(false);
   // The folders the sidebar has been asked to put on the graph, by the mark
   // beside each of them. Empty until one is pressed: browsing the column moves
   // panes around and reads directories, and neither is a reason to scan a tree.
@@ -166,12 +170,11 @@ function Window() {
     [closeTasks, openSession],
   );
 
-  const { workspace, folders, loading, failed } = useWorkspaces(roots);
+  const { workspace, folders } = useWorkspaces(roots);
   // Where every checked-out branch is, against the copy of its repository that
   // outlives it. The column is handed this so that deleting a branch does not
   // leave a pane standing in the directory that went with it -- see `usePanes`.
   const homes = useMemo(() => worktreeHomes(workspace), [workspace]);
-  const gitMissing = useGitMissing(roots);
   // Every branch kept up with its remote on a slow loop, while the settings
   // page's one checkbox says to. Held with the window rather than with the
   // graph: it is about repositories and not about what is drawn of them, and it
@@ -251,7 +254,10 @@ function Window() {
   const browseFolder = useCallback(
     (repository: Repository, path: string) => {
       const root = folders.find((folder) => folder.repositories.includes(repository.id))?.root;
-      if (root) setFolderDestination({ root, path });
+      if (root) {
+        setFoldersOpen(true);
+        setFolderDestination({ root, path });
+      }
     },
     [folders],
   );
@@ -264,7 +270,6 @@ function Window() {
     setCommitMenu,
     onBrowseFolder: browseFolder,
   });
-  const stalled = gitMissing || failed;
 
   const GitGraph = graphPart.use();
   const SidePanel = panelPart.use(useEver(sessions.length > 0));
@@ -276,7 +281,20 @@ function Window() {
     <Box
       sx={{ position: "relative", display: "flex", height: "100vh", bgcolor: "background.default" }}
     >
+      <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
+        <MarkButton
+          label={t(foldersOpen ? "folder.collapseSidebar" : "folder.expandSidebar")}
+          aria-expanded={foldersOpen}
+          aria-controls="folder-sidebar"
+          onClick={() => setFoldersOpen((open) => !open)}
+        >
+          <Frame>
+            <path d={foldersOpen ? "M15 6 9 12 15 18" : "M9 6 15 12 9 18"} />
+          </Frame>
+        </MarkButton>
+      </Box>
       <FolderSidebar
+        open={foldersOpen}
         initialFolders={initialFolders}
         onExpandedChange={setRoots}
         onFoldersChange={(folders) => {
@@ -307,7 +325,7 @@ function Window() {
         }}
         sx={{ position: "relative", flex: 1, minWidth: 0 }}
       >
-        <WindowBand loading={loading} stalled={stalled} />
+        <WindowBand />
 
         {GitGraph && (
           <GitGraph
