@@ -6,7 +6,7 @@ import { dirtyCount } from "../../lib/workspace";
 import { useBrowsing } from "../browsing";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
-import { CLI_GLYPH, CliMark, FOLDER_GLYPH, PaneFolderMark } from "../marks";
+import { CLI_GLYPH, CliMark, RimFolderMark } from "../marks";
 import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
 
@@ -107,14 +107,14 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
             )}
 
             {/* The column is in this copy, said with the folder the column's
-                own heading carries. Inside the ring rather than on it: the
-                ring's own line is spoken for several times over — what is
-                uncommitted, a branch with no worktree, a refusal, a wait — and
-                the inside of it is the one surface on this mark that says
-                nothing yet. */}
+                own heading carries. Worn over the ring's rim rather than laid
+                along it: the ring's own line is spoken for several times over
+                — what is uncommitted, a branch with no worktree, a refusal, a
+                wait — so the folder is set across it, small, where nothing
+                else on this mark is drawn; see `.head__ring__here`. */}
             {here && (
               <span className="head__ring__here">
-                <PaneFolderMark size={FOLDER_GLYPH} />
+                <RimFolderMark />
               </span>
             )}
           </button>
