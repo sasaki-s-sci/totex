@@ -165,3 +165,28 @@ fn a_line_an_agent_is_still_drawing_is_not_where_anybody_is_typing() {
 
     assert_eq!(typed(&screen_of(&text)), None);
 }
+
+#[test]
+fn selected_answers_are_not_user_turns() {
+    assert_eq!(typed(&screen_of(&super::asking_box())), None);
+}
+
+#[test]
+fn multiline_composer_keeps_the_user_turn() {
+    for marker in ["❯", "›", ">"] {
+        assert_eq!(
+            typed(&screen_of(&format!(
+                "{marker} fix input\r\n  and animation"
+            )))
+            .as_deref(),
+            Some("fix input\nand animation")
+        );
+    }
+}
+
+#[test]
+fn full_screen_bar_composer_is_input_even_when_it_asks_a_question() {
+    let screen = screen_of("\x1b[?1049h▌ why does this fail?");
+    assert_eq!(typed(&screen).as_deref(), Some("why does this fail?"));
+    assert!(super::super::read(&screen).is_none());
+}

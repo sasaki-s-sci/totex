@@ -77,6 +77,16 @@ fn at_the_caret<'a>(inner: &[&'a str], standing: &Standing) -> Option<&'a str> {
         return None;
     }
     let line = inner.get(standing.row)?;
+    // Wrapped composer text can end in a question mark or [y/N] too.
+    // Follow its preceding rows back to the user-turn marker.
+    for previous in inner[..standing.row].iter().rev() {
+        if blank(previous) || super::is_edge(previous) {
+            break;
+        }
+        if typed_at(previous.trim()) {
+            return None;
+        }
+    }
     if blank(line) {
         return None;
     }

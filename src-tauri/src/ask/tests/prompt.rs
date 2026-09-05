@@ -69,3 +69,19 @@ fn a_password_is_left_in_the_terminal() {
     assert!(read(&screen_of("[sudo] password for a: ")).is_none());
     assert!(read(&screen_of("Enter passphrase for key '/home/a/.ssh/id': ")).is_none());
 }
+
+#[test]
+fn multiline_user_questions_are_not_asking_panels() {
+    for marker in ["❯", "›", ">"] {
+        for ending in ["does this work?", "Continue? [y/N]"] {
+            let screen = super::screen_of(&format!("{marker} Please explain\r\n  {ending}"));
+            assert!(super::super::read(&screen).is_none());
+        }
+    }
+}
+
+#[test]
+fn user_numbered_lists_are_not_choices() {
+    let screen = super::screen_of("› Please implement:\r\n  1. Read input\r\n  2. Show state");
+    assert!(super::super::read(&screen).is_none());
+}

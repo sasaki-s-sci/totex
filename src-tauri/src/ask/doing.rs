@@ -78,7 +78,7 @@ const AGENTS: [&str; 5] = ["claude", "codex", "opencode", "gemini", "aider"];
 /// the shape of a hint: an agent that has stopped to ask a question draws
 /// `Esc to cancel` under it, and a question standing is the one thing here that
 /// is most certainly not the agent working.
-const STOPPING: [&str; 1] = ["to interrupt"];
+const STOPPING: [&str; 3] = ["esc to interrupt", "esc interrupt", "esc to stop"];
 
 /// What stands in front of a command without being one: the environment it is
 /// given, and the programs whose whole job is to run the next word along.

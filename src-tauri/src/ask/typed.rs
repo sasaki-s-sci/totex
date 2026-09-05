@@ -18,6 +18,7 @@
 //! on to the last one that was read, so a session whose turn has long gone off
 //! the top still says what it was given. See `Watcher::remember`.
 
+use super::choice::choice_of;
 use super::glyph::{SIGILS, blank, secret, undressed};
 use super::screen::Screen;
 
@@ -69,7 +70,36 @@ fn at_the_caret(screen: &Screen) -> Option<String> {
         return None;
     }
     let line = screen.upto(standing.row, standing.col);
-    prompted(undressed(&line)).map(str::to_string)
+    if standing.alt && standing.shown && line.trim_start().starts_with('▌') {
+        return written(undressed(&line)).map(str::to_string);
+    }
+    if let Some(said) = prompted(undressed(&line)) {
+        return Some(said.to_string());
+    }
+    if blank(undressed(&line))
+        || choice_of(undressed(&line)).is_some()
+        || !undressed(&line).starts_with(' ')
+    {
+        return None;
+    }
+    // Continuation rows retain the composer marker on an earlier row.
+    let mut continuation = vec![undressed(&line).trim().to_string()];
+    for previous in lines[..standing.row].iter().rev() {
+        let previous = undressed(previous);
+        if blank(previous) || super::glyph::is_edge(previous) {
+            break;
+        }
+        if let Some(first) = opened(previous) {
+            continuation.push(first.to_string());
+            continuation.reverse();
+            return Some(continuation.join("\n"));
+        }
+        if !previous.starts_with(' ') {
+            break;
+        }
+        continuation.push(previous.trim().to_string());
+    }
+    None
 }
 
 /// Whether a line is somewhere to type at all, whether or not anything has been
@@ -106,6 +136,9 @@ fn in_the_transcript(screen: &Screen) -> Option<String> {
 /// typed rather than another prompt.
 fn prompted(line: &str) -> Option<&str> {
     let text = line.trim();
+    if choice_of(text).is_some() {
+        return None;
+    }
     let sigil = |letter: char| OPENERS.contains(&letter) || SIGILS.contains(&letter);
     for (at, letter) in text.char_indices() {
         if !sigil(letter) {
@@ -126,6 +159,9 @@ fn prompted(line: &str) -> Option<&str> {
 /// find one in half of it.
 fn opened(line: &str) -> Option<&str> {
     let text = line.trim();
+    if choice_of(text).is_some() {
+        return None;
+    }
     let first = text.chars().next()?;
     if !OPENERS.contains(&first) {
         return None;

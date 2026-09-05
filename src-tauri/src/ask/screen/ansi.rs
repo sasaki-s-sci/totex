@@ -15,7 +15,7 @@ impl Screen {
             '\n' => self.newline(),
             '\r' => self.col = 0,
             '\u{8}' => self.col = self.col.saturating_sub(1),
-            '\t' => self.col = (self.col / 8 + 1) * 8,
+            '\t' => self.col = ((self.col / 8 + 1) * 8).min(self.cols - 1),
             letter if (letter as u32) < 0x20 || letter == '\u{7f}' => {}
             letter => self.put(letter),
         }
@@ -76,7 +76,9 @@ impl Screen {
         let first = numbers.first().copied().unwrap_or(0);
 
         if private {
-            self.mode(letter, first);
+            for mode in numbers {
+                self.mode(letter, mode);
+            }
             return;
         }
         self.moved(letter, &numbers, first.max(1));
