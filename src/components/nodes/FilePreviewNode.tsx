@@ -1,6 +1,7 @@
 import type { NodeProps } from "@xyflow/react";
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { displayPath } from "../../folder/format";
 import { useReadingSize } from "../../hooks/useReadingSize";
 import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
@@ -13,7 +14,6 @@ import { useDraft } from "./preview/draft";
 import { widthWithout } from "./preview/measure";
 import { useReading } from "./preview/reading";
 import type { SchemaHandle } from "./preview/SchemaReading";
-import { formatSize } from "./preview/text";
 import { FileTools } from "./preview/tools";
 
 /** The smallest box a reading is still worth drawing in. */
@@ -51,7 +51,6 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const { fileTitle } = useAppSettings();
   const Settings = settingsPart.use(data.view === "settings");
   const { saveFilePreview, previewFilePreview, fitFilePreview } = useGraphActions();
-  const detail = data.size === null ? null : formatSize(data.size);
   const view = useReading();
   const { setBody, sheet, gutter, setPaper, across, down, move, home, onWheel, showCaret } = view;
   const {
@@ -156,8 +155,8 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   return (
     <Page
       kind={data.view === "settings" ? "settings-page" : "file-preview"}
-      name={fileTitle === "path" ? data.path : data.name}
-      title={data.path}
+      name={fileTitle === "path" ? displayPath(data.path) : data.name}
+      title={displayPath(data.path)}
       collapsed={data.collapsed}
       pinned={data.pinnedAt !== null}
       headerRef={bar}
@@ -211,7 +210,6 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
               })}
             />
           )}
-          {detail && <span className="file-preview__size">{detail}</span>}
           <FileTools data={data} changed={changed(diff)} save={save} onFit={fitWidth} />
         </>
       }

@@ -44,12 +44,3 @@ export function lineNumbers(count: number): string {
   for (let line = 1; line <= count; line += 1) lines.push(String(line));
   return lines.join("\n");
 }
-
-export function formatSize(bytes: number): string {
-  if (bytes < 1_000) return `${bytes} B`;
-  if (bytes < 1_000_000) return `${(bytes / 1_000).toFixed(bytes < 10_000 ? 1 : 0)} KB`;
-  if (bytes < 1_000_000_000) {
-    return `${(bytes / 1_000_000).toFixed(bytes < 10_000_000 ? 1 : 0)} MB`;
-  }
-  return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
-}

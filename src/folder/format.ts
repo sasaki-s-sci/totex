@@ -1,3 +1,8 @@
+/** Use forward slashes for display while keeping filesystem paths unchanged. */
+export function displayPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
 /** Last segment of a path, for both `C:\dir`, `\\wsl.localhost\Ubuntu` and `/dir`.
  *  Roots such as `/` or `C:\` keep their full spelling because they have none. */
 export function baseName(path: string): string {

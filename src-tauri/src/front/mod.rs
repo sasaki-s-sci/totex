@@ -1,69 +1,14 @@
-//! The pages the window is drawn out of, and replacing those on their own.
+//! Signed ephemeral artifacts served by the persistent native host.
 //!
-//! A Tauri app is one file. The program and the pages it draws are built into
-//! the same binary, so replacing either normally means replacing both — an
-//! installer, and a restart that takes every terminal in the window with it.
-//! The restart is the expensive half, and it is expensive for this app in
-//! particular: the terminals hold agents that have been working for as long as
-//! they have been left to, and a newer drawing of a button is not worth ending
-//! one of those.
+//! A release contains rendering expressions and styles plus a bootstrap for a
+//! fresh launch. Live updates load only the expressions and styles: the document,
+//! React runtime, hooks, effects, module stores and CLI connections stay alive.
+//! The exact host identity in ephemeral.json defines compatibility, so one host
+//! can accept multiple view releases without relying on their version numbering.
 //!
-//! So the pages are taken out from behind the program. Tauri asks whatever the
-//! context is holding for every file the window loads, and it will hand that
-//! over ([`tauri::Context::set_assets`]) — so [`Front`] stands in front of what
-//! was built in and answers out of a directory instead, when there is a newer
-//! one on disk. Nothing else about the window changes: the same address, the
-//! same IPC, the same content policy the config declares, the same everything
-//! that is drawn — because the only thing that has moved is where the bytes of
-//! a page are read from.
-//!
-//! ## Which front a window opens on
-//!
-//! One rule: a taken front is served only while it is newer than the one built
-//! into the binary -- or was asked for by name, which is the way back to an
-//! older release -- and no further ahead of it than the two agreed on, and only
-//! after a window has finished drawing itself out of it once.
-//!
-//! The first half is what makes it safe to leave lying about. A copy that
-//! replaces itself the whole way, or one a package manager brings forward,
-//! arrives carrying its own newer pages — and the taken ones, older now, are
-//! deleted rather than left standing in front of them. Nothing has to remember
-//! to clean up after a version; being overtaken is what deletes it.
-//!
-//! The agreement is the same half read from the other side. A front is checked
-//! against the program it is being taken onto, and the program underneath it
-//! can move afterwards: a version can be named, so the next program to start
-//! here can be an older one, with an older agreement. So what a front needs is
-//! written down beside it and read again by whichever run is about to serve it
-//! — and taking a program says so outright, which is what leaves the release
-//! that was asked for standing on its own. See [`Serving::drop_front`].
-//!
-//! The second is the way back out. A front that cannot draw the window cannot
-//! draw the mark that would replace it either, so it is not allowed to be what
-//! greets the next start until it has been seen to work: [`take::confirm_front`] is a
-//! window saying it got as far as its first paint, and a front that has never
-//! said it is dropped on the way up. One restart is the whole of the recovery.
-//! `TOTEX_BUILT_IN_FRONT` set in the environment is the same recovery for
-//! somebody who would rather not have to guess.
-//!
-//! ## All of one front or none of it
-//!
-//! [`Front::get`] does not fall back to the built-in file when the front being
-//! served has not got one. Half of one build and half of another is a window
-//! nobody has ever run: the names under `assets/` carry a hash of what is in
-//! them, so a page asking for a file its own build does not have is a front
-//! that did not arrive whole — and a blank window, gone again on the next
-//! start, is a better answer than a working one nobody can account for.
-//!
-//! There is one interval where the opposite is true, and it is [`Behind`]. A
-//! front that has just been taken is pointed at while the window it is for has
-//! not been loaded yet — the one on the screen is still the old one, and it
-//! goes on asking for its own pieces as the person clicks around parts of it
-//! they have not opened before. Those are answered out of what it was being
-//! served from until it is replaced, which is safe for exactly the reason the
-//! rule above exists: a name under `assets/` is a hash of its contents, so the
-//! same name in two builds is the same file, and a name in only one of them is
-//! only ever asked for by that one.
+//! Downloads are staged until the live document confirms activation. A failure
+//! restores the previous selection; an interrupted activation is recovered at
+//! startup. Assets referenced by the existing host remain reachable after a swap.
 
 mod assets;
 mod serving;
@@ -120,6 +65,7 @@ struct Taken {
 
 /// The name that file is kept under.
 const TAKEN: &str = "taken.json";
+const PREVIOUS: &str = "previous.json";
 
 /// A front on disk, and what it says it is.
 #[derive(Clone)]

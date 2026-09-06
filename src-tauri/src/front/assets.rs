@@ -31,11 +31,28 @@ impl<R: Runtime> Assets<R> for Front<R> {
         if let Some(bytes) = read_under(&at.dir, key) {
             return Some(Cow::Owned(bytes));
         }
-        match held.behind {
+        let previous = match held.behind {
             Behind::Nothing => None,
             Behind::BuiltIn => self.built_in.get(key),
             Behind::Taken(dir) => read_under(&dir, key).map(Cow::Owned),
-        }
+        };
+        previous.or_else(|| {
+            // Lazy modules belong to the host and stay reachable throughout every activation.
+            if !key.as_ref().starts_with("assets/") && !key.as_ref().starts_with("/assets/") {
+                return None;
+            }
+            self.serving
+                .sources
+                .read()
+                .ok()?
+                .iter()
+                .rev()
+                .find_map(|source| match source {
+                    Behind::BuiltIn => self.built_in.get(key),
+                    Behind::Taken(dir) => read_under(dir, key).map(Cow::Owned),
+                    Behind::Nothing => None,
+                })
+        })
     }
 
     fn iter(&self) -> Box<AssetsIter<'_>> {

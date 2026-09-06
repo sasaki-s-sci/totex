@@ -12,10 +12,8 @@ use super::{BUILT_IN, Behind, Held, TAKEN, Taken, Unpacked};
 
 /// Which front this run of the app is being drawn out of.
 ///
-/// Settled before the window opens and moved only by a press on the update
-/// mark, so what a page asks for and what it gets are always the same build —
-/// a window does not change front underneath itself, it is loaded again onto a
-/// new one.
+/// Keeps committed and pending versions separate while a live document loads
+/// replacement views. Previously loaded host assets remain reachable.
 pub struct Serving {
     /// Where taken fronts are kept, or nothing on a machine with no data
     /// directory to keep them in — which is a machine that can only ever run
@@ -24,6 +22,8 @@ pub struct Serving {
     /// The version of the front built into this binary, which is the app's own.
     pub(super) built: Version,
     pub(super) held: RwLock<Held>,
+    pub(super) previous: RwLock<Option<Held>>,
+    pub(super) sources: RwLock<Vec<Behind>>,
 }
 
 impl Serving {
@@ -46,6 +46,8 @@ impl Serving {
         Self {
             home,
             built,
+            previous: RwLock::new(None),
+            sources: RwLock::new(Vec::new()),
             held: RwLock::new(Held {
                 at,
                 behind: Behind::Nothing,
@@ -82,7 +84,11 @@ impl Serving {
 
     /// What the window is being drawn out of, as a version.
     pub(crate) fn version(&self) -> Version {
-        self.at()
+        self.previous
+            .read()
+            .ok()
+            .and_then(|previous| previous.clone())
+            .map_or_else(|| self.at(), |previous| previous.at)
             .map_or_else(|| self.built.clone(), |at| at.version)
     }
 
@@ -111,13 +117,19 @@ impl Serving {
         };
         if let Ok(bytes) = serde_json::to_vec(&dropped) {
             let _ = fs::write(home.join(TAKEN), bytes);
+            let _ = fs::remove_file(home.join(super::PREVIOUS));
         }
     }
 
-    /// Hands the next window to be loaded a front that has just arrived, and
-    /// leaves the one it replaced answering for the window already open.
+    /// Stage new view assets while preserving the committed version and host assets.
     pub(super) fn point_at(&self, unpacked: Unpacked) {
         if let Ok(mut held) = self.held.write() {
+            *self.previous.write().unwrap() = Some(held.clone());
+            let source = match &held.at {
+                None => Behind::BuiltIn,
+                Some(at) => Behind::Taken(at.dir.clone()),
+            };
+            self.sources.write().unwrap().push(source);
             held.behind = match &held.at {
                 None => Behind::BuiltIn,
                 Some(at) => Behind::Taken(at.dir.clone()),
@@ -126,11 +138,29 @@ impl Serving {
         }
     }
 
-    /// Told when a window has been drawn out of the front being served, which
-    /// is the moment nothing is left asking for the one before it.
+    /// Commit a successful activation. Host assets remain retained separately.
     pub(super) fn drawn(&self) {
+        *self.previous.write().unwrap() = None;
         if let Ok(mut held) = self.held.write() {
             held.behind = Behind::Nothing;
+        }
+    }
+    pub(crate) fn pending(&self) -> bool {
+        self.previous.read().unwrap().is_some()
+    }
+
+    pub(super) fn rollback(&self) {
+        let previous = self.previous.write().unwrap().take();
+        if let Some(previous) = previous {
+            *self.held.write().unwrap() = previous;
+            if let Some(home) = &self.home {
+                if let Some(at) = self.at() {
+                    let _ = take::point(home, &at, true);
+                } else {
+                    let _ = fs::remove_file(home.join(TAKEN));
+                    let _ = fs::remove_file(home.join(super::PREVIOUS));
+                }
+            }
         }
     }
 }
@@ -148,6 +178,13 @@ impl Serving {
 /// afterwards. Whichever run is about to serve a front is the one that has to
 /// agree with it.
 pub(super) fn keep(home: &Path, built: &Version, contract: u32) -> Option<Unpacked> {
+    let committed = fs::read(home.join(TAKEN))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Taken>(&bytes).ok())
+        .is_some_and(|taken| taken.confirmed);
+    if !committed && home.join(super::PREVIOUS).is_file() {
+        let _ = fs::copy(home.join(super::PREVIOUS), home.join(TAKEN));
+    }
     let unpacked = fs::read(home.join(TAKEN))
         .ok()
         .and_then(|bytes| serde_json::from_slice::<Taken>(&bytes).ok())
@@ -169,6 +206,7 @@ pub(super) fn keep(home: &Path, built: &Version, contract: u32) -> Option<Unpack
             pinned,
         })
         .filter(|unpacked| unpacked.dir.is_dir())
+        .filter(|unpacked| take::valid_runtime(&unpacked.dir, &unpacked.version).is_ok())
         .filter(|_| std::env::var_os(BUILT_IN).is_none());
 
     match &unpacked {

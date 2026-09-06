@@ -1,55 +1,8 @@
-//! Replacing this copy of the app, one half at a time.
-//!
-//! The app is two halves, and they are taken apart from one another because
-//! they cost different things to replace and nobody should pay the expensive
-//! one by having pressed the cheap one.
-//!
-//! **The ephemeral half.** This program — the window, the commands it answers
-//! and the pages it draws — and everything in it can be thrown away and drawn
-//! again. Replacing it is the installer, and an installer cannot be put in
-//! underneath a window that is open. So a press is the download and nothing
-//! else, and what puts the release in is this window leaving so that the next
-//! can take its place — see [`ready`] and [`update_restart`]. The terminals
-//! are not in this window, so nothing anybody was working on goes with it: the
-//! window closes, the release goes in, and the window opens again on it in
-//! front of the same terminals.
-//!
-//! **The persistent half.** The program beside this one that holds the
-//! terminals — see `totex_persistent`. Never taken by a row: it comes with a
-//! release of the ephemeral half, and which releases replace it is said by the
-//! version number itself. A patch release leaves it exactly where it is; a
-//! minor release is one it cannot be kept across, and the next window says so
-//! before it presses — see `totex_persistent::LINE`.
-//!
-//! **And the pages on their own.** About a megabyte, and a reload. The half
-//! of the ephemeral half that a copy can take without an installer, which is
-//! the whole of the update a copy the package manager owns can have — see
-//! [`crate::front`].
-//!
-//! ## What a copy can have
-//!
-//! The updater swaps the thing it is running from, so what it can do depends
-//! entirely on what that thing is. An AppImage is one file and is overwritten; a
-//! `.app` is a directory and is unpacked over; the two Windows installers are
-//! re-run over themselves. A `.deb` or an `.rpm` is none of those — the files
-//! belong to the package manager, the app is not running as root, and replacing
-//! them behind the manager's back would leave it describing a version that is no
-//! longer there. Such a copy is offered its pages and nothing else.
-//!
-//! A binary run straight out of `target/` is offered nothing. It was never
-//! installed, so there is nothing for an installer to overwrite, and the pages
-//! it draws are the ones somebody just built, which taking a release's over
-//! would quietly undo.
-//!
-//! ## Naming a version
-//!
-//! The row takes a version rather than "whatever is newest". That is what
-//! makes a release page something to choose from rather than a direction to
-//! be carried in: the release of last week can be gone back to, and what is
-//! running can be said exactly rather than described as "the latest".
+//! Two update boundaries: persistent installs and restarts the whole runtime;
+//! ephemeral replaces compatible views inside the existing document.
 
-mod ephemeral;
 mod kept;
+mod program;
 mod ready;
 #[cfg(test)]
 mod tests;
@@ -69,30 +22,21 @@ pub use ready::Ready;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Layer {
-    /// The program beside this one that holds the terminals -- see
-    /// `totex_persistent`. Not taken from a release page: it comes with a
-    /// release of the ephemeral half, and the row offers the ones this
-    /// machine holds. Replaced by the next window at the moment the version
-    /// says it has to be, or by the one press that ends every terminal -- see
-    /// `crate::persistent::persistent_restart`.
+    /// The native program, session service and stateful frontend host, installed together.
     Persistent,
-    /// This program, with its pages inside it: what a release replaces.
+    /// Compatible rendering expressions and styles, activated without restarting the host.
     Ephemeral,
-    /// The pages on their own -- the part of the ephemeral half that can be
-    /// taken without an installer, see [`crate::front`].
+    /// Legacy wire alias; never displayed as a third independently updatable layer.
     Front,
 }
 
-/// The three of them, in the order the rows are drawn: the one that cannot be
-/// pressed first, because it is what everything else stands on.
-pub const LAYERS: [Layer; 3] = [Layer::Persistent, Layer::Ephemeral, Layer::Front];
+pub const LAYERS: [Layer; 2] = [Layer::Persistent, Layer::Ephemeral];
 
 /// What a press on one layer found, which is also what was done.
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Took {
-    /// It is here. What is left is whatever finishes it — a reload for the
-    /// pages, the restart for the program.
+    /// Staged: live activation for views, installation and restart for the runtime.
     Taken,
     /// Nothing to do: that release is what is already being drawn, or already
     /// running.
@@ -138,10 +82,9 @@ pub struct Rung {
     pub picked: Option<String>,
     /// The newest front contract this program answers, on the ephemeral row.
     pub front_contract: Option<u32>,
-    /// The versions of this layer this machine holds and could start, on the
-    /// persistent row -- see `crate::persistent::held`. Its releases are not
-    /// a page somewhere: they are the programs earlier releases left here.
+    /// Legacy wire field. Runtime choices now come from signed release manifests.
     pub held: Vec<String>,
+    pub ephemeral_contract: String,
 }
 
 /// What the update rows are drawn from.
@@ -152,38 +95,23 @@ pub struct Rung {
 pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
     let serving = app.state::<std::sync::Arc<Serving>>();
     let kept = app.state::<std::sync::Arc<Kept>>();
-    let identifier = app.config().identifier.clone();
 
     LAYERS
         .into_iter()
         .map(|layer| Rung {
             layer,
             at: match layer {
-                // What is actually running beside this window, which may be
-                // an earlier patch of this line if it is still holding
-                // something.
-                Layer::Persistent => app
-                    .try_state::<std::sync::Arc<crate::persistent::Reached>>()
-                    .map(|reached| reached.link().version().to_string())
-                    .unwrap_or_default(),
-                Layer::Ephemeral => env!("CARGO_PKG_VERSION").to_string(),
-                Layer::Front => serving.version().to_string(),
+                Layer::Persistent => env!("CARGO_PKG_VERSION").to_string(),
+                Layer::Ephemeral | Layer::Front => serving.version().to_string(),
             },
             can: match layer {
-                // Replaced by a press only with something to replace it with.
-                Layer::Persistent => !crate::persistent::held_versions(&identifier).is_empty(),
-                Layer::Ephemeral => whole_update_supported(),
-                // Somewhere to keep a front is as much a condition as having
-                // been installed: a machine with no data directory can only
-                // ever run the pages it was installed with.
-                Layer::Front => bundle_type().is_some() && serving.keeps(),
+                Layer::Persistent => whole_update_supported(),
+                Layer::Ephemeral | Layer::Front => bundle_type().is_some() && serving.keeps(),
             },
             picked: kept.picked(layer),
-            front_contract: (layer == Layer::Ephemeral).then_some(crate::front::take::contract()),
-            held: match layer {
-                Layer::Persistent => crate::persistent::held_versions(&identifier),
-                Layer::Ephemeral | Layer::Front => Vec::new(),
-            },
+            front_contract: Some(crate::front::take::contract()),
+            held: Vec::new(),
+            ephemeral_contract: crate::front::take::runtime_contract().to_string(),
         })
         .collect()
 }
@@ -200,13 +128,15 @@ pub async fn update_take<R: Runtime>(
     version: Option<String>,
     coming: Channel<Coming>,
 ) -> Result<Took, String> {
+    let _updating = Updating::begin()?;
+    if app.state::<std::sync::Arc<Serving>>().pending() {
+        return Err("an ephemeral update is waiting for activation".to_string());
+    }
     match layer {
-        // Replaced by a restart and not by a download -- see
-        // `crate::persistent::persistent_restart`, which the page asks for
-        // instead of this.
-        Layer::Persistent => Ok(Took::Held),
-        Layer::Ephemeral => ephemeral::take_ephemeral(&app, version.as_deref(), &coming).await,
-        Layer::Front => crate::front::take::take_front(&app, version.as_deref(), &coming).await,
+        Layer::Persistent => program::take_persistent(&app, version.as_deref(), &coming).await,
+        Layer::Ephemeral | Layer::Front => {
+            crate::front::take::take_front(&app, version.as_deref(), &coming).await
+        }
     }
 }
 
@@ -220,22 +150,15 @@ pub async fn update_take<R: Runtime>(
 pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
     // The row moved, and a release that came down for where it used to point is
     // one nothing is pointed at any more — see [`ready`].
-    if layer == Layer::Ephemeral {
+    if layer == Layer::Persistent {
         app.state::<std::sync::Arc<Ready>>()
             .let_go_unless(version.as_deref());
     }
     app.state::<std::sync::Arc<Kept>>().pick(layer, version);
 }
 
-/// Leaves, so that the release that came down can go in and the next window
-/// can open on it.
-///
-/// The persistent half is asked to start this program again once this window
-/// has gone, with the release put in first; then this window goes. Every
-/// terminal stays where it is throughout, because none of them were ever in
-/// here. Nothing waiting is a restart with nothing to put in, which is refused
-/// rather than made: a window that closes for no reason is a window somebody
-/// lost.
+/// Install the persistent bundle after this process exits, then relaunch totex.
+/// The next run explicitly replaces the CLI service and opens its bundled views.
 #[tauri::command(async)]
 pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let install = app
@@ -251,7 +174,16 @@ pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
             install.target.clone()
         }
     };
-    crate::persistent::link(&app).relaunch(&program, &[], Some(&install))?;
+    crate::persistent::link(&app).relaunch(
+        &program,
+        &[totex_persistent::RESTART_RUNTIME.to_string()],
+        Some(&install),
+    )?;
+    // The new runtime must start with the views shipped with it, regardless of an old view pin.
+    app.state::<std::sync::Arc<Serving>>().drop_front();
+    app.state::<std::sync::Arc<Kept>>()
+        .pick(Layer::Ephemeral, None);
+    app.state::<std::sync::Arc<Kept>>().pick(Layer::Front, None);
     app.exit(0);
     Ok(())
 }
@@ -262,4 +194,30 @@ pub fn whole_update_supported() -> bool {
         bundle_type(),
         Some(BundleType::App | BundleType::AppImage | BundleType::Msi | BundleType::Nsis)
     )
+}
+
+/// The platform key used by both release choices and the actual installer download.
+pub(crate) fn program_platform() -> Option<String> {
+    program::standing().map(|(platform, _, _)| platform)
+}
+
+static UPDATING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+struct Updating;
+impl Updating {
+    fn begin() -> Result<Self, String> {
+        UPDATING
+            .compare_exchange(
+                false,
+                true,
+                std::sync::atomic::Ordering::SeqCst,
+                std::sync::atomic::Ordering::SeqCst,
+            )
+            .map(|_| Self)
+            .map_err(|_| "an update is already in progress".to_string())
+    }
+}
+impl Drop for Updating {
+    fn drop(&mut self) {
+        UPDATING.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }

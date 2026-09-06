@@ -59,6 +59,7 @@
  * Usage: node scripts/update-manifest.mjs <directory> <tag>
  */
 
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -178,7 +179,18 @@ function front() {
     fail(`nothing to update the pages with: no ${FRONT} was built`);
   }
   said.push(`front (needs ${frontContract})  ${FRONT}`);
-  return { needs: frontContract, signature: signatureOf(FRONT), url: downloadOf(FRONT) };
+  const views = JSON.parse(
+    execFileSync("tar", ["-xOf", join(directory, FRONT), "./ephemeral.json"], { encoding: "utf8" }),
+  );
+  if (views.version !== version || views.schema !== 1 || !/^[a-f0-9]{64}$/.test(views.contract)) {
+    fail("the ephemeral artifact does not match this release");
+  }
+  return {
+    needs: frontContract,
+    runtime: views.contract,
+    signature: signatureOf(FRONT),
+    url: downloadOf(FRONT),
+  };
 }
 
 /**

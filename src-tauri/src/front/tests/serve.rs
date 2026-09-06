@@ -17,6 +17,8 @@ pub(super) fn serving(home: &Path, built: &str, version: Option<&str>) -> Arc<Se
     Arc::new(Serving {
         home: Some(home.to_path_buf()),
         built: at(built),
+        previous: RwLock::new(None),
+        sources: RwLock::new(Vec::new()),
         held: RwLock::new(Held {
             at: version.map(|version| Unpacked {
                 dir: home.join(version),
@@ -118,4 +120,51 @@ fn tauri_asks_this_for_the_page_the_window_opens_on() {
         .expect("the page the window opens on");
     assert_eq!(asset.bytes, b"<!doctype html>");
     assert_eq!(asset.mime_type, "text/html");
+}
+
+#[test]
+fn a_failed_activation_keeps_the_active_version_and_can_restore_its_assets() {
+    let temp = TempDir::new("rollback");
+    lay(temp.path(), "0.1.3", true);
+    lay(temp.path(), "0.1.4", false);
+    let serving = serving(temp.path(), "0.1.2", Some("0.1.3"));
+    serving.point_at(Unpacked {
+        dir: temp.path().join("0.1.4"),
+        version: at("0.1.4"),
+        needs: 1,
+        pinned: false,
+    });
+    assert_eq!(serving.version(), at("0.1.3"));
+    serving.rollback();
+    assert_eq!(serving.at().unwrap().version, at("0.1.3"));
+    assert_eq!(
+        super::super::serving::keep(temp.path(), &at("0.1.2"), 1)
+            .unwrap()
+            .version,
+        at("0.1.3")
+    );
+}
+
+#[test]
+fn lazy_host_assets_remain_available_across_multiple_view_updates() {
+    let temp = TempDir::new("host-assets");
+    lay(temp.path(), "0.1.3", true);
+    fs::create_dir_all(temp.path().join("0.1.3/assets")).unwrap();
+    fs::write(temp.path().join("0.1.3/assets/host-hash.js"), "host").unwrap();
+    let serving = serving(temp.path(), "0.1.2", Some("0.1.3"));
+    let front = Front::new(Arc::clone(&serving), Box::new(Nothing));
+    for version in ["0.1.4", "0.1.5"] {
+        lay(temp.path(), version, false);
+        serving.point_at(Unpacked {
+            dir: temp.path().join(version),
+            version: at(version),
+            needs: 1,
+            pinned: false,
+        });
+        serving.drawn();
+        assert_eq!(
+            asked(&front, "/assets/host-hash.js").as_deref(),
+            Some(&b"host"[..])
+        );
+    }
 }

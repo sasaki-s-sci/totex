@@ -143,62 +143,52 @@ repository-specific `.totex/settings.json` continues to control each space.
 
 ## Updating
 
-Two rows on the settings page. **persistent** is the program beside the
-window that holds the terminals — `totex-persistent`, started by the first
-window that needs it and left running by every window after. **ephemeral** is
-everything else: the window, the commands it answers and the pages it draws,
-which is what a release replaces.
+Settings exposes two update boundaries:
 
-ephemeral is a pull-down, and can declare either a named version or `latest`.
-**Apply** adjusts the app to its declaration; there is no separate Take
-button. The release is downloaded and checked while the window is open, the
-window closes, the release goes in, and the window opens again on it — in
-front of the same terminals, because none of them were in the window. Nothing
-anybody was working on goes with it.
+| Layer | Owns | Applying an update |
+| --- | --- | --- |
+| **persistent** | Native window host, CLI service, React runtime, hooks, stores, effects and terminal connections | Installs the complete bundle and restarts totex with its bundled CLI service and matching ephemeral release. CLI sessions end. |
+| **ephemeral** | Pure rendering expressions and styles | Loads the new expressions and CSS into the existing document. The host, sessions, React component identities, refs and terminal instances stay alive. |
 
-persistent is not taken from a release page. Which releases replace it is
-said by the version number: a **patch** (`0.1.30` to `0.1.31`) is the
-ephemeral half alone, and the program holding the terminals is the same
-program before and after, holding the same terminals; a **minor** (`0.1.x` to
-`0.2.0`) is that program too, and there is no putting it in without closing
-every terminal it holds. The row says which of the two the selected release
-is before anything is pressed. Within a line a window uses whichever program
-it finds running, and swaps it for the one it brought only at a start with no
-terminal open, which is the one moment that costs nothing.
+The build extracts JSX expressions into an independent module. Stateful component
+functions remain in the host and pass their current bindings to stable rendering
+slots. Activating another compatible module notifies those slots, so the existing
+React tree updates in place. There is no document reload, root replacement or app
+exit on this path. CSS is preloaded and switched with the rendering module; lazy
+host modules cannot load a stale stylesheet afterwards.
 
-Its pull-down offers the programs this machine holds — every release that has
-run here left one — with `latest` being the one this window brought. Where
-that differs from what is running, the button reads **Restart** and is red:
-pressing it stops the program holding the terminals and starts the chosen one
-in its place, and every terminal is closed. That is the same press a window
-makes on its own at a start with no terminal open, made on purpose.
+The exact persistent identity is published as `front.runtime` in `latest.json`
+and `contract` in the signed artifact's `ephemeral.json`. It covers host source,
+rendering bindings, native source and dependencies. JSX expression contents and
+CSS are excluded; changing hooks, helpers, bindings, dependencies or native code
+requires a persistent update. This is intentionally a conservative boundary,
+not a claim that arbitrary frontend JavaScript is stateless.
 
-The release workflow chooses patch or minor from the changes since the previous
-release. Changes to the persistent program, its shared host crate or its shipped
-dependencies require a minor. A major is a milestone explicitly chosen by a
-developer. See **Releasing from main** below.
+**One persistent identity can support many ephemeral releases.** Settings lists
+those releases, including older compatible versions, and disables incompatible
+ones with an explanation. `latest` selects the newest compatible published
+release. Releases sharing the current host do not offer unnecessary persistent
+restarts. Selecting another persistent release previews its compatible ephemeral
+versions. Compatibility comes from the manifest, not from patch/minor numbering.
+The listing currently covers the latest 30 published releases.
 
-The pull-down contains only releases whose pages this program can draw. The
-compatibility number comes from each release manifest, so an unknown
-combination is not offered. `latest` means the newest compatible version in
-the pull-down when **Apply** is pressed. Choosing an older version is a
-rollback and is handled exactly like choosing a newer one.
+An ephemeral artifact is signature-checked and staged before use. The live
+window validates its identity, loads its module and styles, checks mounted
+rendering inputs, then activates and confirms it. Failed loads retain the old
+view; interrupted activation restores the last committed selection at startup.
+Old host assets remain available across successive swaps. `TOTEX_BUILT_IN_FRONT=1`
+still provides recovery to the bundled views.
 
-A `.deb` or an `.rpm` still leaves the program to its package manager. Its
-pull-down therefore moves only the pages, and lists only pages that the
-installed program can run, so its Apply ends in a reload rather than in a
-restart.
+A persistent update clears the old ephemeral pin and overlay, installs the whole
+bundle, then restarts totex. The new run uses the views and CLI service from that
+bundle, including when updating within the same protocol line. A `.deb` or `.rpm`
+leaves persistent installation to its package manager but can apply compatible
+ephemeral releases in place.
 
-Pages that cannot draw a window are dropped on the next start of the app, so one
-restart is the way back out of a bad one. `TOTEX_BUILT_IN_FRONT=1` in the
-environment is the same way out without waiting to be asked: it opens the app on
-the pages built into it and throws away whatever had been taken. A program that
-will not start after an update leaves the terminals where they were: they are
-the persistent half's, and the copy that was running a moment ago is what
-opens next.
+The first installation of this architecture requires a persistent update. Older
+release artifacts without the rendering contract cannot be hot-swapped.
 
-The declaration is remembered by the program, so it survives the reload and
-the restart used to reach it.
+For the design and acceptance checks, see [the update boundary](docs/update-boundary.md).
 
 ## Releasing from main
 
@@ -215,8 +205,11 @@ changes when they arrive together.
 | Developer milestone, requested with **Release → Run workflow → major** on main | Major: `1.2.3` → `2.0.0` |
 | Documentation, standalone tests, release automation or the separate `setup/` installer | No app release |
 
-Persistent changes take precedence over ephemeral ones. The window's socket
-client, `src-tauri/persistent/src/talk.rs`, is ephemeral. Dependency comparisons
+These tag-numbering categories describe the release planner's historical artifact
+areas, not the update boundary above. A patch may require a persistent update;
+only the published host identity determines whether views can be swapped.
+Service changes take precedence over window-only changes. The socket client,
+`src-tauri/persistent/src/talk.rs`, is classified as window-only for tag numbering. Dependency comparisons
 walk the locked graph for all platforms, including indirect dependencies;
 development-only dependencies are excluded. Changes inside a production Rust
 source file count even if they only edit an inline test. The policy lives in

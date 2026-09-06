@@ -7,6 +7,7 @@ import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import { Box, Divider, ListItemIcon, ListItemText, Menu, MenuItem, TextField } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { CloseMark, MarkButton } from "../components/marks";
+import { displayPath } from "./format";
 import { groupRoots, ROOT_ICONS } from "./roots";
 import type { usePanes } from "./usePanes";
 
@@ -85,7 +86,7 @@ export function RootsMenu({
               </ListItemIcon>
               <ListItemText
                 primary={root.label}
-                secondary={root.detail}
+                secondary={root.detail === null ? null : displayPath(root.detail)}
                 slotProps={{
                   primary: { variant: "body2", noWrap: true },
                   secondary: { variant: "caption", noWrap: true },
@@ -108,7 +109,7 @@ export function RootsMenu({
           </ListItemIcon>
           <ListItemText
             primary={place.label}
-            secondary={place.display}
+            secondary={displayPath(place.display)}
             slotProps={{
               primary: { variant: "body2", noWrap: true },
               secondary: { variant: "caption", noWrap: true },

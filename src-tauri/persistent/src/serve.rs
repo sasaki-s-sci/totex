@@ -255,10 +255,11 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
     // whatever came down put in first -- and if there is nothing left to hold,
     // this program goes too.
     serving.forget(client.id);
-    if let Some(relaunch) = lock(&client.relaunch).take() {
+    if let Some(mut relaunch) = lock(&client.relaunch).take() {
         if let Some(install) = &relaunch.install
             && let Err(error) = update::install(install)
         {
+            relaunch.args.retain(|arg| arg != crate::RESTART_RUNTIME);
             // The old program is started instead: a window that says the
             // release did not go in is better than no window at all.
             update::note(

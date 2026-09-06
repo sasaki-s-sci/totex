@@ -1,59 +1,10 @@
-//! The half of the app that cannot be dropped.
+//! The CLI service within the persistent runtime.
 //!
-//! Everything a window holds is one of two kinds of thing. One is a running
-//! shell: a process with a history nobody else has a copy of, gone for good if
-//! whatever holds it stops. The other is all the rest — the snapshot a folder
-//! was scanned into, the screen a session has drawn and the question standing
-//! on it, the window itself — and none of that is a possession. It is a saving.
-//! Throw it away and it comes back.
-//!
-//! This program is the first kind, and only the first kind: the persistent
-//! half. It holds the sessions, the door an agent reports through, a small
-//! store of whatever the window asks it to remember, and the one thing that
-//! can replace the window — a release brought down and put in once the window
-//! has gone. It is started beside the window, and it is deliberately not the
-//! window's child: when the window is replaced — an update, a crash, a reload
-//! that went wrong — this goes on running, and the next window finds every
-//! shell where it was left, still holding what it said. Everything else is the
-//! ephemeral half, and the ephemeral half is what a release replaces.
-//!
-//! ## What it knows
-//!
-//! As little as possible, because what it holds cannot be replaced while it is
-//! held. It knows how to start a shell and keep what the shell says, how to
-//! stand a door for the agents in those shells to report through, and how to
-//! keep a JSON document under a name. It does not know what a question is, what
-//! a repository is, or what any of the documents it keeps mean: all of that is
-//! the window's, and the window is the half that changes.
-//!
-//! ## How it is asked
-//!
-//! Lines of JSON over a loopback socket — see [`wire`], [`serve`] and [`talk`].
-//! A window connects, says the token it read out of the address file this
-//! program wrote, and asks by name. What the sessions do is pushed back down the
-//! same socket to every window connected, so a window that has just come up in
-//! front of running shells is told what they say from that moment on, and asks
-//! for what they said before.
-//!
-//! ## Which releases replace it
-//!
-//! The version is one number for both halves, and which part of it turns over
-//! says which half a release replaces. A patch — `0.1.30` to `0.1.31` — is the
-//! ephemeral half alone: the window goes, the release goes in, the next window
-//! opens on it, and this program is the same program throughout, holding the
-//! same shells. A minor — `0.1.x` to `0.2.0` — is this program too, and there
-//! is no putting it in without ending what it holds. So `major.minor` is the
-//! [`LINE`], and a window and a program on the same line understand one
-//! another whatever their patch numbers are; a window that finds a program on
-//! another line stops it and starts the one it brought.
-//!
-//! That is also the rule for what is on the wire. Within a line nothing
-//! crosses the socket under a new name and nothing is read out of a new place:
-//! the hello still says `keep`, the address file still says `protocol`, and
-//! the directory a window looks in is still `keep` — because a window of
-//! `0.1.31` has to find the program a window of `0.1.30` started, and would
-//! not, under any other spelling. The spelling of the line before this one is
-//! the line's to keep.
+//! It owns running shells, their output, agent reports and stored documents.
+//! Ephemeral rendering updates leave both this service and the native window
+//! host alive. Persistent updates install a bundle and restart totex with its
+//! matching service and views. `LINE` describes the socket protocol; view
+//! compatibility is determined by the frontend host identity, not that number.
 
 pub mod door;
 pub mod serve;
@@ -138,6 +89,9 @@ impl Persistent {
         })
     }
 }
+
+/// A whole-runtime installation must start the bundled session service even on the same protocol line.
+pub const RESTART_RUNTIME: &str = "--totex-update-runtime";
 
 #[cfg(test)]
 mod line {

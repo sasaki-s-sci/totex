@@ -149,7 +149,7 @@
     "apply": "適用",
     "current": "最新です",
     "ready": "再起動中",
-    "readyHint": "取得済み。この窓を閉じて新しい版で開き直します。端末はそのまま残ります。",
+    "readyHint": "totex を再起動し、対応する ephemeral も適用します。",
     "failed": "失敗、やり直す",
     "adjusting": "指定したバージョンに調整中…",
     "adjustFailed": "指定したバージョンに調整できませんでした",
@@ -160,7 +160,13 @@
     "persistentLine": "端末を抱えるプログラム。patch では入れ替わらず、minor で入れ替わります。",
     "held": "パッケージ管理から更新",
     "restart": "再起動",
-    "persistentMove": "端末を抱えるプログラムを止め、{{version}} を代わりに起動します。端末はすべて閉じられます。"
+    "persistentMove": "端末を抱えるプログラムを止め、{{version}} を代わりに起動します。端末はすべて閉じられます。",
+    "runtimeDescription": "状態と実行環境",
+    "viewDescription": "描画とスタイル",
+    "runtimeMove": "totex を再起動し、ephemeral も {{version}} に揃えます。端末セッションは終了します。この版で選択可能: {{versions}}",
+    "viewRange": "セッションと画面を保ったまま更新。persistent {{version}} で選択可能: {{versions}}",
+    "requiresPersistent": "persistent の更新が必要",
+    "unavailable": "この環境では利用不可"
   },
   "theme": {
     "system": "システム",

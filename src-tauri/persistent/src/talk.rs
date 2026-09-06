@@ -1,24 +1,6 @@
-//! Asking the program that holds the terminals, from the window.
-//!
-//! The other end of [`crate::serve`]: a socket to the port the address file
-//! names, the token said first, and then questions under numbers and events
-//! under none. Answers come back in whatever order they finish in, so every
-//! question goes out under a number and waits on a channel of its own, and the
-//! events are handed to whoever registered to follow the sessions — which is
-//! the same shape the sessions offer inside the program, so that what reads
-//! them does not have to know which side of the socket it is on.
-//!
-//! ## Finding one, or starting one
-//!
-//! A window does not know whether a program is already holding terminals for
-//! it. It reads the address file and knocks; if nobody answers, it starts one
-//! and knocks again. If somebody answers on the same line -- see
-//! [`crate::LINE`] -- it is the program this window asks, whatever patch it
-//! is: a patch release replaces the window and nothing else. One on the same
-//! line holding nothing is still swapped for the one this window brought,
-//! because that costs nothing. One on another line is stopped whatever it
-//! holds, and the one this window brought is started instead — the one cost
-//! here, and one a minor release pays on purpose.
+//! The native host's connection to its persistent CLI service.
+//! Ephemeral updates leave this connection untouched. A newly installed runtime
+//! starts its matching service, while reconnecting the same runtime preserves it.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
@@ -192,11 +174,8 @@ impl Link {
 
     /// Finds the program, or starts `program` and finds that.
     ///
-    /// One already running on this window's line is kept whenever it holds
-    /// anything, whatever its patch: what it holds is the whole point. One
-    /// holding nothing that is not the version this window brought is stopped
-    /// and replaced, and one on another line is stopped whatever it holds —
-    /// the one cost here, and one a minor release pays on purpose.
+    /// Reuse only the same runtime version and protocol. A different installed
+    /// runtime must start its bundled service; ephemeral updates never enter here.
     pub fn reach(home: &Path, program: &Path) -> Result<Self, String> {
         Self::reach_version(home, program, crate::VERSION)
     }
@@ -208,8 +187,7 @@ impl Link {
         match Self::connect(home) {
             Ok(link) => {
                 let same = link.version == version;
-                let empty = link.sessions_empty();
-                if link.line == crate::LINE && (same || !empty) {
+                if link.line == crate::LINE && same {
                     return Ok(link);
                 }
                 link.stop();
@@ -324,14 +302,6 @@ impl Link {
             .map_err(|error| format!("{command} was answered with something else: {error}"))
     }
 
-    fn sessions_empty(&self) -> bool {
-        self.ask("sessions", json!({}))
-            .ok()
-            .and_then(|said| said.as_array().map(Vec::is_empty))
-            .unwrap_or(true)
-    }
-
-    /// Tells the program to end every shell and go, which is the app closing.
     pub fn stop(&self) {
         let _ = self.ask("stop", json!({}));
     }

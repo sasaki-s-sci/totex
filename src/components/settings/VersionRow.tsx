@@ -102,15 +102,19 @@ function VersionSelect({
   standing,
   disabled,
   onChange,
+  blockedHint,
 }: {
   label: string;
+  blockedHint: string;
   standing: Standing;
   disabled: boolean;
   onChange: (version: string | null) => void;
 }) {
-  const { can, picked, choices, latest } = standing;
+  const { can, picked, choices, blocked, latest } = standing;
   const held =
-    picked && picked !== LATEST && !choices.some((choice) => choice.version === picked)
+    picked &&
+    picked !== LATEST &&
+    ![...choices, ...blocked].some((choice) => choice.version === picked)
       ? picked
       : null;
   return (
@@ -147,6 +151,11 @@ function VersionSelect({
           {choice.version}
         </MenuItem>
       ))}
+      {blocked.map((choice) => (
+        <MenuItem key={choice.version} value={choice.version} disabled>
+          {choice.version} — {blockedHint}
+        </MenuItem>
+      ))}
     </Select>
   );
 }
@@ -164,8 +173,10 @@ export function VersionRow({
   hint,
   disabled,
   onChange,
+  blockedHint,
 }: {
   name: string;
+  blockedHint: string;
   standing: Standing;
   /** The half-sentence about why this row is the shape it is, where there is one. */
   hint?: string;
@@ -192,6 +203,7 @@ export function VersionRow({
       <VersionSelect
         label={t("update.pin", { name })}
         standing={standing}
+        blockedHint={blockedHint}
         disabled={disabled}
         onChange={onChange}
       />

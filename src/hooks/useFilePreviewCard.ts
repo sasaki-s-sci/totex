@@ -9,7 +9,7 @@ import { refreshChanges } from "../folder/changes";
 import { settingsDocument, writeSettingsText } from "../lib/appSettings";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { fileSize } from "./filePreviewBox";
+import { fileSize, unpinnedSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
@@ -182,11 +182,14 @@ export function useFilePreviewCard(
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
           const at = node.data.pinnedAt;
           if (at) {
+            const box = unpinnedSize(node, flow.getViewport().zoom);
             return {
               ...node,
               hidden: false,
+              width: box.width,
+              height: node.data.collapsed ? undefined : box.height,
               position: flow.screenToFlowPosition({ x: pane.left + at.x, y: pane.top + at.y }),
-              data: { ...node.data, pinnedAt: null },
+              data: { ...node.data, box, pinnedAt: null, pinnedScale: undefined },
             };
           }
           const corner = flow.flowToScreenPosition(node.position);

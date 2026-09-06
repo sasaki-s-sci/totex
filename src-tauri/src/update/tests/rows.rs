@@ -6,13 +6,14 @@ use super::{TempDir, asked, window};
 
 /// The names the settings page sends -- see `src/lib/update` and
 /// `src/components/settings/UpdateSection.tsx`.
-pub(super) const SENT: [&str; 7] = [
+pub(super) const SENT: [&str; 8] = [
     "update_standing",
     "update_take",
     "update_pick",
     "update_restart",
     "update_choices",
     "confirm_front",
+    "rollback_front",
     "persistent_restart",
 ];
 
@@ -45,26 +46,29 @@ fn every_command_a_row_sends_is_one_the_app_answers() {
 }
 
 #[test]
-fn a_window_is_told_about_three_layers_and_what_each_is_at() {
+fn a_window_is_told_about_two_layers_and_what_each_is_at() {
     let temp = TempDir::new("rows");
     let (_app, view) = window(temp.path());
 
     let rungs = asked(&view, "update_standing", serde_json::json!({}))
         .expect("the rows the settings page draws");
     let rungs = rungs.as_array().expect("one entry per layer");
-    assert_eq!(rungs.len(), 3);
+    assert_eq!(rungs.len(), 2);
     assert_eq!(rungs[0]["layer"], "persistent");
     assert_eq!(rungs[1]["layer"], "ephemeral");
-    assert_eq!(rungs[2]["layer"], "front");
 
-    assert_eq!(rungs[1]["at"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(rungs[0]["at"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(rungs[1]["at"], "0.1.0");
+    assert_eq!(
+        rungs[0]["ephemeralContract"],
+        crate::front::take::runtime_contract()
+    );
     assert_eq!(rungs[1]["frontContract"], crate::front::take::contract());
     // Only the persistent row lists what this machine holds, and this test's
     // machine holds nothing under the app's identifier that is on this line
     // -- or does, if a real copy has run here, which is not this test's to
     // undo.
     assert!(rungs[1]["held"].as_array().is_some_and(Vec::is_empty));
-    assert!(rungs[2]["held"].as_array().is_some_and(Vec::is_empty));
     assert!(rungs[0]["held"].is_array());
     for rung in rungs {
         assert_eq!(rung["picked"], serde_json::Value::Null);

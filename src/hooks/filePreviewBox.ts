@@ -6,7 +6,7 @@
 
 import type { FilePreviewBox, FilePreviewFlowNode } from "../lib/graph";
 
-export const FILE_PREVIEW_SIZE = { width: 360, height: 240 } as const;
+export const FILE_PREVIEW_SIZE = { width: 360, height: 160 } as const;
 
 export function fileNodeId(requestId: number): string {
   return `file-preview:${requestId}`;
@@ -20,4 +20,11 @@ export function fileNodeId(requestId: number): string {
 export function fileSize(node: FilePreviewFlowNode): FilePreviewBox {
   const box = node.data.box;
   return { width: node.width ?? box.width, height: node.height ?? box.height };
+}
+
+/** Keep the visible size when a pinned card returns to a differently zoomed canvas. */
+export function unpinnedSize(node: FilePreviewFlowNode, zoom: number): FilePreviewBox {
+  const box = fileSize(node);
+  const scale = (node.data.pinnedScale ?? 1) / zoom;
+  return { width: box.width * scale, height: box.height * scale };
 }

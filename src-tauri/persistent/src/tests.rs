@@ -243,3 +243,50 @@ fn wait_for(rx: &mpsc::Receiver<(String, String)>, wanted: &str) -> bool {
     }
     false
 }
+
+#[test]
+#[cfg(unix)]
+fn a_runtime_update_installs_then_relaunches_with_the_bundled_service_requested() {
+    use std::os::unix::fs::PermissionsExt;
+    let (temp, _program, _serving, _) = standing("runtime-install");
+    let target = temp.path().join("totex");
+    let download = temp.path().join("download");
+    let marker = temp.path().join("restarted");
+    std::fs::write(&target, "#!/bin/sh\nprintf 'old' > \"$2\"\n").unwrap();
+    std::fs::write(&download, "#!/bin/sh\nprintf 'new:%s' \"$1\" > \"$2\"\n").unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(&download, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let link = Link::connect(temp.path()).unwrap();
+    link.relaunch(
+        &target,
+        &[
+            crate::RESTART_RUNTIME.to_string(),
+            marker.to_string_lossy().to_string(),
+        ],
+        Some(&crate::update::Install {
+            kind: crate::update::Kind::AppImage,
+            download,
+            target: target.clone(),
+        }),
+    )
+    .unwrap();
+    assert!(
+        !marker.exists(),
+        "installation waits for the old window to exit"
+    );
+    drop(link);
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Ok(text) = std::fs::read_to_string(&marker)
+            && !text.is_empty()
+        {
+            assert_eq!(text, format!("new:{}", crate::RESTART_RUNTIME));
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the installed app must restart"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}

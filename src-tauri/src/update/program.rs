@@ -1,16 +1,4 @@
-//! Replacing the ephemeral half: this program, and the window with it.
-//!
-//! The expensive half, and no longer the one that ends every terminal: the
-//! shells are held by the persistent half — see `totex_persistent` — and that
-//! is also the program that puts a release in, because it is the one still
-//! here when this window is not. What happens here is the release page read
-//! the way the pages' row reads it, and the download handed across to be
-//! brought down and checked.
-//!
-//! A press here is the download and nothing else. What puts the release in is
-//! this window leaving so that the next can take its place — see [`super::ready`]
-//! and [`super::update_restart`] — which the pages ask for the moment the
-//! download is here.
+//! Downloading the persistent runtime bundle, including its matching ephemeral views.
 
 use std::sync::Arc;
 
@@ -22,7 +10,6 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use totex_persistent::update::{Install, Kind, Taken};
 
-use crate::front::Serving;
 use crate::release;
 
 use super::ready::Ready;
@@ -70,7 +57,7 @@ pub(super) fn standing() -> Option<(String, Kind, std::path::PathBuf)> {
 /// That is the whole of what naming one is for: the default comparison would
 /// turn down the release somebody just picked for the crime of being the one
 /// they were on last week. Unnamed, the ordinary rule stands — newer only.
-pub async fn take_ephemeral<R: Runtime>(
+pub async fn take_persistent<R: Runtime>(
     app: &AppHandle<R>,
     version: Option<&str>,
     coming: &Channel<Coming>,
@@ -115,12 +102,6 @@ pub async fn take_ephemeral<R: Runtime>(
     .await
     .map_err(|error| format!("the release did not come down: {error}"))??;
 
-    // It is here and the signature checked. From this line on the release is
-    // going in, so the pages taken over the top of the old program are
-    // dropped: the program about to be in place carries its own, and those
-    // are the ones this release means. Only the next window is reached by it;
-    // this one goes on being served out of the directory it was opened on.
-    app.state::<Arc<Serving>>().drop_front();
     app.state::<Arc<Ready>>().hold(
         &release.to_string(),
         Install {

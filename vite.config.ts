@@ -1,8 +1,10 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+// @ts-expect-error The build plugin runs directly in Node.
+import ephemeralBuild from "./scripts/ephemeral-build.mjs";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [ephemeralBuild(), react()],
   // Tauri drives this dev server, so keep its output visible.
   clearScreen: false,
   server: {

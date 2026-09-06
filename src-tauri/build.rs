@@ -3,6 +3,7 @@ use std::fs;
 fn main() {
     tauri_build::build();
     contract();
+    runtime_contract();
 }
 
 /// Writes what this binary knows about the pages built into it.
@@ -37,4 +38,16 @@ fn contract() {
         .as_str()
         .expect("package.json declares a version");
     println!("cargo:rustc-env=FRONT_VERSION={version}");
+}
+
+/// The rendering boundary produced by the frontend build, shared with the release manifest.
+fn runtime_contract() {
+    let manifest = "../dist/ephemeral.json";
+    println!("cargo:rerun-if-changed={manifest}");
+    let contract = fs::read_to_string(manifest)
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|value| value["contract"].as_str().map(str::to_string))
+        .unwrap_or_else(|| "development".to_string());
+    println!("cargo:rustc-env=EPHEMERAL_CONTRACT={contract}");
 }

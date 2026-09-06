@@ -194,6 +194,7 @@ def classify(before, after):
             "rust-toolchain",
             "rust-toolchain.toml",
             "scripts/persistent-sidecar.mjs",
+            "scripts/ephemeral-build.mjs",
             ".github/workflows/build.yml",
         ):
             persistent.append(path)

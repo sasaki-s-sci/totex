@@ -23,7 +23,7 @@ export let state: UpdateState = {
   rungs: null,
   versions: [],
   choices: [],
-  presses: { persistent: RESTING, ephemeral: RESTING, front: RESTING },
+  presses: { persistent: RESTING, ephemeral: RESTING },
 };
 
 const changes = notifications();
@@ -84,24 +84,12 @@ export function wanted(at: UpdateState, layer: Layer): string | null {
   const rung = rungOf(at, layer);
   if (!rung) return null;
   if (rung.picked !== null) return rung.picked;
-  if (layer === "persistent") return persistentLatest(at);
-  return newer(at.versions[0] ?? null, rung.at);
-}
-
-/**
- * What `latest` is for the persistent half: the program this window brought,
- * where this machine holds it, and otherwise the newest it holds.
- *
- * Not the newest release there is. The persistent half is not taken from a
- * release page -- it arrives inside a release of the program -- so the newest
- * it can be is the newest that has arrived.
- */
-export function persistentLatest(at: UpdateState): string | null {
-  const rung = rungOf(at, "persistent");
-  const brought = rungOf(at, "ephemeral")?.at ?? null;
-  if (!rung) return null;
-  if (brought !== null && rung.held.includes(brought)) return brought;
-  return rung.held[0] ?? null;
+  const candidates = at.choices.filter((choice) =>
+    layer === "persistent"
+      ? choice.persistentAvailable && choice.ephemeralContract
+      : choice.ephemeralContract === rungOf(at, "persistent")?.ephemeralContract,
+  );
+  return newer(candidates[0]?.version ?? null, rung.at);
 }
 
 /**

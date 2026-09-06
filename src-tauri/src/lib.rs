@@ -163,13 +163,15 @@ pub fn run() {
     // draw its terminals in -- see `persistent`. A window that cannot reach
     // one is a window with nothing to draw a terminal of, which is not a
     // window worth opening.
-    let reached = persistent::reach(
-        &context.config().identifier,
-        kept.picked(update::Layer::Persistent).as_deref(),
-    )
-    .expect("the program holding the terminals is beside this one");
+    let reached = persistent::reach(&context.config().identifier, None)
+        .expect("the program holding the terminals is beside this one");
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .manage(serving)
         .manage(kept)
         .manage(reached)
@@ -221,6 +223,7 @@ pub fn run() {
             update::update_restart,
             release::fetch::update_choices,
             front::take::confirm_front,
+            front::take::rollback_front,
             derived::rederive,
             fs_watch::watch_directories,
             git::git_version,

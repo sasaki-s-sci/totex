@@ -22,6 +22,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { deleteFile, deleteFolder, downloadEntry, duplicateFile, readFile } from "./api";
+import { displayPath } from "./format";
 import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
@@ -215,7 +216,9 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
         {(failed || went) && (
           <MenuItem disabled sx={{ whiteSpace: "normal" }}>
             <ListItemText
-              secondary={failed ? t("file.failed") : t("file.downloaded", { path: went })}
+              secondary={
+                failed ? t("file.failed") : t("file.downloaded", { path: displayPath(went ?? "") })
+              }
               slotProps={{ secondary: { sx: { wordBreak: "break-all" } } }}
             />
           </MenuItem>

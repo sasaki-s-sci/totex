@@ -124,6 +124,7 @@ pub(super) fn window(home: &Path) -> (App<MockRuntime>, tauri::WebviewWindow<Moc
             crate::update::update_pick,
             crate::release::fetch::update_choices,
             crate::front::take::confirm_front,
+            crate::front::take::rollback_front,
         ])
         .build(context)
         .expect("an app with the real commands in it");

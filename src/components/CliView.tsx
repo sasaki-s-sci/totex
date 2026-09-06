@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +16,7 @@ import {
   writeShell,
 } from "../lib/pty";
 import type { Session } from "../lib/session";
+import { openTerminalLink } from "../lib/terminalLinks";
 import { usePalette } from "../theme";
 
 import "@xterm/xterm/css/xterm.css";
@@ -84,9 +86,11 @@ export function CliView({ session, shown, onEnded }: Props) {
       fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
       cursorBlink: true,
       theme: colours,
+      linkHandler: { activate: openTerminalLink },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
+    terminal.loadAddon(new WebLinksAddon(openTerminalLink));
     terminal.open(element);
     drawn.current = terminal;
 

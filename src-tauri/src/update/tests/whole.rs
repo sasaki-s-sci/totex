@@ -55,7 +55,12 @@ fn pages() -> Vec<u8> {
         Vec::new(),
         flate2::Compression::fast(),
     ));
+    let metadata = serde_json::json!({
+        "schema": 1, "version": "9.9.9", "contract": crate::front::take::runtime_contract(),
+    })
+    .to_string();
     for (name, body) in [
+        ("./ephemeral.json", metadata.as_bytes()),
         ("./index.html", &b"<!doctype html><title>taken</title>"[..]),
         ("./assets/app.js", &b"nothing"[..]),
     ] {
@@ -119,6 +124,7 @@ fn a_press_downloads_the_pages_and_the_next_window_is_drawn_out_of_them() {
             // What this build of the program answers to, so the pages and the
             // program agree -- see `contract` in front/take.rs.
             "needs": crate::front::take::contract(),
+            "runtime": crate::front::take::runtime_contract(),
             "url": page.url("/front.tar.gz"),
             "signature": signature.trim(),
         }
@@ -139,15 +145,67 @@ fn a_press_downloads_the_pages_and_the_next_window_is_drawn_out_of_them() {
         .build(context)
         .expect("an app pointed at the page this test is holding");
 
+    // Real PTYs and the real socket, held independently of the replaceable views.
+    let home = temp.path().join("sessions");
+    let sessions = totex_persistent::Persistent::new(Some(home.clone()));
+    let _server = totex_persistent::serve::stand(Arc::clone(&sessions), &home, Box::new(|| {}))
+        .expect("the session service starts");
+    let link = totex_persistent::talk::Link::connect(&home).expect("the host connects");
+    for id in ["one", "two", "three"] {
+        link.ask(
+            "open",
+            serde_json::json!({ "id": id, "cwd": temp.path(), "rows": 24, "cols": 80 }),
+        )
+        .expect("a shell starts");
+    }
+    let before = link
+        .ask("sessions", serde_json::json!({}))
+        .expect("sessions before the swap");
     let coming = Channel::new(|_| Ok(()));
-    let took =
-        tauri::async_runtime::block_on(crate::front::take::take_front(app.handle(), None, &coming))
-            .expect("the press");
+    let took = tauri::async_runtime::block_on(crate::update::update_take(
+        app.handle().clone(),
+        crate::update::Layer::Ephemeral,
+        None,
+        coming,
+    ))
+    .expect("the press");
     assert_eq!(took, Took::Taken);
 
     // The window on the screen is still the one that was there; what has moved
     // is what the next one will be drawn out of.
+    assert_eq!(
+        serving.version().to_string(),
+        "0.1.0",
+        "download is not activation"
+    );
+    crate::front::take::confirm_front(app.handle().clone(), Some("9.9.9".to_string()))
+        .expect("activate the views");
     assert_eq!(serving.version().to_string(), "9.9.9");
+    assert_eq!(link.ask("sessions", serde_json::json!({})).unwrap(), before);
+    assert_eq!(sessions.sessions.count(), 3);
+    for id in ["one", "two", "three"] {
+        link.ask(
+            "write",
+            serde_json::json!({ "id": id, "data": "echo survived-ephemeral-update\n" }),
+        )
+        .expect("the original shell remains writable");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let output = link.ask("attach", serde_json::json!({ "id": id })).unwrap();
+            if output["text"]
+                .as_str()
+                .is_some_and(|text| text.contains("survived-ephemeral-update"))
+            {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the shell must still produce output"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+    }
+    link.stop();
     let drawn = temp.path().join("front").join("9.9.9").join("index.html");
     assert!(drawn.is_file(), "{} was not unpacked", drawn.display());
     assert_eq!(

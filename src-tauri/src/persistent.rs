@@ -1,33 +1,11 @@
-//! The persistent half, found or started beside this window.
-//!
-//! This window is the ephemeral half and owns nothing that cannot be worked
-//! out again — see `derived`. What cannot be is held by `totex-persistent`, a
-//! program of its own that this window starts if it is not already running,
-//! and talks to down a loopback socket. See `totex_persistent` for the whole
-//! of why; what is here is the window's side of it: where the program is,
-//! where it keeps its things, and how what it says reaches the pages.
-//!
-//! ## Where the program is
-//!
-//! Beside this one, as the bundle put it — and copied out from there before it
-//! is run, under its own version, into the app's data directory. The copy is
-//! not fussiness. On Windows an installer cannot write over a program that is
-//! running, and the whole point of this program is that it is still running
-//! when the installer comes; and an AppImage is a filesystem that goes away
-//! when the app that mounted it does.
-//!
-//! The copies add up, one per version this machine has had, and that is what
-//! the persistent row on the settings page offers: the versions of the program
-//! this machine holds and could start, on this window's line. Left alone the
-//! row follows the one this window brought; pointed at another, that is the
-//! one started instead — see [`reach`] — and the press that puts either in
-//! place of what is running is [`persistent_restart`], which ends every
-//! terminal, and says so first.
+//! The CLI service belongs to the persistent runtime, together with the native
+//! window host and stateful frontend code. Ephemeral updates never enter here.
+//! Installing another persistent release restarts totex with the CLI service
+//! and rendering expressions shipped in that same bundle.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use semver::Version;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -86,13 +64,6 @@ impl Reached {
                 .unwrap_or_else(|poisoned| poisoned.into_inner()),
         )
     }
-
-    fn swap(&self, link: Arc<Link>) {
-        *self
-            .link
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = link;
-    }
 }
 
 /// Finds the program or starts it, and hands back the link to it.
@@ -108,7 +79,11 @@ impl Reached {
 pub fn reach(identifier: &str, pinned: Option<&str>) -> Result<Arc<Reached>, String> {
     let home = home(identifier).ok_or_else(|| "this machine has no data directory".to_string())?;
     let (program, version) = chosen(&home, pinned)?;
-    let link = Link::reach_version(&home, &program, &version)?;
+    let link = if std::env::args().any(|arg| arg == totex_persistent::RESTART_RUNTIME) {
+        Link::restart(&home, &program)?
+    } else {
+        Link::reach_version(&home, &program, &version)?
+    };
     Ok(Reached::holding(Arc::new(link)))
 }
 
@@ -166,35 +141,6 @@ fn held_at(home: &Path, version: &str) -> Option<PathBuf> {
         .find(|program| program.is_file())
 }
 
-/// The versions of the program this machine holds and this window could
-/// start, newest first.
-///
-/// Read off the directory the copies are placed in: one directory per version,
-/// named by it, holding the program under either of the names it has had.
-/// Only the ones on this window's line, because the others are programs this
-/// window could not ask anything.
-pub fn held(home: &Path) -> Vec<String> {
-    let mut found: Vec<Version> = std::fs::read_dir(home)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|name| held_at(home, name).is_some())
-        .filter_map(|name| Version::parse(&name).ok())
-        .collect();
-    found.sort();
-    found.reverse();
-    found
-        .into_iter()
-        .map(|version| version.to_string())
-        .collect()
-}
-
-/// The same, for the app as it is configured.
-pub fn held_versions(identifier: &str) -> Vec<String> {
-    home(identifier).map(|home| held(&home)).unwrap_or_default()
-}
-
 /// Joins the link to the pages: what the sessions say and what the agents in
 /// them report are sent on to the window as they arrive.
 ///
@@ -234,36 +180,27 @@ pub fn link<R: Runtime>(app: &AppHandle<R>) -> Arc<Link> {
     app.state::<Arc<Reached>>().link()
 }
 
-/// Stops the program and starts one in its place, which ends every terminal.
-///
-/// `version` names one of the programs this machine holds -- see [`held`] --
-/// or nothing for the one this window brought. What is running is stopped
-/// whatever it holds: that is the whole of what this press is, and the page
-/// says so beside it before it is pressed. The pages are then told to draw
-/// themselves again, because everything they were showing of the sessions is
-/// gone, and a fresh drawing is the honest one.
-#[tauri::command(async)]
-pub fn persistent_restart<R: Runtime>(
+/// Legacy command name, now using the same whole-runtime update as Settings.
+#[tauri::command]
+pub async fn persistent_restart<R: Runtime>(
     app: AppHandle<R>,
     version: Option<String>,
 ) -> Result<(), String> {
-    let identifier = app.config().identifier.clone();
-    let home = home(&identifier).ok_or_else(|| "this machine has no data directory".to_string())?;
-    let program = match version.as_deref() {
-        Some(version) => held_at(&home, version)
-            .ok_or_else(|| format!("this machine holds no {version} of the program"))?,
-        None => placed(&home)?,
-    };
-    let link = Link::restart(&home, &program)?;
-    app.state::<Arc<Reached>>().swap(Arc::new(link));
-
-    // Everything that followed the sessions followed them on the link that
-    // has gone. The same arrangement again, on this one, in the same order
-    // as at the start -- see `run` in lib.rs.
-    crate::ask::watch::attend(&app);
-    deliver(&app);
-    crate::ask::watch::rederive(&app);
-    Ok(())
+    let coming = tauri::ipc::Channel::new(|_| Ok(()));
+    match crate::update::update_take(
+        app.clone(),
+        crate::update::Layer::Persistent,
+        version,
+        coming,
+    )
+    .await?
+    {
+        crate::update::Took::Taken => crate::update::update_restart(app),
+        crate::update::Took::Current => Ok(()),
+        crate::update::Took::Held => {
+            Err("this installation cannot replace its persistent runtime".to_string())
+        }
+    }
 }
 
 /// A document the pages asked the persistent half to remember, or nothing
@@ -338,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn the_programs_this_machine_holds_are_the_ones_on_this_line_newest_first() {
+    fn held_programs_must_exist_and_match_the_protocol_line() {
         let home = temp();
         for (version, name) in [
             (on_line(2), PROGRAM),
@@ -357,7 +294,6 @@ mod tests {
         std::fs::create_dir_all(home.join(on_line(3))).expect("an empty version");
         std::fs::write(home.join("address.json"), b"{}").expect("the address");
 
-        assert_eq!(held(&home), vec![on_line(10), on_line(2), on_line(1)]);
         assert!(held_at(&home, &on_line(1)).is_some());
         assert!(held_at(&home, &off_line()).is_none());
         assert!(held_at(&home, &on_line(3)).is_none());

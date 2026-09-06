@@ -107,13 +107,20 @@ pub async fn along(
 pub struct UpdateChoice {
     version: String,
     front_contract: Option<u32>,
+    ephemeral_contract: Option<String>,
+    persistent_available: bool,
 }
 
 fn update_choice(version: String, manifest: super::Manifest) -> UpdateChoice {
-    let front_contract = manifest.front.map(|front| front.needs);
+    let front_contract = manifest.front.as_ref().map(|front| front.needs);
+    let ephemeral_contract = manifest.front.and_then(|front| front.runtime);
+    let persistent_available = crate::update::program_platform()
+        .is_some_and(|platform| manifest.platforms.contains_key(&platform));
     UpdateChoice {
         version,
         front_contract,
+        ephemeral_contract,
+        persistent_available,
     }
 }
 
@@ -246,6 +253,7 @@ mod tests {
             version: "1.2.3".to_string(),
             front: Some(super::super::Entry {
                 needs: 9,
+                runtime: Some("test-runtime".to_string()),
                 url: String::new(),
                 signature: String::new(),
             }),

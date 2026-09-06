@@ -1,10 +1,4 @@
-//! Finding the pages of a release, making sure they are ours, and putting them
-//! in place.
-//!
-//! One half of one press: the pages, which cost a download of about a megabyte
-//! and a reload. The program under them is [`crate::update`], and the two are
-//! asked for separately because they interrupt different amounts — see there
-//! for the whole of why a release is taken in halves at all.
+//! Download, validate, activate or roll back compatible rendering expressions.
 
 use std::fs;
 use std::path::Path;
@@ -115,6 +109,9 @@ pub async fn take_front<R: Runtime>(
         contract(),
         version.is_some(),
     );
+    if entry.as_ref().and_then(|entry| entry.runtime.as_deref()) != Some(runtime_contract()) {
+        return Ok(Took::Held);
+    }
     if took != Took::Taken {
         return Ok(took);
     }
@@ -136,7 +133,8 @@ pub async fn take_front<R: Runtime>(
     let unpacked = tauri::async_runtime::spawn_blocking(move || {
         ours(&tarball, &entry.signature, &key)?;
         let unpacked = unpack(&home, &release, entry.needs, pinned, &tarball)?;
-        point(&home, &unpacked)?;
+        valid_runtime(&unpacked.dir, &unpacked.version)?;
+        point(&home, &unpacked, false)?;
         Ok::<_, String>(unpacked)
     })
     .await
@@ -146,38 +144,21 @@ pub async fn take_front<R: Runtime>(
     Ok(Took::Taken)
 }
 
-/// Told by a window that has finished drawing itself out of a taken front.
-///
-/// Until this, a taken front is one that has never been seen to work, and the
-/// next start of the app throws it away rather than open on it. Called on every
-/// start and out of every front, because a window cannot know which of the two
-/// it was drawn from and does not need to: there is nothing to write unless
-/// there is a taken front that has not said this yet.
+/// Commit only after the existing document has successfully activated this version.
 #[tauri::command(async)]
-pub fn confirm_front<R: Runtime>(app: AppHandle<R>) {
+pub fn confirm_front<R: Runtime>(app: AppHandle<R>, version: Option<String>) -> Result<(), String> {
     let serving = app.state::<Arc<Serving>>();
-    // Whatever this window was drawn out of, nothing is asking for the front
-    // before it any more: this window is the one that was waited for.
+    let Some(unpacked) = serving.at() else {
+        return Ok(());
+    };
+    if serving.pending() && version.as_deref() != Some(unpacked.version.to_string().as_str()) {
+        return Err("this window did not activate the pending ephemeral version".to_string());
+    }
+    if let Some(home) = &serving.home {
+        point(home, &unpacked, true)?;
+    }
     serving.drawn();
-    let (Some(home), Some(unpacked)) = (serving.home.clone(), serving.at()) else {
-        return;
-    };
-    let confirmed = Taken {
-        version: unpacked.version.to_string(),
-        needs: unpacked.needs,
-        pinned: unpacked.pinned,
-        confirmed: true,
-    };
-    let already = fs::read(home.join(TAKEN))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<Taken>(&bytes).ok())
-        .is_some_and(|taken| taken.confirmed && taken.version == confirmed.version);
-    if already {
-        return;
-    }
-    if let Ok(bytes) = serde_json::to_vec(&confirmed) {
-        let _ = fs::write(home.join(TAKEN), bytes);
-    }
+    Ok(())
 }
 
 /// Whether this is the front the release page named, signed with our key.
@@ -256,13 +237,47 @@ pub(super) fn unpack(
 /// What it replaces is left where it is. The window on the screen is still
 /// being served out of it — see `Behind` — and the next start is what clears
 /// away every front but the one it opens on.
-fn point(home: &Path, unpacked: &Unpacked) -> Result<(), String> {
+pub(super) fn point(home: &Path, unpacked: &Unpacked, confirmed: bool) -> Result<(), String> {
     let taken = Taken {
         version: unpacked.version.to_string(),
         needs: unpacked.needs,
         pinned: unpacked.pinned,
-        confirmed: false,
+        confirmed,
     };
+    // Keep the last committed selection recoverable if the process exits during activation.
+    if !confirmed && home.join(TAKEN).is_file() {
+        fs::copy(home.join(TAKEN), home.join(super::PREVIOUS))
+            .map_err(|error| error.to_string())?;
+    }
     let bytes = serde_json::to_vec(&taken).map_err(|error| error.to_string())?;
-    fs::write(home.join(TAKEN), bytes).map_err(|error| format!("{}: {error}", home.display()))
+    let writing = home.join("taken.writing.json");
+    fs::write(&writing, bytes).map_err(|error| error.to_string())?;
+    fs::rename(writing, home.join(TAKEN)).map_err(|error| error.to_string())?;
+    if confirmed {
+        let _ = fs::remove_file(home.join(super::PREVIOUS));
+    }
+    Ok(())
+}
+
+/// Exact identity of the stateful host; many view releases may declare the same identity.
+pub(crate) fn runtime_contract() -> &'static str {
+    env!("EPHEMERAL_CONTRACT")
+}
+
+pub(super) fn valid_runtime(dir: &Path, version: &Version) -> Result<(), String> {
+    let text = fs::read(dir.join("ephemeral.json")).map_err(|_| "no ephemeral manifest")?;
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&text).map_err(|_| "invalid ephemeral manifest")?;
+    if manifest["schema"] != 1
+        || manifest["contract"].as_str() != Some(runtime_contract())
+        || manifest["version"].as_str() != Some(version.to_string().as_str())
+    {
+        return Err("the ephemeral release requires a different persistent runtime".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
+pub fn rollback_front<R: Runtime>(app: AppHandle<R>) {
+    app.state::<Arc<Serving>>().rollback();
 }

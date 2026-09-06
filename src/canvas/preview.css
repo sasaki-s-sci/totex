@@ -54,12 +54,6 @@
   background: var(--mui-palette-error-main);
 }
 
-.file-preview__size {
-  color: var(--mui-palette-text-secondary);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
 .file-preview__mode {
   max-width: 90px;
   min-width: 0;

@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { swapEphemeral } from "./ephemeral/runtime";
 // Side effect: settles the language and loads the catalogues before anything
 // calls `useTranslation`.
 import "./i18n";
@@ -21,7 +22,7 @@ if (!container) {
 // What the last window left with the persistent half, brought across before the column
 // reads where it was -- see `remembered`. One round trip on the loopback,
 // which is nothing beside the first paint.
-Promise.all([prime(), loadSettings()]).finally(() => {
+Promise.all([prime(), loadSettings(), swapEphemeral()]).then(() => {
   applyStoredMode();
   window.addEventListener("focus", () => {
     void refreshSettings();

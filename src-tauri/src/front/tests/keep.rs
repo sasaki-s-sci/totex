@@ -116,3 +116,30 @@ fn opening_on_a_front_clears_away_the_ones_before_it() {
         "the one it overtook goes with it"
     );
 }
+
+#[test]
+fn a_confirmed_view_for_another_runtime_is_not_loaded() {
+    let temp = TempDir::new("runtime-mismatch");
+    lay(temp.path(), "0.1.3", true);
+    fs::write(
+        temp.path().join("0.1.3/ephemeral.json"),
+        serde_json::json!({ "schema": 1, "version": "0.1.3", "contract": "another-runtime" })
+            .to_string(),
+    )
+    .unwrap();
+    assert!(keep(temp.path(), &at("0.1.2"), 1).is_none());
+}
+
+#[test]
+fn an_interrupted_view_activation_restores_the_previous_committed_release() {
+    let temp = TempDir::new("interrupted-swap");
+    lay(temp.path(), "0.1.3", true);
+    fs::copy(
+        temp.path().join(super::super::TAKEN),
+        temp.path().join(super::super::PREVIOUS),
+    )
+    .unwrap();
+    lay(temp.path(), "0.1.4", false);
+    let kept = keep(temp.path(), &at("0.1.2"), 1).expect("the last working view");
+    assert_eq!(kept.version, at("0.1.3"));
+}
