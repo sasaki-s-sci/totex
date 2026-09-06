@@ -1,7 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { build } from "vite";
 import { compileViews, splitViews } from "../scripts/ephemeral-build.mjs";
+
+test("production view manifests retain every stylesheet needed by the graph", async () => {
+  const { output } = await build({
+    root: fileURLToPath(new URL("..", import.meta.url)),
+    logLevel: "silent",
+    build: { write: false },
+  });
+  const manifest = JSON.parse(output.find((asset) => asset.fileName === "ephemeral.json").source);
+  const styles = output.filter((asset) => asset.fileName.endsWith(".css"));
+  assert.ok(styles.length > 0);
+  assert.deepEqual(manifest.styles.toSorted(), styles.map((asset) => asset.fileName).toSorted());
+  assert.ok(styles.some((asset) => String(asset.source).includes(".graph")));
+});
 
 function split(text) {
   const name = "/views.tsx";

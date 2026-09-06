@@ -223,23 +223,27 @@ export default function ephemeralBuild() {
       const replacement = built?.modules.get(id);
       if (replacement !== undefined) return { code: replacement, map: null };
     },
-    generateBundle(_options, bundle) {
-      if (!built) return;
-      const code = compileViews(built.views);
-      const entry = `assets/ephemeral-${hash(code).slice(0, 16)}.js`;
-      this.emitFile({ type: "asset", fileName: entry, source: code });
-      this.emitFile({
-        type: "asset",
-        fileName: "ephemeral.json",
-        source: JSON.stringify({
-          schema: 1,
-          version: built.version,
-          contract: built.contract,
-          entry,
-          styles: Object.keys(bundle).filter((name) => name.endsWith(".css")),
-          views: built.views.map(({ id }) => id),
-        }),
-      });
+    generateBundle: {
+      // Vite emits the shared stylesheet during generateBundle. Read the bundle after it.
+      order: "post",
+      handler(_options, bundle) {
+        if (!built) return;
+        const code = compileViews(built.views);
+        const entry = `assets/ephemeral-${hash(code).slice(0, 16)}.js`;
+        this.emitFile({ type: "asset", fileName: entry, source: code });
+        this.emitFile({
+          type: "asset",
+          fileName: "ephemeral.json",
+          source: JSON.stringify({
+            schema: 1,
+            version: built.version,
+            contract: built.contract,
+            entry,
+            styles: Object.keys(bundle).filter((name) => name.endsWith(".css")),
+            views: built.views.map(({ id }) => id),
+          }),
+        });
+      },
     },
   };
 }
