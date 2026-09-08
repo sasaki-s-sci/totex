@@ -6,7 +6,7 @@ import { useReadingSize } from "../../hooks/useReadingSize";
 import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
-import { markdownPart, schemaPart, settingsPart } from "../../parts";
+import { dxfPart, markdownPart, pdfPart, schemaPart, settingsPart } from "../../parts";
 import { useGraphActions } from "../graphActions";
 import { Page, PageFrame } from "./Page";
 import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
@@ -78,6 +78,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const tints = useMemo(() => tintRuns(patch), [patch]);
   // What draws a page, fetched the first time one is opened and never before.
   const Markdown = markdownPart.use(data.view === "markdown");
+  const Pdf = pdfPart.use(data.view === "pdf");
+  const Dxf = dxfPart.use(data.view === "dxf");
+  const isDocument = data.view === "pdf" || data.view === "dxf";
   const picture =
     vector(data.path) && reading !== null && !data.truncated
       ? `data:image/svg+xml,${encodeURIComponent(reading)}`
@@ -161,7 +164,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       pinned={data.pinnedAt !== null}
       headerRef={bar}
       bodyRef={setBody}
-      onBodyWheel={data.view === "settings" || data.view === "schema" ? undefined : onWheel}
+      onBodyWheel={
+        data.view === "settings" || data.view === "schema" || isDocument ? undefined : onWheel
+      }
       footnote={footnote}
       // Said once on the card, so that the gutter and the text are always the
       // same size as one another, and so that the size is the only thing the
@@ -238,7 +243,13 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         data.text === null &&
         picture === null && (
           <p className="file-preview__message">
-            {t(data.view === "picture" ? "filePreview.tooLarge" : "filePreview.notText")}
+            {t(
+              isDocument
+                ? "filePreview.documentTooLarge"
+                : data.view === "picture"
+                  ? "filePreview.tooLarge"
+                  : "filePreview.notText",
+            )}
           </p>
         )}
       {ready && data.view === "text" && (
@@ -320,8 +331,19 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         </div>
       )}
 
+      {ready &&
+        isDocument &&
+        picture !== null &&
+        (data.view === "pdf" && Pdf ? (
+          <Pdf key={picture} source={picture} name={data.name} />
+        ) : data.view === "dxf" && Dxf ? (
+          <Dxf key={picture} source={picture} name={data.name} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+
       {/* How far down and across what is in the card has been moved. */}
-      {ready && data.view !== "settings" && data.view !== "schema" && (
+      {ready && !isDocument && data.view !== "settings" && data.view !== "schema" && (
         <>
           <i className="file-preview__reach file-preview__reach--y" ref={down} />
           <i className="file-preview__reach file-preview__reach--x" ref={across} />

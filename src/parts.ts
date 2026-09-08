@@ -68,3 +68,10 @@ export function storedRoots(): string[] {
 export const schemaPart = onDemand(() =>
   import("./components/nodes/preview/SchemaReading").then((part) => part.SchemaReading),
 );
+
+export const pdfPart = onDemand(() =>
+  import("./components/nodes/preview/PdfReading").then((part) => part.PdfReading),
+);
+export const dxfPart = onDemand(() =>
+  import("./components/nodes/preview/DxfReading").then((part) => part.DxfReading),
+);

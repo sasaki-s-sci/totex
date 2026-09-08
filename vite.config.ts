@@ -1,10 +1,20 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import { viteStaticCopy } from "vite-plugin-static-copy";
 // @ts-expect-error The build plugin runs directly in Node.
 import ephemeralBuild from "./scripts/ephemeral-build.mjs";
 
 export default defineConfig({
-  plugins: [ephemeralBuild(), react()],
+  plugins: [
+    ephemeralBuild(),
+    react(),
+    viteStaticCopy({
+      targets: ["cmaps", "standard_fonts", "wasm"].map((folder) => ({
+        src: `node_modules/pdfjs-dist/${folder}`,
+        dest: "pdf-assets",
+      })),
+    }),
+  ],
   // Tauri drives this dev server, so keep its output visible.
   clearScreen: false,
   server: {

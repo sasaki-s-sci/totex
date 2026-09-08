@@ -10,7 +10,15 @@ export const FILE_DRAG_TYPE = "application/x-totex-file";
  * against each other — except for a file that is nothing but a picture, which
  * opens as one because there is no reading of it to stand beside.
  */
-export type FilePreviewView = "text" | "diff" | "markdown" | "picture" | "settings" | "schema";
+export type FilePreviewView =
+  | "text"
+  | "diff"
+  | "markdown"
+  | "picture"
+  | "settings"
+  | "schema"
+  | "pdf"
+  | "dxf";
 
 /** One request to put a file card on the canvas. */
 export type FilePreviewRequest = {
@@ -84,24 +92,19 @@ export function vector(path: string): boolean {
 
 /** Whether a file is one there is a drawing of to open beside it. */
 export function previewable(path: string): boolean {
-  return WRITTEN.test(path);
+  return WRITTEN.test(path) || documentView(path) !== null;
 }
 
 /** What the drawing of a file is, for the card opened beside it. */
 export function previewView(path: string): FilePreviewView {
-  return pictureType(path) === null ? "markdown" : "picture";
+  return documentView(path) ?? (pictureType(path) === null ? "markdown" : "picture");
 }
 
-/**
- * What a card of a file opens showing.
- *
- * A picture, where the file is one and nothing else — there is no reading of a
- * PNG, and a card of one that opened on its bytes would be a card of nothing.
- * Everything else opens as its text, an SVG included: it is a file somebody
- * wrote, and the drawing of it is a press away.
- */
+/** PDF, DXF and raster images open rendered; written text and SVG open natively. */
 export function openingView(path: string): FilePreviewView {
-  return pictureType(path) !== null && !previewable(path) ? "picture" : "text";
+  return (
+    documentView(path) ?? (pictureType(path) !== null && !previewable(path) ? "picture" : "text")
+  );
 }
 
 /**
@@ -112,8 +115,21 @@ export function openingView(path: string): FilePreviewView {
  * and no preview to open from it — it is the preview.
  */
 export function drawn(view: FilePreviewView): boolean {
-  return view === "markdown" || view === "picture" || view === "settings";
+  return (
+    view === "markdown" ||
+    view === "picture" ||
+    view === "settings" ||
+    view === "pdf" ||
+    view === "dxf"
+  );
 }
 
 /** The gear owns one ordinary file card outside the drop request sequence. */
 export const SETTINGS_REQUEST_ID = -1;
+
+/** Formats rendered by a dedicated document viewer. */
+export function documentView(path: string): "pdf" | "dxf" | null {
+  if (/\.pdf$/i.test(path)) return "pdf";
+  if (/\.dxf$/i.test(path)) return "dxf";
+  return null;
+}

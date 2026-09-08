@@ -10,6 +10,7 @@ import { useEffect, useRef } from "react";
 import { readFileData, readFileHead } from "../folder/api";
 import { baseName } from "../folder/format";
 import {
+  documentView,
   type FilePreviewRequest,
   openingView,
   pictureType,
@@ -60,7 +61,11 @@ export function useFilePreviewPlacing(
           node.type === "file-preview" && node.data.requestId === preview.beside,
       );
       const stagger = (placedFiles.current.size - 1) % 8;
-      const box = from ? fileSize(from) : FILE_PREVIEW_SIZE;
+      const box = from
+        ? fileSize(from)
+        : documentView(preview.path)
+          ? { width: 560, height: 480 }
+          : FILE_PREVIEW_SIZE;
       const corner = from
         ? { x: from.position.x + box.width + BESIDE_GAP, y: from.position.y }
         : pageCorner(flow, preview.at ?? canvasMiddle(bounds, box, stagger * 16), box);
@@ -113,7 +118,11 @@ export function useFilePreviewPlacing(
     // the card is where that was settled.
     for (const { data } of additions) {
       const card = data.requestId;
-      void (data.view === "picture" ? drawnFile(data.path) : readFile(data.path))
+      void (
+        data.view === "picture" || documentView(data.path)
+          ? drawnFile(data.path)
+          : readFile(data.path)
+      )
         .then((read) => {
           if (!placedFiles.current.has(card)) return;
           setNodes((current) =>

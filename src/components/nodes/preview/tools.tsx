@@ -50,13 +50,7 @@ export function FileTools({
       <select
         className="file-preview__mode nodrag"
         aria-label={t("filePreview.mode")}
-        value={
-          data.view === "settings" || data.view === "markdown" || data.view === "picture"
-            ? "preview"
-            : data.view === "schema"
-              ? "schema"
-              : "text"
-        }
+        value={drawn(data.view) ? "preview" : data.view === "schema" ? "schema" : "text"}
         onChange={(event) => {
           const mode = event.target.value;
           const next: FilePreviewView =
