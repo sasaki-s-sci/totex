@@ -48,7 +48,9 @@ type Props = {
  * because it owns a canvas and a scrollback React must not re-render.
  */
 export function CliView({ session, shown, onEnded }: Props) {
-  const host = useRef<HTMLDivElement>(null);
+  // A view update can replace this DOM node without remounting the controller.
+  // Reattach to the running shell whenever the actual drawing surface changes.
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
   const palette = usePalette();
   // A shell that never came up. Nothing is written about it — the panel is
@@ -79,8 +81,9 @@ export function CliView({ session, shown, onEnded }: Props) {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
   useEffect(() => {
-    const element = host.current;
+    const element = host;
     if (!element) return;
+    setFailed(false);
 
     const terminal = new Terminal({
       fontSize: 12,
@@ -284,7 +287,7 @@ export function CliView({ session, shown, onEnded }: Props) {
       // The shell is deliberately left running: what it says with no terminal
       // there is kept for whichever asks next. Closing the session is what ends it.
     };
-  }, [session.id, session.cwd]);
+  }, [host, session.id, session.cwd]);
 
   // A terminal keeps its own copy of the colours it was built with, so a palette
   // change is told rather than rebuilt: the same rows in a different colour.
@@ -298,13 +301,13 @@ export function CliView({ session, shown, onEnded }: Props) {
   // decides nothing.
   useEffect(() => {
     if (shown) drawn.current?.focus();
-  }, [shown]);
+  }, [shown, host]);
 
   return (
     <>
       <CliIdentity cwd={session.cwd} shown={shown} />
       <Box
-        ref={host}
+        ref={setHost}
         sx={{
           flex: 1,
           minHeight: 0,
