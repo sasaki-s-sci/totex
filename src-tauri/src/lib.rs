@@ -227,6 +227,7 @@ pub fn run() {
             derived::rederive,
             fs_watch::watch_directories,
             git::git_version,
+            git::identity::git_identity,
             git::repository_counts,
             git::changes::directory_changes,
             git::patch::file_diff,

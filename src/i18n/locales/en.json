@@ -74,6 +74,12 @@
     "deleteFailed": "Could not delete"
   },
   "cli": {
+    "identity": "Git commit: {{identity}}",
+    "identityRoles": "Git author: {{author}} · Committer: {{committer}}",
+    "identityUnset": "Not configured",
+    "identityLoading": "Checking Git identity…",
+    "identityUnavailable": "Git identity unavailable",
+    "identityHint": "Commit identity for {{path}}, read by the app. Changes of directory or environment variables inside this shell and command-specific overrides are not reflected. This is separate from the account used to push.",
     "shell": "Shell",
     "open": "Shell",
     "end": "End"

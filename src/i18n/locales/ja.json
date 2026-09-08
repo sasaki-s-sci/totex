@@ -74,6 +74,12 @@
     "deleteFailed": "削除できませんでした"
   },
   "cli": {
+    "identity": "Gitコミット: {{identity}}",
+    "identityRoles": "Git作者: {{author}} · コミッター: {{committer}}",
+    "identityUnset": "未設定",
+    "identityLoading": "Gitのコミット名義を確認中…",
+    "identityUnavailable": "Gitのコミット名義を取得できません",
+    "identityHint": "{{path}} でアプリが読み取ったコミット名義です。シェル内でのディレクトリ移動・環境変数の変更や、コマンド単位の上書きは反映されません。pushの認証アカウントとは別です。",
     "shell": "シェル",
     "open": "シェル",
     "end": "終了"

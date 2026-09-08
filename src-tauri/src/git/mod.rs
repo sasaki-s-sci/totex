@@ -17,6 +17,7 @@ pub mod changes;
 mod cmd;
 mod delta;
 mod discover;
+pub mod identity;
 pub(crate) mod inspect;
 // Public so `generate_handler!` can name its command the same way it names
 // the other modules' commands.
