@@ -160,7 +160,9 @@ export async function verifyEphemeral(page, base = "http://127.0.0.1:18421") {
   // Changing the CLI layout replaces its host DOM node but keeps its controller.
   // The new surface must attach to the existing shell and recover its output.
   const opened = await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_open").length);
-  const attached = await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_attach").length);
+  const attached = await page.evaluate(
+    () => window.calls.filter((c) => c.cmd === "pty_attach").length,
+  );
   await page.route("**/assets/cli-layout.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
@@ -170,12 +172,19 @@ export async function verifyEphemeral(page, base = "http://127.0.0.1:18421") {
   candidate = { ...manifest, version: "0.2.7", entry: "assets/cli-layout.js" };
   assert.equal(await page.evaluate(() => window.testUpdate("ephemeral", "0.2.7")), "swapped");
   await page.waitForFunction(
-    (count) => document.querySelectorAll(".xterm").length === 3 &&
+    (count) =>
+      document.querySelectorAll(".xterm").length === 3 &&
       window.calls.filter((c) => c.cmd === "pty_attach").length === count + 3,
     attached,
   );
-  assert.equal(await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_open").length), opened);
-  assert.equal(await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_close").length), 0);
+  assert.equal(
+    await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_open").length),
+    opened,
+  );
+  assert.equal(
+    await page.evaluate(() => window.calls.filter((c) => c.cmd === "pty_close").length),
+    0,
+  );
   await page.locator(".xterm-helper-textarea").first().focus();
   await page.keyboard.type("echo recovered");
   assert.deepEqual(errors, []);

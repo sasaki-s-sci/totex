@@ -300,7 +300,7 @@ export function CliView({ session, shown, onEnded }: Props) {
   // something to type into, and a click into the rows to say so is a step that
   // decides nothing.
   useEffect(() => {
-    if (shown) drawn.current?.focus();
+    if (shown && host) drawn.current?.focus();
   }, [shown, host]);
 
   return (
