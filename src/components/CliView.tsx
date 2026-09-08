@@ -18,6 +18,7 @@ import {
 import type { Session } from "../lib/session";
 import { openTerminalLink } from "../lib/terminalLinks";
 import { usePalette } from "../theme";
+import { CliIdentity } from "./CliIdentity";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -300,16 +301,19 @@ export function CliView({ session, shown, onEnded }: Props) {
   }, [shown]);
 
   return (
-    <Box
-      ref={host}
-      sx={{
-        flex: 1,
-        minHeight: 0,
-        px: 1,
-        py: 0.5,
-        borderTop: 2,
-        borderColor: failed ? "error.main" : "transparent",
-      }}
-    />
+    <>
+      <CliIdentity cwd={session.cwd} shown={shown} />
+      <Box
+        ref={host}
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          px: 1,
+          py: 0.5,
+          borderTop: 2,
+          borderColor: failed ? "error.main" : "transparent",
+        }}
+      />
+    </>
   );
 }

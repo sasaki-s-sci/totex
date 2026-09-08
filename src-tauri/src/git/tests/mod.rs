@@ -3,6 +3,7 @@
 
 mod folder;
 mod history;
+mod identity;
 mod refresh;
 mod remote;
 mod scan;
