@@ -74,7 +74,7 @@
     "deleteFailed": "Could not delete"
   },
   "cli": {
-    "identity": "Git commit: {{identity}}",
+    "identity": "{{identity}}",
     "identityRoles": "Git author: {{author}} · Committer: {{committer}}",
     "identityUnset": "Not configured",
     "identityLoading": "Checking Git identity…",

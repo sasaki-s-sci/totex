@@ -34,7 +34,10 @@ export function CliIdentity({ cwd, shown }: { cwd: string; shown: boolean }) {
 
   return (
     <Tooltip title={t("cli.identityHint", { path: cwd })}>
-      <Box sx={{ px: 1, py: 0.5, color: "text.secondary", fontSize: 11, overflowWrap: "anywhere" }}>
+      <Box
+        component="span"
+        sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", lineHeight: "12px" }}
+      >
         {label}
       </Box>
     </Tooltip>
