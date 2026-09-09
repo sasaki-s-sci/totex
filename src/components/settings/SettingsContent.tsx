@@ -1,6 +1,7 @@
 /** The window's settings, opened as a page on the graph. */
 
 import { Stack } from "@mui/material";
+import { BackgroundGridRow } from "./BackgroundGridRow";
 import { FileTitleRow } from "./FileTitleRow";
 import { FollowSection } from "./FollowSection";
 import { LanguageRow } from "./LanguageRow";
@@ -19,6 +20,7 @@ export function SettingsContent() {
     <Stack sx={{ p: 2, gap: 1, minWidth: 518 }}>
       <SettingsSaveStatus />
       <ThemeRow />
+      <BackgroundGridRow />
       <LanguageRow />
       <FileTitleRow />
       <RevealRow />

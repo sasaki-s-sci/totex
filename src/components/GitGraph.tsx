@@ -25,6 +25,7 @@ import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
 import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
 import { BrowsingProvider } from "./browsing";
+import { CanvasBackground } from "./CanvasBackground";
 import { useCanvasActions } from "./canvasActions";
 import { CliDoingProvider } from "./cliDoing";
 import { CliJumpsProvider } from "./cliJumps";
@@ -410,6 +411,7 @@ export function GitGraph({
                           proOptions={proOptions}
                           fitView
                         >
+                          <CanvasBackground />
                           <GraphLines
                             bands={graph.bands}
                             reach={graph.reach}

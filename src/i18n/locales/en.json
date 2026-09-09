@@ -102,6 +102,7 @@
     "working": "is working"
   },
   "settings": {
+    "backgroundGrid": "Background grid",
     "fileTitle": "File title",
     "fileName": "File name",
     "fullPath": "Full path",

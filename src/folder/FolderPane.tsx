@@ -11,13 +11,14 @@ import {
 } from "../components/marks";
 import { useSpace } from "../lib/space";
 import type { FsEntry, Listing } from "./api";
+import { useDirectoryChanges } from "./changes";
 import { useRepositoryCounts } from "./counts";
 import { DROP_INTO } from "./dropInto";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import { baseName } from "./format";
 import type { Naming } from "./NameField";
-import { REFUSED_DROP, TAKING_DROP } from "./rows";
+import { CHANGE_COLOUR, REFUSED_DROP, TAKING_DROP } from "./rows";
 
 export interface FolderPaneProps {
   /** Which pane this is. Two of them can be showing one folder, so a row is
@@ -107,6 +108,14 @@ export function FolderPane({
   // one thing in one distribution and another in the next, and the name on its
   // own says neither.
   const distro = root?.path === path ? root.distro : null;
+  const answer = useDirectoryChanges(path);
+  const isRepository = root?.path === path && root.entries.some((entry) => entry.name === ".git");
+  const changes = isRepository ? Object.values(answer.changed) : [];
+  const change = changes.reduce<(typeof changes)[number] | undefined>(
+    (held, next) => (held === undefined || held === next ? next : "modified"),
+    undefined,
+  );
+  const colour = change ? CHANGE_COLOUR[change] : "text.primary";
 
   function open(entry: FsEntry) {
     setSelected(entry.path);
@@ -173,7 +182,7 @@ export function FolderPane({
             py: 0.5,
             border: "none",
             background: "none",
-            color: "text.primary",
+            color: colour,
             cursor: "pointer",
             textAlign: "left",
           }}
