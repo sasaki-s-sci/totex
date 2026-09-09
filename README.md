@@ -112,6 +112,39 @@ itself, out of its installer — what the version-selectable installer writes
 where the app goes, and the one file on the page that installs nothing if it is
 double-clicked, because it is not an installer. It is totex.
 
+## Desktop E2E tests and recordings
+
+On Linux, `task test:e2e` builds the app and its persistent sidecar, then drives
+the real WebKit window using WebdriverIO and `tauri-driver`. Xvfb provides a
+private virtual display and FFmpeg records it. No monitor or Tauri API mocks
+are needed. Install the app's normal build prerequisites first, then:
+
+```sh
+sudo apt-get install xvfb ffmpeg webkit2gtk-driver
+cargo install tauri-driver --version 2.0.6 --locked
+pnpm install --frozen-lockfile
+task test:e2e
+```
+
+Open the `test-results/e2e/<timestamp>/index.html` path printed at the end.
+It contains a playable MP4, step links that seek within the video, screenshots,
+and links to logs and a JSON result. Successful and failed runs both retain
+artifacts; missing or invalid video makes the run fail too. To rerun an already
+built app, use `task test:e2e:run` (or `pnpm test:e2e`). Rebuild after source changes.
+
+The smoke scenario opens a temporary repository through the sidebar, displays
+its graph, opens a real PTY, types a file creation and Git commit command, checks
+the resulting file and commit independently with Git, verifies a new branch
+appears through the app's watcher, and opens the saved file in its preview.
+App settings and persistent state use a private temporary user directory.
+This covers the Linux UI/IPC/Rust/Git/PTY path; it does not yet cover every
+feature, native OS dialogs, or Windows/macOS behavior. E2E is separate from
+`task check` because it requires a display server and recording tools.
+
+The **Desktop E2E** GitHub Actions workflow runs on pull requests or manual
+dispatch and uploads the report directory even when the test fails. Download
+and extract its artifact, then open `index.html` to review the video locally.
+
 ## Settings and file panels
 
 The gear opens `~/.totex/totex.json` as a settings form in the same panel used

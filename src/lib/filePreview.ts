@@ -18,7 +18,13 @@ export type FilePreviewView =
   | "settings"
   | "schema"
   | "pdf"
-  | "dxf";
+  | "dxf"
+  | "video"
+  | "audio"
+  | "html"
+  | "table"
+  | "model"
+  | "epub";
 
 /** One request to put a file card on the canvas. */
 export type FilePreviewRequest = {
@@ -70,7 +76,32 @@ const PICTURES: Record<string, string> = {
  * the drawing standing beside it — which is what the preview button on the
  * header opens, and what `previewView` says the shape of.
  */
-const WRITTEN = /\.(md|markdown|mdx|svg)$/i;
+const WRITTEN = /\.(md|markdown|mdx|svg|html|htm|csv|tsv)$/i;
+
+const MEDIA: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/mp4",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".aac": "audio/aac",
+  ".ogg": "audio/ogg",
+  ".oga": "audio/ogg",
+  ".opus": "audio/ogg",
+  ".wav": "audio/wav",
+  ".flac": "audio/flac",
+};
+
+/** The container MIME type; codec support is decided by the webview. */
+export function mediaType(path: string): string | null {
+  return MEDIA[path.slice(path.lastIndexOf(".")).toLowerCase()] ?? null;
+}
+
+export function mediaView(path: string): "audio" | "video" | null {
+  const type = mediaType(path);
+  return type === null ? null : type.startsWith("video/") ? "video" : "audio";
+}
 
 /** What the bytes of a file are drawn as, or null for one that is not a
  *  picture at all. */
@@ -92,18 +123,34 @@ export function vector(path: string): boolean {
 
 /** Whether a file is one there is a drawing of to open beside it. */
 export function previewable(path: string): boolean {
-  return WRITTEN.test(path) || documentView(path) !== null;
+  return WRITTEN.test(path) || documentView(path) !== null || mediaView(path) !== null;
 }
 
 /** What the drawing of a file is, for the card opened beside it. */
 export function previewView(path: string): FilePreviewView {
-  return documentView(path) ?? (pictureType(path) === null ? "markdown" : "picture");
+  return (
+    documentView(path) ??
+    mediaView(path) ??
+    (/\.(csv|tsv)$/i.test(path)
+      ? "table"
+      : /\.html?$/i.test(path)
+        ? "html"
+        : pictureType(path) === null
+          ? "markdown"
+          : "picture")
+  );
 }
 
-/** PDF, DXF and raster images open rendered; written text and SVG open natively. */
+/** Documents, media and raster images open rendered; authored text opens natively. */
 export function openingView(path: string): FilePreviewView {
   return (
-    documentView(path) ?? (pictureType(path) !== null && !previewable(path) ? "picture" : "text")
+    documentView(path) ??
+    mediaView(path) ??
+    (/\.(csv|tsv)$/i.test(path)
+      ? "table"
+      : pictureType(path) !== null && !previewable(path)
+        ? "picture"
+        : "text")
   );
 }
 
@@ -120,7 +167,13 @@ export function drawn(view: FilePreviewView): boolean {
     view === "picture" ||
     view === "settings" ||
     view === "pdf" ||
-    view === "dxf"
+    view === "dxf" ||
+    view === "video" ||
+    view === "audio" ||
+    view === "html" ||
+    view === "table" ||
+    view === "model" ||
+    view === "epub"
   );
 }
 
@@ -128,8 +181,10 @@ export function drawn(view: FilePreviewView): boolean {
 export const SETTINGS_REQUEST_ID = -1;
 
 /** Formats rendered by a dedicated document viewer. */
-export function documentView(path: string): "pdf" | "dxf" | null {
+export function documentView(path: string): "pdf" | "dxf" | "model" | "epub" | null {
   if (/\.pdf$/i.test(path)) return "pdf";
   if (/\.dxf$/i.test(path)) return "dxf";
+  if (/\.(gltf|glb|stl|obj)$/i.test(path)) return "model";
+  if (/\.epub$/i.test(path)) return "epub";
   return null;
 }

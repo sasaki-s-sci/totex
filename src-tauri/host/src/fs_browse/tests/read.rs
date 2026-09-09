@@ -2,7 +2,9 @@
 
 use std::fs;
 
-use super::super::read::{read_directory, read_file_data, read_file_head, write_file};
+use super::super::read::{
+    encode_file_data, read_directory, read_file_data, read_file_head, write_file,
+};
 use super::super::{MAX_FILE_DATA, MAX_FILE_HEAD};
 use super::temp_dir;
 
@@ -157,4 +159,36 @@ fn a_picture_past_what_a_card_draws_comes_back_with_nothing_in_it() {
     assert_eq!(read.data, None);
 
     fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_picture_at_the_limit_is_complete_and_an_empty_file_is_valid() {
+    let dir = temp_dir("file-data-boundary");
+    let path = dir.join("boundary.bin");
+    fs::write(&path, vec![7u8; MAX_FILE_DATA as usize]).unwrap();
+
+    let read = read_file_data(&path.to_string_lossy()).expect("the file");
+    assert_eq!(read.size, MAX_FILE_DATA);
+    assert_eq!(
+        read.data.as_ref().map(String::len),
+        Some((MAX_FILE_DATA as usize).div_ceil(3) * 4)
+    );
+    fs::write(&path, []).unwrap();
+    let empty = read_file_data(&path.to_string_lossy()).expect("empty file");
+    assert_eq!(empty.size, 0);
+    assert_eq!(empty.data.as_deref(), Some(""));
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn changed_picture_sizes_never_return_partial_or_oversized_data() {
+    // Model growth after the first stat and after the bounded reader's stat.
+    assert_eq!(encode_file_data(&[7], MAX_FILE_DATA + 1), Ok(None));
+    let grown = vec![7u8; MAX_FILE_DATA as usize + 1];
+    assert_eq!(encode_file_data(&grown, 1), Ok(None));
+
+    // Both shrinkage and growth within the limit must be retried as a whole.
+    assert_eq!(encode_file_data(&[7], 2), Err("changed".to_string()));
+    assert_eq!(encode_file_data(&[7, 8], 1), Err("changed".to_string()));
 }
