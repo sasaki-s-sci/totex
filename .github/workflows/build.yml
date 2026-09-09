@@ -41,18 +41,12 @@ jobs:
       - uses: jdx/mise-action@v4
       - uses: ./.github/actions/pnpm-cache
       - run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Check and build the frontend once for every platform
+      - name: Check the frontend
         run: |
           pnpm exec biome format .
           pnpm exec biome lint .
           pnpm test
-          pnpm build
-      - uses: actions/upload-artifact@v7
-        with:
-          name: frontend-dist
-          path: dist/
-          if-no-files-found: error
-          retention-days: 1
+          pnpm exec tsc --noEmit
 
   check:
     name: Check
@@ -109,7 +103,7 @@ jobs:
 
   build:
     name: ${{ matrix.name }}
-    needs: frontend
+    # Start native work immediately; sharing dist delayed every platform in measurements.
     runs-on: ${{ matrix.runner }}
     strategy:
       # One platform breaking says nothing about the other two, and knowing
@@ -267,12 +261,6 @@ jobs:
       - name: Install npm dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Download the checked frontend
-        uses: actions/download-artifact@v7
-        with:
-          name: frontend-dist
-          path: dist
-
       - name: Build the program that holds the terminals
         # A crate of its own beside the app -- see src-tauri/persistent -- carried
         # into every bundle beside the app's own binary. `tauri build` does not
@@ -282,7 +270,7 @@ jobs:
         run: node scripts/persistent-sidecar.mjs --release --target ${{ matrix.target }}
 
       - name: Build the installers
-        # All platforms embed the same checked frontend from this workflow run.
+        # Build the frontend locally so native jobs do not wait for another runner.
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -294,7 +282,7 @@ jobs:
           sign=""
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
           pnpm tauri build --target ${{ matrix.target }} $sign \
-            --config '{"build":{"beforeBuildCommand":""},"bundle":{"externalBin":["binaries/totex-persistent"]}}' \
+            --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}' \
             -- --locked --timings
 
       - name: Collect the installers under names that do not move
@@ -422,7 +410,7 @@ jobs:
 
       - name: Pack the pages on their own
         # The other half of a release. The pages the window is drawn out of are
-        # the same on all three platforms, downloaded from the frontend job,
+        # the same on all three platforms, built by Tauri's beforeBuildCommand,
         # so one job packs them and the other
         # two leave them alone. An installed copy can take these without
         # replacing the program under them, which is the only way a `.deb` or an

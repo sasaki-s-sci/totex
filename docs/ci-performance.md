@@ -22,10 +22,10 @@ linking is the bottleneck.
 
 ## Changes
 
-- Frontend formatting, lint, tests and the production build run in one job,
-  alongside Rust and release-policy checks. All three platform builds consume
-  that run's `frontend-dist` artifact and disable Tauri's build hook. They wait
-  for Frontend, so compare total elapsed time as well as saved runner time.
+- Frontend formatting, lint, tests and type checking run alongside Rust and
+  release-policy checks. Native jobs also start immediately and use Tauri's
+  normal frontend build hook. Sharing one frontend artifact was measured and
+  reverted because waiting for its producer delayed the critical path.
 - The pnpm content-addressed store is cached by OS, architecture, tool pins and
   lockfile, with a fallback for lockfile changes. Installation still uses the
   frozen lockfile; downloaded packages are preferred when already available.
@@ -38,10 +38,10 @@ linking is the bottleneck.
   optimization and local developer profiles are unchanged.
 - New branch builds cancel superseded branch runs. Tag builds finish normally.
 - Compressed installers are uploaded without another compression pass. Timing
-  reports and installers are retained for seven days, frontend transfer data
-  for one day. A retry after artifact expiry requires rerunning its producer.
+  reports and installers are retained for seven days. A retry after artifact
+  expiry requires rerunning its producer.
 - Cargo builds/tests produce timing artifacts, including sidecar builds. The
-  publisher downloads only `totex-*`, excluding frontend and timing artifacts.
+  publisher downloads only `totex-*`, excluding timing artifacts.
 - Setup also uses smaller debug artifacts, main-only cache writes and locked
   dependency resolution. Tool-pin changes now trigger its validation.
 
@@ -69,4 +69,34 @@ Compare at least one cold run and several warm main/tag pairs after merging.
 Record cache restore/save time, sidecar and app compilation, installer time,
 queue time and total publication latency. The first run changes Rust cache
 keys because the CI profile environment changed. No speedup has been measured
-for the new workflow yet.
+for the final workflow yet.
+
+
+## First measured iteration (2026-09-09)
+
+| Measurement | Before | Shared-frontend iteration |
+| --- | ---: | ---: |
+| Main / same-commit warm validation | 7m10s | 7m55s |
+| Check job | 2m31s | 1m17s |
+| Linux job | 4m19s | 4m18s |
+| Windows job | 4m36s | 5m17s |
+| macOS job | 7m02s | 7m10s |
+| Tag build and publication | 8m31s | 7m01s |
+
+Sources: [before main](https://github.com/sasaki-s-sci/totex/actions/runs/34304635628),
+[before tag](https://github.com/sasaki-s-sci/totex/actions/runs/34305105366),
+[first run](https://github.com/sasaki-s-sci/totex/actions/runs/34305299254),
+[same-commit warm run](https://github.com/sasaki-s-sci/totex/actions/runs/34305974280),
+[after tag](https://github.com/sasaki-s-sci/totex/actions/runs/34305973722).
+The first run after cache-key changes took 10m03s. Check's cache shrank from
+1,554,215,809 to 547,119,029 bytes (65%). Warm Cargo tests reused 563 units and
+rebuilt 13; the initial run rebuilt 217. Warm Linux app compilation took 65.5s,
+while its combined installer step took 185s, leaving about two minutes outside
+Cargo compilation.
+
+Sharing the frontend delayed the native jobs by roughly 45s including runner
+scheduling, without a corresponding reduction in native job duration. That
+serialization has been removed. The tag run improved, but substantial macOS
+variation means one pair is insufficient to attribute its 90s gain to these
+changes. Check and cache size improved clearly; end-to-end speedup was not
+established by this iteration.
