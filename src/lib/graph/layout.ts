@@ -47,10 +47,11 @@ import {
  */
 export type PreparedRepository = {
   repository: Repository;
-  /** The band's own node data and box, which is what the column moves. Its
-   *  label is where the line down from the folder lands. */
+  /** The band's own node data and box, which is what the column moves. */
   data: RepositoryNodeData;
   style: { width: number; height: number };
+  /** The trunk line, where the folder connects to this band. */
+  trunk: number;
   nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[];
   /** Every line the band draws, already batched by how it is drawn. */
   lines: BandLines;
@@ -141,25 +142,27 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     if (cwd !== null) stacks[ref.row] = Math.max(stacks[ref.row], deep.get(cwd) ?? 0);
   }
 
-  // Both halves hang from the trunk's line, half a lane down the band. Half a
-  // lane, because that is the room the repository's name asks for above it and
-  // what a workspace stack on that line reaches up by — whichever is the more.
-  const top = gridRows(Math.max(NAME_HEIGHT, rows > 0 ? rowReach(stacks[0]) : 0));
+  // Open history lanes alternately above and below the trunk. Lane identities
+  // stay intact, including reuse and first-parent continuity.
+  const laneOffset = (row: number) => (row % 2 === 0 ? row / 2 : -(row + 1) / 2) * COMMIT_STEP.y;
+  const historyTop = -Math.floor(history.depth / 2) * COMMIT_STEP.y;
+  const historyBottom = Math.floor(Math.max(history.depth - 1, 0) / 2) * COMMIT_STEP.y;
 
-  /** The line each row of the history is drawn along: evenly spaced. */
-  const historyLine = (row: number) => top + row * COMMIT_STEP.y;
-  /**
-   * And each row of the branch column: the same grid row as the history beside
-   * it, until what is running in one of them asks for more room than the lane
-   * between two branches holds — and then the rest of the column drops a whole
-   * grid row rather than sliding by whatever the stack overflowed by.
-   */
+  // Keep names in order and reserve room for both neighbouring terminal stacks.
+  // Then centre the whole occupied column on the trunk, to the nearest grid row.
   const branchLine: number[] = [];
   for (let row = 0; row < rows; row++) {
     branchLine.push(
-      row === 0 ? historyLine(0) : branchLine[row - 1] + branchPitch(stacks[row - 1], stacks[row]),
+      row === 0 ? 0 : branchLine[row - 1] + branchPitch(stacks[row - 1], stacks[row]),
     );
   }
+  const branchTop = rows > 0 ? -rowReach(stacks[0]) : 0;
+  const branchBottom = rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0;
+  const centre = Math.round((branchTop + branchBottom) / (2 * COMMIT_STEP.y)) * COMMIT_STEP.y;
+  // Leave room for the name above all history, and keep every stack inside the band.
+  const top = gridRows(Math.max(NAME_HEIGHT - historyTop, centre - branchTop));
+  const historyLine = (row: number) => top + laneOffset(row);
+  for (let row = 0; row < rows; row++) branchLine[row] += top - centre;
 
   /** The left edge of a column of the history, which the band opens on: the
    *  name is set over the first of them rather than in a cell before it, so
@@ -210,10 +213,10 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   drawJunctions(frame, refs);
   drawHeads(frame, refs);
 
-  // the history and the branch column reaches furthest down.
+  // Reserve the lower extent of both history and branch stacks.
   const bottom = gridRows(
     Math.max(
-      historyLine(Math.max(history.depth - 1, 0)) + COMMIT_STEP.y / 2,
+      top + historyBottom + COMMIT_STEP.y / 2,
       rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0,
     ),
   );
@@ -229,14 +232,8 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
       repository,
       label: {
         x: 0,
-        // The band's own first line, which is where the fold stands and where
-        // the topmost branch is: the name is set in the air over it, so that it
-        // heads the whole of what is under it rather than labelling the one row
-        // it happens to be level with.
-        y: top - NAME_HEIGHT,
-        // As far as the column the terminals stand in, which is the one thing
-        // that can reach up into this line: a stack centred on the topmost
-        // branch opens out above that branch as well as below it.
+        // The name stays above the history even when lanes open above the trunk.
+        y: top + historyTop - NAME_HEIGHT,
         width: working - SESSION_WIDTH / 2,
         height: NAME_HEIGHT,
         // The column the band opens on, which the name is centred in: the mark
@@ -247,6 +244,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
         column: COMMIT_STEP.x,
       },
     },
+    trunk: top,
     style: {
       width,
       height: bottom,

@@ -127,15 +127,12 @@ function bandRow(
     provisional: proposed,
   });
 
-  // At the line the name is set over, which is the line the band opens on: the
-  // fold, or the first commit drawn. The same end as a folded repository's —
-  // the left edge of the same column, one row further down — so opening a
-  // repository moves what the line arrives at and never where it arrives.
+  // Connect to the trunk, independently of the label above the upper lanes.
   drawn.links.push(
     holds(id, from, entry.repository.id, {
       node: entry.repository.id,
       dx: entry.data.label.x,
-      dy: entry.data.label.y + entry.data.label.height,
+      dy: entry.trunk,
     }),
   );
 
