@@ -72,18 +72,34 @@ pub fn read_file_data(raw_path: &str) -> Result<FileData, String> {
     if stat.is_dir {
         return Err("is-a-directory".to_string());
     }
-    let data = if stat.size > MAX_FILE_DATA {
-        None
+    let (data, size) = if stat.size > MAX_FILE_DATA {
+        (None, stat.size)
     } else {
-        Some(crate::base64::encode(&host.read(&path)?))
+        // The file can grow after stat. Read one extra byte to detect that
+        // without ever allocating an unbounded file in memory.
+        let (bytes, size) = host.read_head(&path, MAX_FILE_DATA + 1)?;
+        let data = encode_file_data(&bytes, size)?;
+        (data, size.max(bytes.len() as u64))
     };
 
     Ok(FileData {
         name: host.name(&path),
         path: path.to_string_lossy().into_owned(),
         data,
-        size: stat.size,
+        size,
     })
+}
+
+/// Only encode a complete, bounded reading. A size mismatch means the file
+/// changed during the read, so returning those bytes could draw a partial file.
+pub(super) fn encode_file_data(bytes: &[u8], size: u64) -> Result<Option<String>, String> {
+    if size > MAX_FILE_DATA || bytes.len() as u64 > MAX_FILE_DATA {
+        return Ok(None);
+    }
+    if bytes.len() as u64 != size {
+        return Err("changed".to_string());
+    }
+    Ok(Some(crate::base64::encode(bytes)))
 }
 
 /// Writes a card's reading back to the file it came from.

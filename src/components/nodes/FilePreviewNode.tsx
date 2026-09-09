@@ -6,7 +6,18 @@ import { useReadingSize } from "../../hooks/useReadingSize";
 import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
-import { dxfPart, markdownPart, pdfPart, schemaPart, settingsPart } from "../../parts";
+import {
+  dxfPart,
+  epubPart,
+  htmlPart,
+  markdownPart,
+  mediaPart,
+  modelPart,
+  pdfPart,
+  schemaPart,
+  settingsPart,
+  tablePart,
+} from "../../parts";
 import { useGraphActions } from "../graphActions";
 import { Page, PageFrame } from "./Page";
 import { changed, fileRuns, patchOf, runBox, tintRuns, useFileDiff } from "./preview/diff";
@@ -80,6 +91,18 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const Markdown = markdownPart.use(data.view === "markdown");
   const Pdf = pdfPart.use(data.view === "pdf");
   const Dxf = dxfPart.use(data.view === "dxf");
+  const isMedia = data.view === "video" || data.view === "audio";
+  const Media = mediaPart.use(isMedia);
+  const Html = htmlPart.use(data.view === "html");
+  const Table = tablePart.use(data.view === "table");
+  const Model = modelPart.use(data.view === "model");
+  const Epub = epubPart.use(data.view === "epub");
+  const nativeScroll =
+    isMedia ||
+    data.view === "html" ||
+    data.view === "table" ||
+    data.view === "model" ||
+    data.view === "epub";
   const isDocument = data.view === "pdf" || data.view === "dxf";
   const picture =
     vector(data.path) && reading !== null && !data.truncated
@@ -137,7 +160,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     const held =
       data.view === "settings"
         ? 520
-        : drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
+        : nativeScroll || isDocument
+          ? (bar.current?.parentElement?.clientWidth ?? data.box.width) - BORDERS
+          : drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
     fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, held) + BORDERS));
   }
 
@@ -165,7 +190,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       headerRef={bar}
       bodyRef={setBody}
       onBodyWheel={
-        data.view === "settings" || data.view === "schema" || isDocument ? undefined : onWheel
+        data.view === "settings" || data.view === "schema" || isDocument || nativeScroll
+          ? undefined
+          : onWheel
       }
       footnote={footnote}
       // Said once on the card, so that the gutter and the text are always the
@@ -244,7 +271,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         picture === null && (
           <p className="file-preview__message">
             {t(
-              isDocument
+              isDocument || isMedia || data.view === "model" || data.view === "epub"
                 ? "filePreview.documentTooLarge"
                 : data.view === "picture"
                   ? "filePreview.tooLarge"
@@ -332,6 +359,46 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
       )}
 
       {ready &&
+        data.view === "table" &&
+        (Table ? (
+          <Table text={reading ?? ""} path={data.path} truncated={data.truncated} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+      {ready &&
+        data.view === "model" &&
+        picture !== null &&
+        (Model ? (
+          <Model key={picture} source={picture} name={data.name} path={data.path} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+      {ready &&
+        data.view === "epub" &&
+        picture !== null &&
+        (Epub ? (
+          <Epub key={picture} source={picture} name={data.name} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+
+      {ready &&
+        data.view === "html" &&
+        (Html ? (
+          <Html text={reading ?? ""} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+      {ready &&
+        (data.view === "video" || data.view === "audio") &&
+        picture !== null &&
+        (Media ? (
+          <Media key={picture} source={picture} name={data.name} kind={data.view} />
+        ) : (
+          <p className="file-preview__message">{t("filePreview.loading")}</p>
+        ))}
+
+      {ready &&
         isDocument &&
         picture !== null &&
         (data.view === "pdf" && Pdf ? (
@@ -343,12 +410,16 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         ))}
 
       {/* How far down and across what is in the card has been moved. */}
-      {ready && !isDocument && data.view !== "settings" && data.view !== "schema" && (
-        <>
-          <i className="file-preview__reach file-preview__reach--y" ref={down} />
-          <i className="file-preview__reach file-preview__reach--x" ref={across} />
-        </>
-      )}
+      {ready &&
+        !isDocument &&
+        !nativeScroll &&
+        data.view !== "settings" &&
+        data.view !== "schema" && (
+          <>
+            <i className="file-preview__reach file-preview__reach--y" ref={down} />
+            <i className="file-preview__reach file-preview__reach--x" ref={across} />
+          </>
+        )}
     </Page>
   );
 }

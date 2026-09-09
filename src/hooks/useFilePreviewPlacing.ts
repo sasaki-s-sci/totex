@@ -12,6 +12,8 @@ import { baseName } from "../folder/format";
 import {
   documentView,
   type FilePreviewRequest,
+  mediaType,
+  mediaView,
   openingView,
   pictureType,
   SETTINGS_REQUEST_ID,
@@ -63,7 +65,10 @@ export function useFilePreviewPlacing(
       const stagger = (placedFiles.current.size - 1) % 8;
       const box = from
         ? fileSize(from)
-        : documentView(preview.path)
+        : documentView(preview.path) ||
+            mediaView(preview.path) ||
+            preview.view === "html" ||
+            /\.(csv|tsv)$/i.test(preview.path)
           ? { width: 560, height: 480 }
           : FILE_PREVIEW_SIZE;
       const corner = from
@@ -119,7 +124,7 @@ export function useFilePreviewPlacing(
     for (const { data } of additions) {
       const card = data.requestId;
       void (
-        data.view === "picture" || documentView(data.path)
+        data.view === "picture" || documentView(data.path) || mediaView(data.path)
           ? drawnFile(data.path)
           : readFile(data.path)
       )
@@ -171,7 +176,7 @@ async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {
  */
 async function drawnFile(path: string): Promise<Partial<FilePreviewNodeData>> {
   const read = await readFileData(path);
-  const type = pictureType(read.path) ?? "application/octet-stream";
+  const type = pictureType(read.path) ?? mediaType(read.path) ?? "application/octet-stream";
   const source = type === "image/svg+xml" ? await readFile(path) : {};
   return {
     path: read.path,
