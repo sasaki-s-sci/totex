@@ -114,6 +114,12 @@ export function flushSettings(): Promise<void> {
   return queue;
 }
 
+/** A failed write must keep the old frontend, where the unsaved settings still live. */
+export async function flushSettingsForHandoff(): Promise<void> {
+  await flushSettings();
+  if (Object.keys(pending).length) throw new Error("Settings could not be saved before updating");
+}
+
 /** The raw file view uses the same validation and write queue as the form. */
 export async function writeSettingsText(text: string, expected: string): Promise<number> {
   await flushSettings();

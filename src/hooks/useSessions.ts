@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import { endShell, runningShells, startShell } from "../lib/pty";
+import { useCallback, useEffect, useMemo } from "react";
+import { endShell, resumeShells, runningShells, startShell } from "../lib/pty";
 import { restored, type Session } from "../lib/session";
+import { frontValue, useFrontState } from "../shell/state";
+
+resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 
 /**
  * Everything that is running, and which one the panel is showing.
@@ -12,8 +14,8 @@ import { restored, type Session } from "../lib/session";
  * the window itself opens and ends sessions, and asks nothing about how.
  */
 export function useSessions() {
-  const [sessions, setSessions] = useState<readonly Session[]>([]);
-  const [showing, setShowing] = useState<string | null>(null);
+  const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
+  const [showing, setShowing] = useFrontState<string | null>("sessions.showing", null);
 
   // What was already running when this window came up. A session is a process
   // and outlives whatever is drawing it, so a window that starts with an empty

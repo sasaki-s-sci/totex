@@ -55,6 +55,13 @@ export function sessionMeta(session: Session): string {
 /** How a session's id ends, which is what makes two in one directory two. */
 const ORDINAL = / cli (\d+)$/;
 
+/** Reserve transferred IDs before the user can open another terminal. */
+export function reserveSessionIds(sessions: readonly { id: string }[]): void {
+  for (const session of sessions) {
+    started = Math.max(started, Number(ORDINAL.exec(session.id)?.[1] ?? 0));
+  }
+}
+
 /**
  * The sessions a window comes back to, out of the processes still running.
  *
@@ -68,13 +75,12 @@ const ORDINAL = / cli (\d+)$/;
  * graph no longer has a row it belongs on.
  */
 export function restored(running: readonly Running[]): Session[] {
+  reserveSessionIds(running);
   return running.map((shell) => {
     // The count has to clear everything already running before the next session
     // is named. A window that has just come up would otherwise name its first
     // session after one that is still there — and opening that one is not an
     // error, it is quietly being handed the shell somebody is already in.
-    const ordinal = Number(ORDINAL.exec(shell.id)?.[1] ?? 0);
-    if (ordinal > started) started = ordinal;
     return { id: shell.id, cwd: shell.cwd, branch: branchOf(shell.meta) };
   });
 }

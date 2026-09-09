@@ -62,11 +62,11 @@ pub(super) fn needing(home: &Path, version: &str, needs: u32, confirmed: bool) {
 pub(super) fn pinning(home: &Path, version: &str, needs: u32, pinned: bool, confirmed: bool) {
     let dir = home.join(version);
     fs::create_dir_all(&dir).expect("lay a front");
-    fs::write(dir.join("index.html"), b"<!doctype html>").expect("lay a page");
+    fs::write(dir.join("front.html"), b"<!doctype html>").expect("lay a page");
     fs::write(
         dir.join("ephemeral.json"),
         serde_json::json!({
-            "schema": 1, "version": version, "contract": super::take::runtime_contract(),
+            "schema": 2, "version": version, "contract": super::take::runtime_contract(),
         })
         .to_string(),
     )

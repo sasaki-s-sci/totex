@@ -5,6 +5,7 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import ephemeralBuild from "./scripts/ephemeral-build.mjs";
 
 export default defineConfig({
+  build: { rollupOptions: { input: { shell: "index.html", front: "front.html" } } },
   plugins: [
     ephemeralBuild(),
     react(),

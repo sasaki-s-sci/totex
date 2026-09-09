@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { depthOf } from "../lib/graph/history";
+import { useFrontState } from "../shell/state";
 import type { Repository } from "../types/git";
 
 /**
@@ -44,7 +45,10 @@ type Drawn = {
  * and a place in the history is what it stands at.
  */
 export function useHistoryDepth(repositories: readonly Repository[]) {
-  const [settled, setSettled] = useState<ReadonlyMap<string, Ask>>(() => new Map());
+  const [settled, setSettled] = useFrontState<ReadonlyMap<string, Ask>>(
+    "canvas.history",
+    () => new Map(),
+  );
   const [reaching, setReaching] = useState<Reaching | null>(null);
   // The same answer again, for the release that ends a pull: `keep` runs in the
   // event that follows the pull's last frame, and the state that frame asked

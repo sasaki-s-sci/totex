@@ -22,8 +22,14 @@ import { useSaidStyle } from "../hooks/useSaidStyle";
 import { useSettingsPage } from "../hooks/useSettingsPage";
 import { useWorktreeStatus } from "../hooks/useWorktreeStatus";
 import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
-import { type AppNode, buildCommitGraph, type GraphResult } from "../lib/graph";
+import {
+  type AppNode,
+  buildCommitGraph,
+  type FilePreviewFlowNode,
+  type GraphResult,
+} from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
+import { frontValue, keepFrontValue, readOnSnapshot } from "../shell/state";
 import { BrowsingProvider } from "./browsing";
 import { CanvasBackground } from "./CanvasBackground";
 import { useCanvasActions } from "./canvasActions";
@@ -111,7 +117,10 @@ export function GitGraph({
     [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>(graph.nodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([
+    ...graph.nodes,
+    ...(frontValue<FilePreviewFlowNode[]>("canvas.files") ?? []),
+  ]);
   const instance = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const [flowReady, setFlowReady] = useState(false);
   const framed = useRef(false);
@@ -125,6 +134,13 @@ export function GitGraph({
   // Where everything is standing on screen, which is where the next move starts
   // from — mid-move included, so a second change does not jump.
   const standing = useRef(nodes);
+  useLayoutEffect(
+    () =>
+      readOnSnapshot("canvas.files", () =>
+        standing.current.filter((node) => node.type === "file-preview"),
+      ),
+    [],
+  );
   standing.current = nodes;
   const heldLineNodes = useRef<readonly AppNode[]>(graph.nodes);
   const lineNodes = retainLineNodes(nodes, heldLineNodes.current);
@@ -228,6 +244,7 @@ export function GitGraph({
 
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
+      keepFrontValue("canvas.viewport", viewport);
       resolve(viewport.zoom);
     },
     [resolve],
@@ -384,6 +401,8 @@ export function GitGraph({
                           onNodesChange={onNodesChange}
                           onInit={(flow) => {
                             instance.current = flow;
+                            const kept = frontValue<Viewport>("canvas.viewport");
+                            if (kept) void flow.setViewport(kept);
                             setFlowReady(true);
                             // The first frame is framed by `fitView` rather than by a move, so
                             // the canvas has to be asked where it ended up.
@@ -409,7 +428,7 @@ export function GitGraph({
                           // own middle instead. A pinch is still React Flow's.
                           zoomOnScroll={false}
                           proOptions={proOptions}
-                          fitView
+                          fitView={!frontValue("canvas.viewport")}
                         >
                           <CanvasBackground />
                           <GraphLines

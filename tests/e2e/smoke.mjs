@@ -15,6 +15,9 @@ export async function smoke(browser, repository, step) {
   };
 
   await step("アプリを起動し、フォルダー一覧を開く", async () => {
+    const front = await browser.$('iframe[title="totex"]');
+    await front.waitForDisplayed({ timeout: 30000 });
+    await browser.switchFrame(front);
     await click('[aria-label="Expand root folders"]');
     await click('#folder-sidebar [aria-label="Add"]');
     const input = await browser.$('input[aria-label="Path, e.g. ~/repo"]');

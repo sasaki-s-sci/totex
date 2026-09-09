@@ -1,9 +1,11 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ephemeralIdentity, swapEphemeral } from "../../ephemeral/runtime";
+import { connection } from "../../shell/bridge";
 import type { Layer, UpdateStage } from "./model";
 import { askStanding, settlePress, state, wanted } from "./store";
 
 export function confirmFront(): void {
+  if (connection) return; // The shell confirms only after the whole candidate is ready.
   invoke("confirm_front", { version: ephemeralIdentity().version || null }).catch(() => undefined);
 }
 
@@ -30,6 +32,11 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
     const took = await invoke<Took>("update_take", { layer, version, coming });
     if (took === "taken") {
       if (layer === "ephemeral") {
+        if (connection) {
+          await connection.activate(version ?? undefined);
+          settlePress(layer, { stage: "swapped", progress: null });
+          return "swapped";
+        }
         staged = true;
         undo = await swapEphemeral(version ?? undefined);
         await invoke("confirm_front", { version: ephemeralIdentity().version });

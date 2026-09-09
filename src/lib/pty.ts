@@ -11,7 +11,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import { type Session, sessionMeta } from "./session";
+import { reserveSessionIds, type Session, sessionMeta } from "./session";
 
 /** Carries a run of a session's output. */
 export const DATA_EVENT = "pty:data";
@@ -82,6 +82,14 @@ const COLS = 80;
 
 /** The sessions this window has started, so that starting one twice is once. */
 const started = new Map<string, Promise<void>>();
+
+/** Adopt existing PTYs; new sessions still go through their own startup promise. */
+export function resumeShells(sessions: readonly Session[]): void {
+  reserveSessionIds(sessions);
+  for (const session of sessions) {
+    if (!started.has(session.id)) started.set(session.id, Promise.resolve());
+  }
+}
 
 /**
  * Starts the process behind a session, or waits for the one already starting.

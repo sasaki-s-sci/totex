@@ -217,6 +217,7 @@ def classify(before, after):
                 ephemeral.append(path)
         elif path.startswith(("src/", "src-tauri/", "assets/", "public/")) or path in (
             "index.html",
+            "front.html",
             "vite.config.ts",
             "tsconfig.json",
             "pnpm-lock.yaml",

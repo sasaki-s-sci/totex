@@ -1,12 +1,13 @@
 //! Which front a window is actually drawn out of, page by page.
 
+use std::borrow::Cow;
 use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use tauri::Assets;
 use tauri::test::MockRuntime;
-use tauri::utils::assets::AssetKey;
+use tauri::utils::assets::{AssetKey, AssetsIter, CspHash};
 
 use super::super::{Behind, Front, Held, Nothing, Serving, Unpacked};
 use super::{TempDir, at, lay};
@@ -35,6 +36,46 @@ fn asked(front: &Front<MockRuntime>, path: &str) -> Option<Vec<u8>> {
     Assets::<MockRuntime>::get(front, &AssetKey::from(path)).map(|bytes| bytes.into_owned())
 }
 
+struct ShellAssets;
+impl Assets<MockRuntime> for ShellAssets {
+    fn get(&self, key: &AssetKey) -> Option<Cow<'_, [u8]>> {
+        match key.as_ref().trim_start_matches('/') {
+            "index.html" => Some(Cow::Borrowed(b"installed shell")),
+            "assets/shell-original.js" => Some(Cow::Borrowed(b"installed shell code")),
+            _ => None,
+        }
+    }
+    fn iter(&self) -> Box<AssetsIter<'_>> {
+        Box::new(std::iter::empty())
+    }
+    fn csp_hashes(&self, _: &AssetKey) -> Box<dyn Iterator<Item = CspHash<'_>> + '_> {
+        Box::new(std::iter::empty())
+    }
+}
+
+#[test]
+fn a_confirmed_overlay_cannot_replace_the_shell_or_hide_its_original_chunks() {
+    let temp = TempDir::new("shell");
+    lay(temp.path(), "0.1.3", true);
+    fs::write(temp.path().join("0.1.3/index.html"), b"overlay shell").unwrap();
+    let front = Front::new(
+        serving(temp.path(), "0.1.2", Some("0.1.3")),
+        Box::new(ShellAssets),
+    );
+    assert_eq!(
+        asked(&front, "/index.html").as_deref(),
+        Some(&b"installed shell"[..])
+    );
+    assert_eq!(
+        asked(&front, "/assets/shell-original.js").as_deref(),
+        Some(&b"installed shell code"[..])
+    );
+    assert_eq!(
+        asked(&front, "/front.html").as_deref(),
+        Some(&b"<!doctype html>"[..])
+    );
+}
+
 #[test]
 fn a_window_is_drawn_out_of_the_front_that_is_being_served() {
     let temp = TempDir::new("served");
@@ -45,7 +86,7 @@ fn a_window_is_drawn_out_of_the_front_that_is_being_served() {
         Box::new(Nothing),
     );
     assert_eq!(
-        asked(&front, "/index.html").as_deref(),
+        asked(&front, "/front.html").as_deref(),
         Some(&b"<!doctype html>"[..])
     );
     // Nothing stands behind a front that has been opened on, so a file it has
@@ -54,7 +95,7 @@ fn a_window_is_drawn_out_of_the_front_that_is_being_served() {
 
     // And with no front taken at all, every ask goes to what was built in.
     let built_in = Front::new(serving(temp.path(), "0.1.2", None), Box::new(Nothing));
-    assert_eq!(asked(&built_in, "/index.html"), None);
+    assert_eq!(asked(&built_in, "/front.html"), None);
 }
 
 #[test]
@@ -85,7 +126,7 @@ fn the_front_being_replaced_answers_until_a_window_has_been_drawn() {
     );
     // The one it was taken for is drawn out of the new one either way.
     assert_eq!(
-        asked(&front, "/index.html").as_deref(),
+        asked(&front, "/front.html").as_deref(),
         Some(&b"<!doctype html>"[..])
     );
 
@@ -116,7 +157,7 @@ fn tauri_asks_this_for_the_page_the_window_opens_on() {
 
     let asset = app
         .asset_resolver()
-        .get("index.html".to_string())
+        .get("front.html".to_string())
         .expect("the page the window opens on");
     assert_eq!(asset.bytes, b"<!doctype html>");
     assert_eq!(asset.mime_type, "text/html");

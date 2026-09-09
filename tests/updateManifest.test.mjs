@@ -17,7 +17,7 @@ test("release metadata uses the host identity from the actual ephemeral artifact
     const contract = "a".repeat(64);
     writeFileSync(
       join(contents, "ephemeral.json"),
-      JSON.stringify({ schema: 1, version: pkg.version, contract }),
+      JSON.stringify({ schema: 2, version: pkg.version, contract }),
     );
     execFileSync("tar", ["-czf", join(home, "front.tar.gz"), "-C", contents, "."]);
     for (const name of [
@@ -41,7 +41,7 @@ test("release metadata uses the host identity from the actual ephemeral artifact
     assert.equal(Object.keys(manifest.platforms).length, 5);
     writeFileSync(
       join(contents, "ephemeral.json"),
-      JSON.stringify({ schema: 1, version: "999.0.0", contract }),
+      JSON.stringify({ schema: 2, version: "999.0.0", contract }),
     );
     execFileSync("tar", ["-czf", join(home, "front.tar.gz"), "-C", contents, "."]);
     assert.throws(() =>

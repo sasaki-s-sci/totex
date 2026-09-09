@@ -304,7 +304,9 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             {...typing}
             onInput={onInput}
             onKeyUp={showCaret}
-            onBlur={() => void save()}
+            onBlur={() => {
+              if (!frontInactive()) void save();
+            }}
           />
         </div>
       )}
@@ -423,3 +425,5 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     </Page>
   );
 }
+
+import { frontInactive } from "../../shell/bridge";

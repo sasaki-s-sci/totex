@@ -5,7 +5,6 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
-
 import {
   attachShell,
   DATA_EVENT,
@@ -17,6 +16,8 @@ import {
 } from "../lib/pty";
 import type { Session } from "../lib/session";
 import { openTerminalLink } from "../lib/terminalLinks";
+import { readyAfter } from "../shell/bridge";
+import { frontValue, readOnSnapshot } from "../shell/state";
 import { usePalette } from "../theme";
 
 import "@xterm/xterm/css/xterm.css";
@@ -96,6 +97,11 @@ export function CliView({ session, shown, onEnded }: Props) {
     terminal.loadAddon(new WebLinksAddon(openTerminalLink));
     terminal.open(element);
     drawn.current = terminal;
+    const stateKey = `terminal.${session.id}`;
+    const forget = readOnSnapshot(stateKey, () => ({
+      scroll: terminal.buffer.active.viewportY,
+      selection: terminal.getSelectionPosition(),
+    }));
 
     // What xterm falls back to draws every cell as an element of its own, which
     // an agent redrawing a whole screen makes expensive. Not always there, and
@@ -227,42 +233,59 @@ export function CliView({ session, shown, onEnded }: Props) {
     // them — the rest would be a crossing into Rust to say nothing.
     let told = { rows: terminal.rows, cols: terminal.cols };
 
-    void (async () => {
-      // Listening first, and waited for: registering a listener is itself a
-      // crossing into Rust, and the backlog only covers the gap in this order.
-      await Promise.all([incoming, finished]);
-      if (!live) return;
+    void readyAfter(
+      (async () => {
+        // Listening first, and waited for: registering a listener is itself a
+        // crossing into Rust, and the backlog only covers the gap in this order.
+        await Promise.all([incoming, finished]);
+        if (!live) return;
 
-      try {
-        // Ordinarily already running, because opening the session started it.
-        // This is for the one that is not: a start that failed, or a session
-        // this window has only just been told about.
-        await startShell(session);
-      } catch {
-        if (live) setFailed(true);
-        return;
-      }
-      if (!live) return;
+        try {
+          // Ordinarily already running, because opening the session started it.
+          // This is for the one that is not: a start that failed, or a session
+          // this window has only just been told about.
+          await startShell(session);
+        } catch {
+          if (live) setFailed(true);
+          return;
+        }
+        if (!live) return;
 
-      const held = await attachShell(session.id).catch(() => null);
-      if (!live) return;
-      if (!held) {
-        // Nothing to attach to: it ended in the moment between being started
-        // and being drawn, and the exit went past before anyone was listening.
-        ended.current();
-        return;
-      }
+        const held = await attachShell(session.id).catch(() => null);
+        if (!live) return;
+        if (!held) {
+          // Nothing to attach to: it ended in the moment between being started
+          // and being drawn, and the exit went past before anyone was listening.
+          ended.current();
+          return;
+        }
 
-      terminal.write(held.text);
-      reached = held.upto;
-      for (const said of waiting) say(said);
-      waiting.length = 0;
+        await new Promise<void>((resolve) => terminal.write(held.text, resolve));
+        if (!live) return;
+        reached = held.upto;
+        for (const said of waiting) say(said);
+        waiting.length = 0;
+        const before = frontValue<{
+          scroll: number;
+          selection?: { start: { x: number; y: number }; end: { x: number; y: number } };
+        }>(stateKey);
+        if (before) {
+          terminal.scrollToLine(before.scroll);
+          const range = before.selection;
+          if (range)
+            terminal.select(
+              range.start.x,
+              range.start.y,
+              (range.end.y - range.start.y) * terminal.cols + range.end.x - range.start.x,
+            );
+        }
 
-      // The shell was started at a size nothing had measured, so the first
-      // thing a terminal that exists tells it is how much room it really has.
-      told = { rows: terminal.rows, cols: terminal.cols };
-      void resizeShell(session.id, told.rows, told.cols).catch(() => undefined);
-    })();
+        // The shell was started at a size nothing had measured, so the first
+        // thing a terminal that exists tells it is how much room it really has.
+        told = { rows: terminal.rows, cols: terminal.cols };
+        void resizeShell(session.id, told.rows, told.cols).catch(() => undefined);
+      })(),
+    );
 
     // The panel is resizable, and a shell that is not told its size draws
     // anything full-screen at the wrong one.
@@ -283,6 +306,7 @@ export function CliView({ session, shown, onEnded }: Props) {
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
       terminal.dispose();
+      forget();
       // The shell is deliberately left running: what it says with no terminal
       // there is kept for whichever asks next. Closing the session is what ends it.
     };
@@ -305,6 +329,8 @@ export function CliView({ session, shown, onEnded }: Props) {
   return (
     <Box
       ref={setHost}
+      data-terminal={session.id}
+      data-terminal-shown={shown}
       sx={{
         flex: 1,
         minHeight: 0,

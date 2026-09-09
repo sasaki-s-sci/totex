@@ -90,14 +90,14 @@ fn pages_that_need_a_newer_program_are_left_alone() {
 fn a_front_is_the_contents_of_dist_and_has_to_have_a_page() {
     let temp = TempDir::new("unpack");
     let whole = packed(&[
-        ("./index.html", b"<!doctype html>"),
+        ("./front.html", b"<!doctype html>"),
         ("./assets/app.js", b"nothing"),
     ]);
 
     let unpacked =
         unpack(temp.path(), &at("0.1.3"), 1, false, &whole).expect("a front with a page in it");
     assert_eq!(unpacked.dir, temp.path().join("0.1.3"));
-    assert!(unpacked.dir.join("index.html").is_file());
+    assert!(unpacked.dir.join("front.html").is_file());
     assert!(unpacked.dir.join("assets").join("app.js").is_file());
 
     let partial = packed(&[("./assets/app.js", b"nothing")]);

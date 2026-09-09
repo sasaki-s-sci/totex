@@ -1,14 +1,14 @@
 //! Signed ephemeral artifacts served by the persistent native host.
 //!
-//! A release contains rendering expressions and styles plus a bootstrap for a
-//! fresh launch. Live updates load only the expressions and styles: the document,
-//! React runtime, hooks, effects, module stores and CLI connections stay alive.
-//! The exact host identity in ephemeral.json defines compatibility, so one host
-//! can accept multiple view releases without relying on their version numbering.
+//! The installed shell owns the outer document. A compatible release can replace
+//! an entire frontend in a child frame, transferring explicit state while the
+//! native window and CLI service stay alive. Rendering-only changes use the
+//! existing expression-swap path inside that frame.
 //!
-//! Downloads are staged until the live document confirms activation. A failure
-//! restores the previous selection; an interrupted activation is recovered at
-//! startup. Assets referenced by the existing host remain reachable after a swap.
+//! The signed manifest declares a shell identity and a separate views identity.
+//! Downloads remain staged until the shell confirms a prepared frontend. Failed
+//! or interrupted activation restores the last committed selection. The shell's
+//! original assets stay available even when booting from a confirmed overlay.
 
 mod assets;
 mod serving;

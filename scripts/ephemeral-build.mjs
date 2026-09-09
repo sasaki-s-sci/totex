@@ -4,6 +4,7 @@ import { relative, resolve } from "node:path";
 import ts from "typescript";
 
 const identity = "virtual:ephemeral-identity";
+const shellIdentity = "virtual:shell-identity";
 const runtime = "/src/ephemeral/runtime";
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 
@@ -137,7 +138,12 @@ export function prepareViews(root) {
     const name = relative(root, path).replaceAll("\\", "/");
     if (/\.css$/.test(path)) continue;
     const source = program.getSourceFile(path);
-    if (source && !name.startsWith("src/ephemeral/") && name !== "src/main.tsx") {
+    if (
+      source &&
+      !name.startsWith("src/ephemeral/") &&
+      !name.startsWith("src/shell/") &&
+      name !== "src/main.tsx"
+    ) {
       const split = splitViews(source, checker, name);
       modules.set(path, split.code);
       views.push(...split.views);
@@ -185,13 +191,64 @@ export function prepareViews(root) {
   delete config.version;
   parts.push(
     readFileSync(resolve(root, "index.html"), "utf8").replaceAll("\r\n", "\n"),
+    readFileSync(resolve(root, "front.html"), "utf8").replaceAll("\r\n", "\n"),
     readFileSync(resolve(root, "vite.config.ts"), "utf8").replaceAll("\r\n", "\n"),
   );
   parts.push(
     JSON.stringify(config),
     readFileSync(resolve(root, "src-tauri/build.rs"), "utf8").replaceAll("\r\n", "\n"),
   );
-  return { contract: hash(parts.join("\n")), version, modules, views };
+  return {
+    contract: shellContract(root),
+    viewsContract: hash(parts.join("\n")),
+    version,
+    modules,
+    views,
+  };
+}
+
+/** Only the native host, shell and its IPC dependency define full-front compatibility. */
+export function shellContract(root) {
+  const paths = [
+    ...filesUnder(resolve(root, "src-tauri/src")),
+    ...filesUnder(resolve(root, "src-tauri/host/src")),
+    ...filesUnder(resolve(root, "src-tauri/persistent/src")),
+    // The bridge, handoff hooks and focus helpers run in the replaceable frontend.
+    resolve(root, "src/shell/main.ts"),
+    resolve(root, "src/shell/protocol.ts"),
+    ...[
+      "index.html",
+      "vite.config.ts",
+      "scripts/ephemeral-build.mjs",
+      "src-tauri/build.rs",
+      "src-tauri/Cargo.toml",
+      "src-tauri/host/Cargo.toml",
+      "src-tauri/persistent/Cargo.toml",
+      "src-tauri/Cargo.lock",
+    ].map((path) => resolve(root, path)),
+  ];
+  const parts = [];
+  for (const path of paths.sort()) {
+    const name = relative(root, path).replaceAll("\\", "/");
+    if (name.includes("/tests/") || name.endsWith("/tests.rs")) continue;
+    let text = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
+    if (name.endsWith("Cargo.toml"))
+      text = text.replace(/(\[package\][\s\S]*?\nversion\s*=\s*)"[^"]+"/, '$1"release"');
+    if (name.endsWith("Cargo.lock"))
+      text = text.replace(
+        /(name = "(?:totex|totex-persistent)"\nversion = )"[^"]+"/g,
+        '$1"release"',
+      );
+    parts.push(name, text);
+  }
+  const config = JSON.parse(readFileSync(resolve(root, "src-tauri/tauri.conf.json"), "utf8"));
+  delete config.version;
+  const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+  const api = JSON.parse(
+    readFileSync(resolve(root, "node_modules/@tauri-apps/api/package.json"), "utf8"),
+  );
+  parts.push(JSON.stringify(config), String(pkg.frontContract), api.version);
+  return hash(parts.join("\n"));
 }
 
 export default function ephemeralBuild() {
@@ -213,11 +270,13 @@ export default function ephemeralBuild() {
       if (production) built = prepareViews(root);
     },
     resolveId(id) {
-      if (id === identity) return `\0${identity}`;
+      if (id === identity || id === shellIdentity) return `\0${id}`;
     },
     load(id) {
-      if (id === `\0${identity}`)
+      if (id === `\0${shellIdentity}`)
         return `export const contract = ${JSON.stringify(built?.contract ?? "development")};`;
+      if (id === `\0${identity}`)
+        return `export const contract = ${JSON.stringify(built?.viewsContract ?? "development")};`;
     },
     transform(_code, id) {
       const replacement = built?.modules.get(id);
@@ -228,6 +287,10 @@ export default function ephemeralBuild() {
       order: "post",
       handler(_options, bundle) {
         if (!built) return;
+        // The outer document does not use the frontend's shared stylesheet.
+        const shell = bundle["index.html"];
+        if (shell?.type === "asset")
+          shell.source = String(shell.source).replace(/\s*<link\b[^>]*rel="stylesheet"[^>]*>/g, "");
         const code = compileViews(built.views);
         const entry = `assets/ephemeral-${hash(code).slice(0, 16)}.js`;
         this.emitFile({ type: "asset", fileName: entry, source: code });
@@ -235,9 +298,10 @@ export default function ephemeralBuild() {
           type: "asset",
           fileName: "ephemeral.json",
           source: JSON.stringify({
-            schema: 1,
+            schema: 2,
             version: built.version,
             contract: built.contract,
+            viewsContract: built.viewsContract,
             entry,
             styles: Object.keys(bundle).filter((name) => name.endsWith(".css")),
             views: built.views.map(({ id }) => id),

@@ -1,3 +1,4 @@
+import { useFrontState } from "../shell/state";
 /**
  * The file cards the window is holding, and the ways one is asked for.
  *
@@ -7,12 +8,12 @@
  * the things that can be under it.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
 
 export function useFileDrops() {
-  const [filePreviews, setFilePreviews] = useState<FilePreviewRequest[]>([]);
-  const nextFilePreview = useRef(0);
+  const [filePreviews, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
+  const nextFilePreview = useRef(Math.max(-1, ...filePreviews.map((file) => file.id)) + 1);
 
   const openFiles = useCallback((paths: readonly string[], at: { x: number; y: number } | null) => {
     setFilePreviews((current) => [

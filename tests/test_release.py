@@ -135,6 +135,11 @@ version = "1.0.0"
         self.commit()
         self.assertEqual(self.plan()["to"], "1.3.0")
 
+    def test_front_document_is_shipped_as_a_patch(self):
+        self.write("front.html", "<!doctype html><title>front</title>\n")
+        self.commit()
+        self.assertEqual(self.plan()["part"], "patch")
+
     def test_shared_host_is_persistent(self):
         self.write("src-tauri/host/src/host/file.rs", "updated\n")
         self.commit()

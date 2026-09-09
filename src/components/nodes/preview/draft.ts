@@ -7,8 +7,11 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FilePreviewNodeData } from "../../../lib/graph";
+import { frontValue, readOnSnapshot } from "../../../shell/state";
 import type { useReading } from "./reading";
 import { countLines, draftOf, lineNumbers } from "./text";
+
+type Draft = { text: string; disk: string | null; kept: string | null; dirty: boolean };
 
 export function useDraft(
   data: FilePreviewNodeData,
@@ -16,6 +19,8 @@ export function useDraft(
   saveFilePreview: (requestId: number, text: string, expected?: string) => Promise<boolean>,
 ) {
   const { paper, move, home, showCaret } = view;
+  const key = `draft.${data.requestId}.${data.path}`;
+  const restored = useRef(frontValue<Draft>(key));
 
   const editable = data.state === "ready" && data.text !== null && !data.truncated;
 
@@ -46,6 +51,20 @@ export function useDraft(
   const writing = useRef<Promise<boolean> | null>(null);
   const inputTimer = useRef<number | null>(null);
 
+  useLayoutEffect(
+    () =>
+      readOnSnapshot(key, async () => {
+        if (writing.current) await writing.current;
+        return {
+          text: paper ? draftOf(paper) : (restored.current?.text ?? reading ?? ""),
+          disk: disk.current,
+          kept: kept.current,
+          dirty: dirty.current,
+        } satisfies Draft;
+      }),
+    [key, paper, reading],
+  );
+
   /**
    * The reading, written to the element rather than drawn from the data.
    *
@@ -57,6 +76,18 @@ export function useDraft(
    */
   useLayoutEffect(() => {
     if (!paper || reading === null) return;
+    const before = restored.current;
+    if (before?.dirty) {
+      restored.current = undefined;
+      paper.textContent = before.text;
+      kept.current = before.kept;
+      disk.current = before.disk;
+      dirty.current = true;
+      setLines(countLines(before.text));
+      setUnsaved(true);
+      setRefused(before.disk !== data.text);
+      return;
+    }
     if (dirty.current && draftOf(paper) !== reading) {
       setRefused(true);
       return;

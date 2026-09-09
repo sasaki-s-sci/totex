@@ -213,7 +213,7 @@ pub(super) fn unpack(
         .map_err(|error| format!("the front would not unpack: {error}"))?;
 
     // The one file every front has, and the one a window asks for first.
-    if !taking.join("index.html").is_file() {
+    if !taking.join("front.html").is_file() {
         let _ = fs::remove_dir_all(&taking);
         return Err("the front arrived without a page in it".to_string());
     }
@@ -268,7 +268,7 @@ pub(super) fn valid_runtime(dir: &Path, version: &Version) -> Result<(), String>
     let text = fs::read(dir.join("ephemeral.json")).map_err(|_| "no ephemeral manifest")?;
     let manifest: serde_json::Value =
         serde_json::from_slice(&text).map_err(|_| "invalid ephemeral manifest")?;
-    if manifest["schema"] != 1
+    if manifest["schema"] != 2
         || manifest["contract"].as_str() != Some(runtime_contract())
         || manifest["version"].as_str() != Some(version.to_string().as_str())
     {

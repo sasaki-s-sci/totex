@@ -56,12 +56,12 @@ fn pages() -> Vec<u8> {
         flate2::Compression::fast(),
     ));
     let metadata = serde_json::json!({
-        "schema": 1, "version": "9.9.9", "contract": crate::front::take::runtime_contract(),
+        "schema": 2, "version": "9.9.9", "contract": crate::front::take::runtime_contract(),
     })
     .to_string();
     for (name, body) in [
         ("./ephemeral.json", metadata.as_bytes()),
-        ("./index.html", &b"<!doctype html><title>taken</title>"[..]),
+        ("./front.html", &b"<!doctype html><title>taken</title>"[..]),
         ("./assets/app.js", &b"nothing"[..]),
     ] {
         let mut header = tar::Header::new_gnu();
@@ -206,7 +206,7 @@ fn a_press_downloads_the_pages_and_the_next_window_is_drawn_out_of_them() {
         }
     }
     link.stop();
-    let drawn = temp.path().join("front").join("9.9.9").join("index.html");
+    let drawn = temp.path().join("front").join("9.9.9").join("front.html");
     assert!(drawn.is_file(), "{} was not unpacked", drawn.display());
     assert_eq!(
         std::fs::read(&drawn).expect("the page"),

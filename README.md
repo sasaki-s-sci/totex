@@ -180,34 +180,41 @@ Settings exposes two update boundaries:
 
 | Layer | Owns | Applying an update |
 | --- | --- | --- |
-| **persistent** | Native window host, CLI service, React runtime, hooks, stores, effects and terminal connections | Installs the complete bundle and restarts totex with its bundled CLI service and matching ephemeral release. CLI sessions end. |
-| **ephemeral** | Pure rendering expressions and styles | Loads the new expressions and CSS into the existing document. The host, sessions, React component identities, refs and terminal instances stay alive. |
+| **persistent** | Thin browser shell, native window host and CLI service | Installs the complete bundle and restarts totex. CLI sessions end. |
+| **ephemeral** | Frontend code, React, hooks, rendering and styles | Prepares a new frontend in a child frame, transfers state and switches it into view. The native window and CLI processes stay alive. |
 
-The build extracts JSX expressions into an independent module. Stateful component
-functions remain in the host and pass their current bindings to stable rendering
-slots. Activating another compatible module notifies those slots, so the existing
-React tree updates in place. There is no document reload, root replacement or app
-exit on this path. CSS is preloaded and switched with the rendering module; lazy
-host modules cannot load a stale stylesheet afterwards.
+The outer shell document stays open throughout a frontend update. The old front
+remains painted while its replacement loads and reconnects to running terminals;
+input is temporarily paused during this handoff. A failed startup or native
+confirmation keeps the old front. Once confirmed, the shell switches frames and
+retires the old frontend and its native event subscriptions.
 
-The exact persistent identity is published as `front.runtime` in `latest.json`
-and `contract` in the signed artifact's `ephemeral.json`. It covers host source,
-rendering bindings, native source and dependencies. JSX expression contents and
-CSS are excluded; changing hooks, helpers, bindings, dependencies or native code
-requires a persistent update. This is intentionally a conservative boundary,
-not a claim that arbitrary frontend JavaScript is stateless.
+State transfer is explicit: open folders, selected terminal, workspace readings,
+canvas viewport and history depth, file cards and unsaved file drafts are carried
+across. Terminal emulators reconnect to the existing PTYs and replay retained
+output. Arbitrary hook state, transient dialogs and media playback are not
+implicitly preserved. New stateful features must define their handoff data.
+
+JSX-expression and CSS-only updates keep the faster existing path: rendering slots
+update inside the current frame without recreating React or xterm instances.
+Changes to hooks, helpers or frontend dependencies can use the full-front path.
+
+The shell identity is published as `front.runtime` in `latest.json` and `contract`
+in the signed artifact's `ephemeral.json`. It covers shell and native code,
+native dependencies, native configuration and the shell's Tauri API dependency.
+A separate `viewsContract` covers stateful frontend code and chooses whether a
+frame replacement is needed. Frontend-only changes do not change shell identity.
+Compatibility is independent of patch/minor numbering.
 
 **One persistent identity can support many ephemeral releases.** Settings lists
-those releases, including older compatible versions, and disables incompatible
-ones with an explanation. `latest` selects the newest compatible published
-release. Releases sharing the current host do not offer unnecessary persistent
-restarts. Selecting another persistent release previews its compatible ephemeral
-versions. Compatibility comes from the manifest, not from patch/minor numbering.
+compatible releases, including older versions, and disables incompatible ones.
+`latest` selects the newest compatible published release. Selecting another
+persistent release previews its compatible ephemeral versions.
 The listing currently covers the latest 30 published releases.
 
-An ephemeral artifact is signature-checked and staged before use. The live
-window validates its identity, loads its module and styles, checks mounted
-rendering inputs, then activates and confirms it. Failed loads retain the old
+An ephemeral artifact is signature-checked and staged before use. The shell
+validates its identity and prepares either replacement rendering expressions or
+a complete frontend before confirming activation. Failed loads retain the old
 view; interrupted activation restores the last committed selection at startup.
 Old host assets remain available across successive swaps. `TOTEX_BUILT_IN_FRONT=1`
 still provides recovery to the bundled views.
@@ -218,8 +225,8 @@ bundle, including when updating within the same protocol line. A `.deb` or `.rpm
 leaves persistent installation to its package manager but can apply compatible
 ephemeral releases in place.
 
-The first installation of this architecture requires a persistent update. Older
-release artifacts without the rendering contract cannot be hot-swapped.
+The first installation of the thin shell requires a persistent update. Older
+schema-1 artifacts cannot be loaded by the schema-2 shell.
 
 For the design and acceptance checks, see [the update boundary](docs/update-boundary.md).
 
@@ -243,7 +250,7 @@ changes when they arrive together.
 
 These tag-numbering categories describe the release planner's historical artifact
 areas, not the update boundary above. A patch may require a persistent update;
-only the published host identity determines whether views can be swapped.
+only the published shell identity determines whether the frontend can be swapped.
 Service changes take precedence over window-only changes. The socket client,
 `src-tauri/persistent/src/talk.rs`, is classified as window-only for tag numbering. Dependency comparisons
 walk the locked graph for all platforms, including indirect dependencies;

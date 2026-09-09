@@ -19,6 +19,8 @@ import {
   SETTINGS_REQUEST_ID,
 } from "../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../lib/graph";
+import { readyAfter } from "../shell/bridge";
+import { frontValue } from "../shell/state";
 import { FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
@@ -55,6 +57,10 @@ export function useFilePreviewPlacing(
     const flow = instance.current;
     const additions: FilePreviewFlowNode[] = fresh.map((preview) => {
       placedFiles.current.add(preview.id);
+      const kept = frontValue<FilePreviewFlowNode[]>("canvas.files")?.find(
+        (node) => node.data.requestId === preview.id && node.data.path === preview.path,
+      );
+      if (kept) return kept;
       // A card opened from another one stands beside it, at its size and on
       // whichever layer it is standing on. Everything else is placed where it
       // was dropped, or in the middle of what the canvas is showing.
@@ -114,7 +120,11 @@ export function useFilePreviewPlacing(
     });
 
     setNodes((current) => [
-      ...current.filter((node) => node.type !== "file-preview" || wanted.has(node.data.requestId)),
+      ...current.filter(
+        (node) =>
+          node.type !== "file-preview" ||
+          (wanted.has(node.data.requestId) && !additions.some((added) => added.id === node.id)),
+      ),
       ...additions,
     ]);
 
@@ -123,31 +133,32 @@ export function useFilePreviewPlacing(
     // the card is where that was settled.
     for (const { data } of additions) {
       const card = data.requestId;
-      void (
-        data.view === "picture" || documentView(data.path) || mediaView(data.path)
+      void readyAfter(
+        (data.view === "picture" || documentView(data.path) || mediaView(data.path)
           ? drawnFile(data.path)
           : readFile(data.path)
-      )
-        .then((read) => {
-          if (!placedFiles.current.has(card)) return;
-          setNodes((current) =>
-            current.map((node) =>
-              node.type === "file-preview" && node.data.requestId === card
-                ? { ...node, data: { ...node.data, ...read, state: "ready" } }
-                : node,
-            ),
-          );
-        })
-        .catch(() => {
-          if (!placedFiles.current.has(card)) return;
-          setNodes((current) =>
-            current.map((node) =>
-              node.type === "file-preview" && node.data.requestId === card
-                ? { ...node, data: { ...node.data, state: "failed" } }
-                : node,
-            ),
-          );
-        });
+        )
+          .then((read) => {
+            if (!placedFiles.current.has(card)) return;
+            setNodes((current) =>
+              current.map((node) =>
+                node.type === "file-preview" && node.data.requestId === card
+                  ? { ...node, data: { ...node.data, ...read, state: "ready" } }
+                  : node,
+              ),
+            );
+          })
+          .catch(() => {
+            if (!placedFiles.current.has(card)) return;
+            setNodes((current) =>
+              current.map((node) =>
+                node.type === "file-preview" && node.data.requestId === card
+                  ? { ...node, data: { ...node.data, state: "failed" } }
+                  : node,
+              ),
+            );
+          }),
+      );
     }
   }, [requests, flowReady, setNodes, host, instance, standing]);
 }

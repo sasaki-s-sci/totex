@@ -4,6 +4,8 @@ import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import { baseName } from "../folder/format";
 import { applyWorkspaceDelta } from "../lib/workspaceDelta";
+import { readyAfter, retiring } from "../shell/bridge";
+import { useFrontState } from "../shell/state";
 import type { Repository, Workspace, WorkspaceDelta } from "../types/git";
 
 /** Carries what a change actually changed. */
@@ -34,7 +36,7 @@ export type Folder = {
  *  snapshot on the backend, so a commit arrives as a diff of the one folder it
  *  happened in; what the graph draws is the folders put together. */
 export function useWorkspaces(roots: string[]) {
-  const [open, setOpen] = useState<Open>({});
+  const [open, setOpen] = useFrontState<Open>("workspace.open", {});
   const [loading, setLoading] = useState(false);
   /** Whether the last thing asked of the backend came back. Nothing about what
    *  it said: what is drawn from this is a rule along the top of the canvas. */
@@ -72,17 +74,20 @@ export function useWorkspaces(roots: string[]) {
 
     setLoading(true);
     setFailed(false);
-    void Promise.all(
-      fresh.map((root) =>
-        invoke<Workspace>("scan_workspace", { root })
-          .then((workspace) => {
-            // The folder can be collapsed while its scan is still running.
-            if (held.current.has(root)) setOpen((previous) => ({ ...previous, [root]: workspace }));
-          })
-          .catch(() => {
-            held.current.delete(root);
-            setFailed(true);
-          }),
+    void readyAfter(
+      Promise.all(
+        fresh.map((root) =>
+          invoke<Workspace>("scan_workspace", { root })
+            .then((workspace) => {
+              // The folder can be collapsed while its scan is still running.
+              if (held.current.has(root))
+                setOpen((previous) => ({ ...previous, [root]: workspace }));
+            })
+            .catch(() => {
+              held.current.delete(root);
+              setFailed(true);
+            }),
+        ),
       ),
     ).finally(() => setLoading(false));
   }, [key]);
@@ -130,7 +135,7 @@ export function useWorkspaces(roots: string[]) {
     return () => {
       held.current.clear();
       // No folder named: everything the window had open goes with it.
-      void invoke("close_workspace", {}).catch(() => undefined);
+      if (!retiring) void invoke("close_workspace", {}).catch(() => undefined);
     };
   }, []);
 

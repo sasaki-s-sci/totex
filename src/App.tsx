@@ -2,7 +2,6 @@ import { Box, CssBaseline } from "@mui/material";
 import { ThemeProvider, useColorScheme } from "@mui/material/styles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-
 import type { CommitTarget } from "./components/CommitMenu";
 import type { BranchPick } from "./components/GitGraph";
 import { Frame, MarkButton } from "./components/marks";
@@ -44,6 +43,7 @@ import {
   tasksPart,
   worktreePart,
 } from "./parts";
+import { useFrontState } from "./shell/state";
 import { storedMode, theme } from "./theme";
 import type { Repository } from "./types/git";
 
@@ -76,11 +76,11 @@ function SettingsTheme() {
 
 function Window() {
   const { t } = useTranslation();
-  const [foldersOpen, setFoldersOpen] = useState(false);
+  const [foldersOpen, setFoldersOpen] = useFrontState("window.foldersOpen", false);
   // The folders the sidebar has been asked to put on the graph, by the mark
   // beside each of them. Empty until one is pressed: browsing the column moves
   // panes around and reads directories, and neither is a reason to scan a tree.
-  const [roots, setRoots] = useState<string[]>([]);
+  const [roots, setRoots] = useFrontState<string[]>("window.roots", []);
   // Where the column starts. Read once — the sidebar owns the panes from there,
   // and reports back what to keep for next time.
   const [initialFolders] = useState(storedRoots);
@@ -91,7 +91,7 @@ function Window() {
   const [folderDestination, setFolderDestination] = useState<FolderDestination | null>(null);
   const [commitMenu, setCommitMenu] = useState<CommitTarget | null>(null);
   const [worktreeMenu, setWorktreeMenu] = useState<WorktreeTarget | null>(null);
-  const [settingsRequest, setSettingsRequest] = useState(0);
+  const [settingsRequest, setSettingsRequest] = useFrontState("window.settings", 0);
   const openSettings = useCallback(() => setSettingsRequest((request) => request + 1), []);
   const closeSettings = useCallback(() => setSettingsRequest(0), []);
   // This lives with the window rather than inside the settings page: a
@@ -195,7 +195,7 @@ function Window() {
   // The repositories taken off the canvas by the mark beside their name. Held
   // by id rather than by folder: one folder can hold several repositories, and
   // closing one of them says nothing about the others found beside it.
-  const [closed, setClosed] = useState<ReadonlySet<string>>(() => new Set());
+  const [closed, setClosed] = useFrontState<ReadonlySet<string>>("window.closed", () => new Set());
 
   const closeRepository = useCallback((repository: Repository) => {
     setClosed((current) => new Set(current).add(repository.id));

@@ -1,6 +1,7 @@
 /** Stable host for replaceable rendering expressions. It never reloads the document or replaces React. */
 
 import { contract } from "virtual:ephemeral-identity";
+import { contract as shellContract } from "virtual:shell-identity";
 import {
   createElement,
   type Key,
@@ -18,6 +19,7 @@ type Manifest = {
   schema: number;
   version: string;
   contract: string;
+  viewsContract?: string;
   entry: string;
   styles: string[];
   views: string[];
@@ -106,8 +108,9 @@ export async function swapEphemeral(expected?: string): Promise<() => void> {
     if (!response.ok) throw new Error("Ephemeral manifest is unavailable");
     const next: Manifest = await response.json();
     if (
-      next.schema !== 1 ||
-      next.contract !== contract ||
+      (next.schema !== 1 && next.schema !== 2) ||
+      (next.schema === 2 && next.contract !== shellContract) ||
+      (next.viewsContract ?? next.contract) !== contract ||
       (expected && next.version !== expected) ||
       !Array.isArray(next.views) ||
       !Array.isArray(next.styles)

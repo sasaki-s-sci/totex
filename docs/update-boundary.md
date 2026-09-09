@@ -1,53 +1,83 @@
 # Update boundary
 
-The persistent unit is everything that must remain alive during a view update:
-the native process, CLI service, React, stateful component functions, hooks,
-module stores, effects, refs, terminal instances and subscriptions. The ephemeral
-unit consists of pure rendering expressions and styles. Persistence here means
-lifetime across an ephemeral update, not necessarily serialization to disk.
+The installed shell owns the outer browser document, native window and CLI
+service. The frontend runs in a same-origin child frame and owns React, hooks,
+module stores, effects, rendering and styles. `index.html` is always served from
+the installed bundle; `front.html` comes from the selected frontend release.
+The shell is deliberately small and does not import React or application logic.
 
-`ephemeral-build.mjs` extracts JSX into a separate ES module. Each expression
-receives explicit bindings from its original host scope. A stable `ViewSlot`
-renders it and subscribes to the active implementation registry. Swapping the
-registry does not replace component types, recreate a React root or reload the
-webview. Hooks and subscriptions continue to belong to the original host.
+A signed schema-2 `ephemeral.json` declares two identities:
 
-The host identity hashes source outside these expressions, their binding names,
-native implementation, build boundary and locked dependencies. CSS and release
-numbers do not change it. Host changes require another persistent installation.
-This first boundary supports JSX and CSS updates, rather than arbitrary module
-replacement. Changes that require new bindings are intentionally incompatible.
+- `contract` identifies the shell and native implementation, native dependencies
+  and configuration, shell source and installed Tauri API dependency. Changes to
+  frontend logic or frontend dependencies do not change it.
+- `viewsContract` identifies the stateful frontend and rendering bindings. JSX
+  expression contents and CSS are excluded. Matching identities allow the
+  existing rendering-slot update, preserving React and terminal DOM instances.
 
-| Check | Implementation | Verification |
-| --- | --- | --- |
-| Ephemeral preserves every CLI session | No session control, reload or exit calls in its update path | Signed-download integration test opens three real PTYs, activates views, then writes to every original session and reads output |
-| Frontend updates smoothly | Preload expressions and CSS, then notify existing rendering slots in the same document | Production browser fixture retains three actual xterm DOM trees, draft text, selection and focus; no terminal detach/reattach occurs |
-| Persistent updates restart totex | Download whole runtime, hand installation to the service, exit and relaunch | Browser checks command sequence; native test installs an executable and observes the new process receive the service-restart argument |
-| Persistent includes its matching ephemeral | Clear previous overlay and view pin; new bundle boots its own views and service | Overlay reset tests and runtime relaunch test |
-| Persistent:ephemeral is 1:N | Group runtime choices by identity; list all compatible view versions and disable incompatible ones | Model tests cover latest, rollback, unavailable releases and avoiding unnecessary runtime restarts |
+The native download path verifies the artifact signature and shell identity.
+Changing the shell identity requires installation and an application restart;
+version numbering does not decide compatibility. The first migration from the
+previous schema-1 architecture also requires this installation.
 
-Activation is staged. The old view remains displayed during download, signature
-verification and module/style loading. Mounted expressions are evaluated with
-current inputs before commit. Loading or validation failures leave the old
-registry active. A failed native confirmation rolls back the registry and CSS.
-The backend keeps the previous committed selection for recovery after an
-interrupted activation. Lazy host assets stay accessible across multiple swaps.
+## Full frontend replacement
 
-This preserves existing instances for compatible rendering changes; deliberately
-removing a component from the rendered tree still has React's usual unmount
-semantics. Ephemeral expressions must remain pure; state and side effects belong
-in host controllers. Backend acceptance verifies the signed artifact's runtime
-identity as well as the manifest's declaration.
+1. Download and stage the signed frontend, preserving the committed selection.
+2. Flush pending settings and capture explicit handoff state. Refuse a handoff
+   if pending settings cannot be saved. Pause input in the old frame, keeping
+   its pixels visible. Update-induced blur does not save file drafts.
+3. Create a hidden, full-size candidate frame with its own JavaScript and CSS.
+   Rehydrate state and reconnect terminal emulators to existing PTYs. Wait for
+   rendering and tracked startup operations, with a 30-second startup timeout.
+4. Verify the candidate's version and views identity, then confirm the native
+   selection. Make the candidate visible and restore focus.
+5. Unmount the old React tree, unregister its native listeners and callbacks,
+   then remove its frame. Retirement cannot close shared workspace watchers or
+   terminal processes.
+
+If preparation or confirmation fails, dispose the candidate, roll back the
+native selection and resume the old frame. Interrupted activation recovers the
+previous committed selection at the next application launch. Hashed assets from
+old fronts remain available during the run, and the installed shell's original
+chunks remain available even when starting with a confirmed overlay.
+
+`src/shell/state.ts` carries structured-cloneable state under explicit keys,
+independent of hook order. Current coverage includes folders and graph roots,
+workspace readings, selected terminal, history depth and viewport, file cards
+and unsaved drafts. Drafts retain their original disk contents for conflict
+checking. Focus/selection and terminal scroll/selection are restored where their
+corresponding content remains available. Terminal replay is bounded by the
+service's retained output; a new emulator is not the original emulator instance.
+
+New features must explicitly register state they need to preserve. Changing a
+value's representation requires a new key or migration. Transient dialogs,
+arbitrary hook state and media playback are not automatically transferred.
+
+The bridge uses the outer document's Tauri IPC implementation and metadata,
+tracks subscriptions by frontend lifetime and forwards native drag regions.
+Front frames are trusted signed application code, not an isolation boundary for
+untrusted HTML. Embedded document previews keep their existing isolation.
 
 ## Checks
 
-- `pnpm build`
-- `node --test tests/*.test.mjs`
+- `pnpm build` and `pnpm test`
+- `python3 -m unittest discover -s tests -p 'test_*.py'`
 - `cargo test --manifest-path src-tauri/Cargo.toml --workspace --lib`
 - `cargo test --manifest-path src-tauri/Cargo.toml -p totex --lib a_press_downloads -- --ignored`
-- Build the production browser fixture with `pnpm exec vite build --config tests/fixtures/ephemeral.config.mjs`, then serve it with `pnpm exec vite preview --config tests/fixtures/ephemeral.config.mjs --port 18421`. Run `verifyEphemeral(page)` exported by `tests/ephemeral.browser.mjs` with a fresh Playwright Page. The fixture mocks native IPC but uses production React, the actual CLI component and xterm; the signed native integration test separately covers real PTYs.
+- Native asset tests verify that overlays cannot replace the outer shell and
+  cannot hide its original chunks after relaunch. Native signed-download tests
+  open three real PTYs and verify that each can still execute commands.
+- Full frontend browser check: build the app, run
+  `node tests/build-shell-fixture.mjs`, serve `dist` on port 18422 and
+  `/tmp/totex-shell-next-dist` on port 18423, then call `verifyShell(page)` from
+  `tests/shell.browser.mjs` with a fresh Playwright Page. This uses real
+  production frontend builds, React and xterm with mocked native IPC. It checks
+  new executable frontend code, draft and terminal handoff, confirmation failure,
+  stable shell identity and native listener cleanup.
+- Rendering-only browser check: build with
+  `pnpm exec vite build --config tests/fixtures/ephemeral.config.mjs`, serve
+  `/tmp/totex-ephemeral-browser` on port 18421, and call `verifyEphemeral(page)`
+  from `tests/ephemeral.browser.mjs` with a fresh Playwright Page.
 
-Native installer checks in this workspace exercise the Unix file-install/relaunch
-path. Windows NSIS/MSI and macOS bundle installation require their respective
-platform runs. The initial adoption requires a persistent installation; older
-artifacts do not contain the hot-swap boundary.
+Browser checks do not replace native WebView tests on Windows, macOS and Linux.
+Platform installers and native window integration need their respective runs.

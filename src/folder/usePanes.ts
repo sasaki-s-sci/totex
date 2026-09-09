@@ -1,3 +1,4 @@
+import { useFrontState } from "../shell/state";
 /**
  * The panes the explorer is holding, the menu of places one can be started at,
  * and everything either can be asked to do.
@@ -27,9 +28,10 @@ export function usePanes(
   homes?: Homes,
 ) {
   const nextId = useRef(0);
-  const [panes, setPanes] = useState<Pane[]>(() =>
+  const [panes, setPanes] = useFrontState<Pane[]>("folders.panes", () =>
     initial.map((path) => ({ id: nextId.current++, path, open: true, graphed: [] })),
   );
+  nextId.current = Math.max(nextId.current, ...panes.map((pane) => pane.id + 1));
   /** The scrolling part of the column, for showing a folder that was just added. */
   const column = useRef<HTMLDivElement>(null);
   /** The column itself, which the drag sizes directly. */
@@ -39,6 +41,7 @@ export function usePanes(
     min: MIN_WIDTH,
     max: MAX_WIDTH,
     initial: DEFAULT_WIDTH,
+    storageKey: "totex.sidebarWidth",
     side: "end",
     element: sidebar,
   });

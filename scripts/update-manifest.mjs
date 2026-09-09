@@ -182,7 +182,7 @@ function front() {
   const views = JSON.parse(
     execFileSync("tar", ["-xOf", join(directory, FRONT), "./ephemeral.json"], { encoding: "utf8" }),
   );
-  if (views.version !== version || views.schema !== 1 || !/^[a-f0-9]{64}$/.test(views.contract)) {
+  if (views.version !== version || views.schema !== 2 || !/^[a-f0-9]{64}$/.test(views.contract)) {
     fail("the ephemeral artifact does not match this release");
   }
   return {

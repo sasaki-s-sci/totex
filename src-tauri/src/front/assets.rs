@@ -24,6 +24,10 @@ impl<R: Runtime> Front<R> {
 
 impl<R: Runtime> Assets<R> for Front<R> {
     fn get(&self, key: &AssetKey) -> Option<Cow<'_, [u8]>> {
+        // The outer document belongs to the installed shell, never to an overlay.
+        if matches!(key.as_ref(), "index.html" | "/index.html" | "" | "/") {
+            return self.built_in.get(key);
+        }
         let held = self.serving.held();
         let Some(at) = held.at else {
             return self.built_in.get(key);
@@ -52,6 +56,8 @@ impl<R: Runtime> Assets<R> for Front<R> {
                     Behind::Taken(dir) => read_under(dir, key).map(Cow::Owned),
                     Behind::Nothing => None,
                 })
+                // The immutable shell can reference its original chunks after an app relaunch.
+                .or_else(|| self.built_in.get(key))
         })
     }
 
@@ -64,6 +70,9 @@ impl<R: Runtime> Assets<R> for Front<R> {
     }
 
     fn csp_hashes(&self, html_path: &AssetKey) -> Box<dyn Iterator<Item = CspHash<'_>> + '_> {
+        if matches!(html_path.as_ref(), "index.html" | "/index.html" | "" | "/") {
+            return self.built_in.csp_hashes(html_path);
+        }
         match self.serving.at() {
             // These are hashes of the scripts written inside a page, which the
             // policy is then widened by exactly enough to allow. They are read
