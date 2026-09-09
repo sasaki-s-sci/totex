@@ -75,6 +75,22 @@ jobs:
           targets: x86_64-pc-windows-msvc
           components: rustfmt, clippy
 
+      - name: Keep only the pinned Rust toolchain
+        # rust-cache hashes every installed toolchain, including unused runner defaults.
+        # Runner image updates must not invalidate builds made with our pinned compiler.
+        shell: bash
+        run: |
+          active=$(rustup show active-toolchain | cut -d ' ' -f1)
+          case "$active" in
+            "$RUST_VERSION"-*) ;;
+            *) echo "::error::Unexpected active Rust toolchain: $active"; exit 1 ;;
+          esac
+          rustup toolchain list --quiet | while read -r toolchain; do
+            if [ "$toolchain" != "$active" ]; then
+              rustup toolchain uninstall "$toolchain"
+            fi
+          done
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: setup

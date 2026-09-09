@@ -100,3 +100,20 @@ serialization has been removed. The tag run improved, but substantial macOS
 variation means one pair is insufficient to attribute its 90s gain to these
 changes. Check and cache size improved clearly; end-to-end speedup was not
 established by this iteration.
+
+
+## Runner toolchains caused unrelated cache misses
+
+The [parallel-build rerun](https://github.com/sasaki-s-sci/totex/actions/runs/34306600684)
+passed in 8m39s, with Check in 1m27s. Linux missed its Rust cache and rebuilt
+542 units despite no dependency change. Its cache configuration included both
+our pinned Rust 1.95.0 and the unused runner compiler, which changed from
+1.98.0 to 1.98.1 between runs. That changed the environment key from `c2db2413`
+to `92dce928`. The old 529 MiB cache was still present; this was key instability,
+not eviction. Linux compilation returned from 65.5s to 255.3s.
+
+Before restoring Rust caches, app and Setup jobs now remove unused Rust
+installations from their disposable runners. The active toolchain must match
+`RUST_VERSION` before removal. The cache retains its compiler, flags, platform
+and dependency validation, but no longer varies with unused preinstalled Rust
+versions. This change needs one cache warm-up under the new stable identity.
