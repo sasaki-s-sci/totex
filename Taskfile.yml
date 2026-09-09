@@ -151,6 +151,23 @@ tasks:
       # most likely to explain it. Every binary runs, and the run still fails.
       - cargo test {{.CARGO}} {{.WORKSPACE}} --no-fail-fast
 
+  test:e2e:
+    desc: Build and test the real Linux desktop app, saving video and an HTML report
+    cmds:
+      - task: test:e2e:build
+      - task: test:e2e:run
+
+  test:e2e:build:
+    desc: Build the desktop app and sidecar for E2E (bundled frontend, debug Rust)
+    cmds:
+      - node scripts/persistent-sidecar.mjs
+      - pnpm tauri build --debug --no-bundle --no-sign
+
+  test:e2e:run:
+    desc: Run video E2E against the existing debug build (Linux)
+    cmds:
+      - pnpm test:e2e
+
   check:
     desc: Format check, lint, type-check and test
     cmds:

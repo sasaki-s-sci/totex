@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "node --test tests/*.test.mjs",
+    "test:e2e": "node tests/e2e/run.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
