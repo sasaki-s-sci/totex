@@ -74,7 +74,7 @@
     "deleteFailed": "削除できませんでした"
   },
   "cli": {
-    "identity": "Gitコミット: {{identity}}",
+    "identity": "{{identity}}",
     "identityRoles": "Git作者: {{author}} · コミッター: {{committer}}",
     "identityUnset": "未設定",
     "identityLoading": "Gitのコミット名義を確認中…",

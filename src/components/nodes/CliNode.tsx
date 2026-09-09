@@ -2,6 +2,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
+import { CliIdentity } from "../CliIdentity";
 import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
 import { useCliPlace } from "../cliPlaces";
@@ -78,7 +79,8 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             names it again over the run in its strip. */}
         {showing && jump !== null && place ? (
           <span className="cli__place" aria-hidden="true">
-            {place}
+            <span className="cli__place-name">{place}</span>
+            <CliIdentity cwd={session.cwd} shown />
           </span>
         ) : null}
 

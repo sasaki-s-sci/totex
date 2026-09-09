@@ -137,6 +137,8 @@ export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
             // this corner: the strip names the repositories now, and a name is
             // the one thing in the band long enough to reach them.
             pr: `${HEADER_MARKS}px`,
+            // Let presses reach the window drag region behind the strip.
+            pointerEvents: "none",
           }}
         >
           <CliStrip run={run} showing={showing} doings={doings} />

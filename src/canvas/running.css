@@ -106,7 +106,7 @@
   position: absolute;
   bottom: 100%;
   left: 50%;
-  max-width: 110px;
+  max-width: 220px;
   overflow: hidden;
   color: var(--mui-palette-text-disabled);
   font-size: 8px;
@@ -114,11 +114,22 @@
   letter-spacing: 0.015em;
   line-height: 1;
   white-space: nowrap;
+  text-align: center;
   text-overflow: ellipsis;
   transform: translateX(-50%);
   /* A word to be read past, never to be pressed: the glyph under it is what
      answers. */
   pointer-events: none;
+}
+
+/* Keep the repository name compact, with its worktree's identity underneath. */
+.cli__place-name {
+  display: block;
+  max-width: 110px;
+  margin-inline: auto;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
 }
 
 /* Ending a session is the one thing here that cannot be undone, so it is faint
