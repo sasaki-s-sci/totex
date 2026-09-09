@@ -1,0 +1,14 @@
+name: Cache pnpm store
+description: Reuse package downloads across disposable runners with the pinned pnpm version.
+runs:
+  using: composite
+  steps:
+    - id: store
+      shell: bash
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v5
+      with:
+        path: ${{ steps.store.outputs.path }}
+        key: pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml') }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise.toml') }}-

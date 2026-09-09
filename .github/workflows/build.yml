@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Superseded branch builds are disposable; tag publication must finish.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 env:
   # mise's rust backend tracks installs with symlinks, which windows-latest cannot
@@ -26,14 +27,36 @@ env:
   MISE_DISABLE_TOOLS: rust
   # Keep in sync with the `rust` pin in mise.toml -- the first step enforces this.
   RUST_VERSION: "1.95.0"
+  # CI runners are short-lived. Keep debug artifacts small and skip incremental state.
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
 
 jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - uses: ./.github/actions/pnpm-cache
+      - run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Check and build the frontend once for every platform
+        run: |
+          pnpm exec biome format .
+          pnpm exec biome lint .
+          pnpm test
+          pnpm build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+
   check:
     name: Check
-    # Everything `task check` is: both stacks formatted, both linted, the
-    # frontend type-checked and every test in the workspace run. One machine,
-    # because none of it is platform-specific -- what is, is the three builds
-    # below, and this is what says the thing they are building works.
+    # Rust and release-policy checks run alongside the frontend checks.
     runs-on: ubuntu-22.04
 
     steps:
@@ -43,9 +66,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-
-      - name: Install node, pnpm and task
-        uses: jdx/mise-action@v4
 
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
@@ -66,15 +86,30 @@ jobs:
         with:
           workspaces: src-tauri
           key: check
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install npm dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Check release policy
+        run: |
+          python3 -B scripts/release.py verify
+          python3 -B -m unittest discover -s tests -p 'test_*.py'
 
-      - name: Check
-        run: task check
+      - name: Check Rust
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+          cargo clippy --locked --manifest-path src-tauri/Cargo.toml --workspace --all-targets --all-features -- -D warnings
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --workspace --no-fail-fast --timings
+
+      - name: Upload Cargo timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cargo-timings-check
+          path: src-tauri/target/cargo-timings/
+          retention-days: 7
 
   build:
     name: ${{ matrix.name }}
+    needs: frontend
     runs-on: ${{ matrix.runner }}
     strategy:
       # One platform breaking says nothing about the other two, and knowing
@@ -224,9 +259,19 @@ jobs:
           workspaces: src-tauri
           # Three platforms, three sets of artefacts, one cache otherwise.
           key: ${{ matrix.target }}
+          # Main warms the cache for PRs and tags; tag-local caches cannot warm main.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - uses: ./.github/actions/pnpm-cache
 
       - name: Install npm dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Download the checked frontend
+        uses: actions/download-artifact@v7
+        with:
+          name: frontend-dist
+          path: dist
 
       - name: Build the program that holds the terminals
         # A crate of its own beside the app -- see src-tauri/persistent -- carried
@@ -237,8 +282,7 @@ jobs:
         run: node scripts/persistent-sidecar.mjs --release --target ${{ matrix.target }}
 
       - name: Build the installers
-        # `tauri build` runs `pnpm build` first via beforeBuildCommand, which
-        # type-checks the frontend, so a type error fails this job too.
+        # All platforms embed the same checked frontend from this workflow run.
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -250,7 +294,8 @@ jobs:
           sign=""
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
           pnpm tauri build --target ${{ matrix.target }} $sign \
-            --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}'
+            --config '{"build":{"beforeBuildCommand":""},"bundle":{"externalBin":["binaries/totex-persistent"]}}' \
+            -- --locked --timings
 
       - name: Collect the installers under names that do not move
         # Every platform bundles into its own subdirectories under one tree, so
@@ -377,8 +422,8 @@ jobs:
 
       - name: Pack the pages on their own
         # The other half of a release. The pages the window is drawn out of are
-        # the same on all three platforms -- one `pnpm build` produces them, and
-        # `tauri build` has just run it -- so one job packs them and the other
+        # the same on all three platforms, downloaded from the frontend job,
+        # so one job packs them and the other
         # two leave them alone. An installed copy can take these without
         # replacing the program under them, which is the only way a `.deb` or an
         # `.rpm` is ever brought forward by this app at all: see
@@ -407,12 +452,22 @@ jobs:
           pnpm tauri signer sign dist-release/front.tar.gz
           ls -l dist-release/front.tar.gz dist-release/front.tar.gz.sig
 
+      - name: Upload Cargo timings
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cargo-timings-${{ matrix.artifact }}
+          path: src-tauri/target/cargo-timings/
+          retention-days: 7
+
       - name: Upload the installers
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: dist-release/*
           if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
 
   release:
     name: Release
@@ -421,7 +476,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     # Nothing is published that the tests have not been run against: a release
     # is the one moment where finding out later is finding out too late.
-    needs: [check, build]
+    needs: [frontend, check, build]
     runs-on: ubuntu-latest
     permissions:
       # The one job that writes anything back to the repository.
@@ -436,6 +491,7 @@ jobs:
       - name: Take every platform's installers
         uses: actions/download-artifact@v7
         with:
+          pattern: totex-*
           path: dist-release
           merge-multiple: true
 

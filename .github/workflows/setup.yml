@@ -19,9 +19,9 @@ name: Setup
 on:
   push:
     branches: [main]
-    paths: ["setup/**", ".github/workflows/setup.yml"]
+    paths: ["setup/**", ".github/workflows/setup.yml", "mise.toml"]
   pull_request:
-    paths: ["setup/**", ".github/workflows/setup.yml"]
+    paths: ["setup/**", ".github/workflows/setup.yml", "mise.toml"]
   # Publishing is asked for rather than arrived at: a change here is worth
   # building on the way in and worth handing to people only when somebody says
   # so.
@@ -43,6 +43,9 @@ env:
   # Keep in sync with the `rust` pin in mise.toml -- the first step enforces
   # this, exactly as the app's build does.
   RUST_VERSION: "1.95.0"
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
 
 jobs:
   build:
@@ -75,20 +78,21 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: setup
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check it the way the rest of the repository is checked
         run: |
           cargo fmt --manifest-path setup/Cargo.toml --all -- --check
-          cargo clippy --manifest-path setup/Cargo.toml --all-targets -- -D warnings
+          cargo clippy --locked --manifest-path setup/Cargo.toml --all-targets -- -D warnings
 
       - name: Test what a release page says and whether to believe it
         # The window is not what these are about: what a manifest names, what a
         # tag is allowed to disagree about, and what a signature has to be are
         # the parts of this that a person cannot see going wrong.
-        run: cargo test --manifest-path setup/Cargo.toml
+        run: cargo test --locked --manifest-path setup/Cargo.toml
 
       - name: Build it
-        run: cargo build --manifest-path setup/Cargo.toml --release --target x86_64-pc-windows-msvc
+        run: cargo build --locked --manifest-path setup/Cargo.toml --release --target x86_64-pc-windows-msvc
 
       - name: Verify the resources went in
         # A resource script that did not compile is a build with no icon, no
