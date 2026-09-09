@@ -4,6 +4,7 @@ export type AppSettings = {
   language: "system" | "en" | "ja";
   reveal: "never" | "edge" | "centre";
   follow: boolean;
+  backgroundGrid: boolean;
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "system",
   reveal: "edge",
   follow: false,
+  backgroundGrid: false,
   mcpServing: false,
   fileTitle: "name",
   readingSize: 11,
@@ -52,6 +54,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     language: pick("totex.language", ["system", "en", "ja"], "system"),
     reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
     follow: read("totex.follow") === "on",
+    backgroundGrid: false,
     mcpServing: read("totex.mcp.serving") === "yes",
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),

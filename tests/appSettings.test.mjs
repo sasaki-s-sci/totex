@@ -26,6 +26,7 @@ test("migrates all existing user preferences, including line size one", () => {
       language: "ja",
       reveal: "centre",
       follow: true,
+      backgroundGrid: false,
       mcpServing: true,
       fileTitle: "name",
       readingSize: 14,

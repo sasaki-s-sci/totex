@@ -31,7 +31,7 @@ fn validate(value: &Value) -> Result<(), String> {
             return Err(format!("Invalid {key}"));
         }
     }
-    for key in ["follow", "mcpServing"] {
+    for key in ["follow", "mcpServing", "backgroundGrid"] {
         if object.get(key).is_some_and(|v| !v.is_boolean()) {
             return Err(format!("Invalid {key}"));
         }
@@ -160,7 +160,12 @@ mod tests {
             read(&temp.0, &json!({"theme":"light"})).unwrap().value,
             initial
         );
-        let next = patch(&temp.0, &json!({"said":{"size":1}, "fileTitle":"path"})).unwrap();
+        let next = patch(
+            &temp.0,
+            &json!({"said":{"size":1}, "fileTitle":"path", "backgroundGrid":true}),
+        )
+        .unwrap();
+        assert_eq!(next.value["backgroundGrid"], true);
         assert_eq!(next.value["said"], json!({"size":1,"width":220}));
         assert_eq!(next.value["custom"], initial["custom"]);
         assert_eq!(next.value["theme"], "dark");
@@ -175,6 +180,7 @@ mod tests {
             "{",
             "{\"said\":{\"size\":0}}",
             "{\"follow\":\"yes\"}",
+            "{\"backgroundGrid\":\"yes\"}",
             "{\"fileTitle\":\"bad\"}",
         ] {
             assert!(write(&temp.0, invalid, &before.text).is_err());
