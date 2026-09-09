@@ -62,6 +62,7 @@ if (target === "universal-apple-darwin") {
 /** Builds the program for one target, or for this machine, and says where it is. */
 function build(triple) {
   const flags = ["build", "--manifest-path", manifest, "-p", "totex-persistent"];
+  if (process.env.CI) flags.push("--locked", "--timings");
   if (release) flags.push("--release");
   if (triple) flags.push("--target", triple);
   execFileSync("cargo", flags, { stdio: "inherit" });

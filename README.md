@@ -225,6 +225,9 @@ For the design and acceptance checks, see [the update boundary](docs/update-boun
 
 ## Releasing from main
 
+For CI timings, cache policy and build optimization decisions, see
+[CI build performance](docs/ci-performance.md).
+
 Every push to `main` runs **Build**: the checks and the Linux, macOS and Windows
 builds. After it succeeds, **Release** compares main with the latest reachable
 `vX.Y.Z` tag. The comparison covers all changes since that release, not just the
