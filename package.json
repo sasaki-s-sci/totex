@@ -29,18 +29,22 @@
     "@xyflow/react": "^12.11.3",
     "dompurify": "^3.4.14",
     "dxf-viewer": "^1.0.48",
+    "epubjs": "^0.3.93",
     "i18next": "^26.4.0",
+    "jszip": "^3.10.2",
     "marked": "^18.0.11",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-i18next": "^17.0.12"
+    "react-i18next": "^17.0.12",
+    "three": "^0.161.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.8",
     "@tauri-apps/cli": "^2.11.4",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.161.2",
     "@vitejs/plugin-react": "^6.0.5",
     "typescript": "^5.9.3",
     "vite": "^8.2.1",

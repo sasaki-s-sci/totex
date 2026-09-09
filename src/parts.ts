@@ -75,3 +75,22 @@ export const pdfPart = onDemand(() =>
 export const dxfPart = onDemand(() =>
   import("./components/nodes/preview/DxfReading").then((part) => part.DxfReading),
 );
+
+export const mediaPart = onDemand(() =>
+  import("./components/nodes/preview/MediaReading").then((part) => part.MediaReading),
+);
+export const htmlPart = onDemand(() =>
+  import("./components/nodes/preview/HtmlReading").then((part) => part.HtmlReading),
+);
+
+export const tablePart = onDemand(() =>
+  import("./components/nodes/preview/TableReading").then((part) => part.TableReading),
+);
+
+export const modelPart = onDemand(() =>
+  import("./components/nodes/preview/ModelReading").then((part) => part.ModelReading),
+);
+
+export const epubPart = onDemand(() =>
+  import("./components/nodes/preview/EpubReading").then((part) => part.EpubReading),
+);

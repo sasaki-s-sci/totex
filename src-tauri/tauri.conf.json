@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self' blob:; font-src 'self' blob:; connect-src 'self' blob: ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self' blob:; font-src 'self' blob: data:; connect-src 'self' blob: ipc: http://ipc.localhost; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' blob: 'unsafe-inline'",
       "dangerousDisableAssetCspModification": ["style-src"]
     }
   },
