@@ -22,10 +22,26 @@ tasks:
       - task: check
 
   setup:
-    desc: Install the toolchain pinned in mise.toml and the npm dependencies
+    desc: Install the pinned toolchain, npm dependencies and Git hooks
     cmds:
       - mise install
-      - pnpm install
+      - mise exec -- pnpm install --frozen-lockfile
+      - task: hooks:install
+
+  hooks:install:
+    desc: Enable repository-managed checks before commits and merge commits
+    cmds:
+      - git config --local core.hooksPath .githooks
+
+  precommit:
+    desc: Check staged whitespace and run the full local check suite
+    cmds:
+      - git diff --cached --check
+      # Keep Git's selected index for the staged check above, then clear its
+      # hook environment so tests can operate on their own repositories.
+      - |
+        unset $(git rev-parse --local-env-vars)
+        task check
 
   dev:
     desc: Run the desktop app with hot reload, on a port reserved for this run

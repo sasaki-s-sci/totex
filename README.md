@@ -112,6 +112,23 @@ itself, out of its installer — what the version-selectable installer writes
 where the app goes, and the one file on the page that installs nothing if it is
 double-clicked, because it is not an installer. It is totex.
 
+## Development setup and commit checks
+
+Run `task setup` to install the tools pinned in `mise.toml`, install the locked
+npm dependencies and enable this repository's Git hooks. This requires mise,
+Python 3.11 or newer, and the platform's normal Tauri build prerequisites.
+For an already provisioned checkout, `task hooks:install` enables just the hooks.
+It sets the repository-local `core.hooksPath` to `.githooks`, replacing any
+previous hook directory setting for this repository.
+
+Commits and automatic merge commits run `task precommit` through mise: staged
+whitespace checks followed by `task check` (formatting, lint, type checking,
+release policy and frontend/Rust tests). A failure stops the commit without
+auto-fixing or staging files. You can also run `task precommit` yourself.
+The full suite checks the working tree, so stage the intended fixes before
+retrying a commit. Fast-forward merges do not create commits or run these hooks.
+Desktop E2E and the separate Windows installer checks remain explicit tasks.
+
 ## Desktop E2E tests and recordings
 
 On Linux, `task test:e2e` builds the app and its persistent sidecar, then drives
