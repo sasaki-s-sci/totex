@@ -1,6 +1,7 @@
 import { Box } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
+import { ImageAddon } from "@xterm/addon-image";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
@@ -97,6 +98,15 @@ export function CliView({ session, shown, onEnded }: Props) {
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.loadAddon(new WebLinksAddon(openTerminalLink));
+    // Pictures drawn into the terminal by whatever is running in it, in the
+    // two ways a program has of doing that: Sixel, which is the terminal's own
+    // protocol and what `img2sixel`, `chafa` and the plotting libraries send,
+    // and iTerm2's inline images, which is what `imgcat` sends. The addon
+    // answers the terminal's own questions about it too -- a program asks
+    // whether Sixel is drawn here before it draws any -- so nothing else has
+    // to say so. Held to a fraction of the memory the addon would take by
+    // default: this is one of several terminals in one window.
+    terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
     drawn.current = terminal;
     const stateKey = `terminal.${session.id}`;

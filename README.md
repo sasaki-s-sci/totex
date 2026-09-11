@@ -176,6 +176,12 @@ canvas, in the same drag or a later one, the window closes and the card is
 pinned where it landed; the pin on its header brings it back too. Card windows
 close with the window they came off.
 
+Terminals draw pictures sent to them in Sixel or in iTerm2's inline image
+format, so `img2sixel`, `chafa --format sixel`, `imgcat` and plotting
+libraries with a Sixel backend show their output in place. The terminal
+answers the capability query (`DA1`) with Sixel support; animation and video
+are not drawn.
+
 Form changes save to this file automatically. On first use, when the file does
 not exist, existing preferences are migrated into it. An existing file takes
 precedence; omitted settings use defaults, and form edits preserve unknown
