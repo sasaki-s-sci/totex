@@ -18,6 +18,11 @@ import type { Workspace } from "./types/git";
 export const graphPart = onDemand(() =>
   import("./components/GitGraph").then((part) => part.GitGraph),
 );
+/** A window holding one card torn off the main one, which draws nothing else
+ *  and is asked for by nothing else — see `lib/cardWindow`. */
+export const cardPart = onDemand(() =>
+  import("./components/CardWindow").then((part) => part.CardWindow),
+);
 export const panelPart = onDemand(() =>
   import("./components/SidePanel").then((part) => part.SidePanel),
 );

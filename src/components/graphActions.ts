@@ -192,7 +192,9 @@ export type GraphActions = {
   pinFilePreview: (requestId: number) => void;
 };
 
-const GraphActionsContext = createContext<GraphActions>({
+/** Every action doing nothing: what a card is handed where there is no
+ *  canvas to ask — a window holding one card on its own, see `CardWindow`. */
+export const NO_ACTIONS: GraphActions = {
   openWork: () => {},
   browseWorktree: () => {},
   pickBranch: () => {},
@@ -222,7 +224,9 @@ const GraphActionsContext = createContext<GraphActions>({
   previewFilePreview: () => {},
   fitFilePreview: () => {},
   pinFilePreview: () => {},
-});
+};
+
+const GraphActionsContext = createContext<GraphActions>(NO_ACTIONS);
 
 export const GraphActionsProvider = GraphActionsContext.Provider;
 

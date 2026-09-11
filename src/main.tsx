@@ -19,12 +19,23 @@ import {
   refreshSettings,
 } from "./lib/appSettings";
 import { prime } from "./lib/remembered";
+import { isCardWindow } from "./lib/thisWindow";
 import { applyStoredMode } from "./theme";
 
 // Which of the two palettes the window opens in, written onto the document
 // before anything is drawn from it. The provider settles the same thing an
 // effect later, which is a frame after the first paint -- long enough to see.
 applyStoredMode();
+
+// A window holding one card is see-through around it: the card is the whole
+// of what is drawn, and the window has its shape — see `lib/cardWindow`.
+// Written here, before the first paint, and on the element rather than in a
+// sheet, so that nothing the theme writes onto the body paints over it.
+if (isCardWindow()) {
+  document.documentElement.classList.add("is-card-window");
+  document.documentElement.style.background = "transparent";
+  document.body.style.background = "transparent";
+}
 
 const container = document.getElementById("root");
 if (!container) {

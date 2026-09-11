@@ -44,6 +44,17 @@ export type FilePreviewRequest = {
    * this one goes. See `useFilePreviewPlacing`.
    */
   beside?: number;
+  /**
+   * A card arriving already pinned over the pane, at a place in the pane's own
+   * pixels: one back from a window of its own — see `useCardWindows` — which
+   * is put down where it was let go, at the size and scale it was standing at.
+   */
+  pinned?: {
+    at: { x: number; y: number };
+    scale: number;
+    box: { width: number; height: number };
+    collapsed: boolean;
+  };
 };
 
 /**

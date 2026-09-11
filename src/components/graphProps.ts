@@ -5,6 +5,7 @@
 import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
+import type { CardSeed } from "../lib/cardWindow";
 import type { Doing } from "../lib/doing";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
@@ -164,6 +165,8 @@ export type GraphProps = {
    */
   onPreviewFile: (path: string, beside: number) => void;
   onCloseFilePreview: (requestId: number) => void;
+  /** A card back from a window of its own, to be pinned at a place in the pane. */
+  onOpenPinned: (seed: CardSeed, at: { x: number; y: number }) => void;
   /** The window's one settings page, and the controls it draws. */
   /** Zero closes it; each new request places it in the viewport's center. */
   settingsRequest: number;

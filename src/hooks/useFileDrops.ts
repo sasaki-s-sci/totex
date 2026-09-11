@@ -9,7 +9,10 @@ import { useFrontState } from "../shell/state";
  */
 
 import { useCallback, useRef } from "react";
+import { draftKey } from "../components/nodes/preview/draft";
+import type { CardSeed } from "../lib/cardWindow";
 import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
+import { keepFrontValue } from "../shell/state";
 
 export function useFileDrops() {
   const [filePreviews, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
@@ -45,9 +48,31 @@ export function useFileDrops() {
     );
   }, []);
 
+  /**
+   * Takes a card back from a window of its own, pinned at a place in the pane.
+   *
+   * A card of its own again, under a new id: the one it left with was the old
+   * card's, and what was being typed into it is put where the new card's draft
+   * will look before the card is placed.
+   */
+  const openPinned = useCallback((seed: CardSeed, at: { x: number; y: number }) => {
+    const id = nextFilePreview.current++;
+    if (seed.draft) keepFrontValue(draftKey(id, seed.path), seed.draft);
+    setFilePreviews((current) => [
+      ...current,
+      {
+        id,
+        path: seed.path,
+        at: null,
+        view: seed.view,
+        pinned: { at, scale: seed.scale, box: seed.box, collapsed: seed.collapsed },
+      },
+    ]);
+  }, []);
+
   const closeFilePreview = useCallback((requestId: number) => {
     setFilePreviews((current) => current.filter((preview) => preview.id !== requestId));
   }, []);
 
-  return { filePreviews, openFiles, previewFile, closeFilePreview };
+  return { filePreviews, openFiles, openPinned, previewFile, closeFilePreview };
 }

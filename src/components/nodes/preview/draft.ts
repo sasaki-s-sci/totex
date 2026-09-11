@@ -13,13 +13,19 @@ import { countLines, draftOf, lineNumbers } from "./text";
 
 type Draft = { text: string; disk: string | null; kept: string | null; dirty: boolean };
 
+/** The key a card's draft is kept under in the front's state, which is where
+ *  a card handed to another window — or to the next front — picks it up from. */
+export function draftKey(requestId: number, path: string): string {
+  return `draft.${requestId}.${path}`;
+}
+
 export function useDraft(
   data: FilePreviewNodeData,
   view: ReturnType<typeof useReading>,
   saveFilePreview: (requestId: number, text: string, expected?: string) => Promise<boolean>,
 ) {
   const { paper, move, home, showCaret } = view;
-  const key = `draft.${data.requestId}.${data.path}`;
+  const key = draftKey(data.requestId, data.path);
   const restored = useRef(frontValue<Draft>(key));
 
   const editable = data.state === "ready" && data.text !== null && !data.truncated;

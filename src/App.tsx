@@ -30,9 +30,11 @@ import { warmInTurn } from "./lib/onDemand";
 import { startShell, writeShell } from "./lib/pty";
 import { remember } from "./lib/remembered";
 import { type Session, shellSession } from "./lib/session";
+import { isCardWindow } from "./lib/thisWindow";
 import { confirmFront, watchUpdateChoices } from "./lib/update";
 import { worktreeHomes } from "./lib/worktrees";
 import {
+  cardPart,
   commitPart,
   EMPTY_WORKSPACE,
   graphPart,
@@ -48,6 +50,10 @@ import { storedMode, theme } from "./theme";
 import type { Repository } from "./types/git";
 
 export default function App() {
+  // A window holding one card torn off the main one draws that card and
+  // nothing of the rest -- see `lib/cardWindow`. Which of the two this is
+  // never changes for the life of the window.
+  const [torn] = useState(isCardWindow);
   return (
     // The mode is read again here rather than passed in: `main` has already
     // written it onto the document, and this is the provider being told the
@@ -62,9 +68,15 @@ export default function App() {
     >
       <SettingsTheme />
       <CssBaseline />
-      <Window />
+      {torn ? <TornCard /> : <Window />}
     </ThemeProvider>
   );
+}
+
+/** The one card, once the part that draws it has arrived. */
+function TornCard() {
+  const CardWindow = cardPart.use();
+  return CardWindow ? <CardWindow /> : null;
 }
 
 function SettingsTheme() {
@@ -189,7 +201,7 @@ function Window() {
   // graph: it is about repositories and not about what is drawn of them, and it
   // has to run whether or not that page has ever been opened.
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
-  const { filePreviews, openFiles, previewFile, closeFilePreview } = useFileDrops();
+  const { filePreviews, openFiles, openPinned, previewFile, closeFilePreview } = useFileDrops();
   // Everything dropped on the window, wherever it was dragged from: a folder
   // in the column takes a copy, and the canvas opens a card. See `useDrops`.
   const drops = useDrops(main, openFiles);
@@ -373,6 +385,7 @@ function Window() {
             filePreviews={filePreviews}
             onPreviewFile={previewFile}
             onCloseFilePreview={closeFilePreview}
+            onOpenPinned={openPinned}
             settingsRequest={settingsRequest}
             mcp={mcp}
             onCloseSettings={closeSettings}

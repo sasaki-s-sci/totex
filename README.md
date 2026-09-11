@@ -169,6 +169,13 @@ for files, with pin, fit-width, fold, and close controls. Pressing the gear
 centers the panel again unless it is pinned. The code button switches between
 the form and editable JSON; Ctrl/Cmd+S saves the JSON.
 
+A pinned file card dragged out past the edge of the window keeps going: it
+opens in a small window of its own under the pointer, at the size it was pinned
+at, and carries its unsaved edits with it. Dragged back and let go over the
+canvas, in the same drag or a later one, the window closes and the card is
+pinned where it landed; the pin on its header brings it back too. Card windows
+close with the window they came off.
+
 Form changes save to this file automatically. On first use, when the file does
 not exist, existing preferences are migrated into it. An existing file takes
 precedence; omitted settings use defaults, and form edits preserve unknown

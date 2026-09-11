@@ -95,6 +95,7 @@ export function GitGraph({
   filePreviews,
   onPreviewFile,
   onCloseFilePreview,
+  onOpenPinned,
   settingsRequest,
   mcp,
   onCloseSettings,
@@ -214,6 +215,12 @@ export function GitGraph({
     filePreviews,
     { host, instance, standing, nodes, setNodes, flowReady },
     onPreviewFile,
+    // The two the card windows need, remembered together so the traffic is
+    // one value and not two callbacks re-listened for on every render.
+    useMemo(
+      () => ({ closeFilePreview: onCloseFilePreview, openPinned: onOpenPinned }),
+      [onCloseFilePreview, onOpenPinned],
+    ),
   );
   useSettingsPage(settingsRequest, { host, instance, standing, nodes, setNodes, flowReady });
   const { collapseCliPage } = useCliPages(sessions, paged, showing, {

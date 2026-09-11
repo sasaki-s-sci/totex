@@ -1,0 +1,26 @@
+/**
+ * A window holding one card and nothing else — `CardWindow`.
+ *
+ * The window is the card's edge: the page behind it is see-through, and the
+ * card is drawn from the corner at the scale it was pinned at, so the window
+ * has the card's shape and no other. The shadow a card wears on the canvas
+ * would fall outside that edge and be cut off by it, so out here the border
+ * says where the card ends and the shadow is left off.
+ */
+
+.is-card-window,
+.is-card-window body {
+  overflow: hidden;
+  background: transparent;
+}
+
+.card-window {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}
+
+.card-window .page {
+  box-shadow: none;
+}

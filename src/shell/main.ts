@@ -1,6 +1,15 @@
 import { contract } from "virtual:shell-identity";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { isCardLabel } from "../lib/cardWindow";
 import type { Connection, Front, Snapshot } from "./protocol";
+
+// A window holding one card torn off the main one is see-through around the
+// card, and this document is what is behind the frame the card is drawn in.
+if (isCardLabel(getCurrentWindow().label)) {
+  document.documentElement.style.background = "transparent";
+  document.body.style.background = "transparent";
+}
 
 type Page = {
   frame: HTMLIFrameElement;

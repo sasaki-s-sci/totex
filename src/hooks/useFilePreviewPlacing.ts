@@ -12,6 +12,7 @@ import { baseName } from "../folder/format";
 import {
   documentView,
   type FilePreviewRequest,
+  type FilePreviewView,
   mediaType,
   mediaView,
   openingView,
@@ -69,26 +70,32 @@ export function useFilePreviewPlacing(
           node.type === "file-preview" && node.data.requestId === preview.beside,
       );
       const stagger = (placedFiles.current.size - 1) % 8;
-      const box = from
-        ? fileSize(from)
-        : documentView(preview.path) ||
-            mediaView(preview.path) ||
-            preview.view === "html" ||
-            /\.(csv|tsv)$/i.test(preview.path)
-          ? { width: 560, height: 480 }
-          : FILE_PREVIEW_SIZE;
+      const box = preview.pinned
+        ? preview.pinned.box
+        : from
+          ? fileSize(from)
+          : documentView(preview.path) ||
+              mediaView(preview.path) ||
+              preview.view === "html" ||
+              /\.(csv|tsv)$/i.test(preview.path)
+            ? { width: 560, height: 480 }
+            : FILE_PREVIEW_SIZE;
       const corner = from
         ? { x: from.position.x + box.width + BESIDE_GAP, y: from.position.y }
         : pageCorner(flow, preview.at ?? canvasMiddle(bounds, box, stagger * 16), box);
       // A preview of a card that has been pinned off the canvas is pinned
       // beside it, in the pane's own pixels: the two are being read against
-      // each other, and one of them left the canvas.
-      const pinnedAt = from?.data.pinnedAt
-        ? {
-            x: from.data.pinnedAt.x + box.width * (from.data.pinnedScale ?? 1) + BESIDE_GAP,
-            y: from.data.pinnedAt.y,
-          }
-        : null;
+      // each other, and one of them left the canvas. A card back from a window
+      // of its own is pinned where it was let go — see `useCardWindows`.
+      const pinnedAt = preview.pinned
+        ? preview.pinned.at
+        : from?.data.pinnedAt
+          ? {
+              x: from.data.pinnedAt.x + box.width * (from.data.pinnedScale ?? 1) + BESIDE_GAP,
+              y: from.data.pinnedAt.y,
+            }
+          : null;
+      const collapsed = preview.pinned?.collapsed ?? false;
       return {
         id: fileNodeId(preview.id),
         type: "file-preview",
@@ -100,7 +107,7 @@ export function useFilePreviewPlacing(
         // Written on the node rather than into its style: a dragged edge is a
         // dimension change, and the node's own width wins over both.
         width: box.width,
-        height: box.height,
+        height: collapsed ? undefined : box.height,
         data: {
           requestId: preview.id,
           path: preview.path,
@@ -111,10 +118,10 @@ export function useFilePreviewPlacing(
           truncated: false,
           state: "loading",
           view: preview.view ?? openingView(preview.path),
-          collapsed: false,
+          collapsed,
           box,
           pinnedAt,
-          pinnedScale: from?.data.pinnedScale,
+          pinnedScale: preview.pinned?.scale ?? from?.data.pinnedScale,
         },
       };
     });
@@ -134,10 +141,7 @@ export function useFilePreviewPlacing(
     for (const { data } of additions) {
       const card = data.requestId;
       void readyAfter(
-        (data.view === "picture" || documentView(data.path) || mediaView(data.path)
-          ? drawnFile(data.path)
-          : readFile(data.path)
-        )
+        readFilePreview(data.path, data.view)
           .then((read) => {
             if (!placedFiles.current.has(card)) return;
             setNodes((current) =>
@@ -161,6 +165,17 @@ export function useFilePreviewPlacing(
       );
     }
   }, [requests, flowReady, setNodes, host, instance, standing]);
+}
+
+/** What of a file a card is given, for what the card is showing of it: the
+ *  whole of a file that is drawn, and the head of one that is read. */
+export function readFilePreview(
+  path: string,
+  view: FilePreviewView,
+): Promise<Partial<FilePreviewNodeData>> {
+  return view === "picture" || documentView(path) || mediaView(path)
+    ? drawnFile(path)
+    : readFile(path);
 }
 
 /** What of a file a card is given: as much of the head of it as one is drawn

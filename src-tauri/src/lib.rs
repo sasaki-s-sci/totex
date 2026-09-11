@@ -195,6 +195,20 @@ pub fn run() {
             ask::watch::rederive(app.handle());
             Ok(())
         })
+        // A card torn off the window stands in a window of its own -- see
+        // `src/lib/cardWindow.ts` -- and goes with the window it came off: a
+        // card left standing after that one has gone would be the app kept
+        // running for a card nobody can put back.
+        .on_window_event(|window, event| {
+            use tauri::Manager;
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                for (label, other) in window.app_handle().webview_windows() {
+                    if label != "main" {
+                        let _ = other.close();
+                    }
+                }
+            }
+        })
         // Every command the window may ask for. The names here and the names
         // the window sends are two lists nothing checks against each other,
         // which is what `update::tests::rows` is for on the ones that matter.

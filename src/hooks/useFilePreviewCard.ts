@@ -7,15 +7,27 @@ import { useCallback, useMemo } from "react";
 import { writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
 import { settingsDocument, writeSettingsText } from "../lib/appSettings";
+import type { CardSeed } from "../lib/cardWindow";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize } from "./filePreviewBox";
+import { useCardWindows } from "./useCardWindows";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
+
+/** The two ways a card passes between this window and one of its own — see
+ *  `useCardWindows`. */
+export type CardTraffic = {
+  /** The card has gone out to a window of its own: take it off this one. */
+  closeFilePreview: (requestId: number) => void;
+  /** A card back from its window, pinned at a place in the pane's pixels. */
+  openPinned: (seed: CardSeed, at: { x: number; y: number }) => void;
+};
 
 export function useFilePreviewCard(
   { host, instance, standing, nodes, setNodes }: PageCanvas,
   previewFile: (path: string, beside: number) => void,
+  windows: CardTraffic,
 ) {
   /**
    * Writes one card's reading back to its file.
@@ -246,7 +258,10 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  const pinDrag = usePinDrag(host, movePinned);
+  // Dragged out of the window altogether, a pinned card goes on in a window
+  // of its own — see `useCardWindows`, which the drag is handed to out there.
+  const tearing = useCardWindows({ host, standing, ...windows });
+  const pinDrag = usePinDrag(host, movePinned, tearing);
 
   /** The cards that have left the canvas, in the order they were opened. */
   const pinnedFiles = useMemo(
