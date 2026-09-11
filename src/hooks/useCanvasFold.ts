@@ -116,9 +116,9 @@ export function useCanvasFold({
    *
    * Worked out from the extent the build measured rather than by asking React
    * Flow to fit its own nodes: a fit is a pass over the store, and the store is
-   * handed this frame's nodes after this frame — waiting for that is what
-   * `FIT_DELAY_MS` is, and a pull cannot spend it eighty times. The extent is
-   * the same box the lines are given, and it is already in hand.
+   * handed this frame's nodes after this frame — a wait a pull cannot spend
+   * eighty times over. The extent is the same box the lines are given, and it
+   * is already in hand.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const standBack = useCallback((extent: { width: number; height: number }) => {

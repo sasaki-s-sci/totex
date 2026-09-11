@@ -41,14 +41,7 @@ import { CliPlacesProvider } from "./cliPlaces";
 import { CliTypedProvider } from "./cliTyped";
 import { GraphLines } from "./GraphLines";
 import { GraphActionsProvider } from "./graphActions";
-import {
-  DETAIL_GAP,
-  DETAIL_ZOOM,
-  FIT_DELAY_MS,
-  nodeTypes,
-  proOptions,
-  retainLineNodes,
-} from "./graphCanvas";
+import { DETAIL_GAP, DETAIL_ZOOM, nodeTypes, proOptions, retainLineNodes } from "./graphCanvas";
 import { GraphMarksProvider } from "./graphMarks";
 import type { GraphProps } from "./graphProps";
 import { PinnedCards } from "./PinnedCards";
@@ -129,7 +122,6 @@ export function GitGraph({
   ]);
   const instance = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const [flowReady, setFlowReady] = useState(false);
-  const framed = useRef(false);
   /** The canvas itself, which the cursor keys measure their panning against. */
   const host = useRef<HTMLDivElement>(null);
   /** React Flow's own element inside it, which is where the wheel is heard.
@@ -232,24 +224,14 @@ export function GitGraph({
     flowReady,
   });
 
-  // Re-framing is for a canvas that is no longer the one being looked at: a
-  // repository appeared or went away. A commit landing must not move the
-  // viewport out from under whoever is reading it.
-  const repositoryKey = useMemo(
-    () => workspace.repositories.map((repository) => repository.id).join("\0"),
-    [workspace.repositories],
-  );
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the repository set is the trigger, not an input
-  useEffect(() => {
-    // The first frame is the `fitView` prop's job.
-    if (!framed.current) {
-      framed.current = true;
-      return;
-    }
-    const timer = setTimeout(() => instance.current?.fitView({ duration: 300 }), FIT_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [repositoryKey]);
+  // The canvas is never re-framed once it has been looked at. A repository
+  // arriving or leaving used to fit the whole graph into the pane, and a fit
+  // is the canvas moving out from under whoever is reading it: the band they
+  // had in front of them at the zoom they chose is gone, wherever it went.
+  // What arrives is laid out beside what is there, and what leaves leaves a
+  // gap, and either can be panned to. Only the first frame of a window that
+  // has nothing kept is framed, by the `fitView` prop, because there is
+  // nothing yet to keep still for.
 
   /** Whether the canvas is far enough out that the offers are not worth drawing:
    *  out there they are a couple of pixels across. Only the crossing is a change,

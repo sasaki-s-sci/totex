@@ -34,9 +34,6 @@ export const nodeTypes = {
 /** The canvas is the whole window here; the badge sits on top of the graph. */
 export const proOptions = { hideAttribution: true };
 
-/** Lets React Flow measure the nodes it was just handed before re-framing. */
-export const FIT_DELAY_MS = 80;
-
 /**
  * The scale below which the offer of a terminal stops being drawn.
  *
