@@ -40,6 +40,21 @@ export type BandLines = {
   dots: Map<string, { at: { x: number; y: number }; node: CommitFlowNode }>;
 };
 
+/**
+ * A line from a folder's mark to a repository opened out under it, which the
+ * pointer can fold at.
+ *
+ * The reach of a folder is drawn on the canvas rather than in any band, so it
+ * has no band's index to be found in: there is one of these per opened
+ * repository, and the pointer is measured against the few of them there are
+ * with their ends read off the marks as they stand now.
+ */
+export type Hold = {
+  line: GraphLine;
+  /** The repository the line arrives at, which is what a press folds. */
+  repository: string;
+};
+
 export type GraphResult = {
   nodes: AppNode[];
   /** The bands, in the order they are drawn, each with its lines. */
@@ -56,6 +71,12 @@ export type GraphResult = {
    * score of these on it is a handful of paths.
    */
   reach: { key: string; stroke: StrokeStyle; parts: GraphLine[] }[];
+  /**
+   * The lines in `reach` that can be folded at: one for each repository opened
+   * out into a band, running from its folder's mark. What the pointer brings a
+   * fold out on, the way a band's own `folds` do for its history.
+   */
+  holds: Hold[];
   /**
    * The folder groups, by the directory each was opened on.
    *

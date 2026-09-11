@@ -12,6 +12,7 @@ import {
   type GraphLine,
   type GraphResult,
   type Group,
+  type Hold,
   REPO_GAP_Y,
   STEP,
 } from "../model";
@@ -121,6 +122,7 @@ export function buildCommitGraph(
   const bands: Band[] = [];
   /** The lines that are nobody's band: what a folder holds, and what runs in it. */
   const links: GraphLine[] = [];
+  const holds: Hold[] = [];
   const groups = new Map<string, Group>();
   const draw: Draw = { before };
   /**
@@ -166,6 +168,7 @@ export function buildCommitGraph(
     nodes.push(...group.nodes);
     bands.push(...group.bands);
     links.push(...group.links);
+    holds.push(...group.holds);
     groups.set(folder.root, {
       node: folderId(folder.root),
       // Where the row itself was laid out, which is the slot plus whatever room
@@ -186,6 +189,7 @@ export function buildCommitGraph(
     bands,
     groups,
     reach: batched(links),
+    holds,
     // Room for what hangs off the far edge of a band: the offer the cursor
     // draws is a cell past the commit it comes out of.
     extent: { width: right + STEP.x, height: bottom + STEP.y },

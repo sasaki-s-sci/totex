@@ -35,23 +35,42 @@ export function pathOf(
 ): string {
   let path = "";
   for (const part of parts) {
-    const from = endOf(part.from, standing);
-    const to = endOf(part.to, standing);
-    if (!from || !to) continue;
-    // The far end is the same sum with the ends swapped: `shortOf` pulls the
-    // second point back towards the first. The near end depends on the
-    // direction the line leaves in, which for an elbow is straight down its own
-    // column rather than towards anything.
-    const start =
-      part.shape === "elbow"
-        ? downFrom(from, to, part.lead)
-        : shortOf(to, from, part.lead, part.shape);
-    const end = shortOf(from, to, part.trim, part.shape);
-    offset(start, end, part.offset ?? 0);
-    path += pieceOf(part.shape, start, end);
+    const ends = endsOf(part, standing);
+    if (!ends) continue;
+    path += pieceOf(part.shape, ends.start, ends.end);
     path += " ";
   }
   return path;
+}
+
+/**
+ * Where one line runs, as it is drawn now: both ends read off the marks they
+ * belong to and pulled back off them, and the pair moved off the track when
+ * the line shares it.
+ *
+ * What the path is made from, and what the pointer is measured against when a
+ * line drawn on the canvas rather than in a band is asked what it offers: a
+ * band's lines are indexed once in the band's own coordinates, but a line from
+ * a folder to a band has an end on each of two things that move apart.
+ */
+export function endsOf(
+  part: GraphLine,
+  standing: ReadonlyMap<string, XYPosition>,
+): { start: Point; end: Point } | null {
+  const from = endOf(part.from, standing);
+  const to = endOf(part.to, standing);
+  if (!from || !to) return null;
+  // The far end is the same sum with the ends swapped: `shortOf` pulls the
+  // second point back towards the first. The near end depends on the
+  // direction the line leaves in, which for an elbow is straight down its own
+  // column rather than towards anything.
+  const start =
+    part.shape === "elbow"
+      ? downFrom(from, to, part.lead)
+      : shortOf(to, from, part.lead, part.shape);
+  const end = shortOf(from, to, part.trim, part.shape);
+  offset(start, end, part.offset ?? 0);
+  return { start, end };
 }
 
 /** One line as path data, in whichever of the three shapes it takes. */

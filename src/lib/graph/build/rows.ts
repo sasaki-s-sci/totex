@@ -128,13 +128,17 @@ function bandRow(
   });
 
   // Connect to the trunk, independently of the label above the upper lanes.
-  drawn.links.push(
-    holds(id, from, entry.repository.id, {
-      node: entry.repository.id,
-      dx: entry.data.label.x,
-      dy: entry.trunk,
-    }),
-  );
+  const link = holds(id, from, entry.repository.id, {
+    node: entry.repository.id,
+    dx: entry.data.label.x,
+    dy: entry.trunk,
+  });
+  drawn.links.push(link);
+  // The one line into a band that can be folded at: the pointer on it is
+  // offered the same move the band's own name makes, back into the mark it
+  // was opened out of. A line into a mark offers nothing — the way out of a
+  // fold is the mark itself, as it is for history's own collapse.
+  drawn.holds.push({ line: link, repository: entry.repository.id });
 
   // A column deeper than the band it belongs to is what the canvas has to make
   // room for; the band itself is the history's own height. A question standing

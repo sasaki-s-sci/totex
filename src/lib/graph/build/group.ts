@@ -111,6 +111,7 @@ export function folderGroup(
     nodes: [],
     bands: [],
     links: [],
+    holds: [],
     members: [],
     inset,
     right: head.x + FOLDER_ROW_WIDTH,

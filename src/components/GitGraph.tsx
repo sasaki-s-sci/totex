@@ -456,6 +456,7 @@ export function GitGraph({
                           <GraphLines
                             bands={graph.bands}
                             reach={graph.reach}
+                            holds={graph.holds}
                             extent={graph.extent}
                             nodes={lineNodes}
                             selected={selectedCommit}

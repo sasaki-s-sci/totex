@@ -4,7 +4,7 @@
  */
 
 import type { Session } from "../../session";
-import type { AppNode, Band, GraphLine, LineEnd } from "../model";
+import type { AppNode, Band, GraphLine, Hold, LineEnd } from "../model";
 import { FOLDER_MARK, FOLDER_STROKE } from "../model";
 
 /** One folder laid out, and everything the canvas needs to know about it. */
@@ -13,6 +13,8 @@ export type LaidGroup = {
   bands: Band[];
   /** Its own lines, in canvas coordinates: what it holds, and what is running. */
   links: GraphLine[];
+  /** Which of those lead to an opened band, and so can be folded at. */
+  holds: Hold[];
   /** Everything that travels with the folder — see `Group`. */
   members: string[];
   /**

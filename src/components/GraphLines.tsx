@@ -1,6 +1,6 @@
 import { ViewportPortal, type XYPosition } from "@xyflow/react";
 import { memo, useMemo } from "react";
-import type { AppNode, Band, CommitFlowNode } from "../lib/graph";
+import type { AppNode, Band, CommitFlowNode, Hold } from "../lib/graph";
 import { Bands, type Batch, Reach } from "./lines/bands";
 import { CommitEmphasis, Hover } from "./lines/hover";
 import { CommitMessages } from "./lines/messages";
@@ -25,6 +25,7 @@ import { CommitMessages } from "./lines/messages";
 export const GraphLines = memo(function GraphLines({
   bands,
   reach,
+  holds,
   extent,
   nodes,
   selected,
@@ -39,6 +40,8 @@ export const GraphLines = memo(function GraphLines({
    * running in the rows a folder draws.
    */
   reach: readonly Batch[];
+  /** The lines among those that fold the band they lead to. */
+  holds: readonly Hold[];
   /**
    * The box the lines are drawn in, which is as big as everything reaches.
    *
@@ -89,7 +92,13 @@ export const GraphLines = memo(function GraphLines({
           picked={picked}
           onCommit={onCommit}
         />
-        <Hover bands={bands} standing={standing} selected={selected} onCommit={onCommit} />
+        <Hover
+          bands={bands}
+          holds={holds}
+          standing={standing}
+          selected={selected}
+          onCommit={onCommit}
+        />
       </svg>
     </ViewportPortal>
   );

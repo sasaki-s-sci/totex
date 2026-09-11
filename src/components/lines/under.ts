@@ -13,9 +13,14 @@ import {
   distanceTo,
   type FoldTarget,
   foldCell,
+  type Hold,
+  midpointOf,
+  type Point,
   STEP,
+  samplesOf,
 } from "../../lib/graph";
 import { type CommitDot, commitAt } from "./bands";
+import { endsOf } from "./path";
 
 /** How near the pointer has to come to a line, in screen pixels. */
 const HOVER_SCREEN = 22;
@@ -42,16 +47,59 @@ export const BRANCH_RADIUS = 9;
 const BRANCH_REACH = 12;
 
 /** What the pointer is on, which is the only thing these are ever drawn for. */
-export type Under = {
-  band: Band;
-  fold: FoldTarget | null;
-  dot: CommitDot | null;
-  /** How near the pointer had to come, which the hit target is drawn at. */
-  reach: number;
-};
+export type Under =
+  | {
+      kind: "band";
+      band: Band;
+      fold: FoldTarget | null;
+      dot: CommitDot | null;
+      /** How near the pointer had to come, which the hit target is drawn at. */
+      reach: number;
+    }
+  | {
+      /**
+       * A folder's line into a band it holds. Only the line is kept: where it
+       * runs is read off the marks at either end when it is drawn, so the
+       * offer stays on the line while the band it leads to is still settling.
+       */
+      kind: "hold";
+      hold: Hold;
+      reach: number;
+    };
+
+/**
+ * The stretch of a folder's line that is the repository's own, as a run of
+ * points and the middle of it.
+ *
+ * Only the last leg: an elbow leaves the folder's mark down a trunk every line
+ * out of that folder shares, and the pointer on the trunk is on all of them at
+ * once. The leg that turns off it into the band is the one stretch that
+ * belongs to this repository and no other, so it is the stretch that offers to
+ * fold it. Worked out on demand rather than indexed: there is one of these per
+ * opened repository, and either end of it is on something that moves.
+ */
+export function holdRun(
+  hold: Hold,
+  standing: ReadonlyMap<string, XYPosition>,
+): { run: number[]; at: Point } | null {
+  const ends = endsOf(hold.line, standing);
+  if (!ends) return null;
+  if (hold.line.shape !== "elbow") {
+    return {
+      run: samplesOf(ends.start, ends.end, hold.line.shape),
+      at: midpointOf(ends.start, ends.end, hold.line.shape),
+    };
+  }
+  const corner = { x: ends.start.x, y: ends.end.y };
+  return {
+    run: [corner.x, corner.y, ends.end.x, ends.end.y],
+    at: midpointOf(corner, ends.end, "straight"),
+  };
+}
 
 export function useUnder(
   bands: readonly Band[],
+  holds: readonly Hold[],
   standing: ReadonlyMap<string, XYPosition>,
   onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void,
 ): Under | null {
@@ -63,6 +111,8 @@ export function useUnder(
   showing.current = under;
   const held = useRef(bands);
   held.current = bands;
+  const holding = useRef(holds);
+  holding.current = holds;
   const placed = useRef(standing);
   placed.current = standing;
   const select = useRef(onCommit);
@@ -123,8 +173,25 @@ export function useUnder(
         }
 
         if (!nearest && !onDot) continue;
-        return { band, fold: nearest, dot: onDot ? dot : null, reach };
+        return { kind: "band", band, fold: nearest, dot: onDot ? dot : null, reach };
       }
+
+      // After the bands, so that a band answers for its own box first: the
+      // folder's line ends inside that box, and a commit standing where it
+      // arrives is the nearer thing. These are in canvas coordinates already,
+      // and few enough to be measured every one.
+      let nearest: Hold | null = null;
+      let best = reach;
+      for (const hold of holding.current) {
+        const drawn = holdRun(hold, placed.current);
+        if (!drawn) continue;
+        const gap = distanceTo(drawn.run, at, best);
+        if (gap <= best) {
+          best = gap;
+          nearest = hold;
+        }
+      }
+      if (nearest) return { kind: "hold", hold: nearest, reach };
 
       return null;
     };
@@ -142,7 +209,7 @@ export function useUnder(
         const now = showing.current;
         // The same answer as last time, which is what most moves of the mouse
         // come to: the cursor travels a long way inside one cell.
-        if (now && now.band === next.band && now.fold === next.fold && now.dot === next.dot) return;
+        if (now && same(now, next)) return;
         setUnder(next);
         return;
       }
@@ -161,7 +228,7 @@ export function useUnder(
       const target = event.target;
       if (target instanceof Element && target.closest(".nopan")) return;
       const hit = find(event.clientX, event.clientY);
-      if (!hit?.dot) return;
+      if (hit?.kind !== "band" || !hit.dot) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -185,7 +252,7 @@ export function useUnder(
         clean();
         if (moved) return;
         const released = find(ended.clientX, ended.clientY);
-        if (released?.dot !== dot) return;
+        if (released?.kind !== "band" || released.dot !== dot) return;
         select.current(dot.node, { x: ended.clientX, y: ended.clientY });
       };
 
@@ -203,7 +270,8 @@ export function useUnder(
     const click = (event: MouseEvent) => {
       const target = event.target;
       if (target instanceof Element && target.closest(".nopan")) return;
-      if (find(event.clientX, event.clientY)?.dot) event.stopPropagation();
+      const hit = find(event.clientX, event.clientY);
+      if (hit?.kind === "band" && hit.dot) event.stopPropagation();
     };
 
     host.addEventListener("pointermove", move);
@@ -219,4 +287,12 @@ export function useUnder(
   }, [flow, store]);
 
   return under;
+}
+
+/** The same answer as last time, which is not a change to draw. */
+function same(now: Under, next: Under): boolean {
+  if (now.kind === "band" && next.kind === "band") {
+    return now.band === next.band && now.fold === next.fold && now.dot === next.dot;
+  }
+  return now.kind === "hold" && next.kind === "hold" && now.hold === next.hold;
 }

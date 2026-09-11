@@ -5,10 +5,10 @@
 
 import type { XYPosition } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
-import { type Band, type CommitFlowNode, DOT_SIZE, type Point } from "../../lib/graph";
+import { type Band, type CommitFlowNode, DOT_SIZE, type Hold, type Point } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
 import { type CommitDot, commitAt } from "./bands";
-import { BRANCH_LIFT, BRANCH_RADIUS, HALO_RADIUS, useUnder } from "./under";
+import { BRANCH_LIFT, BRANCH_RADIUS, HALO_RADIUS, holdRun, useUnder } from "./under";
 
 /** How far the fold mark reaches out from the line it sits on. */
 const MARK_RADIUS = 10;
@@ -27,21 +27,42 @@ const BRANCH = "M -6 -3 H 6 M -1 -3 C 2 -3, 2 4, 5 4";
 
 export function Hover({
   bands,
+  holds,
   standing,
   selected,
   onCommit,
 }: {
   bands: readonly Band[];
+  /** The folders' lines into the bands they hold, which fold the band. */
+  holds: readonly Hold[];
   standing: ReadonlyMap<string, XYPosition>;
   /** The commit already wearing an offer of its own, which is not drawn twice. */
   selected: string | null;
   onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 }) {
-  const { t } = useTranslation();
-  const { fold } = useGraphActions();
-  const under = useUnder(bands, standing, onCommit);
+  const { fold, foldRepository } = useGraphActions();
+  const under = useUnder(bands, holds, standing, onCommit);
 
   if (!under) return null;
+
+  if (under.kind === "hold") {
+    // The folder's line, which is on the canvas rather than in any band: the
+    // same mark history's lines bring out, for the same move one level up —
+    // the band goes back into the mark it was opened out of, as it does when
+    // its name is pressed. Where the line runs is read again here rather than
+    // kept from the hit, so the mark rides the band while it settles.
+    const drawn = holdRun(under.hold, standing);
+    if (!drawn) return null;
+    return (
+      <FoldOffer
+        run={drawn.run}
+        at={drawn.at}
+        reach={under.reach}
+        onFold={() => foldRepository(under.hold.repository)}
+      />
+    );
+  }
+
   const { band, dot } = under;
   const offer = under.fold;
   const bandAt = standing.get(band.id) ?? band;
@@ -65,33 +86,61 @@ export function Hover({
       )}
 
       {offer && (
-        // biome-ignore lint/a11y/useSemanticElements: a button here is HTML in a foreignObject, which is what left the mark empty in WebKit
-        <g
-          className="edge__fold"
-          role="button"
-          aria-label={t("graph.fold")}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            fold(band.id, offer.keep);
-          }}
-        >
-          {/* The line again, drawn in nothing and thick enough to be aimed at:
-              the whole stretch is the button, the way it reads. */}
-          <path
-            className="edge__hit"
-            d={runPath(offer.run)}
-            style={{ strokeWidth: under.reach * 2 }}
-          />
-          {/* On the line's own middle, where a mark is furthest from the marks
-              at either end of it. */}
-          <g className="edge__mark" transform={`translate(${offer.at.x} ${offer.at.y})`}>
-            {/* Canvas, so the line does not run through the arrows. */}
-            <circle className="edge__mark__disc" r={MARK_RADIUS} />
-            <path className="edge__mark__arrows" d={FOLD} />
-          </g>
-        </g>
+        <FoldOffer
+          run={offer.run}
+          at={offer.at}
+          reach={under.reach}
+          onFold={() => fold(band.id, offer.keep)}
+        />
       )}
+    </g>
+  );
+}
+
+/**
+ * The fold a line offers, drawn on that line while the cursor is on it.
+ *
+ * One drawing for the two lines that can be folded at — a run of history, and
+ * a folder's line into a band — because it is the same move read the same way:
+ * what is past this point goes back into the mark it came out of.
+ */
+function FoldOffer({
+  run,
+  at,
+  reach,
+  onFold,
+}: {
+  /** The line, in the coordinates of whatever group this is drawn inside. */
+  run: readonly number[];
+  /** Its middle, where the mark stands. */
+  at: Point;
+  /** How near the pointer had to come, which the hit target is drawn at. */
+  reach: number;
+  onFold: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: a button here is HTML in a foreignObject, which is what left the mark empty in WebKit
+    <g
+      className="edge__fold"
+      role="button"
+      aria-label={t("graph.fold")}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onFold();
+      }}
+    >
+      {/* The line again, drawn in nothing and thick enough to be aimed at: the
+          whole stretch is the button, the way it reads. */}
+      <path className="edge__hit" d={runPath(run)} style={{ strokeWidth: reach * 2 }} />
+      {/* On the line's own middle, where a mark is furthest from the marks at
+          either end of it. */}
+      <g className="edge__mark" transform={`translate(${at.x} ${at.y})`}>
+        {/* Canvas, so the line does not run through the arrows. */}
+        <circle className="edge__mark__disc" r={MARK_RADIUS} />
+        <path className="edge__mark__arrows" d={FOLD} />
+      </g>
     </g>
   );
 }
