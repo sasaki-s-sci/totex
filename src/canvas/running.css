@@ -132,6 +132,48 @@
   text-overflow: ellipsis;
 }
 
+/* Who a commit from here would be signed by: the git mark, and beside it the
+   name over the mail, a size under the place name and set flush left so the
+   two lines read as one entry rather than two centred fragments. */
+.cli__identity {
+  display: flex;
+  gap: 3px;
+  align-items: flex-start;
+  max-width: 100%;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 7px;
+  text-align: left;
+}
+
+.cli__identity-icon {
+  flex: none;
+  width: 8px;
+  height: 8px;
+}
+
+.cli__identity-ident {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.cli__identity-ident + .cli__identity-ident {
+  margin-left: 6px;
+}
+
+.cli__identity-name,
+.cli__identity-mail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cli__identity-mail {
+  opacity: 0.8;
+}
+
 /* Ending a session is the one thing here that cannot be undone, so it is faint
    until the cursor is on the mark — but its room is always held, out to the
    side of the glyph, so a stack does not shuffle as the pointer runs down it. */
