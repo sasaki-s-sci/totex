@@ -207,6 +207,7 @@
     "preview": "{{name}}をプレビュー",
     "expand": "{{name}}を開く",
     "collapse": "{{name}}をたたむ",
+    "shrink": "{{name}}を最小にする",
     "close": "{{name}}を閉じる",
     "loading": "読み込み中…",
     "failed": "ファイルを読み込めません",

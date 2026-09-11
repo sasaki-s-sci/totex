@@ -176,9 +176,10 @@ export type GraphActions = {
    *
    * The width is worked out by the card, which is the only thing that can see
    * its own reading, and granted here, because the room there is for it belongs
-   * to the canvas rather than to any one card.
+   * to the canvas rather than to any one card. A height goes with it only when
+   * the card is being taken down to its smallest.
    */
-  fitFilePreview: (requestId: number, width: number) => void;
+  fitFilePreview: (requestId: number, width: number, height?: number) => void;
   /**
    * Take a file card off the canvas and hold it over the window, or put it
    * back where it is now standing.

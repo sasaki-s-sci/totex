@@ -11,6 +11,7 @@
  */
 
 import CloseIcon from "@mui/icons-material/Close";
+import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import DifferenceIcon from "@mui/icons-material/Difference";
 import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -29,6 +30,7 @@ export function FileTools({
   changed,
   save,
   onFit,
+  onShrink,
 }: {
   data: FilePreviewNodeData;
   /** The commit under the file disagrees with it, so there is a patch to turn
@@ -38,6 +40,7 @@ export function FileTools({
    *  the patch is against what is on screen, and so is the page. */
   save: () => Promise<boolean>;
   onFit: () => void;
+  onShrink: () => void;
 }) {
   const { t } = useTranslation();
   const config = useSettingsDocument();
@@ -131,6 +134,13 @@ export function FileTools({
         ) : (
           <KeyboardArrowUpIcon sx={{ fontSize: 12 }} />
         )}
+      </PageTool>
+
+      {/* Down to the least of it: the smallest an edge could be dragged to,
+          in one press, with the reading still in it. Between folding and
+          closing, because it is the third way of making less of a card. */}
+      <PageTool label={t("filePreview.shrink", { name: data.name })} onClick={onShrink}>
+        <CloseFullscreenIcon sx={{ fontSize: 12 }} />
       </PageTool>
 
       <PageTool

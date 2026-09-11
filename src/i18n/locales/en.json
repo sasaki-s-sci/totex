@@ -207,6 +207,7 @@
     "preview": "Preview {{name}}",
     "expand": "Open {{name}}",
     "collapse": "Fold {{name}} away",
+    "shrink": "Shrink {{name}} to its smallest",
     "close": "Close {{name}}",
     "loading": "Loading…",
     "failed": "The file cannot be read",

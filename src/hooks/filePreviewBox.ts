@@ -16,15 +16,12 @@ export function fileNodeId(requestId: number): string {
  * The size a card is standing at: its own once an edge has been dragged, and
  * the size it was opened at until then. A card put away has no height of its
  * own, so the box keeps the one it had.
+ *
+ * Always in canvas units, pinned or not: a pinned card is drawn scaled by the
+ * zoom it was pinned at rather than measured again, so pinning and unpinning
+ * leave the box exactly as it was.
  */
 export function fileSize(node: FilePreviewFlowNode): FilePreviewBox {
   const box = node.data.box;
   return { width: node.width ?? box.width, height: node.height ?? box.height };
-}
-
-/** Keep the visible size when a pinned card returns to a differently zoomed canvas. */
-export function unpinnedSize(node: FilePreviewFlowNode, zoom: number): FilePreviewBox {
-  const box = fileSize(node);
-  const scale = (node.data.pinnedScale ?? 1) / zoom;
-  return { width: box.width * scale, height: box.height * scale };
 }

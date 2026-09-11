@@ -9,7 +9,7 @@ import { refreshChanges } from "../folder/changes";
 import { settingsDocument, writeSettingsText } from "../lib/appSettings";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { fileSize, unpinnedSize } from "./filePreviewBox";
+import { fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
@@ -131,12 +131,13 @@ export function useFilePreviewCard(
    * zoomed out past reading. So the width is held to what is on screen, which
    * is the widest a card can be and still be a card.
    *
-   * Only the width. A reading is as long as the file, and a card as tall as one
-   * would be a card with no canvas left around it.
+   * Only the width, unless a height is asked for as well. A reading is as long
+   * as the file, and a card as tall as one would be a card with no canvas left
+   * around it; the one height a card asks for is its smallest.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const fitFilePreview = useCallback(
-    (requestId: number, wanted: number) => {
+    (requestId: number, wanted: number, tall?: number) => {
       const room = host.current?.clientWidth ?? 0;
       const zoom = instance.current?.getViewport().zoom ?? 1;
       setNodes((current) =>
@@ -147,7 +148,14 @@ export function useFilePreviewCard(
           // stepped out of when it was pinned.
           const most = room / (node.data.pinnedAt ? (node.data.pinnedScale ?? 1) : zoom);
           const width = room > 0 ? Math.min(wanted, most) : wanted;
-          return { ...node, width, data: { ...node.data, box: { ...fileSize(node), width } } };
+          const height = tall ?? fileSize(node).height;
+          return {
+            ...node,
+            width,
+            // A card put away keeps no height of its own — see `collapseFilePreview`.
+            height: node.data.collapsed ? undefined : height,
+            data: { ...node.data, box: { width, height } },
+          };
         }),
       );
     },
@@ -182,7 +190,9 @@ export function useFilePreviewCard(
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
           const at = node.data.pinnedAt;
           if (at) {
-            const box = unpinnedSize(node, flow.getViewport().zoom);
+            // Back at the size it left at: the box never changed, only the
+            // scale it was drawn at up there.
+            const box = fileSize(node);
             return {
               ...node,
               hidden: false,

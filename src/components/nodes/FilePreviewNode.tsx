@@ -166,6 +166,13 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, held) + BORDERS));
   }
 
+  /** Takes the card down to the smallest an edge could be dragged to: the
+   *  least of it that is still a card, with the reading left in it. */
+  function shrink() {
+    const settings = data.view === "settings";
+    fitFilePreview(data.requestId, settings ? 520 : MIN_WIDTH, settings ? 220 : MIN_HEIGHT);
+  }
+
   // What the card is holding only part of, which is a different part in each of
   // the two: a file is read as far as a card is given, and a patch is printed as
   // far as one is worth sending.
@@ -242,7 +249,13 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
               })}
             />
           )}
-          <FileTools data={data} changed={changed(diff)} save={save} onFit={fitWidth} />
+          <FileTools
+            data={data}
+            changed={changed(diff)}
+            save={save}
+            onFit={fitWidth}
+            onShrink={shrink}
+          />
         </>
       }
     >
