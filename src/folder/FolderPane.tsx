@@ -182,7 +182,7 @@ export function FolderPane({
             py: 0.5,
             border: "none",
             background: "none",
-            color: colour,
+            color: "text.primary",
             cursor: "pointer",
             textAlign: "left",
           }}
@@ -198,7 +198,10 @@ export function FolderPane({
               one distribution and another in the next, and a heading is one
               folder and one drawing of it. */}
           <PaneFolderMark />
-          <Typography variant="body2" noWrap title={distro ?? undefined}>
+          {/* The colour git gives the folder goes on the name and not on the
+              drawing beside it: the mark is the same in every pane, and the
+              word is what says what became of the files underneath. */}
+          <Typography variant="body2" noWrap title={distro ?? undefined} sx={{ color: colour }}>
             {name}
           </Typography>
         </Box>

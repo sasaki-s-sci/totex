@@ -225,14 +225,13 @@ export function Level({
                 if (entry.isDir) toggle(entry.path);
               }}
             >
-              {/* The same grey as a file's: a folder is told from a file by the
-                  drawing, and a listing where one kind of row is coloured reads
-                  as a listing of that kind with the rest around it. Colour is
-                  spent on the other thing instead — the mark takes the name's
-                  colour when git has something to say about the row, so the
-                  whole row moves together and none of it moves for anything
-                  else. */}
-              <ListItemIcon sx={colour ? { ...ICON, color: colour } : ICON}>
+              {/* The same grey as a file's, and the same grey whatever git
+                  says: a folder is told from a file by the drawing, and a
+                  listing where one kind of row is coloured reads as a listing
+                  of that kind with the rest around it. What became of the row
+                  is said by the name alone — the drawing stays the drawing,
+                  and only the word beside it takes the colour. */}
+              <ListItemIcon sx={ICON}>
                 {/* Open or shut, which is the whole of what the row's own
                     click does — so the icon is where that is said. */}
                 {entry.isDir ? (

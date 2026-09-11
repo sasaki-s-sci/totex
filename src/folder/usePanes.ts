@@ -28,8 +28,12 @@ export function usePanes(
   homes?: Homes,
 ) {
   const nextId = useRef(0);
+  // The panes that were standing when the window was last closed come back
+  // shut: what is remembered is where they stand, not what was being read in
+  // them, and a column that opens with every listing unfolded is a column
+  // that has to be folded up before it can be used.
   const [panes, setPanes] = useFrontState<Pane[]>("folders.panes", () =>
-    initial.map((path) => ({ id: nextId.current++, path, open: true, graphed: [] })),
+    initial.map((path) => ({ id: nextId.current++, path, open: false, graphed: [] })),
   );
   nextId.current = Math.max(nextId.current, ...panes.map((pane) => pane.id + 1));
   /** The scrolling part of the column, for showing a folder that was just added. */
