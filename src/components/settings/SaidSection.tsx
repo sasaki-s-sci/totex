@@ -1,18 +1,10 @@
 /** The line beside a terminal: whether it stands on its own, and how it is set. */
 
-import {
-  Checkbox,
-  Divider,
-  MenuItem,
-  Select,
-  type SelectChangeEvent,
-  Slider,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Checkbox, Divider, MenuItem, Select, type SelectChangeEvent, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import { LINES, type SaidFace, SIZE, setSaid, useSaid, WIDTH } from "../../lib/said";
+import { Measure } from "./Measure";
 import { Row } from "./Row";
 
 /** The two faces, in the order they are offered. The terminal's own is first
@@ -23,49 +15,6 @@ const FACE_LABELS = {
   terminal: "said.terminal",
   window: "said.window",
 } as const;
-
-/** A numeric preference with a slider and its current value. */
-function Measure({
-  label,
-  value,
-  room,
-  step = 1,
-  disabled,
-  onPick,
-}: {
-  label: string;
-  value: number;
-  room: { least: number; most: number };
-  /** How far apart the numbers offered are, where every one of them is too many. */
-  step?: number;
-  disabled?: boolean;
-  onPick: (next: number) => void;
-}) {
-  return (
-    <Row label={label}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 2, width: 180 }}>
-        <Slider
-          size="small"
-          aria-label={label}
-          value={value}
-          min={room.least}
-          max={room.most}
-          step={step}
-          disabled={disabled}
-          onChange={(_, next) => {
-            if (typeof next === "number") onPick(next);
-          }}
-        />
-        <Typography
-          variant="body2"
-          sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-        >
-          {value}
-        </Typography>
-      </Stack>
-    </Row>
-  );
-}
 
 /**
  * How the lines beside the terminals are drawn, and whether they are drawn

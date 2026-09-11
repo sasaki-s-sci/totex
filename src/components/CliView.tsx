@@ -16,6 +16,7 @@ import {
 } from "../lib/pty";
 import type { Session } from "../lib/session";
 import { openTerminalLink } from "../lib/terminalLinks";
+import { useWheel, wheelFactor } from "../lib/wheel";
 import { readyAfter } from "../shell/bridge";
 import { frontValue, readOnSnapshot } from "../shell/state";
 import { usePalette } from "../theme";
@@ -90,6 +91,7 @@ export function CliView({ session, shown, onEnded }: Props) {
       fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
       cursorBlink: true,
       theme: colours,
+      scrollSensitivity: wheelFactor("cli"),
       linkHandler: { activate: openTerminalLink },
     });
     const fit = new FitAddon();
@@ -318,6 +320,14 @@ export function CliView({ session, shown, onEnded }: Props) {
     const terminal = drawn.current;
     if (terminal) terminal.options.theme = colours;
   }, [colours]);
+
+  // And so is how far a notch of the wheel takes it, which the settings page
+  // changes while the terminal is still drawn.
+  const wheel = useWheel("cli");
+  useEffect(() => {
+    const terminal = drawn.current;
+    if (terminal) terminal.options.scrollSensitivity = wheel / 100;
+  }, [wheel]);
 
   // The keyboard follows the panel. Coming back to a terminal is coming back to
   // something to type into, and a click into the rows to say so is a step that

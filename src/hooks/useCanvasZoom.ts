@@ -19,6 +19,7 @@
 import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import { type RefObject, useEffect } from "react";
 import type { AppNode } from "../lib/graph";
+import { wheelFactor } from "../lib/wheel";
 import { MAX_ZOOM, MIN_ZOOM } from "./useCanvasFold";
 
 /**
@@ -27,7 +28,8 @@ import { MAX_ZOOM, MIN_ZOOM } from "./useCanvasFold";
  *
  * d3-zoom's own numbers, taken rather than picked: the wheel is being answered
  * somewhere else now, not turned into a different gesture, and how far a step
- * of it takes the canvas should be exactly what it was.
+ * of it takes the canvas should be exactly what it was — until the settings
+ * page says otherwise, which is `wheelFactor` scaling all three alike.
  */
 const PER_PIXEL = 0.002;
 const PER_LINE = 0.05;
@@ -62,8 +64,9 @@ export function useCanvasZoom({ pane, instance }: ZoomCanvas) {
 
       event.preventDefault();
       const step = event.deltaMode === IN_LINES ? PER_LINE : event.deltaMode ? PER_PAGE : PER_PIXEL;
+      const turned = -event.deltaY * step * wheelFactor("graph");
       const view = flow.getViewport();
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * 2 ** (-event.deltaY * step)));
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, view.zoom * 2 ** turned));
       if (zoom === view.zoom) return;
 
       // The middle of the pane names a point on the graph, and that point is

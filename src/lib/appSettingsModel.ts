@@ -8,6 +8,10 @@ export type AppSettings = {
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
+  /** How far one notch of the wheel takes a terminal, in percent of xterm's own. */
+  cliWheel: number;
+  /** How far one notch of the wheel takes the canvas, in percent of d3-zoom's own. */
+  graphWheel: number;
   said: {
     showing: boolean;
     face: "terminal" | "window";
@@ -31,6 +35,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpServing: false,
   fileTitle: "name",
   readingSize: 11,
+  cliWheel: 100,
+  graphWheel: 100,
   said: { showing: false, face: "terminal", size: 9, lines: 1, width: 220, fitting: false },
 };
 
@@ -58,6 +64,8 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     mcpServing: read("totex.mcp.serving") === "yes",
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),
+    cliWheel: 100,
+    graphWheel: 100,
     said: {
       showing: read("totex.said") === "on",
       face: pick("totex.said.face", ["terminal", "window"], "terminal"),

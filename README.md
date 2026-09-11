@@ -188,7 +188,9 @@ size:
 ```
 
 Other preferences in this document include `theme`, `language`, `reveal`,
-`follow`, `mcpServing`, `readingSize`, and the remaining `said` options. The
+`follow`, `mcpServing`, `readingSize`, `cliWheel`, `graphWheel` (how far one
+notch of the wheel scrolls a terminal or zooms the canvas, as a percentage),
+and the remaining `said` options. The
 repository-specific `.totex/settings.json` continues to control each space.
 
 ## Updating

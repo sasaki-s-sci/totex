@@ -14,7 +14,13 @@ test("totex schema accepts app defaults and preserves extension properties", () 
 
 test("totex schema rejects invalid dropdown values and numeric bounds", () => {
   const validator = customizeValidator({});
-  for (const patch of [{ theme: "blue" }, { readingSize: 100 }, { said: { lines: 0 } }]) {
+  for (const patch of [
+    { theme: "blue" },
+    { readingSize: 100 },
+    { cliWheel: 0 },
+    { graphWheel: 401 },
+    { said: { lines: 0 } },
+  ]) {
     assert.equal(
       validator.isValid(totexSchema, { ...DEFAULT_SETTINGS, ...patch }, totexSchema),
       false,

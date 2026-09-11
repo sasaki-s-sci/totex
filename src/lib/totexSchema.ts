@@ -13,6 +13,8 @@ export const totexSchema: RJSFSchema = {
     mcpServing: { title: "MCP server", type: "boolean" },
     fileTitle: { title: "File title", type: "string", enum: ["name", "path"] },
     readingSize: { title: "Reading size", type: "integer", minimum: 8, maximum: 20 },
+    cliWheel: { title: "Terminal wheel (%)", type: "integer", minimum: 25, maximum: 400 },
+    graphWheel: { title: "Canvas wheel (%)", type: "integer", minimum: 25, maximum: 400 },
     said: {
       title: "Agent output",
       type: "object",

@@ -37,6 +37,8 @@ fn validate(value: &Value) -> Result<(), String> {
         }
     }
     range(value, "readingSize", 8, 20)?;
+    range(value, "cliWheel", 25, 400)?;
+    range(value, "graphWheel", 25, 400)?;
     if let Some(said) = object.get("said") {
         let fields = said.as_object().ok_or("said must be an object")?;
         for key in ["showing", "fitting"] {
@@ -182,6 +184,8 @@ mod tests {
             "{\"follow\":\"yes\"}",
             "{\"backgroundGrid\":\"yes\"}",
             "{\"fileTitle\":\"bad\"}",
+            "{\"cliWheel\":0}",
+            "{\"graphWheel\":401}",
         ] {
             assert!(write(&temp.0, invalid, &before.text).is_err());
             assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), before.text);

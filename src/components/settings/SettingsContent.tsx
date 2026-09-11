@@ -12,6 +12,7 @@ import { useSettingsControls } from "./SettingsControls";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { ThemeRow } from "./ThemeRow";
 import { UpdateSection } from "./UpdateSection";
+import { WheelSection } from "./WheelSection";
 
 /** The form is the rendered view of the application's settings file. */
 export function SettingsContent() {
@@ -24,6 +25,7 @@ export function SettingsContent() {
       <LanguageRow />
       <FileTitleRow />
       <RevealRow />
+      <WheelSection />
       <SaidSection />
       <FollowSection />
       <McpSection controls={mcp} />

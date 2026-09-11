@@ -135,7 +135,11 @@
     "saidFit": "Fit the lines to the canvas",
     "saidFitHint": "Take how wide a line may be from how much of the canvas is on screen, and how many lines it may run to from how far apart the graph's rows are.",
     "saidLines": "Lines",
-    "saidWidth": "Line width"
+    "saidWidth": "Line width",
+    "wheel": "Wheel",
+    "wheelHint": "How far one notch of the wheel goes, as a percentage of what it did before.",
+    "wheelCli": "In a terminal",
+    "wheelGraph": "On the canvas"
   },
   "mcp": {
     "on": "On",
