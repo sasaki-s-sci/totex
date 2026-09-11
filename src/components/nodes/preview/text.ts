@@ -21,6 +21,32 @@ export function draftOf(root: Node): string {
 }
 
 /**
+ * Puts a tab where the caret is, in place of whatever is selected.
+ *
+ * Through the editing command rather than the DOM, so that the press goes on
+ * the same undo stack as the letters around it and raises the same `input`
+ * event the card listens to. Where the engine has no such command, the range
+ * is written to by hand and the event is raised by hand with it.
+ */
+export function insertTab(paper: HTMLElement): void {
+  if (document.execCommand("insertText", false, "\t")) return;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!paper.contains(range.commonAncestorContainer)) return;
+  range.deleteContents();
+  const tab = document.createTextNode("\t");
+  range.insertNode(tab);
+  range.setStartAfter(tab);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  paper.dispatchEvent(
+    new InputEvent("input", { bubbles: true, inputType: "insertText", data: "\t" }),
+  );
+}
+
+/**
  * How many lines a reading has.
  *
  * A reading that ends in a newline ends there. The empty line after it is still

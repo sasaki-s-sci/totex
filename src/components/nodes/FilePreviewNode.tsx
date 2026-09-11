@@ -25,6 +25,7 @@ import { useDraft } from "./preview/draft";
 import { widthWithout } from "./preview/measure";
 import { useReading } from "./preview/reading";
 import type { SchemaHandle } from "./preview/SchemaReading";
+import { insertTab } from "./preview/text";
 import { FileTools } from "./preview/tools";
 
 /** The smallest box a reading is still worth drawing in. */
@@ -316,6 +317,22 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             spellCheck={false}
             {...typing}
             onInput={onInput}
+            onKeyDown={(event) => {
+              // A tab is a character in a file, and the reading is a file: the
+              // press writes one rather than walking the focus off to the next
+              // button on the canvas. Shift and Tab still walk it, so that the
+              // card can be left by the keys it was reached by.
+              if (
+                event.key !== "Tab" ||
+                event.shiftKey ||
+                event.ctrlKey ||
+                event.altKey ||
+                event.metaKey
+              )
+                return;
+              event.preventDefault();
+              insertTab(event.currentTarget);
+            }}
             onKeyUp={showCaret}
             onBlur={() => {
               if (!frontInactive()) void save();
