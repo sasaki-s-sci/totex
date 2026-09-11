@@ -109,9 +109,28 @@ export type Draw = {
 };
 
 /**
- * How big a file card is, in the units of whatever it is standing in: canvas
- * units while the card is on the canvas, and the pane's own pixels once it has
- * been pinned over the window. Pinning is what carries the box between the two.
+ * A terminal taken out of the panel and stood on the canvas as a page.
+ *
+ * The same session the mark in its branch's stack is drawn for: the mark stays
+ * where it was, and what changes is where the terminal itself is drawn — in a
+ * box over the graph, moved by its bar and resized by its edges, rather than in
+ * the panel beside it. Which of the two it is in is the window's to say (see
+ * `useSessions`); the page only holds what the canvas needs to draw one.
+ */
+export type CliPageNodeData = {
+  session: Session;
+  /** The one in hand, if it is this one — the terminal the keys go to. */
+  showing: boolean;
+  /** The terminal is put away and the page is left as tall as its header. */
+  collapsed: boolean;
+  /** What the page was last left at, for the same reason a file card keeps its own. */
+  box: FilePreviewBox;
+};
+
+/**
+ * How big a file card is, in canvas units. A card pinned over the window is
+ * drawn at the same box scaled by the zoom it was pinned at, so the box itself
+ * is never carried between coordinate systems — see `pinnedScale`.
  */
 export type FilePreviewBox = { width: number; height: number };
 

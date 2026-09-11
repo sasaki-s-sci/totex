@@ -82,7 +82,9 @@
     "identityHint": "Commit identity for {{path}}, read by the app. Changes of directory or environment variables inside this shell and command-specific overrides are not reflected. This is separate from the account used to push.",
     "shell": "Shell",
     "open": "Shell",
-    "end": "End"
+    "end": "End",
+    "page": "Stand this terminal on the canvas",
+    "dock": "Put {{name}} back in the panel"
   },
   "tasks": {
     "find": "What to run",

@@ -4,10 +4,11 @@
  */
 
 import type { NodeTypes } from "@xyflow/react";
-import type { AppNode } from "../lib/graph";
+import { type AppNode, isPage } from "../lib/graph";
 import { AskNode } from "./nodes/AskNode";
 import { BranchHeadNode } from "./nodes/BranchHeadNode";
 import { CliNode } from "./nodes/CliNode";
+import { CliPageNode } from "./nodes/CliPageNode";
 import { CollapseNode } from "./nodes/CollapseNode";
 import { FilePreviewNode } from "./nodes/FilePreviewNode";
 import { FolderNode } from "./nodes/FolderNode";
@@ -27,6 +28,7 @@ export const nodeTypes = {
   ask: AskNode,
   report: ReportNode,
   "file-preview": FilePreviewNode,
+  "cli-page": CliPageNode,
 } satisfies NodeTypes;
 
 /** The canvas is the whole window here; the badge sits on top of the graph. */
@@ -52,7 +54,7 @@ export const DETAIL_ZOOM = 0.3;
 export const DETAIL_GAP = 1.2;
 
 /**
- * Keeps the line layer's input stable while only file cards are changing.
+ * Keeps the line layer's input stable while only pages are changing.
  *
  * A controlled React Flow reports every drag frame as a new node array. File
  * cards have no lines, but handing that array to `GraphLines` made it rebuild
@@ -66,11 +68,11 @@ export function retainLineNodes(
   let index = 0;
   let same = true;
   for (const node of nodes) {
-    if (node.type === "file-preview") continue;
+    if (isPage(node)) continue;
     if (held[index] !== node) same = false;
     index += 1;
   }
 
   if (same && held.length === index) return held;
-  return nodes.filter((node) => node.type !== "file-preview");
+  return nodes.filter((node) => !isPage(node));
 }

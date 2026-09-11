@@ -16,6 +16,11 @@ resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 export function useSessions() {
   const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
   const [showing, setShowing] = useFrontState<string | null>("sessions.showing", null);
+  // The ones that have been taken out of the panel and stood on the canvas as
+  // pages. Where a terminal is drawn is the window's to say, because the panel
+  // and the canvas are on either side of it and neither may draw one the other
+  // is drawing: a pty attached twice is a shell typed at from two places.
+  const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", []);
 
   // What was already running when this window came up. A session is a process
   // and outlives whatever is drawing it, so a window that starts with an empty
@@ -83,11 +88,29 @@ export function useSessions() {
     setShowing(next.id);
   }, []);
 
+  /**
+   * Stands one on the canvas as a page, out of the panel.
+   *
+   * It stays the one in hand: the panel, with nothing left in it to show, is
+   * put away, and the page that has just been drawn is where the keys go.
+   */
+  const page = useCallback((next: Session) => {
+    setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
+    setShowing(next.id);
+  }, []);
+
+  /** Puts a page back into the panel, and shows it there. */
+  const dock = useCallback((next: Session) => {
+    setPaged((current) => current.filter((id) => id !== next.id));
+    setShowing(next.id);
+  }, []);
+
   /** Ends a session: the process stops, and it leaves the graph with it. */
   const end = useCallback(
     (going: Session) => {
       void kill(going);
       setSessions((current) => current.filter((session) => session.id !== going.id));
+      setPaged((current) => current.filter((id) => id !== going.id));
       setShowing((current) => (current === going.id ? null : current));
     },
     [kill],
@@ -107,6 +130,7 @@ export function useSessions() {
       if (going.length === 0) return;
       await Promise.all(going.map(kill));
       setSessions((current) => current.filter((session) => session.cwd !== cwd));
+      setPaged((current) => current.filter((id) => going.every((session) => session.id !== id)));
       setShowing((current) => (going.some((session) => session.id === current) ? null : current));
     },
     [kill, sessions],
@@ -116,5 +140,5 @@ export function useSessions() {
    *  unsafe to throw away. */
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
 
-  return { sessions, showing, attached, open, show, jump, end, endIn };
+  return { sessions, showing, paged, attached, open, show, jump, page, dock, end, endIn };
 }

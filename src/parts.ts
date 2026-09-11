@@ -21,6 +21,11 @@ export const graphPart = onDemand(() =>
 export const panelPart = onDemand(() =>
   import("./components/SidePanel").then((part) => part.SidePanel),
 );
+/** The terminal itself, for a page on the canvas: the same emulator the panel
+ *  draws, and the same chunk, so a window with the panel up has it already. */
+export const terminalPart = onDemand(() =>
+  import("./components/CliView").then((part) => part.CliView),
+);
 export const commitPart = onDemand(() =>
   import("./components/CommitMenu").then((part) => part.CommitMenu),
 );

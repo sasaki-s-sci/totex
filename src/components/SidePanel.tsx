@@ -6,6 +6,7 @@ import type { CliPlace } from "../lib/graphNav";
 import type { Session } from "../lib/session";
 import { CliStrip } from "./CliStrip";
 import { CliView } from "./CliView";
+import { Frame, MARK_BUTTON, MarkButton } from "./marks";
 import { ResizeGrip, useResizeGrip } from "./useResizeGrip";
 import { HEADER_HEIGHT, HEADER_INSET, HEADER_MARKS } from "./WindowControls";
 
@@ -39,6 +40,8 @@ type Props = {
    * well: the two are one run of terminals said in two places.
    */
   doings: ReadonlyMap<string, Doing>;
+  /** The mark in the band: the terminal being shown leaves for the canvas. */
+  onPage: (session: Session) => void;
   /** The process finished by itself, so there is no session left to show. */
   onEnded: (session: Session) => void;
 };
@@ -55,7 +58,7 @@ type Props = {
  * hidden — hidden while still laid out, which is what makes moving between them
  * cost a property rather than a redraw. See below.
  */
-export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
+export function SidePanel({ sessions, showing, run, doings, onPage, onEnded }: Props) {
   const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
   // The grip is on the panel's left edge, so dragging left widens it.
@@ -135,14 +138,39 @@ export function SidePanel({ sessions, showing, run, doings, onEnded }: Props) {
             pl: `${HEADER_INSET}px`,
             // And stops short of the window's own three marks, which stand over
             // this corner: the strip names the repositories now, and a name is
-            // the one thing in the band long enough to reach them.
-            pr: `${HEADER_MARKS}px`,
+            // the one thing in the band long enough to reach them. And short of
+            // the panel's own mark, which stands just inside those three.
+            pr: `${HEADER_MARKS + MARK_BUTTON}px`,
             // Let presses reach the window drag region behind the strip.
             pointerEvents: "none",
           }}
         >
           <CliStrip run={run} showing={showing} doings={doings} />
         </Box>
+
+        {/* The one mark the panel has of its own: the terminal in it goes out
+            onto the canvas as a page, where it can be stood beside whatever it
+            is working on and read against it. Just inside the window's three,
+            in the same band, the same size and the same grey — one more move
+            among the moves this corner already carries. */}
+        {open && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: HEADER_INSET,
+              right: HEADER_MARKS,
+              pointerEvents: "auto",
+            }}
+          >
+            <MarkButton label={t("cli.page")} onClick={() => onPage(open)}>
+              <Frame>
+                <path d="M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6" />
+                <path d="M15 3h6v6" />
+                <path d="M10 14 21 3" />
+              </Frame>
+            </MarkButton>
+          </Box>
+        )}
       </Box>
 
       {/* The sessions, one on top of another and every one of them the size of

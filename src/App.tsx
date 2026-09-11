@@ -107,12 +107,21 @@ function Window() {
   const {
     sessions,
     showing,
+    paged,
     open: openSession,
     show: showSession,
     jump: jumpSession,
+    page: pageSession,
+    dock: dockSession,
     end: endSession,
     endIn: endSessionsIn,
   } = useSessions();
+  // What the panel holds: everything running that has not been stood on the
+  // canvas instead. A terminal is drawn in one of the two places and never both.
+  const docked = useMemo(
+    () => sessions.filter((session) => !paged.includes(session.id)),
+    [sessions, paged],
+  );
 
   // Where each terminal stands among all of them, which is the canvas's reading
   // and the panel's strip. Held by the window because the two are on either
@@ -337,6 +346,7 @@ function Window() {
             browsing={browsing}
             sessions={sessions}
             showing={showing}
+            paged={paged}
             asks={asks}
             reports={reports}
             doings={doings}
@@ -358,6 +368,7 @@ function Window() {
             onShowSession={showSession}
             onJumpSession={jumpSession}
             onEndSession={endSession}
+            onDockSession={dockSession}
             onCliRun={takeRun}
             filePreviews={filePreviews}
             onPreviewFile={previewFile}
@@ -373,10 +384,11 @@ function Window() {
           the terminals, and a terminal that is unmounted comes back empty. */}
       {SidePanel && (
         <SidePanel
-          sessions={sessions}
+          sessions={docked}
           showing={showing}
           run={run}
           doings={doings}
+          onPage={pageSession}
           onEnded={endSession}
         />
       )}

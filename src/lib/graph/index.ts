@@ -35,6 +35,8 @@ export {
   type BranchHeadFlowNode,
   type CliFlowNode,
   type CliNodeData,
+  type CliPageFlowNode,
+  type CliPageNodeData,
   COLUMN_WIDTH,
   COMMIT_STEP,
   type CollapseFlowNode,
@@ -69,4 +71,5 @@ export {
   STEP,
   type StrokeStyle,
 } from "./model";
+export { isPage } from "./pages";
 export type { CardStep, ReportCard, ReportFlowNode, ReportNodeData } from "./reporting";

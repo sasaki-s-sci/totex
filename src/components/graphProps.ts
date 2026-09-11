@@ -57,8 +57,15 @@ export type GraphProps = {
    * thing on a canvas.
    */
   sessions: readonly Session[];
-  /** The session the panel is showing, if any. */
+  /** The session in hand, if any: the one the panel is showing, or the page
+   *  the keys go to when it has been stood on the canvas. */
   showing: string | null;
+  /**
+   * The sessions that have been taken out of the panel and stood on the canvas
+   * as pages, by id. The canvas draws a page for each and takes one down when
+   * its id leaves the list — see `useCliPages`.
+   */
+  paged: readonly string[];
   /**
    * What each session has stopped to ask, by session id.
    *
@@ -136,6 +143,8 @@ export type GraphProps = {
    */
   onJumpSession: (session: Session) => void;
   onEndSession: (session: Session) => void;
+  /** A terminal page's bar asked for the panel: it goes back in there. */
+  onDockSession: (session: Session) => void;
   /**
    * The terminals as the canvas numbers them, whenever that reading changes.
    *

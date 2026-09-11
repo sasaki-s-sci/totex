@@ -11,6 +11,7 @@ import { useCanvasDrag } from "../hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
 import { useCanvasKeys } from "../hooks/useCanvasKeys";
 import { useCanvasZoom } from "../hooks/useCanvasZoom";
+import { useCliPages } from "../hooks/useCliPages";
 import { useCliTyped } from "../hooks/useCliTyped";
 import { useCommitMessage } from "../hooks/useCommitMessage";
 import { useFilePreviews } from "../hooks/useFilePreviews";
@@ -25,6 +26,7 @@ import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
 import {
   type AppNode,
   buildCommitGraph,
+  type CliPageFlowNode,
   type FilePreviewFlowNode,
   type GraphResult,
 } from "../lib/graph";
@@ -66,6 +68,7 @@ export function GitGraph({
   browsing,
   sessions,
   showing,
+  paged,
   asks,
   reports,
   doings,
@@ -87,6 +90,7 @@ export function GitGraph({
   onShowSession,
   onJumpSession,
   onEndSession,
+  onDockSession,
   onCliRun,
   filePreviews,
   onPreviewFile,
@@ -120,6 +124,7 @@ export function GitGraph({
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([
     ...graph.nodes,
     ...(frontValue<FilePreviewFlowNode[]>("canvas.files") ?? []),
+    ...(frontValue<CliPageFlowNode[]>("canvas.clis") ?? []),
   ]);
   const instance = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const [flowReady, setFlowReady] = useState(false);
@@ -138,6 +143,13 @@ export function GitGraph({
     () =>
       readOnSnapshot("canvas.files", () =>
         standing.current.filter((node) => node.type === "file-preview"),
+      ),
+    [],
+  );
+  useLayoutEffect(
+    () =>
+      readOnSnapshot("canvas.clis", () =>
+        standing.current.filter((node) => node.type === "cli-page"),
       ),
     [],
   );
@@ -204,6 +216,14 @@ export function GitGraph({
     onPreviewFile,
   );
   useSettingsPage(settingsRequest, { host, instance, standing, nodes, setNodes, flowReady });
+  const { collapseCliPage } = useCliPages(sessions, paged, showing, {
+    host,
+    instance,
+    standing,
+    nodes,
+    setNodes,
+    flowReady,
+  });
 
   // Re-framing is for a canvas that is no longer the one being looked at: a
   // repository appeared or went away. A commit landing must not move the
@@ -338,6 +358,8 @@ export function GitGraph({
     keepFold,
     onShowSession,
     onEndSession,
+    onDockSession,
+    collapseCliPage,
     onAnswer,
     onReply,
     onPoint,

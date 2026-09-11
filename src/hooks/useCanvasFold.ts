@@ -16,7 +16,7 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import { type RefObject, useCallback, useEffect, useRef } from "react";
-import { type AppNode, commitNodeId, type GraphResult } from "../lib/graph";
+import { type AppNode, commitNodeId, type GraphResult, isPage } from "../lib/graph";
 import { reconcile } from "../lib/graph/reconcile";
 import { centreOf } from "../lib/graphNav";
 import type { Workspace } from "../types/git";
@@ -187,8 +187,8 @@ export function useCanvasFold({
     applied.current = graph;
     const from = new Map(standing.current.map((node) => [node.id, node.position] as const));
     setNodes((current) => {
-      const pages = current.filter((node) => node.type === "file-preview");
-      const history = current.filter((node) => node.type !== "file-preview");
+      const pages = current.filter(isPage);
+      const history = current.filter((node) => !isPage(node));
       const merged = reconcile(history, graph.nodes, before?.nodes, (rebuilt, holding) => ({
         ...rebuilt,
         selected: holding.selected,

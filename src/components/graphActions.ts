@@ -107,6 +107,10 @@ export type GraphActions = {
   showSession: (session: Session) => void;
   /** End it: the process stops and it leaves the graph. */
   endSession: (session: Session) => void;
+  /** Put a terminal that was stood on the canvas back into the panel. */
+  dockSession: (session: Session) => void;
+  /** Put a terminal page's rows away, leaving its header, or take them back out. */
+  collapseCliPage: (sessionId: string) => void;
   /**
    * Take one of the answers to what a session is asking.
    *
@@ -203,6 +207,8 @@ const GraphActionsContext = createContext<GraphActions>({
   keepFold: () => {},
   showSession: () => {},
   endSession: () => {},
+  dockSession: () => {},
+  collapseCliPage: () => {},
   answer: () => {},
   reply: () => {},
   point: () => {},

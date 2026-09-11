@@ -25,7 +25,7 @@ import type {
 
 /** What a page is a page of. It is written on the box as a class, which is
  *  where the two kinds pick their own rules up from. */
-export type PageKind = "file-preview" | "settings-page";
+export type PageKind = "file-preview" | "settings-page" | "cli-page";
 
 type PageProps = {
   kind: PageKind;
