@@ -10,7 +10,15 @@ export async function verifyShell(
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
-    if (window.parent !== window) return;
+    if (window.parent !== window) {
+      // WebView2 installs these read-only globals in every frame. Frontend
+      // callbacks must still use the shell's registry, not these local ones.
+      Object.defineProperty(window, "__TAURI_INTERNALS__", { value: Object.freeze({}) });
+      Object.defineProperty(window, "__TAURI_EVENT_PLUGIN_INTERNALS__", {
+        value: Object.freeze({}),
+      });
+      return;
+    }
     const sessions = [1, 2, 3].map((number) => ({
       id: `/tmp cli ${number}`,
       cwd: "/tmp",

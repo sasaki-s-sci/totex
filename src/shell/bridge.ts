@@ -41,13 +41,13 @@ if (connection) {
   });
   const parent = window.parent as unknown as Record<string, unknown>;
   const here = window as unknown as Record<string, unknown>;
-  for (const key of ["__TAURI_INTERNALS__", "__TAURI_EVENT_PLUGIN_INTERNALS__"]) {
-    here[key] = parent[key];
-  }
+  // WebView2 injects read-only Tauri globals into subframes too. The SDK
+  // transform in vite.config.ts reads these slots without overwriting them.
+  here.__TOTEX_EVENTS__ = parent.__TAURI_EVENT_PLUGIN_INTERNALS__;
   native = parent.__TAURI_INTERNALS__ as Native | undefined;
   if (native) {
     const owner = native;
-    here.__TAURI_INTERNALS__ = Object.create(
+    here.__TOTEX_NATIVE__ = Object.create(
       owner,
       Object.getOwnPropertyDescriptors({
         transformCallback(callback?: (...args: unknown[]) => unknown, once?: boolean) {
@@ -96,9 +96,9 @@ export async function disconnect(): Promise<void> {
   await Promise.allSettled([...registrations]);
   const events = (
     window as unknown as {
-      __TAURI_EVENT_PLUGIN_INTERNALS__?: { unregisterListener(event: string, id: number): void };
+      __TOTEX_EVENTS__?: { unregisterListener(event: string, id: number): void };
     }
-  ).__TAURI_EVENT_PLUGIN_INTERNALS__;
+  ).__TOTEX_EVENTS__;
   await Promise.allSettled(
     [...listeners].map(([eventId, event]) => {
       events?.unregisterListener(event, eventId);

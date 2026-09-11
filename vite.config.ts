@@ -5,8 +5,29 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 import ephemeralBuild from "./scripts/ephemeral-build.mjs";
 
 export default defineConfig({
+  // Keep SDK modules available to the transform in development as well.
+  optimizeDeps: { exclude: ["@tauri-apps/api"] },
   build: { rollupOptions: { input: { shell: "index.html", front: "front.html" } } },
   plugins: [
+    {
+      name: "shell-native-slots",
+      enforce: "pre",
+      transform(code, id) {
+        if (!/\/@tauri-apps\/api\/[^?]+\.js(?:\?|$)/.test(id.replaceAll("\\", "/"))) return;
+        return {
+          code: code
+            .replaceAll(
+              "window.__TAURI_INTERNALS__.",
+              "(window.__TOTEX_NATIVE__ ?? window.__TAURI_INTERNALS__).",
+            )
+            .replaceAll(
+              "window.__TAURI_EVENT_PLUGIN_INTERNALS__.",
+              "(window.__TOTEX_EVENTS__ ?? window.__TAURI_EVENT_PLUGIN_INTERNALS__).",
+            ),
+          map: null,
+        };
+      },
+    },
     ephemeralBuild(),
     react(),
     viteStaticCopy({
