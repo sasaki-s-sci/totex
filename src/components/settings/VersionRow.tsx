@@ -5,6 +5,7 @@
 
 import { MenuItem, Select, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { ROW_HEIGHT } from "./Row";
 
 import { LATEST, type Standing } from "./updateReading";
 
@@ -185,7 +186,7 @@ export function VersionRow({
 }) {
   const { t } = useTranslation();
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, minHeight: 34 }}>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, minHeight: ROW_HEIGHT }}>
       <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
         {name}
       </Typography>

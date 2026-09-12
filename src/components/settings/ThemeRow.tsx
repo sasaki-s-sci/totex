@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import { updateSettings, useAppSettings } from "../../lib/appSettings";
 import type { ThemeMode } from "../../theme";
-import { Row } from "./Row";
+import { PICK_SX, Row } from "./Row";
 
 /**
  * The three the window can be drawn in, in the order they are offered.
@@ -43,7 +43,7 @@ export function ThemeRow() {
           updateSettings({ theme: event.target.value as ThemeMode })
         }
         inputProps={{ "aria-label": t("settings.theme") }}
-        sx={{ minWidth: 132 }}
+        sx={PICK_SX}
       >
         {THEMES.map((option) => (
           <MenuItem key={option} value={option}>

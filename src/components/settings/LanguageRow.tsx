@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { changeLanguage, type LanguageMode } from "../../i18n";
 import { useAppSettings } from "../../lib/appSettings";
-import { Row } from "./Row";
+import { PICK_SX, Row } from "./Row";
 
 /** The machine's answer first, followed by each language the window carries. */
 const LANGUAGES: readonly LanguageMode[] = ["system", "en", "ja"];
@@ -37,7 +37,7 @@ export function LanguageRow() {
           void changeLanguage(next);
         }}
         inputProps={{ "aria-label": t("settings.language") }}
-        sx={{ minWidth: 132 }}
+        sx={PICK_SX}
       >
         {LANGUAGES.map((option) => (
           <MenuItem key={option} value={option}>

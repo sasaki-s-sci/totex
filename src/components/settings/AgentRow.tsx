@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Installing } from "../../hooks/useServing";
 import type { Setup } from "../../lib/mcp";
-import { PageButton } from "./Row";
+import { PageButton, ROW_HEIGHT } from "./Row";
 
 /** What each state of the press is called. */
 const PRESS = {
@@ -48,7 +48,7 @@ export function AgentRow({
 }) {
   const { t } = useTranslation();
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, minHeight: 34 }}>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, minHeight: ROW_HEIGHT }}>
       <Typography variant="body2" sx={{ width: NAME, flexShrink: 0 }}>
         {setup.agent}
       </Typography>

@@ -6,6 +6,26 @@
 import { Button, Stack, Typography } from "@mui/material";
 
 /**
+ * How tall a line of the page is at the least.
+ *
+ * A control's own height where there is one, and the name's where there is
+ * not: the page is a column of short lines read top to bottom, and air between
+ * them is height the page asks of the window for nothing.
+ */
+export const ROW_HEIGHT = 26;
+
+/**
+ * The shape a pull-down takes on this page: wide enough for the longest word
+ * it offers, and no taller than the line it stands on. The engine's small
+ * pull-down is still a line and a half tall; the padding is cut to the line.
+ */
+export const PICK_SX = { minWidth: 132, "& .MuiSelect-select": { py: 0.5 } } as const;
+
+/** The shape a tick takes on this page: the box, and the least air round it
+ *  that still leaves it aimable. */
+export const TICK_SX = { p: 0.5 } as const;
+
+/**
  * One line of the page: what the thing is on the left, what can be done about
  * it on the right.
  *
@@ -40,9 +60,9 @@ export function Row({
   return (
     <Stack
       direction="row"
-      sx={{ alignItems: "center", justifyContent: "space-between", gap: 2, minHeight: 34 }}
+      sx={{ alignItems: "center", justifyContent: "space-between", gap: 2, minHeight: ROW_HEIGHT }}
     >
-      <Stack sx={{ gap: 0.25 }}>
+      <Stack>
         <Typography variant="body2">{label}</Typography>
         {hint && (
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
