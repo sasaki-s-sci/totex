@@ -113,5 +113,25 @@ export function useCliPages(
     [setNodes],
   );
 
-  return { collapseCliPage };
+  /** Puts a page at a size, the way a file card is fitted: what the shrink
+   *  mark on its bar asks for. */
+  const fitCliPage = useCallback(
+    (sessionId: string, width: number, height: number) => {
+      setNodes((current) =>
+        current.map((node) => {
+          if (node.type !== "cli-page" || node.data.session.id !== sessionId) return node;
+          return {
+            ...node,
+            width,
+            // Put away, the page keeps no height of its own — see `collapseCliPage`.
+            height: node.data.collapsed ? undefined : height,
+            data: { ...node.data, box: { width, height } },
+          };
+        }),
+      );
+    },
+    [setNodes],
+  );
+
+  return { collapseCliPage, fitCliPage };
 }

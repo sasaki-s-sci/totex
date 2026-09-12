@@ -6,6 +6,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { gridOf, subscribeGrid, tellGrid } from "../lib/cliGrid";
 import {
   attachShell,
   DATA_EVENT,
@@ -33,13 +34,56 @@ const ANOTHER_LINE = "\x1b\r";
  *  wherever they are typed they are about leaving here. */
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
+/** The face the rows are read in, at full size. */
+const FONT = 12;
+/** The air round the rows, inside the box. On the emulator's own element,
+ *  which is the one place the fit addon subtracts it from. */
+const PAD = { x: 8, y: 4 };
+/** What the emulator keeps on the right for the scrollbar — its own figure,
+ *  which the fit addon takes off the width whether or not one is drawn. */
+const SCROLLBAR = 14;
+/** The smallest face a terminal that follows another is drawn in. Past this
+ *  the rows are a texture, and a texture says nothing worth the pixels. */
+const LEAST_FONT = 5;
+/** The character an agent reads as the paste of a picture: Ctrl and V, on the
+ *  wire, which is what reached it before the window took the press for text. */
+const PASTE_KEY = "\x16";
+
 type Props = {
   session: Session;
   /** Whether this is the one the panel is showing. */
   shown: boolean;
   /** The shell finished, so there is nothing left in here to look at. */
   onEnded: () => void;
+  /**
+   * How many times larger than its box the rows are drawn, before the box is
+   * scaled back down by the same amount — which is what a terminal standing on
+   * a zoomed canvas asks for. The emulator draws to a canvas, and a canvas is
+   * drawn once at its own size and stretched to whatever scale it is shown at:
+   * at anything but full size the rows are that drawing stretched. Drawn
+   * larger and scaled down, the stretch comes to one, and the rows are drawn
+   * at the pixels they are shown at. Full size by default, which is the panel.
+   */
+  scale?: number;
+  /**
+   * Another drawing of this shell is the one that measures it. This one draws
+   * the rows and columns that one settled on, in as small a face as it takes
+   * to fit them, and never tells the shell a size of its own — see `cliGrid`.
+   */
+  follow?: boolean;
+  /** Take the keys as soon as it is drawn, whether or not it is the one shown. */
+  autoFocus?: boolean;
 };
+
+/** The size the rows are drawn at, for a box this large. */
+function faceFor(
+  grid: { rows: number; cols: number },
+  cell: { w: number; h: number },
+  room: { w: number; h: number },
+): number {
+  const size = Math.min(FONT, room.w / (grid.cols * cell.w), room.h / (grid.rows * cell.h));
+  return Math.max(LEAST_FONT, Math.floor(size * 4) / 4);
+}
 
 /**
  * A shell, in the directory of the branch it was opened from.
@@ -49,7 +93,14 @@ type Props = {
  * and draws the rest as it arrives. The terminal itself is driven imperatively,
  * because it owns a canvas and a scrollback React must not re-render.
  */
-export function CliView({ session, shown, onEnded }: Props) {
+export function CliView({
+  session,
+  shown,
+  onEnded,
+  scale = 1,
+  follow = false,
+  autoFocus = false,
+}: Props) {
   // A view update can replace this DOM node without remounting the controller.
   // Reattach to the running shell whenever the actual drawing surface changes.
   const [host, setHost] = useState<HTMLDivElement | null>(null);
@@ -80,6 +131,12 @@ export function CliView({ session, shown, onEnded }: Props) {
   useEffect(() => {
     ended.current = onEnded;
   }, [onEnded]);
+  // Read through refs for the same reason, and settled below whenever either
+  // changes: the terminal is the same terminal at any scale and in either role.
+  const drawnAt = useRef(scale);
+  const following = useRef(follow);
+  /** Fits the rows to the box, or to the grid being followed, as the role says. */
+  const settle = useRef<(() => void) | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
   useEffect(() => {
@@ -88,7 +145,7 @@ export function CliView({ session, shown, onEnded }: Props) {
     setFailed(false);
 
     const terminal = new Terminal({
-      fontSize: 12,
+      fontSize: FONT * drawnAt.current,
       fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
       cursorBlink: true,
       theme: colours,
@@ -130,10 +187,85 @@ export function CliView({ session, shown, onEnded }: Props) {
       accelerated = null;
     }
 
-    fit.fit();
+    // What the shell was last told it had. Dragging the panel's edge reports a
+    // resize every frame, and the character grid only changes every so many of
+    // them — the rest would be a crossing into Rust to say nothing.
+    let told = { rows: terminal.rows, cols: terminal.cols };
+
+    /** The grid another terminal settled on, drawn in a face that fits it here. */
+    const shadow = () => {
+      const grid = gridOf(session.id);
+      // Nobody has measured the shell yet: the rows fit the box, and the shell
+      // is not told — whoever measures first will.
+      if (!grid) {
+        fit.fit();
+        return;
+      }
+      if (terminal.rows !== grid.rows || terminal.cols !== grid.cols) {
+        terminal.resize(grid.cols, grid.rows);
+      }
+      // The emulator sets its screen to exactly the rows and columns it draws,
+      // so the screen's size over the grid is the cell, and the cell over the
+      // face is what one point of face costs — which is what says how large a
+      // face this box can hold that many cells at.
+      const screen = element.querySelector<HTMLElement>(".xterm-screen");
+      const face = terminal.options.fontSize ?? FONT;
+      if (!screen || screen.clientWidth === 0 || screen.clientHeight === 0) return;
+      const cell = {
+        w: screen.clientWidth / terminal.cols / face,
+        h: screen.clientHeight / terminal.rows / face,
+      };
+      const room = {
+        w: element.clientWidth - PAD.x * 2 - SCROLLBAR,
+        h: element.clientHeight - PAD.y * 2,
+      };
+      const next = faceFor(grid, cell, room);
+      if (Math.abs(next - face) > 0.01) terminal.options.fontSize = next;
+    };
+
+    /** The rows fitted to the box, and the shell told when that changed it. */
+    const measure = () => {
+      const face = FONT * drawnAt.current;
+      if (terminal.options.fontSize !== face) terminal.options.fontSize = face;
+      fit.fit();
+      const { rows, cols } = terminal;
+      if (rows === told.rows && cols === told.cols) return;
+      told = { rows, cols };
+      void resizeShell(session.id, rows, cols).catch(() => undefined);
+      tellGrid(session.id, told);
+    };
+
+    settle.current = () => {
+      if (element.clientWidth === 0 || element.clientHeight === 0) return;
+      if (following.current) shadow();
+      else measure();
+    };
+    if (following.current) shadow();
+    else fit.fit();
 
     let live = true;
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
+
+    // A paste with a picture in it and no text. The window pastes text into
+    // the terminal's own field, where the emulator reads it; a picture has no
+    // way in by that door, and the agent on the other end has one of its own —
+    // it reads the clipboard itself when it is sent the Ctrl+V it was never
+    // sent once the press was taken for text. Heard on the way down, before
+    // the emulator's own listener, and only when there is no text to paste:
+    // a paste that has both is the text, the way it is everywhere else.
+    const onPaste = (event: ClipboardEvent) => {
+      const carried = event.clipboardData;
+      if (!carried) return;
+      const text = carried.types.includes("text/plain");
+      const file =
+        carried.types.includes("Files") ||
+        Array.from(carried.items).some((item) => item.kind === "file");
+      if (text || !file) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void writeShell(session.id, PASTE_KEY).catch(() => undefined);
+    };
+    element.addEventListener("paste", onPaste, true);
 
     // The keystrokes that mean something here they do not mean to a shell, taken
     // before xterm reads them. Everything else is the terminal's own.
@@ -240,11 +372,6 @@ export function CliView({ session, shown, onEnded }: Props) {
       if (event.payload === session.id && live) ended.current();
     });
 
-    // What the shell was last told it had. Dragging the panel's edge reports a
-    // resize every frame, and the character grid only changes every so many of
-    // them — the rest would be a crossing into Rust to say nothing.
-    let told = { rows: terminal.rows, cols: terminal.cols };
-
     void readyAfter(
       (async () => {
         // Listening first, and waited for: registering a listener is itself a
@@ -293,28 +420,34 @@ export function CliView({ session, shown, onEnded }: Props) {
         }
 
         // The shell was started at a size nothing had measured, so the first
-        // thing a terminal that exists tells it is how much room it really has.
+        // thing a terminal that exists tells it is how much room it really has
+        // — unless another terminal is the one that measures it.
+        if (following.current) {
+          shadow();
+          return;
+        }
         told = { rows: terminal.rows, cols: terminal.cols };
         void resizeShell(session.id, told.rows, told.cols).catch(() => undefined);
+        tellGrid(session.id, told);
       })(),
     );
 
     // The panel is resizable, and a shell that is not told its size draws
     // anything full-screen at the wrong one.
-    const resize = new ResizeObserver(() => {
-      if (element.clientWidth === 0 || element.clientHeight === 0) return;
-      fit.fit();
-      const { rows, cols } = terminal;
-      if (rows === told.rows && cols === told.cols) return;
-      told = { rows, cols };
-      void resizeShell(session.id, rows, cols).catch(() => undefined);
-    });
+    const resize = new ResizeObserver(() => settle.current?.());
     resize.observe(element);
+    // And a terminal that follows another redraws when that one is resized.
+    const heard = subscribeGrid(session.id, () => {
+      if (following.current) settle.current?.();
+    });
 
     return () => {
       live = false;
       drawn.current = null;
+      settle.current = null;
       resize.disconnect();
+      heard();
+      element.removeEventListener("paste", onPaste, true);
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
       terminal.dispose();
@@ -339,25 +472,46 @@ export function CliView({ session, shown, onEnded }: Props) {
     if (terminal) terminal.options.scrollSensitivity = wheel / 100;
   }, [wheel]);
 
+  // The scale and the role are the terminal's to answer without being rebuilt:
+  // a terminal rebuilt for either would lose its scrollback with it.
+  useEffect(() => {
+    drawnAt.current = scale;
+    settle.current?.();
+  }, [scale]);
+  useEffect(() => {
+    following.current = follow;
+    settle.current?.();
+  }, [follow]);
+
   // The keyboard follows the panel. Coming back to a terminal is coming back to
   // something to type into, and a click into the rows to say so is a step that
-  // decides nothing.
+  // decides nothing. A page stood on the canvas takes them once, as it is drawn.
+  const first = useRef(autoFocus);
   useEffect(() => {
-    if (shown && host) drawn.current?.focus();
+    if ((shown || first.current) && host) drawn.current?.focus();
+    first.current = false;
   }, [shown, host]);
 
+  // The box fills whatever it is stood in, `scale` times over, and is scaled
+  // back down from its top-left corner to fit — see `scale`. The failure is
+  // said in an edge along the top that takes no room: the emulator measures
+  // its rows from the box's height, and a border would be counted in it.
   return (
     <Box
       ref={setHost}
       data-terminal={session.id}
       data-terminal-shown={shown}
       sx={{
-        flex: 1,
-        minHeight: 0,
-        px: 1,
-        py: 0.5,
-        borderTop: 2,
-        borderColor: failed ? "error.main" : "transparent",
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: `${100 * scale}%`,
+        height: `${100 * scale}%`,
+        overflow: "hidden",
+        transform: scale === 1 ? undefined : `scale(${1 / scale})`,
+        transformOrigin: "0 0",
+        boxShadow: failed ? "inset 0 2px 0 0 var(--mui-palette-error-main)" : "none",
+        "& > .xterm": { padding: `${PAD.y}px ${PAD.x}px` },
       }}
     />
   );

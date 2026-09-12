@@ -111,6 +111,8 @@ export type GraphActions = {
   dockSession: (session: Session) => void;
   /** Put a terminal page's rows away, leaving its header, or take them back out. */
   collapseCliPage: (sessionId: string) => void;
+  /** Put a terminal page at a size: what its shrink mark asks for. */
+  fitCliPage: (sessionId: string, width: number, height: number) => void;
   /**
    * Take one of the answers to what a session is asking.
    *
@@ -212,6 +214,7 @@ export const NO_ACTIONS: GraphActions = {
   endSession: () => {},
   dockSession: () => {},
   collapseCliPage: () => {},
+  fitCliPage: () => {},
   answer: () => {},
   reply: () => {},
   point: () => {},

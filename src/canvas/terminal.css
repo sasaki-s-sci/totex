@@ -2,18 +2,19 @@
 
 /* The rows fill the body: the emulator measures the box it is given and draws
    as many rows and columns as fit, so the box has to be the whole of what is
-   under the bar. A column, because the terminal's own element is a flex child
-   that grows to fill one. */
+   under the bar. The terminal's own box is placed against this one — it is
+   drawn larger than the box and scaled back to it, see `scale` on `CliView` —
+   so this is what it is placed against. */
 .cli-page .page__body {
   display: flex;
   flex-direction: column;
 }
 
 .cli-page__terminal {
-  display: flex;
+  position: relative;
   min-height: 0;
   flex: 1;
-  flex-direction: column;
+  overflow: hidden;
 }
 
 /* The page that has the focus, which is the one being typed into. Said in the
