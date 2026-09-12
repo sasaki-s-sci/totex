@@ -38,6 +38,15 @@
  * is the page those readings came off.
  */
 
+/* The engine's own sheet, imported here rather than beside this file: what
+   follows overrides it at the same specificity — the grips of a page, the
+   controls — and same specificity is settled by order alone. A stylesheet
+   imported from two chunks is hoisted to wherever the bundler shares it, and
+   one imported from one chunk stays with that chunk, so the two fall in an
+   order that is the bundler's to choose. One file with the engine's at its
+   head has no order to choose. */
+@import "@xyflow/react/dist/style.css";
+
 @import "./base.css";
 @import "./grid.css";
 @import "./folders.css";
