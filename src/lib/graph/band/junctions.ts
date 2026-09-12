@@ -35,9 +35,21 @@ const GROUP_STROKE = { colour: LINE_COLOR, width: 1.1, opacity: 0.72 };
  * keeps the rhythm it had, and so do the terminals hanging off it, while the
  * knot sits in the gap the fan leaves. A knot given a row of its own would push
  * a branch down for something that is not a branch.
+ *
+ * The one exception is a knot pressed shut with nothing left under it: there is
+ * no fan for it to sit in the gap of, so it is seated in a row of the column —
+ * see `dealColumn`.
+ *
+ * `refs` is what the column draws; `every` is every branch the repository has,
+ * the ones a shut knot has put away included, because the lines from the
+ * history into a knot are read off the whole of what it gathers.
  */
-export function drawJunctions(frame: Frame, refs: readonly PlacedRef[]) {
-  const { repository, history, bundle, junctionAt, columnX, drawn, nodes } = frame;
+export function drawJunctions(
+  frame: Frame,
+  refs: readonly PlacedRef[],
+  every: readonly PlacedRef[],
+) {
+  const { repository, history, bundle, seats, junctionAt, columnX, drawn, nodes } = frame;
   if (bundle.junctions.length === 0) return;
 
   // What each knot has to cover: the rows of the branches gathered at it, and
@@ -53,6 +65,7 @@ export function drawJunctions(frame: Frame, refs: readonly PlacedRef[]) {
     const over = bundle.parentOf.get(ref.id);
     if (over !== undefined) cover(over, frame.branchLine[ref.row]);
   }
+  for (const [id, row] of seats) cover(id, frame.branchLine[row]);
 
   for (const junction of [...bundle.junctions].reverse()) {
     const held = covers.get(junction.id) ?? [];
@@ -71,7 +84,7 @@ export function drawJunctions(frame: Frame, refs: readonly PlacedRef[]) {
       parentId: repository.id,
       extent: "parent",
       position: { x: at.x - COMMIT_STEP.x / 2, y: at.y - COMMIT_STEP.y / 2 },
-      data: { prefix: junction.prefix, members: junction.members },
+      data: { prefix: junction.prefix, members: junction.members, closed: junction.closed },
       style: COMMIT_CELL,
       draggable: false,
       selectable: false,
@@ -87,7 +100,7 @@ export function drawJunctions(frame: Frame, refs: readonly PlacedRef[]) {
   }
 
   const arriving = new Map<string, Set<number | null>>();
-  for (const ref of refs) {
+  for (const ref of every) {
     const over = bundle.parentOf.get(ref.id);
     const root = over === undefined ? undefined : roots.get(over);
     if (root === undefined) continue;

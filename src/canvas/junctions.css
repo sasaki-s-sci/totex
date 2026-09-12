@@ -23,13 +23,19 @@
 .junction__knot {
   width: var(--knot);
   height: var(--knot);
+  padding: 0;
+  border: none;
   border-radius: 50%;
   background: var(--mui-palette-background-default);
   box-shadow: var(--clearance);
-  /* It answers the pointer only so that the count it gathers can be read off
-     it. There is nothing to press: no `nopan` in the markup, so the hand that
-     comes down here carries the canvas as it would anywhere else on the grid. */
-  cursor: inherit;
+  /* A button, because the one thing a knot can be pressed to do is shut the
+     namespace it gathers away: `nopan` in the markup, so the press is the
+     knot's and not the start of a pan. */
+  cursor: pointer;
+}
+
+.junction__knot:focus-visible {
+  outline: none;
 }
 
 /* The arms, drawn over the disc: three lines through the one centre, in the
@@ -44,8 +50,90 @@
   fill: none;
   stroke: var(--mark);
   stroke-width: 1;
+  transition: stroke-width var(--reveal);
   /* The pointer is answered by the disc, which is what carries the count. */
   pointer-events: none;
+}
+
+/* Under the cursor the arms take a little more weight, which is how every
+   mark on this canvas says it has been found without growing. */
+.junction__knot:hover .junction__arms,
+.junction__knot:focus-visible .junction__arms {
+  stroke-width: 1.6;
+}
+
+/* The press, shown.
+
+   The mark is the same asterisk shut as open — an arm is a line through the
+   centre, and a line through the centre turned by a half turn is itself — so
+   the state is said by the fan and the press is said by the turn. Each arm
+   turns about the one centre they cross at, and each its own way: the upright
+   one with the clock, the next against it, the last with it again, so that for
+   the length of the turn the three are three things and at the end of it they
+   are one mark again. Shutting turns them the one way and opening turns them
+   back, which is how the two presses are told apart while they are happening.
+
+   The turn gathers speed and then loses it: it sets off slowly, is at its
+   fastest half way, and settles. A turn at one speed reads as a mechanism
+   rather than as a thing that was pushed. The arms set off a beat apart, so the
+   asterisk comes undone from the centre outwards rather than all at once.
+
+   `transform-box` so the centre is the knot's own rather than the line's: a
+   line has no box of its own to speak of, and turning it about the middle of
+   nothing sends it across the disc. */
+.junction__arms line {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.junction__arms.is-turning line {
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.junction__arms.is-turning line:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.junction__arms.is-turning line:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.junction__arms.is-turning--shut line:nth-child(1),
+.junction__arms.is-turning--shut line:nth-child(3),
+.junction__arms.is-turning--open line:nth-child(2) {
+  animation-name: knot-turn-with;
+}
+
+.junction__arms.is-turning--shut line:nth-child(2),
+.junction__arms.is-turning--open line:nth-child(1),
+.junction__arms.is-turning--open line:nth-child(3) {
+  animation-name: knot-turn-against;
+}
+
+@keyframes knot-turn-with {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes knot-turn-against {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-180deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .junction__arms.is-turning line {
+    animation: none;
+  }
 }
 
 /* The path the knot gathers, on the line above it.

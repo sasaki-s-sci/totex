@@ -31,6 +31,11 @@ export type GraphInput = {
    * holding several starts with all of them folded into marks. See `isOpen`.
    */
   opened: ReadonlyMap<string, boolean>;
+  /**
+   * The knots pressed shut, by node id: a namespace whose branches have left
+   * the column, leaving the knot standing for the lot of them. See `junctions`.
+   */
+  closed: ReadonlySet<string>;
   /** What this window is running, in the order it was opened. */
   sessions: readonly Session[];
   /** The session the panel is showing, if any. */

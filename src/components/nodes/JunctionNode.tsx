@@ -1,16 +1,24 @@
 import type { NodeProps } from "@xyflow/react";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { JUNCTION_SIZE, type JunctionFlowNode } from "../../lib/graph";
+import { useGraphActions } from "../graphActions";
 
 /**
  * Where the branches that start the same way are gathered.
  *
- * A knot in the wiring and nothing else: `dev/` is not a ref, so there is
- * nothing to press and nothing to open. The mark says so by standing under the
- * size of a commit, which is the least thing on here that is real, and by being
- * struck rather than filled — an asterisk, which is what stands in for the rest
- * of a name. Read with the word set over it, the knot is `dev/*`.
+ * A knot in the wiring: `dev/` is not a ref, so there is nothing here to work
+ * in. The mark says so by standing under the size of a commit, which is the
+ * least thing on here that is real, and by being struck rather than filled —
+ * an asterisk, which is what stands in for the rest of a name. Read with the
+ * word set over it, the knot is `dev/*`.
+ *
+ * The one thing it can be pressed to do is shut: the fan goes, the branches
+ * under it leave the column, and the knot stands for the lot of them until it
+ * is pressed again. The mark is the same either way — what says which it is is
+ * the fan, drawn or not — so the press itself is what is shown: the three arms
+ * turn about their centre, each its own way, and come to rest as the asterisk
+ * they were. See `.junction__arms`.
  *
  * The path it gathers is set on the line above it, the way every name on this
  * canvas is set over the thing it names. It used to carry none, on the reading
@@ -22,9 +30,15 @@ import { JUNCTION_SIZE, type JunctionFlowNode } from "../../lib/graph";
  * The count stays with the pointer, which is where a number belongs: it is what
  * the group amounts to rather than what it is.
  */
-export function JunctionNode({ data }: NodeProps<JunctionFlowNode>) {
+export function JunctionNode({ id, data }: NodeProps<JunctionFlowNode>) {
   const { t } = useTranslation();
-  const { prefix, members } = data;
+  const { prefix, members, closed } = data;
+  const { toggleJunction } = useGraphActions();
+  // The press being shown, if any: which way the arms are turning and how
+  // many presses there have been. The way is read off the state the press was
+  // made in rather than off `closed`, which only changes once the graph has
+  // been built again: the arms turn once per press, in the one direction.
+  const [turn, setTurn] = useState<{ count: number; way: "shut" | "open" } | null>(null);
 
   return (
     // The knot's size is handed to the stylesheet rather than written there,
@@ -34,14 +48,24 @@ export function JunctionNode({ data }: NodeProps<JunctionFlowNode>) {
       {/* With the trailing slash the prefix is held without, because the slash
           is the half of it that says this is a namespace and not a branch. */}
       <span className="junction__name">{`${prefix}/`}</span>
-      {/* No `nopan`: there is nothing to press here, so a hand that comes down on
-          the knot is a hand on the canvas and should carry it. */}
-      <span
-        className="mark mark--centred junction__knot"
+      <button
+        type="button"
+        className="mark mark--centred nopan junction__knot"
         title={t("graph.junction", { prefix, count: members })}
+        aria-expanded={!closed}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          setTurn((held) => ({ count: (held?.count ?? 0) + 1, way: closed ? "open" : "shut" }));
+          toggleJunction(id);
+        }}
       >
+        {/* Keyed by the press, so each one is a fresh drawing of the arms and
+            the turn runs again from the start rather than carrying on from
+            wherever the last one had got to. */}
         <svg
-          className="junction__arms"
+          key={turn?.count ?? 0}
+          className={`junction__arms${turn ? ` is-turning is-turning--${turn.way}` : ""}`}
           viewBox={`0 0 ${JUNCTION_SIZE} ${JUNCTION_SIZE}`}
           aria-hidden="true"
         >
@@ -49,7 +73,7 @@ export function JunctionNode({ data }: NodeProps<JunctionFlowNode>) {
             <line key={degrees} {...ends} />
           ))}
         </svg>
-      </span>
+      </button>
     </div>
   );
 }

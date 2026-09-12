@@ -66,6 +66,7 @@ export function buildCommitGraph(
     folders,
     visible,
     opened,
+    closed,
     sessions,
     showing,
     asks,
@@ -95,7 +96,7 @@ export function buildCommitGraph(
   const prepared = new Map(
     workspace.repositories.map((repository) => [
       repository.id,
-      prepare(repository, visible.get(repository.id), deep),
+      prepare(repository, visible.get(repository.id), deep, closed),
     ]),
   );
 

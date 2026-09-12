@@ -12,6 +12,7 @@ const server = await createServer({
   server: { watch: null },
 });
 const { prepare } = await server.ssrLoadModule("/src/lib/graph/layout.ts");
+const { junctionId } = await server.ssrLoadModule("/src/lib/graph/junctions.ts");
 const { COMMIT_STEP, rowReach, branchPitch } =
   await server.ssrLoadModule("/src/lib/graph/model.ts");
 await server.close();
@@ -98,4 +99,87 @@ test("uneven terminal stacks remain balanced, spaced and inside the band", () =>
   for (let i = 1; i < ys.length; i++) {
     assert.ok(ys[i] - ys[i - 1] >= branchPitch(counts[i - 1], counts[i]));
   }
+});
+
+test("a knot pressed shut puts its branches away and takes a row of its own", () => {
+  const repo = repository(["dev/a", "dev/b", "dev/c", "main", "side/x", "side/y"]);
+  const open = prepare(repo, undefined, new Map());
+  const shut = prepare(repo, undefined, new Map(), new Set([junctionId("repo", "dev")]));
+
+  const heads = (graph) => graph.nodes.filter((n) => n.type === "head").map((n) => n.data.name);
+  assert.deepEqual(heads(open), ["dev/a", "dev/b", "dev/c", "main", "side/x", "side/y"]);
+  assert.deepEqual(heads(shut), ["main", "side/x", "side/y"]);
+
+  // The knot stands in the column's own rhythm, on the row `dev/a` had, with
+  // the rest closed up under it: the same pitch as between two branches.
+  const knots = shut.nodes.filter((n) => n.type === "junction");
+  const dev = knots.find((n) => n.data.prefix === "dev");
+  const side = knots.find((n) => n.data.prefix === "side");
+  assert.equal(dev.data.closed, true);
+  assert.equal(side.data.closed, false);
+  assert.equal(dev.data.members, 3);
+  const main = shut.nodes.find((n) => n.type === "head" && n.data.name === "main");
+  assert.equal(middle(main) - middle(dev), COMMIT_STEP.y);
+
+  // The lines from the history still arrive at the shut knot, and nothing
+  // leaves it. The branch column itself has not moved.
+  const lines = [...shut.lines.strokes.flatMap((batch) => batch.parts), ...shut.lines.named];
+  assert.ok(lines.some((line) => line.to.node === dev.id));
+  assert.ok(!lines.some((line) => line.from.node === dev.id));
+  const ringOf = (graph) => graph.nodes.find((n) => n.type === "head").position.x;
+  assert.equal(ringOf(shut), ringOf(open));
+  // And shutting is not a change to the width: the band is as wide as before.
+  assert.equal(shut.style.width, open.style.width);
+});
+
+test("a branch being worked in stays drawn under a shut knot, and the knot takes no row", () => {
+  const repo = repository(["dev/a", "dev/b", "dev/c", "main"]);
+  repo.branches[1].checkedOutIn = ["wt1"];
+  repo.worktrees = [{ id: "wt1", path: "/repo/1", head: "tip" }];
+  const closed = new Set([junctionId("repo", "dev")]);
+  const graph = prepare(repo, undefined, new Map([["/repo/1", 1]]), closed);
+
+  const heads = graph.nodes.filter((n) => n.type === "head").map((n) => n.data.name);
+  assert.deepEqual(heads, ["dev/b", "main"]);
+  const dev = graph.nodes.find((n) => n.type === "junction");
+  const b = graph.nodes.find((n) => n.type === "head" && n.data.name === "dev/b");
+  assert.equal(middle(dev), middle(b));
+  assert.equal(graph.nodes.filter((n) => n.type === "head").length, 2);
+});
+
+test("shutting a knot hides the knots gathered at it, and shutting one of those leaves the rest", () => {
+  const names = ["dev/api/a", "dev/api/b", "dev/web/a", "dev/web/b", "ops/x", "ops/y"];
+  const repo = repository(names);
+  const knotsOf = (graph) =>
+    graph.nodes
+      .filter((n) => n.type === "junction")
+      .map((n) => n.data.prefix)
+      .sort();
+  const headsOf = (graph) => graph.nodes.filter((n) => n.type === "head").map((n) => n.data.name);
+
+  const open = prepare(repo, undefined, new Map());
+  assert.deepEqual(knotsOf(open), ["dev", "dev/api", "dev/web", "ops"]);
+
+  const outer = prepare(repo, undefined, new Map(), new Set([junctionId("repo", "dev")]));
+  assert.deepEqual(knotsOf(outer), ["dev", "ops"]);
+  assert.deepEqual(headsOf(outer), ["ops/x", "ops/y"]);
+
+  const inner = prepare(repo, undefined, new Map(), new Set([junctionId("repo", "dev/api")]));
+  assert.deepEqual(knotsOf(inner), ["dev", "dev/api", "dev/web", "ops"]);
+  assert.deepEqual(headsOf(inner), ["dev/web/a", "dev/web/b", "ops/x", "ops/y"]);
+  // The shut inner knot is seated where `dev/api/a` stood, and the outer knot
+  // still stands half way between it and the knot that is left open.
+  const api = inner.nodes.find((n) => n.type === "junction" && n.data.prefix === "dev/api");
+  const webA = inner.nodes.find((n) => n.type === "head" && n.data.name === "dev/web/a");
+  assert.equal(middle(webA) - middle(api), COMMIT_STEP.y);
+  const dev = inner.nodes.find((n) => n.type === "junction" && n.data.prefix === "dev");
+  const web = inner.nodes.find((n) => n.type === "junction" && n.data.prefix === "dev/web");
+  assert.equal(middle(dev), (middle(api) + middle(web)) / 2);
+});
+
+test("a knot shut in another repository is nothing to this one", () => {
+  const repo = repository(["dev/a", "dev/b", "main"]);
+  const graph = prepare(repo, undefined, new Map(), new Set([junctionId("other", "dev")]));
+  assert.equal(graph.nodes.filter((n) => n.type === "head").length, 3);
+  assert.equal(graph.nodes.find((n) => n.type === "junction").data.closed, false);
 });

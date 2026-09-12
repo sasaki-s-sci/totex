@@ -18,6 +18,7 @@ import { useFilePreviews } from "../hooks/useFilePreviews";
 import { useFolderPlaces } from "../hooks/useFolderPlaces";
 import { useFolderView } from "../hooks/useFolderView";
 import { useHistoryDepth } from "../hooks/useHistoryDepth";
+import { useJunctionView } from "../hooks/useJunctionView";
 import { useNodeGlide } from "../hooks/useNodeGlide";
 import { useSaidStyle } from "../hooks/useSaidStyle";
 import { useSettingsPage } from "../hooks/useSettingsPage";
@@ -103,16 +104,42 @@ export function GitGraph({
   // And which of them the column is standing in, which is drawn inside them.
   const browsed = useBrowsedWorktrees(workspace, browsing);
   const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);
+  // And which namespaces in the branch columns have been pressed shut.
+  const { closed, toggleJunction } = useJunctionView();
   // Where each folder has been carried to, which is the one thing about this
   // canvas that was decided by hand rather than laid out.
   const { places, placeFolder } = useFolderPlaces();
   const graph = useMemo(
     () =>
       buildCommitGraph(
-        { workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places },
+        {
+          workspace,
+          folders,
+          visible,
+          opened,
+          closed,
+          sessions,
+          showing,
+          asks,
+          reports,
+          reaching,
+          places,
+        },
         applied.current ?? undefined,
       ),
-    [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places],
+    [
+      workspace,
+      folders,
+      visible,
+      opened,
+      closed,
+      sessions,
+      showing,
+      asks,
+      reports,
+      reaching,
+      places,
+    ],
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([
@@ -341,6 +368,7 @@ export function GitGraph({
     openRepository,
     foldRepository,
     toggleFolder,
+    toggleJunction,
     expand,
     fold,
     reachFold,
