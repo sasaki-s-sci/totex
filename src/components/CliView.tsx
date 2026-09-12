@@ -512,6 +512,13 @@ export function CliView({
         transformOrigin: "0 0",
         boxShadow: failed ? "inset 0 2px 0 0 var(--mui-palette-error-main)" : "none",
         "& > .xterm": { padding: `${PAD.y}px ${PAD.x}px` },
+        // The emulator's stylesheet paints its viewport black, and its viewport
+        // is an empty layer over the whole box, padding and all: the rows are
+        // drawn in another element inside the padding, in the theme's colour.
+        // Left alone, that is a black edge around the rows in any palette that
+        // is not black. Cleared, and the box shows through, which is the same
+        // colour as the rows.
+        "& .xterm-viewport": { background: "transparent" },
       }}
     />
   );
