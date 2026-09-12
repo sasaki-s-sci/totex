@@ -43,6 +43,8 @@ export type JunctionNodeData = {
   prefix: string;
   /** How many rows of the branch column run through it. */
   members: number;
+  /** Pressed shut, so that the branches under it have left the column. */
+  closed: boolean;
 };
 
 /**

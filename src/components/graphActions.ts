@@ -88,6 +88,11 @@ export type GraphActions = {
   foldRepository: (repository: string) => void;
   /** The folder's name: open everything in it, or fold everything away. */
   toggleFolder: (root: string) => void;
+  /**
+   * A knot in the branch column: shut the namespace it gathers away, leaving
+   * the knot standing for the lot, or open the fan out again.
+   */
+  toggleJunction: (junction: string) => void;
   /** Show the whole of a repository's history, not just its newest end. */
   expand: (repository: string) => void;
   /** Fold it back down to its newest `shown` commits. */
@@ -204,6 +209,7 @@ export const NO_ACTIONS: GraphActions = {
   openRepository: () => {},
   foldRepository: () => {},
   toggleFolder: () => {},
+  toggleJunction: () => {},
   expand: () => {},
   fold: () => {},
   reachFold: () => {},

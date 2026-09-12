@@ -38,6 +38,8 @@ export type Frame = {
   branchLine: readonly number[];
   /** The names gathered by the start they share, and what hangs off each. */
   bundle: Bundle;
+  /** The row a shut knot with nothing left under it stands in, by junction id. */
+  seats: ReadonlyMap<string, number>;
   /** Where each of those knots stands, filled in before anything is drawn. */
   junctionAt: Map<string, Point>;
   /** The left edge of a branch's cell, and the middle of its ring. */

@@ -32,19 +32,53 @@ export type Junction = {
   parent: string | null;
   /** How many branch rows are gathered under it, the nested ones included. */
   members: number;
+  /**
+   * Shut: pressed so that nothing fans out of it.
+   *
+   * The knot stays, with the count and the lines from the history it gathers,
+   * and the branches under it leave the column — a namespace of forty lines of
+   * old work is a namespace somebody wants to read as one word. What is
+   * running is the exception, as it is everywhere on this canvas: a branch
+   * with a terminal in it is drawn whatever was pressed, hanging off the shut
+   * knot, because a mark that answers to something cannot be left off.
+   */
+  closed: boolean;
 };
 
 /** Every junction one repository draws, and what hangs off each of them. */
 export type Bundle = {
   /** Shallowest first, so a parent is always placed before its children. */
   junctions: Junction[];
-  /** The junction a ref's own line leaves, by ref id; absent where none does. */
+  /**
+   * The junction a ref's own line leaves, by ref id; absent where none does.
+   *
+   * Every ref, drawn or not: a ref under a shut knot still names the knot, so
+   * that the lines from the history into that knot can be read off the whole
+   * of what it gathers.
+   */
   parentOf: ReadonlyMap<string, string>;
   /** How many columns of the grid the whole of it takes; zero when it is empty. */
   width: number;
+  /** The refs that leave the column, by id: under a shut knot and not running. */
+  hidden: ReadonlySet<string>;
 };
 
-const EMPTY_BUNDLE: Bundle = { junctions: [], parentOf: new Map(), width: 0 };
+/** Which knots are shut, and what keeps a branch under one drawn anyway. */
+export type Shutting = {
+  /** The junctions that were pressed shut, by node id. */
+  closed: ReadonlySet<string>;
+  /** Whether a branch is being worked in, which keeps it drawn. */
+  running: (ref: PlacedRef) => boolean;
+};
+
+const EMPTY_BUNDLE: Bundle = {
+  junctions: [],
+  parentOf: new Map(),
+  width: 0,
+  hidden: new Set(),
+};
+
+const NOTHING_SHUT: Shutting = { closed: new Set(), running: () => false };
 
 /**
  * How many junctions buy one more column.
@@ -64,7 +98,11 @@ const PER_COLUMN = 2;
  * and so that `origin` is never itself a namespace: what a remote calls a
  * branch is not what the branch is.
  */
-export function bundleBranches(repositoryId: string, refs: readonly PlacedRef[]): Bundle {
+export function bundleBranches(
+  repositoryId: string,
+  refs: readonly PlacedRef[],
+  shutting: Shutting = NOTHING_SHUT,
+): Bundle {
   // Which rows each shared start covers. Rows rather than refs: a branch and
   // its remote end share a row and are one line of work, and a group of one is
   // not a group.
@@ -87,15 +125,34 @@ export function bundleBranches(repositoryId: string, refs: readonly PlacedRef[])
   // And then the ones that gather a single thing go, which can only happen
   // once the depth is settled: `dev` is worth drawing when `dev/api` is too
   // deep to draw and worth nothing when it is not.
-  const kept = pruned(new Set(gathering.filter((prefix) => depthOf(prefix) <= columns)), refs);
-  if (kept.size === 0) return EMPTY_BUNDLE;
+  const gathered = pruned(new Set(gathering.filter((prefix) => depthOf(prefix) <= columns)), refs);
+  if (gathered.size === 0) return EMPTY_BUNDLE;
+
+  // The room is settled before anything is shut, and against the whole of
+  // what is gathered: a knot that is pressed keeps its column, so that pressing
+  // one does not move the branch column of everything else in the band.
+  const width = [...gathered].reduce((deepest, prefix) => Math.max(deepest, depthOf(prefix)), 0);
+
+  // A shut knot hides everything under it, the knots gathered at it included:
+  // `dev/api` is inside the fan `dev` no longer draws. What is left is what is
+  // drawn, and the nearest of those is what every ref under it hangs off.
+  const shut = new Set(
+    [...gathered].filter((prefix) => shutting.closed.has(junctionId(repositoryId, prefix))),
+  );
+  const kept = new Set([...gathered].filter((prefix) => holder(shut, prefix) === null));
+
+  // By row rather than by ref: a branch and its remote end are one line of
+  // work, and the end that is being worked in keeps the other drawn beside it.
+  const working = new Set(refs.filter((ref) => shutting.running(ref)).map((ref) => ref.row));
 
   const parentOf = new Map<string, string>();
   const members = new Map<string, number>();
+  const hidden = new Set<string>();
   for (const ref of refs) {
     const over = holder(kept, ref.group);
     if (over === null) continue;
     parentOf.set(ref.id, junctionId(repositoryId, over));
+    if (shut.has(over) && !working.has(ref.row)) hidden.add(ref.id);
     // Every junction on the way up counts the row, so a junction says how much
     // of the column runs through it rather than how much stops there.
     for (const prefix of prefixesOf(ref.group)) {
@@ -111,13 +168,63 @@ export function bundleBranches(repositoryId: string, refs: readonly PlacedRef[])
       column: depthOf(prefix) - 1,
       parent: above(kept, prefix, repositoryId),
       members: members.get(prefix) ?? 0,
+      closed: shut.has(prefix),
     }));
 
-  return {
-    junctions,
-    parentOf,
-    width: junctions.reduce((deepest, junction) => Math.max(deepest, junction.column + 1), 0),
+  return { junctions, parentOf, width, hidden };
+}
+
+/** The branch column as it is drawn, once the shut knots have taken their rows. */
+export type Column = {
+  /** The refs that are drawn, each on the row it is drawn in. */
+  refs: PlacedRef[];
+  /** How many rows the column has. */
+  rows: number;
+  /** The row a shut knot with nothing left under it stands in, by junction id. */
+  seats: ReadonlyMap<string, number>;
+};
+
+/**
+ * The column dealt again with the shut knots' branches gone.
+ *
+ * The rows close up, in the order they were dealt in, so a namespace shut in
+ * the middle of the column leaves no gap. A shut knot with nothing drawn under
+ * it takes a row of its own, where its first branch stood: it is what the
+ * namespace amounts to now, and a knot standing in the column's own rhythm
+ * reads as the one line the group has become rather than as a mark that lost
+ * its fan. One that still has a running branch hanging off it takes none — it
+ * stands in the middle of what it covers, as an open knot does.
+ */
+export function dealColumn(refs: readonly PlacedRef[], bundle: Bundle): Column {
+  // Which shut knots still have a branch drawn under them.
+  const covered = new Set<string>();
+  for (const ref of refs) {
+    const over = bundle.parentOf.get(ref.id);
+    if (over !== undefined && !bundle.hidden.has(ref.id)) covered.add(over);
+  }
+
+  const taken = new Map<number, number>();
+  const seats = new Map<string, number>();
+  const drawn: PlacedRef[] = [];
+  const row = (of: number) => {
+    const held = taken.get(of);
+    if (held !== undefined) return held;
+    const next = taken.size + seats.size;
+    taken.set(of, next);
+    return next;
   };
+
+  for (const ref of [...refs].sort((left, right) => left.row - right.row)) {
+    if (!bundle.hidden.has(ref.id)) {
+      drawn.push({ ...ref, row: row(ref.row) });
+      continue;
+    }
+    const over = bundle.parentOf.get(ref.id);
+    if (over === undefined || covered.has(over) || seats.has(over)) continue;
+    seats.set(over, taken.size + seats.size);
+  }
+
+  return { refs: drawn, rows: taken.size + seats.size, seats };
 }
 
 export function junctionId(repositoryId: string, prefix: string): string {

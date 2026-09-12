@@ -24,6 +24,7 @@ export function useCanvasActions({
   openRepository,
   foldRepository,
   toggleFolder,
+  toggleJunction,
   expand,
   fold,
   reachFold,
@@ -54,6 +55,7 @@ export function useCanvasActions({
   openRepository: GraphActions["openRepository"];
   foldRepository: GraphActions["foldRepository"];
   toggleFolder: GraphActions["toggleFolder"];
+  toggleJunction: GraphActions["toggleJunction"];
   expand: GraphActions["expand"];
   fold: GraphActions["fold"];
   reachFold: GraphActions["reachFold"];
@@ -86,6 +88,7 @@ export function useCanvasActions({
       openRepository,
       foldRepository,
       toggleFolder,
+      toggleJunction,
       expand,
       fold,
       reachFold,
@@ -117,6 +120,7 @@ export function useCanvasActions({
       openRepository,
       foldRepository,
       toggleFolder,
+      toggleJunction,
       expand,
       fold,
       reachFold,

@@ -6,7 +6,7 @@ import { drawJunctions } from "./band/junctions";
 import { placeBranches } from "./branches";
 import type { Point } from "./geometry";
 import { depthOf, placeHistory } from "./history";
-import { bundleBranches } from "./junctions";
+import { bundleBranches, dealColumn, junctionId } from "./junctions";
 import { Lines } from "./lines";
 import {
   type BandLines,
@@ -91,25 +91,37 @@ export type Depth = ReadonlyMap<string, number>;
  *  preserves for everything it did not change. */
 const layouts = new WeakMap<
   Repository,
-  { shown: number; deep: string; prepared: PreparedRepository }
+  { shown: number; deep: string; shut: string; prepared: PreparedRepository }
 >();
+
+/** No knot pressed shut, which is how a repository opens. */
+const NONE_SHUT: ReadonlySet<string> = new Set();
 
 export function prepare(
   repository: Repository,
   want: number | undefined,
   deep: Depth,
+  /** The junctions pressed shut, by node id — this repository's and every other's. */
+  closed: ReadonlySet<string> = NONE_SHUT,
 ): PreparedRepository {
   const shown = depthOf(repository, want);
   // What of that map this repository is actually affected by, as one string, so
   // that terminals opening and closing somewhere else on the canvas are not a
   // reason to lay this one out again.
   const key = repository.worktrees.map((worktree) => deep.get(worktree.path) ?? 0).join(",");
+  // And the same for the knots: only this repository's own are a change to it.
+  const shut = [...closed]
+    .filter((id) => id.startsWith(junctionId(repository.id, "")))
+    .sort()
+    .join(",");
 
   const cached = layouts.get(repository);
-  if (cached && cached.shown === shown && cached.deep === key) return cached.prepared;
+  if (cached && cached.shown === shown && cached.deep === key && cached.shut === shut) {
+    return cached.prepared;
+  }
 
-  const prepared = layout(repository, shown, deep);
-  layouts.set(repository, { shown, deep: key, prepared });
+  const prepared = layout(repository, shown, deep, closed);
+  layouts.set(repository, { shown, deep: key, shut, prepared });
   return prepared;
 }
 
@@ -122,16 +134,27 @@ export function prepare(
 const BRANCH_GAP = COMMIT_STEP.x / 2;
 
 /** Every node and line one repository contributes, relative to its band. */
-function layout(repository: Repository, shown: number, deep: Depth): PreparedRepository {
+function layout(
+  repository: Repository,
+  shown: number,
+  deep: Depth,
+  closed: ReadonlySet<string>,
+): PreparedRepository {
   const history = placeHistory(repository, shown);
-  const { refs, rows } = placeBranches(repository, history.placed, {
+  const running = (cwd: string | null) => cwd !== null && (deep.get(cwd) ?? 0) > 0;
+  const { refs: every } = placeBranches(repository, history.placed, {
     // Every branch the repository has is drawn, and the ones standing on
     // history that is folded away hang off the fold.
     folded: history.hidden > 0,
-    running: (cwd) => cwd !== null && (deep.get(cwd) ?? 0) > 0,
+    running,
   });
-  // And the ones whose names start the same way are gathered on the way out.
-  const bundle = bundleBranches(repository.id, refs);
+  // And the ones whose names start the same way are gathered on the way out —
+  // or, where the knot they are gathered at was pressed shut, not drawn at all.
+  const bundle = bundleBranches(repository.id, every, {
+    closed,
+    running: (ref) => running(ref.data.cwd),
+  });
+  const { refs, rows, seats } = dealColumn(every, bundle);
 
   // How deep each row of the branch column is: what is running there, and
   // nothing else. The offer of a terminal is a button on the branch's own ring
@@ -198,6 +221,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
     historyLine,
     branchLine,
     bundle,
+    seats,
     junctionAt: new Map(),
     heads,
     ring,
@@ -210,7 +234,7 @@ function layout(repository: Repository, shown: number, deep: Depth): PreparedRep
   // Before the heads: a branch that is gathered leaves its knot rather than the
   // history, and the knot has to be standing somewhere before that line can be
   // drawn to it.
-  drawJunctions(frame, refs);
+  drawJunctions(frame, refs, every);
   drawHeads(frame, refs);
 
   // Reserve the lower extent of both history and branch stacks.
