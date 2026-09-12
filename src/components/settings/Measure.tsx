@@ -9,6 +9,7 @@ export function Measure({
   room,
   step = 1,
   unit = "",
+  read,
   disabled,
   onPick,
 }: {
@@ -19,6 +20,11 @@ export function Measure({
   step?: number;
   /** What the number is counted in, where it is not obvious — drawn after it. */
   unit?: string;
+  /**
+   * How the number is written, where it is not simply the number and its unit:
+   * a slider whose last notch means something other than one more.
+   */
+  read?: (value: number) => string;
   disabled?: boolean;
   onPick: (next: number) => void;
 }) {
@@ -41,8 +47,7 @@ export function Measure({
           variant="body2"
           sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
         >
-          {value}
-          {unit}
+          {read ? read(value) : `${value}${unit}`}
         </Typography>
       </Stack>
     </Row>

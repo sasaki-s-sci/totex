@@ -20,6 +20,8 @@ test("totex schema rejects invalid dropdown values and numeric bounds", () => {
     { cliWheel: 0 },
     { graphWheel: 401 },
     { gridStep: 0 },
+    { gridStep: 101 },
+    { said: { opacity: 0 } },
     { said: { lines: 0 } },
   ]) {
     assert.equal(

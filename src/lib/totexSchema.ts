@@ -11,7 +11,7 @@ export const totexSchema: RJSFSchema = {
     reveal: { title: "Reveal", type: "string", enum: ["never", "edge", "centre"] },
     follow: { title: "Follow", type: "boolean" },
     backgroundGrid: { title: "Background grid", type: "boolean" },
-    gridStep: { title: "Grid spacing (px)", type: "integer", minimum: 8, maximum: 96 },
+    gridStep: { title: "Grid spacing (px)", type: "integer", minimum: 1, maximum: 100 },
     gridSnap: { title: "Hold file cards to the grid", type: "boolean" },
     mcpServing: { title: "MCP server", type: "boolean" },
     fileTitle: { title: "File title", type: "string", enum: ["name", "path"] },
@@ -23,6 +23,7 @@ export const totexSchema: RJSFSchema = {
       type: "object",
       properties: {
         showing: { type: "boolean" },
+        opacity: { type: "integer", minimum: 1, maximum: 100 },
         face: { type: "string", enum: ["terminal", "window"] },
         size: { type: "integer", minimum: 1, maximum: 20 },
         lines: { type: "integer", minimum: 1, maximum: 6 },

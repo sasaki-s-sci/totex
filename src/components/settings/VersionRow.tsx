@@ -171,7 +171,6 @@ function VersionSelect({
 export function VersionRow({
   name,
   standing,
-  hint,
   disabled,
   onChange,
   blockedHint,
@@ -179,8 +178,6 @@ export function VersionRow({
   name: string;
   blockedHint: string;
   standing: Standing;
-  /** The half-sentence about why this row is the shape it is, where there is one. */
-  hint?: string;
   disabled: boolean;
   onChange: (version: string | null) => void;
 }) {
@@ -190,16 +187,8 @@ export function VersionRow({
       <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
         {name}
       </Typography>
-      {/* The version and the half-sentence about it are one column, so that a
-          row which has something to explain grows downwards rather than
-          pushing the pull-down along. */}
-      <Stack sx={{ gap: 0.25, flex: 1, minWidth: 0 }}>
+      <Stack sx={{ flex: 1, minWidth: 0 }}>
         <VersionMove standing={standing} />
-        {hint && (
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {hint}
-          </Typography>
-        )}
       </Stack>
       <VersionSelect
         label={t("update.pin", { name })}

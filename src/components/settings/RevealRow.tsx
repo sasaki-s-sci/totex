@@ -1,4 +1,4 @@
-/** How far the canvas moves to keep the walk in view. */
+/** Where the canvas keeps the walk: the point a step with the keys anchors on. */
 
 import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -28,7 +28,7 @@ export function RevealRow() {
   const revealing = useRevealing();
 
   return (
-    <Row label={t("settings.reveal")} hint={t("settings.revealHint")}>
+    <Row label={t("settings.reveal")}>
       <Select
         size="small"
         value={revealing}

@@ -46,6 +46,7 @@ type Written = {
   size: string;
   lines: string;
   width: string;
+  opacity: string;
 };
 
 function clamp(value: number, room: { least: number; most: number }): number {
@@ -76,6 +77,9 @@ function written(said: Said, across: number | null): Written {
     size: `${said.size}px`,
     lines: String(fits ? fits.lines : said.lines),
     width: `${fits ? fits.width : said.width}px`,
+    // Only the lines kept on are faded: a line called up under Ctrl is glanced
+    // at, and a glance wants the whole of it.
+    opacity: said.showing ? String(said.opacity / 100) : "1",
   };
 }
 
@@ -114,7 +118,8 @@ export function useSaidStyle(host: RefObject<HTMLDivElement | null>) {
         before &&
         before.size === write.size &&
         before.lines === write.lines &&
-        before.width === write.width
+        before.width === write.width &&
+        before.opacity === write.opacity
       ) {
         return;
       }
@@ -122,6 +127,7 @@ export function useSaidStyle(host: RefObject<HTMLDivElement | null>) {
       canvas.style.setProperty("--said-size", write.size);
       canvas.style.setProperty("--said-lines", write.lines);
       canvas.style.setProperty("--said-width", write.width);
+      canvas.style.setProperty("--said-opacity", write.opacity);
     },
     [host],
   );

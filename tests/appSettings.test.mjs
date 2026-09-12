@@ -34,7 +34,15 @@ test("migrates all existing user preferences, including line size one", () => {
       readingSize: 14,
       cliWheel: 100,
       graphWheel: 100,
-      said: { showing: true, face: "window", size: 1, lines: 3, width: 300, fitting: true },
+      said: {
+        showing: true,
+        opacity: 100,
+        face: "window",
+        size: 1,
+        lines: 3,
+        width: 300,
+        fitting: true,
+      },
     },
   );
 });
