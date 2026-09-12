@@ -18,6 +18,8 @@ export type AppSettings = {
   graphWheel: number;
   said: {
     showing: boolean;
+    /** How solid the lines are when kept on, in percent. */
+    opacity: number;
     face: "terminal" | "window";
     size: number;
     lines: number;
@@ -43,7 +45,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   readingSize: 11,
   cliWheel: 100,
   graphWheel: 100,
-  said: { showing: false, face: "terminal", size: 9, lines: 1, width: 220, fitting: false },
+  said: {
+    showing: false,
+    opacity: 100,
+    face: "terminal",
+    size: 9,
+    lines: 1,
+    width: 220,
+    fitting: false,
+  },
 };
 
 /** Unknown fields remain on disk; missing known fields use the app defaults. */
@@ -76,6 +86,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     graphWheel: 100,
     said: {
       showing: read("totex.said") === "on",
+      opacity: 100,
       face: pick("totex.said.face", ["terminal", "window"], "terminal"),
       size: number("totex.said.size", 1, 20, 9),
       lines: number("totex.said.lines", 1, 6, 1),

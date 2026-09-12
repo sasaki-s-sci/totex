@@ -40,6 +40,14 @@ export type SaidFace =
 export type Said = {
   /** Whether they stand without Ctrl being held. */
   showing: boolean;
+  /**
+   * How solid they are while they stand, in percent. The page offers this and
+   * `showing` as one slider — nought is off, and anything above it is on at
+   * that strength — because a line kept on all day is a line somebody may
+   * want fainter than a line glanced at, and how faint is a matter of degree
+   * that begins at not there.
+   */
+  opacity: number;
   face: SaidFace;
   /** How large, in pixels. */
   size: number;
@@ -59,6 +67,7 @@ export type Said = {
  * is drawing exactly what it drew before.
  */
 export const SIZE = { least: 1, most: 20, start: 9 } as const;
+export const OPACITY = { least: 1, most: 100, start: 100 } as const;
 export const LINES = { least: 1, most: 6, start: 1 } as const;
 export const WIDTH = { least: 80, most: 640, start: 220 } as const;
 
@@ -68,6 +77,20 @@ export function saidNow(): Said {
 }
 export function setSaid(next: Partial<Said>): void {
   updateSettings({ said: next });
+}
+
+/**
+ * The lines as one number, the way the page offers them: nought when they are
+ * not kept on, and how solid they are when they are.
+ */
+export function saidStrength(said: Said): number {
+  return said.showing ? said.opacity : 0;
+}
+
+/** The one number back into the two it stands for. Nought turns the lines off
+ *  and leaves how solid they were alone, so turning them back on is one move. */
+export function setSaidStrength(strength: number): void {
+  setSaid(strength > 0 ? { showing: true, opacity: strength } : { showing: false });
 }
 export function useSaid(): Said {
   return useSyncExternalStore(subscribeSettings, saidNow, saidNow);

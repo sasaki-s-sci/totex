@@ -1,13 +1,18 @@
-import { Divider, Stack } from "@mui/material";
+import { Stack } from "@mui/material";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { askStanding, declare, type Layer, take, useUpdate } from "../../lib/update";
 import { UpdateMark } from "../marks";
 import { PageButton, Row } from "./Row";
-import { compatibleChoices, standing } from "./updateReading";
+import { standing } from "./updateReading";
 import { VersionRow } from "./VersionRow";
 
-export function UpdateSection() {
+/**
+ * The two halves of the app, each with the press that moves it and the pin
+ * that says where to. Nothing is explained beside them: which half is which is
+ * said by its name, and what a press would do by the word on it.
+ */
+export function UpdateRows() {
   const { t } = useTranslation();
   const at = useUpdate();
   useEffect(() => {
@@ -19,16 +24,8 @@ export function UpdateSection() {
   const busy = Object.values(at.presses).some(
     (press) => press.stage === "taking" || press.stage === "ready",
   );
-  const range = (contract: string | null) =>
-    compatibleChoices(at, contract)
-      .map((choice) => choice.version)
-      .join(", ") || "—";
-  const currentContract =
-    at.rungs?.find((rung) => rung.layer === "persistent")?.ephemeralContract ?? null;
   return (
     <>
-      <Divider />
-      <Row label={t("update.title")} />
       {(["persistent", "ephemeral"] as Layer[]).map((layer) => {
         const row = layer === "persistent" ? persistent : ephemeral;
         const press = at.presses[layer];
@@ -38,28 +35,12 @@ export function UpdateSection() {
           : row.to || !row.target
             ? "rest"
             : "current";
-        const hint =
-          layer === "persistent"
-            ? row.can
-              ? t("update.runtimeMove", {
-                  version: row.target?.version ?? row.at,
-                  versions: range(row.target?.ephemeralContract ?? currentContract),
-                })
-              : t("update.held")
-            : t("update.viewRange", { version: persistent.at, versions: range(currentContract) });
         return (
-          <Stack key={layer} sx={{ gap: 0.5, pl: 1.5 }}>
+          <Stack key={layer} sx={{ gap: 0.5 }}>
             <Row
               label={t(
                 layer === "persistent" ? "update.runtimeDescription" : "update.viewDescription",
               )}
-              hint={
-                failed
-                  ? t("update.adjustFailed")
-                  : press.stage === "held"
-                    ? t("update.incompatible")
-                    : undefined
-              }
             >
               {row.can && (
                 <PageButton
@@ -87,7 +68,6 @@ export function UpdateSection() {
             <VersionRow
               name={t(`update.${layer}`)}
               standing={row}
-              hint={hint}
               blockedHint={t(
                 layer === "ephemeral" ? "update.requiresPersistent" : "update.unavailable",
               )}

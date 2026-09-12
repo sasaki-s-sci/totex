@@ -17,12 +17,21 @@ import type { NodeChange } from "@xyflow/react";
 import { useSyncExternalStore } from "react";
 import { settingsNow, subscribeSettings } from "./appSettings";
 
-/** The room the spacing has, and what a window that has never been told uses. */
-export const GRID = { least: 8, most: 96, start: 24 } as const;
+/**
+ * The room the spacing has, and what a window that has never been told uses.
+ *
+ * One pixel to a hundred: the page offers every whole number between, and one
+ * notch past the hundred, which is no grid at all — see `GRID_OFF`.
+ */
+export const GRID = { least: 1, most: 100, start: 24 } as const;
 
-/** How far apart the spacings offered are: every one of them divides the
- *  start, so the grid a card was held to is still a grid it stands on. */
-export const GRID_STEP = 8;
+/**
+ * The notch past the widest spacing, which the page reads as infinity: lines
+ * infinitely far apart are no lines, so landing on it is what turns the grid
+ * off. One slider rather than a slider and a tick, because "how far apart" and
+ * "at all" are the same question asked of the same hand.
+ */
+export const GRID_OFF = GRID.most + 1;
 
 /** The smallest a card may be, which a snapped size is never taken below. */
 export type Least = { width: number; height: number };

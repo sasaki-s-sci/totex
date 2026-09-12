@@ -2,7 +2,7 @@
  * The door the agents say what they are working on through.
  */
 
-import { Divider, Stack, Switch, Typography } from "@mui/material";
+import { Stack, Switch, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import type { ServingControls } from "../../hooks/useServing";
@@ -32,7 +32,7 @@ import { Row } from "./Row";
  * drawn on the canvas: a card beside a terminal, saying what the agent in it is
  * working on.
  */
-export function McpSection({ controls }: { controls: ServingControls }) {
+export function McpRows({ controls }: { controls: ServingControls }) {
   const { t } = useTranslation();
   const { serving, activity, change, setups, installing, register } = controls;
   const status =
@@ -48,8 +48,7 @@ export function McpSection({ controls }: { controls: ServingControls }) {
 
   return (
     <>
-      <Divider />
-      <Row label={t("settings.mcp")}>
+      <Row label={t("settings.mcpServer")}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 0.5 }}>
           <Typography
             variant="caption"
@@ -64,11 +63,11 @@ export function McpSection({ controls }: { controls: ServingControls }) {
             checked={serving}
             disabled={activity === "checking" || activity === "changing"}
             onChange={(_, checked) => change(checked)}
-            slotProps={{ input: { "aria-label": t("settings.mcp") } }}
+            slotProps={{ input: { "aria-label": t("settings.mcpServer") } }}
           />
         </Stack>
       </Row>
-      <Row label={t("settings.register")} hint={t("settings.registerHint")} />
+      <Row label={t("settings.register")} />
       <Stack sx={{ gap: 0.5, pl: 1.5 }}>
         {setups.map((setup) => (
           <AgentRow

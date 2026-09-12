@@ -264,6 +264,8 @@
   max-width: var(--said-width, 220px);
   overflow: hidden;
   color: var(--mui-palette-text-disabled);
+  /* As solid as the page asked for the lines it keeps on; whole otherwise. */
+  opacity: var(--said-opacity, 1);
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
   font-size: var(--said-size, 9px);
   line-height: 1.35;

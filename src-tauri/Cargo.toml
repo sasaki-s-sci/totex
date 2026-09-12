@@ -13,6 +13,9 @@ name = "totex"
 version = "0.10.2"
 edition = "2024"
 rust-version = "1.95"
+# `tauri dev` runs a bare `cargo run`, and with the persistent half among the
+# default members there are two binaries it could mean. This is the window.
+default-run = "totex"
 
 [lib]
 # The desktop binary and the mobile entry point both link against this.

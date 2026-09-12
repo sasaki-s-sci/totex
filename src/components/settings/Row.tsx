@@ -1,9 +1,9 @@
 /**
- * One line of the page: what the thing is on the left, what can be done about
- * it on the right, and the one button this page has.
+ * The lines of the page: a heading, a group under a heading, one setting, and
+ * the one button this page has.
  */
 
-import { Button, Stack, Typography } from "@mui/material";
+import { Button, Divider, Stack, Typography } from "@mui/material";
 
 /**
  * How tall a line of the page is at the least.
@@ -38,40 +38,68 @@ export const TICK_SX = { p: 0.5 } as const;
  * mark is only kept where it says something a word cannot — see the ring on the
  * update button, which is how much of the download has arrived.
  *
- * The name and the line under it are the left half whether or not there is a
- * line: a row with nothing to explain is a row with nothing under its name, and
- * it still sits at the same height as the rest.
+ * The name is all there is on the left. What a setting does is said by the
+ * heading it stands under and the name it has, and nothing else: a line of
+ * small print under every row is a page twice as tall for the same ten
+ * choices.
  */
-export function Row({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  /** The half-sentence a name cannot carry. Left out where the name is enough. */
-  hint?: string;
-  /**
-   * What can be done about it, where that is one thing. A row that names what
-   * the rows under it are about has nothing on its right, and still sits at the
-   * same height as the rest.
-   */
-  children?: React.ReactNode;
-}) {
+export function Row({ label, children }: { label: string; children?: React.ReactNode }) {
   return (
     <Stack
       direction="row"
       sx={{ alignItems: "center", justifyContent: "space-between", gap: 2, minHeight: ROW_HEIGHT }}
     >
-      <Stack>
-        <Typography variant="body2">{label}</Typography>
-        {hint && (
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {hint}
-          </Typography>
-        )}
-      </Stack>
+      <Typography variant="body2">{label}</Typography>
       {children}
     </Stack>
+  );
+}
+
+/**
+ * One part of the page: where the settings under it are felt.
+ *
+ * The page is cut by where a setting shows rather than by what kind of setting
+ * it is — the canvas, a terminal, the agents' door — because that is what
+ * somebody opening it is looking for: the thing in front of them that they want
+ * to be different. A rule above and the name in the heavier weight, so that the
+ * parts can be told apart from across the room.
+ */
+export function Section({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <>
+      <Divider sx={{ my: 0.5 }} />
+      <Typography
+        variant="subtitle2"
+        sx={{ minHeight: ROW_HEIGHT, display: "flex", alignItems: "center" }}
+      >
+        {name}
+      </Typography>
+      {children}
+    </>
+  );
+}
+
+/**
+ * A few rows under one name inside a part: the page on the canvas, the graph
+ * on it. Named in the small grey and stood in from the edge, so that the rows
+ * read as belonging to the name and the name as belonging to the part.
+ */
+export function Group({ name, children }: { name: string; children: React.ReactNode }) {
+  return (
+    <>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          minHeight: ROW_HEIGHT,
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
+        {name}
+      </Typography>
+      <Stack sx={{ gap: 0.5, pl: 1.5 }}>{children}</Stack>
+    </>
   );
 }
 
