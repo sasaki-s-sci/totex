@@ -242,7 +242,7 @@ export function GitGraph({
     ),
   );
   useSettingsPage(settingsRequest, { host, instance, standing, nodes, setNodes, flowReady });
-  const { collapseCliPage } = useCliPages(sessions, paged, showing, {
+  const { collapseCliPage, fitCliPage } = useCliPages(sessions, paged, showing, {
     host,
     instance,
     standing,
@@ -377,6 +377,7 @@ export function GitGraph({
     onEndSession,
     onDockSession,
     collapseCliPage,
+    fitCliPage,
     onAnswer,
     onReply,
     onPoint,

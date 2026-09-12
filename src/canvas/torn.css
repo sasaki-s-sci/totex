@@ -5,7 +5,11 @@
  * card is drawn from the corner at the scale it was pinned at, so the window
  * has the card's shape and no other. The shadow a card wears on the canvas
  * would fall outside that edge and be cut off by it, so out here the border
- * says where the card ends and the shadow is left off.
+ * says where the card ends and the shadow is left off. The corners go square
+ * for the same reason: a rounded card in a square window leaves four corners
+ * of window round it, and what the system draws there — its own edge round the
+ * window, or a ground where the see-through did not take — is a rim round the
+ * card that is no part of it.
  */
 
 .is-card-window,
@@ -22,5 +26,6 @@
 }
 
 .card-window .page {
+  border-radius: 0;
   box-shadow: none;
 }

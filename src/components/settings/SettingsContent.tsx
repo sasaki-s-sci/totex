@@ -18,7 +18,7 @@ import { WheelSection } from "./WheelSection";
 export function SettingsContent() {
   const mcp = useSettingsControls();
   return (
-    <Stack sx={{ p: 2, gap: 1, minWidth: 518 }}>
+    <Stack sx={{ px: 2, py: 1.5, gap: 0.5, minWidth: 518 }}>
       <SettingsSaveStatus />
       <ThemeRow />
       <BackgroundGridRow />

@@ -4,7 +4,7 @@ import { Checkbox, Divider } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import { askFetch, setFollowing, useFetching, useFollowing } from "../../lib/follow";
-import { PageButton, Row } from "./Row";
+import { PageButton, Row, TICK_SX } from "./Row";
 
 /**
  * Whether the window keeps its branches up with their remotes on its own, and
@@ -43,6 +43,7 @@ export function FollowSection() {
       <Row label={t("settings.follow")} hint={t("settings.followHint")}>
         <Checkbox
           size="small"
+          sx={TICK_SX}
           checked={following}
           onChange={(event) => setFollowing(event.target.checked)}
           slotProps={{ input: { "aria-label": t("settings.follow") } }}

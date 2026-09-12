@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { LINES, type SaidFace, SIZE, setSaid, useSaid, WIDTH } from "../../lib/said";
 import { Measure } from "./Measure";
-import { Row } from "./Row";
+import { PICK_SX, Row, TICK_SX } from "./Row";
 
 /** The two faces, in the order they are offered. The terminal's own is first
  *  because it is what the line was always set in. */
@@ -43,6 +43,7 @@ export function SaidSection() {
       <Row label={t("settings.said")} hint={t("settings.saidHint")}>
         <Checkbox
           size="small"
+          sx={TICK_SX}
           checked={said.showing}
           onChange={(event) => setSaid({ showing: event.target.checked })}
           slotProps={{ input: { "aria-label": t("settings.said") } }}
@@ -57,7 +58,7 @@ export function SaidSection() {
             setSaid({ face: event.target.value as SaidFace })
           }
           inputProps={{ "aria-label": t("settings.saidFace") }}
-          sx={{ minWidth: 132 }}
+          sx={PICK_SX}
         >
           {FACES.map((option) => (
             <MenuItem key={option} value={option}>
@@ -80,6 +81,7 @@ export function SaidSection() {
       <Row label={t("settings.saidFit")} hint={t("settings.saidFitHint")}>
         <Checkbox
           size="small"
+          sx={TICK_SX}
           checked={said.fitting}
           onChange={(event) => setSaid({ fitting: event.target.checked })}
           slotProps={{ input: { "aria-label": t("settings.saidFit") } }}

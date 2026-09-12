@@ -26,6 +26,12 @@ type Props = {
   /** Which one is being looked at, or null when the panel is put away. */
   showing: string | null;
   /**
+   * The ones standing on the canvas as pages. Shown here as well, the panel
+   * follows the page: the page measures the shell, and the panel draws the
+   * rows and columns it settled on — see `cliGrid`.
+   */
+  paged: readonly string[];
+  /**
    * Every terminal on the canvas, in the order the numbers are given out.
    *
    * Read off what is drawn rather than out of the sessions above: the numbers
@@ -58,7 +64,7 @@ type Props = {
  * hidden — hidden while still laid out, which is what makes moving between them
  * cost a property rather than a redraw. See below.
  */
-export function SidePanel({ sessions, showing, run, doings, onPage, onEnded }: Props) {
+export function SidePanel({ sessions, paged, showing, run, doings, onPage, onEnded }: Props) {
   const { t } = useTranslation();
   const panel = useRef<HTMLDivElement>(null);
   // The grip is on the panel's left edge, so dragging left widens it.
@@ -199,6 +205,7 @@ export function SidePanel({ sessions, showing, run, doings, onPage, onEnded }: P
             <CliView
               session={session}
               shown={session.id === showing}
+              follow={paged.includes(session.id)}
               onEnded={() => onEnded(session)}
             />
           </Box>

@@ -33,6 +33,7 @@ export function useCanvasActions({
   onEndSession,
   onDockSession,
   collapseCliPage,
+  fitCliPage,
   onAnswer,
   onReply,
   onPoint,
@@ -64,6 +65,7 @@ export function useCanvasActions({
   onEndSession: GraphActions["endSession"];
   onDockSession: GraphActions["dockSession"];
   collapseCliPage: GraphActions["collapseCliPage"];
+  fitCliPage: GraphActions["fitCliPage"];
   onAnswer: GraphActions["answer"];
   onReply: GraphActions["reply"];
   onPoint: GraphActions["point"];
@@ -97,6 +99,7 @@ export function useCanvasActions({
       endSession: onEndSession,
       dockSession: onDockSession,
       collapseCliPage,
+      fitCliPage,
       answer: onAnswer,
       reply: onReply,
       point: onPoint,
@@ -129,6 +132,7 @@ export function useCanvasActions({
       onEndSession,
       onDockSession,
       collapseCliPage,
+      fitCliPage,
       onAnswer,
       onReply,
       onPoint,

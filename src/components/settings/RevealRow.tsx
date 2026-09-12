@@ -4,7 +4,7 @@ import { MenuItem, Select, type SelectChangeEvent } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import { REVEALS, type Reveal, setRevealing, useRevealing } from "../../lib/reveal";
-import { Row } from "./Row";
+import { PICK_SX, Row } from "./Row";
 
 /** What each of the three is called. */
 const REVEAL_LABELS = {
@@ -34,7 +34,7 @@ export function RevealRow() {
         value={revealing}
         onChange={(event: SelectChangeEvent<Reveal>) => setRevealing(event.target.value as Reveal)}
         inputProps={{ "aria-label": t("settings.reveal") }}
-        sx={{ minWidth: 132 }}
+        sx={PICK_SX}
       >
         {REVEALS.map((option) => (
           <MenuItem key={option} value={option}>

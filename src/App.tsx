@@ -128,12 +128,6 @@ function Window() {
     end: endSession,
     endIn: endSessionsIn,
   } = useSessions();
-  // What the panel holds: everything running that has not been stood on the
-  // canvas instead. A terminal is drawn in one of the two places and never both.
-  const docked = useMemo(
-    () => sessions.filter((session) => !paged.includes(session.id)),
-    [sessions, paged],
-  );
 
   // Where each terminal stands among all of them, which is the canvas's reading
   // and the panel's strip. Held by the window because the two are on either
@@ -397,7 +391,8 @@ function Window() {
           the terminals, and a terminal that is unmounted comes back empty. */}
       {SidePanel && (
         <SidePanel
-          sessions={docked}
+          sessions={sessions}
+          paged={paged}
           showing={showing}
           run={run}
           doings={doings}
