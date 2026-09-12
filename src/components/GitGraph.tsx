@@ -56,7 +56,6 @@ export type { MergeRequest, SyncRequest } from "./graphProps";
 
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
-import "@xyflow/react/dist/style.css";
 import "../canvas/index.css";
 
 export function GitGraph({
