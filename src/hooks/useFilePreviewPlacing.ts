@@ -20,9 +20,10 @@ import {
   SETTINGS_REQUEST_ID,
 } from "../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../lib/graph";
+import { gridNow, placeOnGrid } from "../lib/grid";
 import { readyAfter } from "../shell/bridge";
 import { frontValue } from "../shell/state";
-import { FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
+import { FILE_LEAST, FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
@@ -56,6 +57,7 @@ export function useFilePreviewPlacing(
 
     const bounds = host.current?.getBoundingClientRect();
     const flow = instance.current;
+    const grid = gridNow();
     const additions: FilePreviewFlowNode[] = fresh.map((preview) => {
       placedFiles.current.add(preview.id);
       const kept = frontValue<FilePreviewFlowNode[]>("canvas.files")?.find(
@@ -70,7 +72,7 @@ export function useFilePreviewPlacing(
           node.type === "file-preview" && node.data.requestId === preview.beside,
       );
       const stagger = (placedFiles.current.size - 1) % 8;
-      const box = preview.pinned
+      const asked = preview.pinned
         ? preview.pinned.box
         : from
           ? fileSize(from)
@@ -80,9 +82,16 @@ export function useFilePreviewPlacing(
               /\.(csv|tsv)$/i.test(preview.path)
             ? { width: 560, height: 480 }
             : FILE_PREVIEW_SIZE;
-      const corner = from
-        ? { x: from.position.x + box.width + BESIDE_GAP, y: from.position.y }
-        : pageCorner(flow, preview.at ?? canvasMiddle(bounds, box, stagger * 16), box);
+      const wanted = from
+        ? { x: from.position.x + asked.width + BESIDE_GAP, y: from.position.y }
+        : pageCorner(flow, preview.at ?? canvasMiddle(bounds, asked, stagger * 16), asked);
+      // A card opened onto a canvas whose cards are held to the grid opens on
+      // it, rather than off it until it is first touched. A pinned card is
+      // not on the canvas, and keeps the box it was pinned at.
+      const { position: corner, box } =
+        grid.holding && !preview.pinned && !from?.data.pinnedAt
+          ? placeOnGrid(wanted, asked, grid.step, FILE_LEAST)
+          : { position: wanted, box: asked };
       // A preview of a card that has been pinned off the canvas is pinned
       // beside it, in the pane's own pixels: the two are being read against
       // each other, and one of them left the canvas. A card back from a window

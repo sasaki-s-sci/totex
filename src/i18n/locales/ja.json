@@ -104,7 +104,11 @@
     "working": "作業中"
   },
   "settings": {
-    "backgroundGrid": "背景グリッド",
+    "grid": "グリッド",
+    "gridHint": "キャンバス背景の線と、ファイルカードをその線に合わせるかどうか。",
+    "backgroundGrid": "表示する",
+    "gridStep": "間隔",
+    "gridSnap": "ファイルカードを合わせる",
     "fileTitle": "ファイルの表示名",
     "fileName": "ファイル名",
     "fullPath": "フルパス",

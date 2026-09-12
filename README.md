@@ -189,6 +189,11 @@ JSON fields. External edits are reread when the window regains focus or the
 gear is pressed. Invalid JSON and conflicting raw edits are refused without
 discarding the draft.
 
+**Grid** draws lines behind the canvas at a chosen spacing, and can hold
+file cards to them: a card opened, dragged, resized or fitted then stands on a
+line and is a whole number of squares wide and tall. Terminals and the graph
+itself are not held to it.
+
 **File title** selects the file name or full path for every panel header. For
 example, this partial configuration selects full paths and the smallest line
 size:

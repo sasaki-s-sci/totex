@@ -1,11 +1,13 @@
 import {
   type Edge,
+  type NodeChange,
   ReactFlow,
   type ReactFlowInstance,
   useNodesState,
   type Viewport,
 } from "@xyflow/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { fileLeast } from "../hooks/filePreviewBox";
 import { useBrowsedWorktrees } from "../hooks/useBrowsedWorktrees";
 import { useCanvasDrag } from "../hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "../hooks/useCanvasFold";
@@ -31,6 +33,7 @@ import {
   type GraphResult,
 } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
+import { gridNow, heldToGrid } from "../lib/grid";
 import { frontValue, keepFrontValue, readOnSnapshot } from "../shell/state";
 import { BrowsingProvider } from "./browsing";
 import { CanvasBackground } from "./CanvasBackground";
@@ -115,7 +118,7 @@ export function GitGraph({
     [workspace, folders, visible, opened, sessions, showing, asks, reports, reaching, places],
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<AppNode>([
+  const [nodes, setNodes, changeNodes] = useNodesState<AppNode>([
     ...graph.nodes,
     ...(frontValue<FilePreviewFlowNode[]>("canvas.files") ?? []),
     ...(frontValue<CliPageFlowNode[]>("canvas.clis") ?? []),
@@ -147,6 +150,21 @@ export function GitGraph({
     [],
   );
   standing.current = nodes;
+  // A file card dragged or resized while the window holds cards to the grid
+  // lands on a line of it — see `heldToGrid`. Read at the moment of the change
+  // rather than rendered in, so turning it on or off costs the canvas nothing.
+  const onNodesChange = useCallback(
+    (changes: NodeChange<AppNode>[]) => {
+      const { holding, step } = gridNow();
+      if (!holding) return changeNodes(changes);
+      const leastOf = (id: string) => {
+        const node = standing.current.find((candidate) => candidate.id === id);
+        return node?.type === "file-preview" ? fileLeast(node) : null;
+      };
+      changeNodes(heldToGrid(changes, leastOf, step));
+    },
+    [changeNodes],
+  );
   const heldLineNodes = useRef<readonly AppNode[]>(graph.nodes);
   const lineNodes = retainLineNodes(nodes, heldLineNodes.current);
   heldLineNodes.current = lineNodes;

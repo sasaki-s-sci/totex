@@ -27,6 +27,8 @@ test("migrates all existing user preferences, including line size one", () => {
       reveal: "centre",
       follow: true,
       backgroundGrid: false,
+      gridStep: 24,
+      gridSnap: false,
       mcpServing: true,
       fileTitle: "name",
       readingSize: 14,

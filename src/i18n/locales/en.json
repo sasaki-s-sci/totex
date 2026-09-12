@@ -104,7 +104,11 @@
     "working": "is working"
   },
   "settings": {
-    "backgroundGrid": "Background grid",
+    "grid": "Grid",
+    "gridHint": "The lines behind the canvas, and whether file cards are held to them.",
+    "backgroundGrid": "Shown",
+    "gridStep": "Spacing",
+    "gridSnap": "Hold file cards to it",
     "fileTitle": "File title",
     "fileName": "File name",
     "fullPath": "Full path",

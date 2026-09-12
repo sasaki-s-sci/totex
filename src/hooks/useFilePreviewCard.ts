@@ -10,7 +10,8 @@ import { settingsDocument, writeSettingsText } from "../lib/appSettings";
 import type { CardSeed } from "../lib/cardWindow";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { fileSize } from "./filePreviewBox";
+import { gridNow, sizeOnGrid, upToGrid } from "../lib/grid";
+import { fileLeast, fileSize } from "./filePreviewBox";
 import { useCardWindows } from "./useCardWindows";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
@@ -152,6 +153,7 @@ export function useFilePreviewCard(
     (requestId: number, wanted: number, tall?: number) => {
       const room = host.current?.clientWidth ?? 0;
       const zoom = instance.current?.getViewport().zoom ?? 1;
+      const grid = gridNow();
       setNodes((current) =>
         current.map((node) => {
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
@@ -159,8 +161,15 @@ export function useFilePreviewCard(
           // room there is for it is the pane itself — the zoom is something it
           // stepped out of when it was pinned.
           const most = room / (node.data.pinnedAt ? (node.data.pinnedScale ?? 1) : zoom);
-          const width = room > 0 ? Math.min(wanted, most) : wanted;
-          const height = tall ?? fileSize(node).height;
+          const fitted = room > 0 ? Math.min(wanted, most) : wanted;
+          const asked = tall ?? fileSize(node).height;
+          // A card held to the grid comes to the line at or past what was
+          // measured, so that what was measured still fits. A pinned card is
+          // off the canvas, and the grid is the canvas's.
+          const held = grid.holding && !node.data.pinnedAt;
+          const least = fileLeast(node);
+          const width = held ? upToGrid(Math.max(fitted, least.width), grid.step) : fitted;
+          const height = held ? sizeOnGrid(asked, grid.step, least.height) : asked;
           return {
             ...node,
             width,

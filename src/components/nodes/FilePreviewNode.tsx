@@ -2,6 +2,7 @@ import type { NodeProps } from "@xyflow/react";
 import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { displayPath } from "../../folder/format";
+import { FILE_LEAST, SETTINGS_LEAST } from "../../hooks/filePreviewBox";
 import { useReadingSize } from "../../hooks/useReadingSize";
 import { useAppSettings } from "../../lib/appSettings";
 import { drawn, vector } from "../../lib/filePreview";
@@ -28,9 +29,10 @@ import type { SchemaHandle } from "./preview/SchemaReading";
 import { insertTab } from "./preview/text";
 import { FileTools } from "./preview/tools";
 
-/** The smallest box a reading is still worth drawing in. */
-export const MIN_WIDTH = 180;
-export const MIN_HEIGHT = 96;
+/** The smallest box a reading is still worth drawing in — `FILE_LEAST`, which
+ *  is also what a card held to the grid is never rounded below. */
+export const MIN_WIDTH = FILE_LEAST.width;
+export const MIN_HEIGHT = FILE_LEAST.height;
 
 /** The card's own edge, which stands outside everything measured inside it. */
 const BORDERS = 2;
@@ -45,8 +47,8 @@ export function FilePreviewNode({ data }: NodeProps<FilePreviewFlowNode>) {
   return (
     <>
       <PageFrame
-        minWidth={data.view === "settings" ? 520 : MIN_WIDTH}
-        minHeight={data.view === "settings" ? 220 : MIN_HEIGHT}
+        minWidth={data.view === "settings" ? SETTINGS_LEAST.width : MIN_WIDTH}
+        minHeight={data.view === "settings" ? SETTINGS_LEAST.height : MIN_HEIGHT}
         widthOnly={data.collapsed}
       />
       <FilePreviewCard data={data} />
@@ -160,7 +162,7 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
     // card measured the way every other one is.
     const held =
       data.view === "settings"
-        ? 520
+        ? SETTINGS_LEAST.width
         : nativeScroll || isDocument
           ? (bar.current?.parentElement?.clientWidth ?? data.box.width) - BORDERS
           : drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
@@ -170,8 +172,8 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   /** Takes the card down to the smallest an edge could be dragged to: the
    *  least of it that is still a card, with the reading left in it. */
   function shrink() {
-    const settings = data.view === "settings";
-    fitFilePreview(data.requestId, settings ? 520 : MIN_WIDTH, settings ? 220 : MIN_HEIGHT);
+    const least = data.view === "settings" ? SETTINGS_LEAST : FILE_LEAST;
+    fitFilePreview(data.requestId, least.width, least.height);
   }
 
   // What the card is holding only part of, which is a different part in each of

@@ -3,7 +3,8 @@ import { useEffect, useRef } from "react";
 import { refreshSettings, useSettingsDocument } from "../lib/appSettings";
 import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
 import type { FilePreviewFlowNode } from "../lib/graph";
-import { fileNodeId, fileSize } from "./filePreviewBox";
+import { gridNow, placeOnGrid } from "../lib/grid";
+import { fileNodeId, fileSize, SETTINGS_LEAST } from "./filePreviewBox";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
@@ -34,16 +35,22 @@ export function useSettingsPage(
           node.type === "file-preview" && node.data.requestId === SETTINGS_REQUEST_ID,
       );
       if (existing?.data.pinnedAt) return current;
-      const box = existing ? fileSize(existing) : BOX;
-      const position = { x: center.x - box.width / 2, y: center.y - box.height / 2 };
+      const asked = existing ? fileSize(existing) : BOX;
+      const middle = { x: center.x - asked.width / 2, y: center.y - asked.height / 2 };
+      // Opened onto the grid when cards are held to it — see `useFilePreviewPlacing`.
+      const grid = gridNow();
+      const { position, box } = grid.holding
+        ? placeOnGrid(middle, asked, grid.step, SETTINGS_LEAST)
+        : { position: middle, box: asked };
       if (existing)
         return current.map((node) =>
           node === existing
             ? {
                 ...node,
                 position,
+                width: box.width,
                 height: box.height,
-                data: { ...node.data, collapsed: false },
+                data: { ...node.data, collapsed: false, box },
               }
             : node,
         );
@@ -54,7 +61,8 @@ export function useSettingsPage(
         draggable: true,
         dragHandle: PAGE_HANDLE,
         zIndex: PAGE_Z,
-        ...BOX,
+        width: box.width,
+        height: box.height,
         data: {
           requestId: SETTINGS_REQUEST_ID,
           path: document?.path ?? "~/.totex/totex.json",
@@ -66,7 +74,7 @@ export function useSettingsPage(
           state: "ready",
           view: "settings",
           collapsed: false,
-          box: BOX,
+          box,
           pinnedAt: null,
         },
       };

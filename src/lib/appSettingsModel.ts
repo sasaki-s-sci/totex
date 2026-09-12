@@ -5,6 +5,10 @@ export type AppSettings = {
   reveal: "never" | "edge" | "centre";
   follow: boolean;
   backgroundGrid: boolean;
+  /** How far apart the lines of that grid are, in canvas units. */
+  gridStep: number;
+  /** Whether a file card is held to that grid: where it stands and how big it is. */
+  gridSnap: boolean;
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
@@ -32,6 +36,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reveal: "edge",
   follow: false,
   backgroundGrid: false,
+  gridStep: 24,
+  gridSnap: false,
   mcpServing: false,
   fileTitle: "name",
   readingSize: 11,
@@ -61,6 +67,8 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
     follow: read("totex.follow") === "on",
     backgroundGrid: false,
+    gridStep: 24,
+    gridSnap: false,
     mcpServing: read("totex.mcp.serving") === "yes",
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),
