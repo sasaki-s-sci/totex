@@ -17,6 +17,18 @@
   contain: layout;
 }
 
+/* The focus lands on the node itself when a page is reached by tabbing, or
+   left by Shift+Tab out of its reading, and the browser answers with its own
+   ring round the node's box — a second edge outside the card, and a square one
+   round a rounded card. The card says the same thing in its own border (see
+   `preview.css` and `terminal.css`), so the ring is taken off. The engine
+   takes it off only for nodes it lets be selected, and a page is not one. */
+.graph .react-flow__node-file-preview:focus,
+.graph .react-flow__node-cli-page:focus,
+.graph .react-flow__node-settings-page:focus {
+  outline: none;
+}
+
 /* Nothing is drawn for a grip. What says a page can be resized is the cursor
    over the edge it already has — the same answer the panels give. Written
    against the engine's own class as well, which is what its blue line and its
