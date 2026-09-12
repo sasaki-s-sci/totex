@@ -91,6 +91,33 @@ export function centreOf(nodes: readonly AppNode[], id: string): { x: number; y:
   };
 }
 
+/**
+ * The terminal a cursor key lands on: the next one down the numbers, or the
+ * one before.
+ *
+ * Not the nearest in that direction, which is what `step` finds, because the
+ * terminals are not a graph to be walked across: they are a run with a number
+ * on each, and a key that read the canvas geometrically landed somewhere that
+ * depended on how the cards happened to lie — two level with one another were
+ * unreachable from each other with Down, and a lone card off to the side was
+ * skipped or never reached at all. Walking the numbers instead reaches every
+ * terminal in the order they are worn, the same order Ctrl and a digit reads,
+ * and wraps at either end so no press is a press that went nowhere.
+ *
+ * A walk not standing on any of them — one that crossed over from the history
+ * — starts at the first going forward and the last going back.
+ */
+export function neighbour(
+  standing: string | null,
+  stacks: readonly Pickable[],
+  by: 1 | -1,
+): Pickable | null {
+  if (stacks.length === 0) return null;
+  const place = standing ? stacks.findIndex((stack) => stack.id === standing) : -1;
+  if (place < 0) return by > 0 ? stacks[0] : stacks[stacks.length - 1];
+  return stacks[(place + by + stacks.length) % stacks.length];
+}
+
 /** Where a walk starts when nothing has been picked yet: the top left of it. */
 export function first(picks: readonly Pickable[]): Pickable | null {
   let best: Pickable | null = null;

@@ -3,7 +3,15 @@ import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import type { CliJumps } from "../components/cliJumps";
 import { type AppNode, commitNodeId } from "../lib/graph";
-import { first, history, jumpable, type Pickable, pickables, step } from "../lib/graphNav";
+import {
+  first,
+  history,
+  jumpable,
+  neighbour,
+  type Pickable,
+  pickables,
+  step,
+} from "../lib/graphNav";
 import { terminal, typing } from "../lib/keys";
 import { revealing } from "../lib/reveal";
 
@@ -240,27 +248,44 @@ export function useGraphKeys({
       if (node) latest.current.jump(node);
     };
 
-    /** A step of a walk, from wherever the last one left off — either walk sets
-     *  out from where the other stopped, which is why what it is standing on is
-     *  looked up in every node rather than in what is being walked. */
-    const walk = (direction: { x: number; y: number }, terminals: boolean) => {
-      const among = terminals ? places.current : along.current;
-      // The first history press chooses its origin. Later presses walk from it
-      // — and holding Shift has usually chosen it already, which is what leaves
-      // this to the walk that began before the window could pick anything out.
-      const beginning = terminals || at.current ? null : origin();
+    /** A step from terminal to terminal: the next number down, or the one
+     *  before. Down and Right go forward, Up and Left go back — the numbers run
+     *  down the canvas and then across, so both readings of "onward" agree —
+     *  and where the walk is standing is read off the numbers rather than the
+     *  canvas, because the canvas is what used to send this somewhere that
+     *  depended on how the cards lay. See `neighbour`. */
+    const walkTerminals = (direction: { x: number; y: number }) => {
+      const by = direction.x + direction.y > 0 ? 1 : -1;
       // Where the walk is, or failing that where the eye is: the terminal the
-      // panel is holding, or a commit that has been picked out already.
-      const standing =
-        at.current ?? (terminals ? latest.current.shown : null) ?? latest.current.selected;
-      const from = index.current.find((pick) => pick.id === standing);
-      const next = beginning ?? (from ? step(from, among, direction) : first(among));
+      // panel is holding. A walk that crossed over from the history is standing
+      // on a commit, which `neighbour` reads as standing on none of them.
+      const standing = at.current ?? latest.current.shown;
+      const next = neighbour(standing, places.current, by);
       if (!next) return;
 
       const node = stand(next);
       // Reaching a terminal is going to it: the panel comes back holding what
       // the walk arrived at, the same as a number would have left it.
-      if (terminals && node) latest.current.jump(node);
+      if (node) latest.current.jump(node);
+    };
+
+    /** A step of a walk along the history, from wherever the last one left off
+     *  — either walk sets out from where the other stopped, which is why what
+     *  it is standing on is looked up in every node rather than in what is
+     *  being walked. */
+    const walkHistory = (direction: { x: number; y: number }) => {
+      const among = along.current;
+      // The first history press chooses its origin. Later presses walk from it
+      // — and holding Shift has usually chosen it already, which is what leaves
+      // this to the walk that began before the window could pick anything out.
+      const beginning = at.current ? null : origin();
+      // Where the walk is, or failing that where the eye is: a commit that has
+      // been picked out already.
+      const standing = at.current ?? latest.current.selected;
+      const from = index.current.find((pick) => pick.id === standing);
+      const next = beginning ?? (from ? step(from, among, direction) : first(among));
+      if (!next) return;
+      stand(next);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -367,7 +392,8 @@ export function useGraphKeys({
         // into keeps its own arrows, which move a cursor through what is written.
         if (writing) return;
         event.preventDefault();
-        walk(direction, !event.shiftKey);
+        if (event.shiftKey) walkHistory(direction);
+        else walkTerminals(direction);
         return;
       }
 
