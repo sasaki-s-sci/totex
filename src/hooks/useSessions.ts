@@ -91,12 +91,13 @@ export function useSessions() {
   /**
    * Stands one on the canvas as a page, out of the panel.
    *
-   * It stays the one in hand: the panel, with nothing left in it to show, is
-   * put away, and the page that has just been drawn is where the keys go.
+   * The panel is put away, and the page that has just been drawn is where the
+   * keys go. The panel can show the same terminal again — it follows the page
+   * then, see `cliGrid` — but that is asked for, not what tearing one out does.
    */
   const page = useCallback((next: Session) => {
     setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
-    setShowing(next.id);
+    setShowing(null);
   }, []);
 
   /** Puts a page back into the panel, and shows it there. */
