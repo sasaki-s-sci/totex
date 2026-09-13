@@ -6,7 +6,7 @@
   position: absolute;
   z-index: 2;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--mui-palette-text-disabled) 70%, transparent);
+  background: var(--rail);
   pointer-events: none;
 }
 

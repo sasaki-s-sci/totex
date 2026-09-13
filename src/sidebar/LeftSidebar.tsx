@@ -157,8 +157,6 @@ export function LeftSidebar({
           display: "flex",
           flexDirection: "column",
           overflowY: "auto",
-          scrollbarWidth: "none",
-          "&::-webkit-scrollbar": { display: "none" },
         }}
       >
         {panes.panes.map((pane, index) => (

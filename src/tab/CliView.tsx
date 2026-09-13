@@ -33,8 +33,9 @@ const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 const FONT = 12;
 // On the emulator's own element, the one place the fit addon subtracts it.
 const PAD = { x: 8, y: 4 };
-// The fit addon takes this off the width whether or not a bar is drawn.
-const SCROLLBAR = 14;
+// Reserved beside the text as the overview ruler's width, which is what the fit addon takes
+// off whether or not a bar is drawn; the slider is dressed inside it by canvas/styles/terminal.css.
+const SCROLLBAR = 7;
 const LEAST_FONT = 5;
 // Ctrl+V on the wire, which agents read as a picture paste.
 const PASTE_KEY = "\x16";
@@ -105,6 +106,7 @@ export function CliView({
       cursorBlink: true,
       theme: colours,
       scrollSensitivity: wheelFactor("cli"),
+      overviewRuler: { width: SCROLLBAR },
       linkHandler: { activate: openTerminalLink },
     });
     const fit = new FitAddon();
