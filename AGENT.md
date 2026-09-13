@@ -1,1 +1,3 @@
-Write every comment in english
+- Write every comment in english
+- plan better model
+- use multiple agents for each implementation of independent component
