@@ -5,7 +5,7 @@ import {
   internalEpubLink,
   prepareEpub,
   validateEpubZip,
-} from "../src/components/nodes/preview/epubSource.ts";
+} from "../src/canvas/nodes/preview/epubSource.ts";
 
 async function archive(data = "hello") {
   const zip = new JSZip();

@@ -1,4 +1,4 @@
-import { type ComponentType, useEffect, useSyncExternalStore } from "react";
+import { type ComponentType, useEffect, useRef, useSyncExternalStore } from "react";
 import { notifications } from "./notifications";
 
 // biome-ignore lint/suspicious/noExplicitAny: how React types `lazy` itself — the props are the module's own
@@ -124,3 +124,11 @@ const cancelIdle = (handle: number): void => {
   if (asks) window.cancelIdleCallback(handle);
   else window.clearTimeout(handle);
 };
+
+/** True from the first render it is wanted, and from then on: a part unmounted
+ *  the frame its menu closes would vanish instead of fading. */
+export function useEver(wanted: boolean): boolean {
+  const asked = useRef(false);
+  asked.current ||= wanted;
+  return asked.current;
+}

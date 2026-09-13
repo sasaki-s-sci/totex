@@ -214,3 +214,18 @@ export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
 export function history(nodes: readonly AppNode[]): Pickable[] {
   return pickables(nodes.filter((node) => node.type === "commit" || node.type === "repository"));
 }
+
+/** The canvas re-reads the run per graph; an unchanged reading must not re-render the window. */
+export function sameCliRun(held: readonly CliPlace[], next: readonly CliPlace[]): boolean {
+  return (
+    held.length === next.length &&
+    held.every((place, at) => {
+      const against = next[at];
+      return (
+        place.session === against?.session &&
+        place.group === against.group &&
+        place.name === against.name
+      );
+    })
+  );
+}

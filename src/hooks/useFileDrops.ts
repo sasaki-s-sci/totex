@@ -9,7 +9,7 @@ import { useFrontState } from "../shell/state";
  */
 
 import { useCallback, useRef } from "react";
-import { draftKey } from "../components/nodes/preview/draft";
+import { draftKey } from "../canvas/nodes/preview/draft";
 import type { CardSeed } from "../lib/cardWindow";
 import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
 import { keepFrontValue } from "../shell/state";

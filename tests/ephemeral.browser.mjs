@@ -70,7 +70,7 @@ export async function verifyEphemeral(page, base = "http://127.0.0.1:18421") {
   await page.route("**/assets/test-views.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
-      body: `${original}\nconst row = views["src/components/settings/Row.tsx:0"]; views["src/components/settings/Row.tsx:0"] = bindings => row({...bindings, label: "Updated view"});`,
+      body: `${original}\nconst row = views["src/settings/Row.tsx:0"]; views["src/settings/Row.tsx:0"] = bindings => row({...bindings, label: "Updated view"});`,
     }),
   );
   candidate = { ...manifest, version: "0.2.2", entry: "assets/test-views.js" };
@@ -117,7 +117,7 @@ export async function verifyEphemeral(page, base = "http://127.0.0.1:18421") {
   await page.route("**/assets/broken-views.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
-      body: `${original}\nviews["src/components/settings/Row.tsx:0"] = () => {throw new Error("broken renderer")};`,
+      body: `${original}\nviews["src/settings/Row.tsx:0"] = () => {throw new Error("broken renderer")};`,
     }),
   );
   candidate = { ...manifest, version: "0.2.4", entry: "assets/broken-views.js" };
@@ -166,7 +166,7 @@ export async function verifyEphemeral(page, base = "http://127.0.0.1:18421") {
   await page.route("**/assets/cli-layout.js", (route) =>
     route.fulfill({
       contentType: "text/javascript",
-      body: `${original}\nconst cli = views["src/components/CliView.tsx:0"]; views["src/components/CliView.tsx:0"] = bindings => globalThis.__TOTEX_VIEWS__.jsx.jsx("section", {children: cli(bindings)});`,
+      body: `${original}\nconst cli = views["src/tab/CliView.tsx:0"]; views["src/tab/CliView.tsx:0"] = bindings => globalThis.__TOTEX_VIEWS__.jsx.jsx("section", {children: cli(bindings)});`,
     }),
   );
   candidate = { ...manifest, version: "0.2.7", entry: "assets/cli-layout.js" };

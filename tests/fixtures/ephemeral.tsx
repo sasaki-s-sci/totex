@@ -1,10 +1,10 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CliView } from "../../src/components/CliView";
-import { Row } from "../../src/components/settings/Row";
 import { ephemeralIdentity, swapEphemeral } from "../../src/ephemeral/runtime";
 import { askStanding, take } from "../../src/lib/update";
+import { Row } from "../../src/settings/Row";
+import { CliView } from "../../src/tab/CliView";
 import { theme } from "../../src/theme";
 
 const sessions = [1, 2, 3].map((number) => ({

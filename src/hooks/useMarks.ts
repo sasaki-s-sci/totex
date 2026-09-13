@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import type { GraphMark, GraphMarks } from "../components/graphMarks";
+import type { GraphMark, GraphMarks } from "../canvas/graphMarks";
 
 /** How long a refusal stays on the mark it happened to. */
 const HOLD_MS = 2400;

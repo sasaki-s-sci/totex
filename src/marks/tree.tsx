@@ -1,0 +1,216 @@
+/**
+ * The marks a row of the folder column carries: what a folder holds, and
+ * whether it is open.
+ */
+
+import { Box } from "@mui/material";
+
+import { Frame, ROW_SIZE, struck } from ".";
+
+export function ExpandMark({ on }: { on: boolean }) {
+  return (
+    <Frame>
+      <path d="M3 17.5 H7.5 C13 17.5 12.5 7 17.5 7" />
+      <circle cx="19.5" cy="6.6" r="2.6" fill={on ? "currentColor" : "none"} />
+    </Frame>
+  );
+}
+
+/**
+ * The same mark with a number on it: how many repositories are in the folder.
+ *
+ * The count is the one thing about a folder that cannot be seen by opening it —
+ * a repository may be several levels down — so it is said where the offer to
+ * draw the folder is, rather than as a second mark of its own. A folder with
+ * none carries the bare mark: it can still be put on the graph, and what it
+ * draws there is a row with a terminal on it.
+ *
+ * Set over the corner the mark leaves empty, and outside the drawing rather
+ * than inside it: the glyph is 15 pixels and a numeral cut to fit in it would
+ * be four. The button's own square is where the room is.
+ */
+export function GraphMark({ on, count }: { on: boolean; count: number }) {
+  return (
+    <Box sx={{ position: "relative", display: "flex" }}>
+      <ExpandMark on={on} />
+      {count > 0 && (
+        <Box
+          component="span"
+          sx={{
+            position: "absolute",
+            right: -4,
+            bottom: -4,
+            px: "1px",
+            borderRadius: "3px",
+            background: "background.default",
+            fontSize: 9,
+            fontVariantNumeric: "tabular-nums",
+            lineHeight: 1,
+          }}
+        >
+          {count}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+/** A folder that is shut, which is the shape every folder here is drawn from. */
+const SHUT = "M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z";
+
+/**
+ * The folder a pane is showing: the same folder, filled.
+ *
+ * The one folder in the column that is not a row. It is where the pane is
+ * standing, and every row under it is something it holds — so it is drawn as
+ * the solid one and the rows stay hollow, and a heading is told from the names
+ * beneath it by the drawing rather than by anything set around it.
+ *
+ * It says nothing about whether those rows are showing. A chevron stood here
+ * once, and a chevron is an offer to unfold a step of a tree: where the pane is
+ * standing is not one of those steps, and the rows arriving or going is already
+ * the whole of what the heading's click has to say.
+ */
+export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
+  return (
+    <Frame size={size}>
+      <path d={SHUT} fill="currentColor" />
+    </Frame>
+  );
+}
+
+/**
+ * The size a folder is struck at on the canvas.
+ *
+ * Small, because of where it stands: over the rim of a branch's ring, which is
+ * fourteen pixels across. It stood inside the ring first, at nine, which was
+ * the largest a folder could be with canvas still showing round its corners;
+ * on the rim it is something pinned to the ring rather than something the ring
+ * holds, and a pin half the size of what it is pinned to has stopped being a
+ * pin. Seven is where the outline still reads as a folder — the tab is a pixel
+ * of step — and the ring is still the mark.
+ */
+export const FOLDER_GLYPH = 7;
+
+/**
+ * The folder a ring on the canvas wears, over its rim.
+ *
+ * Hollow, like `FolderMark`, and in no colour of its own: the ring's ink reaches
+ * it as `currentcolor`, and a colour laid on a line that already carries four
+ * readings would be one more thing to tell apart on exactly the branches
+ * somebody is working in. It is the drawing that says here, not the ink.
+ *
+ * Drawn twice. First in the canvas's own colour and wider than the line, then
+ * the line itself over it. The first is the clearance every mark on the canvas
+ * carries — see `--clearance` — cut to the shape of the folder rather than a
+ * square round it: the ring's rim runs under this, and a line passing behind a
+ * mark stops short of it rather than running through. The inside is that same
+ * canvas colour, which is what keeps a hollow folder hollow over a line — the
+ * rim stops at the outline instead of showing through it.
+ *
+ * `spill`, because the clearance is wider than the square the drawing is cut
+ * to, and a clearance trimmed to the square would leave the rim touching the
+ * folder's own corners.
+ */
+export function RimFolderMark({ size = FOLDER_GLYPH }: { size?: number }) {
+  const canvas = "var(--mui-palette-background-default)";
+  return (
+    <Frame size={size} spill>
+      <path d={SHUT} style={{ fill: canvas, stroke: canvas }} strokeWidth={struck(size, 3)} />
+      <path d={SHUT} />
+    </Frame>
+  );
+}
+
+/**
+ * A folder, and the same folder with its front let down.
+ *
+ * Hollow, like everything else drawn here: a filled block of colour is the one
+ * shape in a listing that cannot be seen through, and a column of them reads as
+ * a column of tabs rather than a column of names. The outline says folder just
+ * as well at this size, and leaves the eye on the names.
+ *
+ * Shut or open is the whole of what a row's own click does, so it is the icon
+ * that says it: the front panel comes down and the folder is standing open,
+ * which is the same thing the rows appearing underneath it say.
+ */
+export function FolderMark({ on, size = ROW_SIZE }: { on: boolean; size?: number }) {
+  return (
+    <Frame size={size}>
+      {on ? (
+        <>
+          <path d="M2.5 18.5 V5.5 H8.5 L10.5 8 H19.5 V11" />
+          <path d="M2.5 18.5 H17.5 L21.5 11 H6.5 Z" />
+        </>
+      ) : (
+        <path d={SHUT} />
+      )}
+    </Frame>
+  );
+}
+
+/**
+ * A terminal: the prompt, and the line waiting after it.
+ *
+ * Drawn here rather than taken from the icon set, like everything else in this
+ * file, and for the reason this file exists at all — the set's terminal is a
+ * filled glyph, and a filled glyph has no line to make thinner. Beside marks
+ * struck at a hairline it read as the one solid thing on the canvas, which on a
+ * graph where a terminal is the commonest mark there is meant the commonest
+ * mark was also the loudest.
+ *
+ * Two strokes, and no screen round them. The set's version draws the box as
+ * well, and a box is what the drawing cannot afford: these stand at eleven
+ * pixels on the canvas, where the frame takes most of the square and leaves the
+ * prompt inside it two pixels to be a prompt in — and a prompt that cannot be
+ * read is a rounded rectangle. Without it the two strokes have the whole square
+ * and the mark says the same thing, which is what a shell has looked like on
+ * every screen it has ever been on.
+ *
+ * The chevron is the one this file draws for a folder that is shut, which is
+ * why the line after it matters: `>` alone is a direction, and `>` with
+ * somewhere to type is a terminal. They never stand in the same column anyway —
+ * disclosure is the folder column's, this one is the canvas's and the menus'.
+ *
+ * Sized by whoever draws it. On the canvas these sit on the graph's own grid
+ * and are the smallest thing on it; in a menu they stand at the size the rest
+ * of that row is set at.
+ */
+
+/**
+ * Whether an agent started in this folder's space is handed the window's door.
+ *
+ * The protocol's own mark rather than a drawing of our own. A doorway stood
+ * here once and said the right thing about what the button does — a terminal is
+ * opened in the space, and this says whether what runs there is told where to
+ * report what it is working on — but it said it in a word only this window
+ * uses. What is on the far side of that door is somebody else's standard, and
+ * anyone who would look for it on a heading knows its shape already from every
+ * other program that speaks it.
+ *
+ * Taken as it is published, which is why it is the one mark here that is filled
+ * and the one that is left the whole square: the logo is drawn as a pair of
+ * strokes struck at about the weight everything around it is struck at, so it
+ * lands in this column without being redrawn — and its strokes are layered, so
+ * setting it back inside the square the other marks sit in closes the layers up
+ * into a blot.
+ *
+ * Off is the same drawing gone faint, rather than a piece of it left hollow the
+ * way `ExpandMark`'s ring is. There is nothing in a mark somebody else owns to
+ * fill or leave empty, and a state said by adding to it would be a state said
+ * by defacing it.
+ *
+ * Drawn on every heading rather than only where a space has said something.
+ * The mark is the offer as much as the answer, and a folder that has never been
+ * asked is exactly the one where nobody would think to look for a place to ask.
+ */
+export function McpMark({ on }: { on: boolean }) {
+  return (
+    <Frame>
+      <g fill="currentColor" fillRule="evenodd" stroke="none" opacity={on ? 1 : 0.4}>
+        <path d="M15.688 2.343a2.588 2.588 0 00-3.61 0l-9.626 9.44a.863.863 0 01-1.203 0 .823.823 0 010-1.18l9.626-9.44a4.313 4.313 0 016.016 0 4.116 4.116 0 011.204 3.54 4.3 4.3 0 013.609 1.18l.05.05a4.115 4.115 0 010 5.9l-8.706 8.537a.274.274 0 000 .393l1.788 1.754a.823.823 0 010 1.18.863.863 0 01-1.203 0l-1.788-1.753a1.92 1.92 0 010-2.754l8.706-8.538a2.47 2.47 0 000-3.54l-.05-.049a2.588 2.588 0 00-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 01-1.204 0 .823.823 0 010-1.18l7.273-7.133a2.47 2.47 0 00-.003-3.537z" />
+        <path d="M14.485 4.703a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a4.115 4.115 0 000 5.9 4.314 4.314 0 006.016 0l7.12-6.982a.823.823 0 000-1.18.863.863 0 00-1.204 0l-7.119 6.982a2.588 2.588 0 01-3.61 0 2.47 2.47 0 010-3.54l7.12-6.982z" />
+      </g>
+    </Frame>
+  );
+}

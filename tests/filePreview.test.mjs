@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { sourceBytes } from "../src/components/nodes/preview/documentSource.ts";
+import { sourceBytes } from "../src/canvas/nodes/preview/documentSource.ts";
 import {
   documentView,
   drawn,

@@ -8,10 +8,9 @@
  */
 
 import { useCallback } from "react";
-import type { CommitTarget } from "../components/CommitMenu";
-import type { FetchRequest, MergeRequest, SyncRequest } from "../components/GitGraph";
-import type { WorkRequest } from "../components/graphActions";
-import { branchMark } from "../components/graphMarks";
+import type { MergeRequest, SyncRequest } from "../canvas/CanvasProps";
+import type { FetchRequest, WorkRequest } from "../canvas/graphActions";
+import { branchMark } from "../canvas/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
 import {
@@ -22,6 +21,7 @@ import {
   openWorkspace,
   syncBranch,
 } from "../lib/workspace";
+import type { CommitTarget } from "../menus/CommitMenu";
 import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";

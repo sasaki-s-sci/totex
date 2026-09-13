@@ -2,7 +2,7 @@ import i18next from "i18next";
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next } from "react-i18next";
-import { MediaReading } from "../../src/components/nodes/preview/MediaReading";
+import { MediaReading } from "../../src/canvas/nodes/preview/MediaReading";
 import en from "../../src/i18n/locales/en.json";
 
 void i18next.use(initReactI18next).init({ lng: "en", resources: { en: { translation: en } } });

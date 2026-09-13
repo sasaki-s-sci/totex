@@ -2,7 +2,7 @@ import i18next from "i18next";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next } from "react-i18next";
-import { TableReading } from "../../src/components/nodes/preview/TableReading";
+import { TableReading } from "../../src/canvas/nodes/preview/TableReading";
 import en from "../../src/i18n/locales/en.json";
 
 void i18next.use(initReactI18next).init({ lng: "en", resources: { en: { translation: en } } });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fileSize } from "../src/hooks/filePreviewBox.ts";
+import { fileSize } from "../src/canvas/hooks/filePreviewBox.ts";
 
 test("a card's size is the node's own once an edge has been dragged", () => {
   const node = { width: 420, height: 260, data: { box: { width: 360, height: 160 } } };

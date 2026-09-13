@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import { HtmlReading } from "../../src/components/nodes/preview/HtmlReading";
+import { HtmlReading } from "../../src/canvas/nodes/preview/HtmlReading";
 
 const source = `<!doctype html><html lang="ja"><head>
   <title>Sample document</title>

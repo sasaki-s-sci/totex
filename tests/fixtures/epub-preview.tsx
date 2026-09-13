@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { EpubReading } from "../../src/components/nodes/preview/EpubReading";
+import { EpubReading } from "../../src/canvas/nodes/preview/EpubReading";
 
 const zip = new JSZip();
 zip.file("mimetype", "application/epub+zip");

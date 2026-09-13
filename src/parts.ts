@@ -15,40 +15,34 @@ import type { Workspace } from "./types/git";
  * on demand. Keeping them in separate chunks leaves all of them off the way to
  * the first column.
  */
-export const graphPart = onDemand(() =>
-  import("./components/GitGraph").then((part) => part.GitGraph),
-);
+export const canvasPart = onDemand(() => import("./canvas/Canvas").then((part) => part.Canvas));
 /** A window holding one card torn off the main one, which draws nothing else
  *  and is asked for by nothing else — see `lib/cardWindow`. */
 export const cardPart = onDemand(() =>
-  import("./components/CardWindow").then((part) => part.CardWindow),
+  import("./window/CardWindow").then((part) => part.CardWindow),
 );
-export const panelPart = onDemand(() =>
-  import("./components/SidePanel").then((part) => part.SidePanel),
+export const sidebarPart = onDemand(() =>
+  import("./sidebar/RightSidebar").then((part) => part.RightSidebar),
 );
 /** The terminal itself, for a page on the canvas: the same emulator the panel
  *  draws, and the same chunk, so a window with the panel up has it already. */
-export const terminalPart = onDemand(() =>
-  import("./components/CliView").then((part) => part.CliView),
-);
+export const terminalPart = onDemand(() => import("./tab/CliView").then((part) => part.CliView));
 export const commitPart = onDemand(() =>
-  import("./components/CommitMenu").then((part) => part.CommitMenu),
+  import("./menus/CommitMenu").then((part) => part.CommitMenu),
 );
 export const worktreePart = onDemand(() =>
-  import("./components/WorktreeMenu").then((part) => part.WorktreeMenu),
+  import("./menus/WorktreeMenu").then((part) => part.WorktreeMenu),
 );
 /** What a repository says can be run in it, which nothing asks for until the
  *  key that asks for it is pressed. */
-export const tasksPart = onDemand(() =>
-  import("./components/TaskMenu").then((part) => part.TaskMenu),
-);
+export const tasksPart = onDemand(() => import("./menus/TaskMenu").then((part) => part.TaskMenu));
 export const settingsPart = onDemand(() =>
-  import("./components/settings/SettingsContent").then((part) => part.SettingsContent),
+  import("./settings/SettingsContent").then((part) => part.SettingsContent),
 );
 /** What draws a markdown file as a page: a parser and a sanitiser, and neither
  *  of them anything the window needs until a preview is asked for. */
 export const markdownPart = onDemand(() =>
-  import("./components/nodes/preview/MarkdownReading").then((part) => part.MarkdownReading),
+  import("./canvas/nodes/preview/MarkdownReading").then((part) => part.MarkdownReading),
 );
 export const ROOTS_KEY = "totex.roots";
 export const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };
@@ -76,31 +70,31 @@ export function storedRoots(): string[] {
 }
 
 export const schemaPart = onDemand(() =>
-  import("./components/nodes/preview/SchemaReading").then((part) => part.SchemaReading),
+  import("./canvas/nodes/preview/SchemaReading").then((part) => part.SchemaReading),
 );
 
 export const pdfPart = onDemand(() =>
-  import("./components/nodes/preview/PdfReading").then((part) => part.PdfReading),
+  import("./canvas/nodes/preview/PdfReading").then((part) => part.PdfReading),
 );
 export const dxfPart = onDemand(() =>
-  import("./components/nodes/preview/DxfReading").then((part) => part.DxfReading),
+  import("./canvas/nodes/preview/DxfReading").then((part) => part.DxfReading),
 );
 
 export const mediaPart = onDemand(() =>
-  import("./components/nodes/preview/MediaReading").then((part) => part.MediaReading),
+  import("./canvas/nodes/preview/MediaReading").then((part) => part.MediaReading),
 );
 export const htmlPart = onDemand(() =>
-  import("./components/nodes/preview/HtmlReading").then((part) => part.HtmlReading),
+  import("./canvas/nodes/preview/HtmlReading").then((part) => part.HtmlReading),
 );
 
 export const tablePart = onDemand(() =>
-  import("./components/nodes/preview/TableReading").then((part) => part.TableReading),
+  import("./canvas/nodes/preview/TableReading").then((part) => part.TableReading),
 );
 
 export const modelPart = onDemand(() =>
-  import("./components/nodes/preview/ModelReading").then((part) => part.ModelReading),
+  import("./canvas/nodes/preview/ModelReading").then((part) => part.ModelReading),
 );
 
 export const epubPart = onDemand(() =>
-  import("./components/nodes/preview/EpubReading").then((part) => part.EpubReading),
+  import("./canvas/nodes/preview/EpubReading").then((part) => part.EpubReading),
 );
