@@ -148,6 +148,9 @@ export function Canvas({
   ]);
   const instance = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const [flowReady, setFlowReady] = useState(false);
+  // Decided once: React Flow drops a queued first fit when this prop turns false, and the first
+  // onMove (a sidebar opening) would turn it false before any node is measured.
+  const [fitOnInit] = useState(() => !frontValue("canvas.viewport"));
 
   const host = useRef<HTMLDivElement>(null);
 
@@ -407,7 +410,7 @@ export function Canvas({
                           zoomOnScroll={false}
                           proOptions={proOptions}
                           // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
-                          fitView={!frontValue("canvas.viewport")}
+                          fitView={fitOnInit}
                         >
                           <CanvasBackground />
                           <GraphLines

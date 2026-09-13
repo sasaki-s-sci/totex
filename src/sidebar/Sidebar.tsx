@@ -26,7 +26,6 @@ export function Sidebar({ side, open, sizing, band, children, sx, ...box }: Prop
 
   return (
     <Box
-      component="aside"
       ref={element}
       {...box}
       sx={{

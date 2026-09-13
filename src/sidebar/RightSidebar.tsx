@@ -34,6 +34,7 @@ export function RightSidebar({ tabs, showing, paged, run, doings, onPage, onEnde
 
   return (
     <Sidebar
+      component="aside"
       side="right"
       open={open !== null}
       sizing={SIZING}
