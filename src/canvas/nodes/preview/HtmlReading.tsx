@@ -13,6 +13,15 @@ const POLICY = [
   "form-action 'none'",
 ].join("; ");
 
+// The rail every bar in the window is drawn as (theme/rail.css), for a document that cannot see the page's sheet.
+const RAIL = [
+  "::-webkit-scrollbar { width: 7px; height: 7px }",
+  "::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent }",
+  "::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 4px;",
+  "  background: rgb(0 0 0 / 0.27); background-clip: padding-box }",
+  "::-webkit-scrollbar-thumb:hover { background-color: rgb(0 0 0 / 0.38) }",
+].join("\n");
+
 export function htmlDocument(text: string): string {
   const page = DOMPurify.sanitize(text, {
     WHOLE_DOCUMENT: true,
@@ -70,6 +79,9 @@ export function htmlDocument(text: string): string {
   policy.setAttribute("http-equiv", "Content-Security-Policy");
   policy.setAttribute("content", POLICY);
   head.prepend(policy);
+  const rail = document.createElement("style");
+  rail.textContent = RAIL;
+  head.append(rail);
   return `<!doctype html>${page.outerHTML}`;
 }
 

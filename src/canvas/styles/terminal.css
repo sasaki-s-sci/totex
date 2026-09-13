@@ -13,3 +13,18 @@
 .cli-page:focus-within {
   border-color: var(--mui-palette-primary-main);
 }
+
+/* xterm's slider, dressed as the rail (theme/rail.css). xterm colours it by a rule one class shorter
+   than these, so the colour written here wins; the width is the terminal's `overviewRuler`. */
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: var(--rail);
+  background-clip: padding-box;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider:hover,
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider.active {
+  background-color: var(--rail-held);
+}

@@ -6,6 +6,7 @@ import { isCardWindow } from "./lib/thisWindow";
 import { cardPart } from "./parts";
 import { storedMode, theme } from "./theme";
 import { Window } from "./window/Window";
+import "./theme/rail.css";
 
 export default function App() {
   const [torn] = useState(isCardWindow);
