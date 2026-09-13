@@ -87,7 +87,8 @@ pub struct Rung {
     pub at: String,
     /// Whether this copy can replace this layer at all.
     pub can: bool,
-    /// The version it is pointed at, if one has been named.
+    /// The version the row is pointed at, if one has been named. One pin for
+    /// both layers, said on each so a window reads it off whichever it holds.
     pub picked: Option<String>,
     /// The newest front contract this program answers, on the ephemeral row.
     pub front_contract: Option<u32>,
@@ -117,7 +118,7 @@ pub fn update_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Rung> {
                 Layer::Persistent => whole_update_supported(),
                 Layer::Ephemeral | Layer::Front => bundle_type().is_some() && serving.keeps(),
             },
-            picked: kept.picked(layer),
+            picked: kept.picked(),
             front_contract: Some(crate::front::take::contract()),
             held: Vec::new(),
             ephemeral_contract: crate::front::take::runtime_contract().to_string(),
@@ -149,21 +150,19 @@ pub async fn update_take<R: Runtime>(
     }
 }
 
-/// Leaves one layer pointed at one version, and remembers it.
+/// Leaves the row pointed at one version, and remembers it.
 ///
 /// Remembered by this program rather than by the window, which is the rule the
 /// layers are arranged around: the pages are replaced, and they are not where
 /// anything is kept. So a row that was left on a version is on it again after a
 /// reload, and after the restart that a program takes.
 #[tauri::command]
-pub fn update_pick<R: Runtime>(app: AppHandle<R>, layer: Layer, version: Option<String>) {
+pub fn update_pick<R: Runtime>(app: AppHandle<R>, version: Option<String>) {
     // The row moved, and a release that came down for where it used to point is
     // one nothing is pointed at any more — see [`ready`].
-    if layer == Layer::Persistent {
-        app.state::<std::sync::Arc<Ready>>()
-            .let_go_unless(version.as_deref());
-    }
-    app.state::<std::sync::Arc<Kept>>().pick(layer, version);
+    app.state::<std::sync::Arc<Ready>>()
+        .let_go_unless(version.as_deref());
+    app.state::<std::sync::Arc<Kept>>().pick(version);
 }
 
 /// Install the persistent bundle after this process exits, then relaunch totex.
@@ -188,11 +187,9 @@ pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
         &[totex_persistent::RESTART_RUNTIME.to_string()],
         Some(&install),
     )?;
-    // The new runtime must start with the views shipped with it, regardless of an old view pin.
+    // The new runtime starts with the views shipped with it. The pin stays: a
+    // row pointed at the release just installed is pointed at what is drawn.
     app.state::<std::sync::Arc<Serving>>().drop_front();
-    app.state::<std::sync::Arc<Kept>>()
-        .pick(Layer::Ephemeral, None);
-    app.state::<std::sync::Arc<Kept>>().pick(Layer::Front, None);
     app.exit(0);
     Ok(())
 }

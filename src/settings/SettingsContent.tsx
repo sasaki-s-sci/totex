@@ -11,7 +11,7 @@ import { SaidRows } from "./SaidRows";
 import { useSettingsControls } from "./SettingsControls";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { ThemeRow } from "./ThemeRow";
-import { UpdateRows } from "./UpdateRows";
+import { UpdateRow } from "./UpdateRow";
 import { WheelRow } from "./WheelRow";
 
 export function SettingsContent() {
@@ -51,7 +51,7 @@ export function SettingsContent() {
         <ThemeRow />
         <LanguageRow />
         <Group name={t("update.title")}>
-          <UpdateRows />
+          <UpdateRow />
         </Group>
       </Section>
     </Stack>

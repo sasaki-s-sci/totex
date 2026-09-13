@@ -1,37 +1,12 @@
 import { MenuItem, Select, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { LATEST, layerOf, type Reading, type UpdateState } from "../lib/update";
 import { PICK_SX, ROW_HEIGHT } from "./Row";
-
-import { LATEST, type Standing } from "./updateReading";
 
 const NAME = 96;
 
-/** The caption starts where the versions do: past the name column and the row gap. */
-const HINT_INDENT = `${NAME + 12}px`;
-
-function VersionMove({ standing }: { standing: Standing }) {
-  const { at, to } = standing;
-  return (
-    <Stack
-      direction="row"
-      sx={{ alignItems: "baseline", gap: 0.75, whiteSpace: "nowrap", minWidth: 0 }}
-    >
-      <Typography variant="body2" sx={{ color: to ? "text.secondary" : "text.primary" }}>
-        {at}
-      </Typography>
-      {to && (
-        <>
-          <Typography variant="body2" sx={{ color: "text.disabled" }}>
-            →
-          </Typography>
-          <Typography variant="body2" sx={{ color: "primary.main", fontWeight: 600 }}>
-            {to}
-          </Typography>
-        </>
-      )}
-    </Stack>
-  );
-}
+/** The buttons and caption start where the versions do: past the name column and the row gap. */
+const INDENT = `${NAME + 12}px`;
 
 function Latest({ version }: { version: string | null }) {
   return (
@@ -46,23 +21,20 @@ function Latest({ version }: { version: string | null }) {
 
 // A pinned version the release page no longer offers stays shown, greyed, rather than dropped.
 function VersionSelect({
-  label,
-  standing,
+  at,
+  read,
   disabled,
   onChange,
-  blockedHint,
 }: {
-  label: string;
-  blockedHint: string;
-  standing: Standing;
+  at: UpdateState;
+  read: Reading;
   disabled: boolean;
   onChange: (version: string | null) => void;
 }) {
-  const { can, picked, choices, blocked, latest } = standing;
+  const { t } = useTranslation();
+  const { can, picked, choices, blocked, latest } = read;
   const held =
-    picked &&
-    picked !== LATEST &&
-    ![...choices, ...blocked].some((choice) => choice.version === picked)
+    picked !== LATEST && ![...choices, ...blocked].some((choice) => choice.version === picked)
       ? picked
       : null;
   return (
@@ -77,10 +49,9 @@ function VersionSelect({
         if (version === LATEST) onChange(null);
         else if (choices.some((choice) => choice.version === version)) onChange(version);
       }}
-      inputProps={{ "aria-label": label }}
+      inputProps={{ "aria-label": t("update.pin") }}
       sx={PICK_SX}
     >
-      {!picked && <MenuItem value="">—</MenuItem>}
       <MenuItem value={LATEST}>
         <Latest version={latest} />
       </MenuItem>
@@ -92,38 +63,39 @@ function VersionSelect({
       {choices.map((choice) => (
         <MenuItem key={choice.version} value={choice.version}>
           {choice.version}
+          {layerOf(at, choice) === "persistent" && (
+            <Typography component="span" variant="caption" sx={{ color: "text.secondary", ml: 1 }}>
+              {t("update.interruptible")}
+            </Typography>
+          )}
         </MenuItem>
       ))}
       {blocked.map((choice) => (
         <MenuItem key={choice.version} value={choice.version} disabled>
-          {choice.version} — {blockedHint}
+          {choice.version} — {t("update.unavailable")}
         </MenuItem>
       ))}
     </Select>
   );
 }
 
-/** One layer: its name, the version move it would make, the pin, its button and what it costs. */
+/** The one row: what is drawn, the pin, the two buttons, and what each costs. */
 export function VersionRow({
-  name,
-  hint,
-  standing,
+  at,
+  read,
   disabled,
   onChange,
-  blockedHint,
   children,
 }: {
-  name: string;
-  hint: string;
-  blockedHint: string;
-  standing: Standing;
+  at: UpdateState;
+  read: Reading;
   disabled: boolean;
   onChange: (version: string | null) => void;
   children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   return (
-    <Stack sx={{ gap: 0.25 }}>
+    <Stack sx={{ gap: 0.5 }}>
       <Stack
         direction="row"
         sx={{
@@ -131,30 +103,31 @@ export function VersionRow({
           gap: 1.5,
           rowGap: 0.5,
           minHeight: ROW_HEIGHT,
-          // A long button label (the whole of "adjusting") takes the next line rather
-          // than the room the versions are being read in.
           flexWrap: "wrap",
         }}
       >
         <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
-          {name}
+          {t("update.version")}
         </Typography>
-        <Stack sx={{ flex: 1, minWidth: 0 }}>
-          <VersionMove standing={standing} />
+        <Stack
+          direction="row"
+          sx={{ flex: 1, minWidth: 0, alignItems: "baseline", gap: 1, whiteSpace: "nowrap" }}
+        >
+          <Typography variant="body2">{read.at}</Typography>
+          {read.app !== read.at && (
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {t("update.app", { version: read.app })}
+            </Typography>
+          )}
         </Stack>
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, flexShrink: 0, ml: "auto" }}>
-          <VersionSelect
-            label={t("update.pin", { name })}
-            standing={standing}
-            blockedHint={blockedHint}
-            disabled={disabled}
-            onChange={onChange}
-          />
-          {children}
-        </Stack>
+        <VersionSelect at={at} read={read} disabled={disabled} onChange={onChange} />
       </Stack>
-      <Typography variant="caption" sx={{ pl: HINT_INDENT, color: "text.secondary" }}>
-        {hint}
+      {/* A patch and a minor, side by side, each saying what it costs. */}
+      <Stack direction="row" sx={{ pl: INDENT, gap: 1.5, rowGap: 0.5, flexWrap: "wrap" }}>
+        {children}
+      </Stack>
+      <Typography variant="caption" sx={{ pl: INDENT, color: "text.secondary" }}>
+        {t("update.hint")}
       </Typography>
     </Stack>
   );

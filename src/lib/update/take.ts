@@ -2,7 +2,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { ephemeralIdentity, swapEphemeral } from "../../ephemeral/runtime";
 import { connection } from "../../shell/bridge";
 import type { Layer, UpdateStage } from "./model";
-import { askStanding, settlePress, state, wanted } from "./store";
+import { wanted } from "./reading";
+import { askStanding, settlePress, state } from "./store";
 
 export function confirmFront(): void {
   if (connection) return; // The shell confirms only after the whole candidate is ready.

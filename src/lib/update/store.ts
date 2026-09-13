@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
 import { notifications } from "../notifications";
 import type { Layer, Press, Rung, UpdateChoice, UpdateState } from "./model";
+import { wanted } from "./reading";
 
 const RESTING: Press = { stage: "rest", progress: null, version: null };
 
@@ -35,38 +36,6 @@ export function rungOf(at: UpdateState, layer: Layer): Rung | null {
   return at.rungs?.find((rung) => rung.layer === layer) ?? null;
 }
 
-function ahead(one: string, than: string): boolean {
-  const left = one.split(".").map(Number);
-  const right = than.split(".").map(Number);
-  for (let part = 0; part < Math.max(left.length, right.length); part += 1) {
-    const a = left[part] ?? 0;
-    const b = right[part] ?? 0;
-
-    // Not `>`: a version that is not three numbers never claims to be ahead.
-    if (a !== b) return a > b;
-  }
-  return false;
-}
-
-export function newer(one: string | null, other: string | null): string | null {
-  if (one === null) return other;
-  if (other === null) return one;
-  return ahead(other, one) ? other : one;
-}
-
-// What is in place counts as a choice, so `latest` means keep up rather than move.
-export function wanted(at: UpdateState, layer: Layer): string | null {
-  const rung = rungOf(at, layer);
-  if (!rung) return null;
-  if (rung.picked !== null) return rung.picked;
-  const candidates = at.choices.filter((choice) =>
-    layer === "persistent"
-      ? choice.persistentAvailable && choice.ephemeralContract
-      : choice.ephemeralContract === rungOf(at, "persistent")?.ephemeralContract,
-  );
-  return newer(candidates[0]?.version ?? null, rung.at);
-}
-
 // A press before the list arrived was for the newest; it keeps reading as that release when the list lands.
 export function stageOf(at: UpdateState, layer: Layer): Press["stage"] {
   const press = at.presses[layer];
@@ -75,13 +44,10 @@ export function stageOf(at: UpdateState, layer: Layer): Press["stage"] {
   return same ? press.stage : "rest";
 }
 
-export async function declare(
-  declarations: readonly { layer: Layer; version: string | null }[],
-): Promise<void> {
+/** Points the row at a version by name, or at whatever is newest. */
+export async function declare(version: string | null): Promise<void> {
   try {
-    for (const { layer, version } of declarations) {
-      await invoke("update_pick", { layer, version });
-    }
+    await invoke("update_pick", { version });
   } catch {}
   // A preference the window re-asks anyway.
   await askStanding(true);

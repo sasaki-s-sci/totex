@@ -1,11 +1,9 @@
 //! The rows, asked for the way the window asks for them.
 
-use crate::update::Layer;
-
 use super::{TempDir, asked, window};
 
 /// The names the settings page sends -- see `src/lib/update` and
-/// `src/components/settings/UpdateSection.tsx`.
+/// `src/settings/UpdateRow.tsx`.
 pub(super) const SENT: [&str; 8] = [
     "update_standing",
     "update_take",
@@ -77,32 +75,28 @@ fn a_window_is_told_about_two_layers_and_what_each_is_at() {
 }
 
 #[test]
-fn what_a_row_is_pointed_at_is_asked_for_and_answered_by_name() {
+fn what_the_row_is_pointed_at_is_asked_for_and_answered_by_name_on_both_layers() {
     let temp = TempDir::new("pointed");
     let (_app, view) = window(temp.path());
 
     asked(
         &view,
         "update_pick",
-        serde_json::json!({ "layer": Layer::Ephemeral, "version": "0.2.0" }),
+        serde_json::json!({ "version": "0.2.0" }),
     )
-    .expect("a row can be pointed at a version");
+    .expect("the row can be pointed at a version");
 
     let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
-    let row = &rungs.as_array().expect("three rows")[1];
-    assert_eq!(row["picked"], "0.2.0");
+    for rung in rungs.as_array().expect("one entry per layer") {
+        assert_eq!(rung["picked"], "0.2.0");
+    }
 
-    asked(
-        &view,
-        "update_pick",
-        serde_json::json!({ "layer": Layer::Ephemeral, "version": null }),
-    )
-    .expect("and back at whatever is newest");
+    asked(&view, "update_pick", serde_json::json!({ "version": null }))
+        .expect("and back at whatever is newest");
     let rungs = asked(&view, "update_standing", serde_json::json!({})).expect("the rows again");
-    assert_eq!(
-        rungs.as_array().expect("three rows")[1]["picked"],
-        serde_json::Value::Null
-    );
+    for rung in rungs.as_array().expect("one entry per layer") {
+        assert_eq!(rung["picked"], serde_json::Value::Null);
+    }
 }
 
 #[test]

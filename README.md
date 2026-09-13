@@ -241,12 +241,18 @@ in the signed artifact's `ephemeral.json`. It covers shell and native code,
 native dependencies, native configuration and the shell's Tauri API dependency.
 A separate `viewsContract` covers stateful frontend code and chooses whether a
 frame replacement is needed. Frontend-only changes do not change shell identity.
-Compatibility is independent of patch/minor numbering.
+The version number says which is which: a patch shares the running shell
+identity, a minor carries a new one (see [Releasing from main](#releasing-from-main)).
 
-**One persistent identity can support many ephemeral releases.** Settings lists
-compatible releases, including older versions, and disables incompatible ones.
-`latest` selects the newest compatible published release. Selecting another
-persistent release previews its compatible ephemeral versions.
+**One persistent identity can support many ephemeral releases.** Settings has one
+version pull-down and two buttons. The pull-down lists every published release,
+newest first; a release on another line is marked *interruptible*, and one this
+copy cannot bring is disabled. `latest` follows what is published. The **patch**
+button is uninterruptible: it takes the newest release on the running line, or
+the one pinned there, and swaps the pages under the running app. The **minor**
+button is interruptible: it takes the newest line beyond the running one, or the
+one pinned there, and installs and restarts the app, closing every terminal.
+A line behind the running one is offered only by name.
 The listing currently covers the latest 30 published releases.
 
 An ephemeral artifact is signature-checked and staged before use. The shell
@@ -280,22 +286,19 @@ changes when they arrive together.
 
 | Change | Release |
 | --- | --- |
-| Window, frontend, app assets, app installers or window-only dependencies | Patch: `1.2.3` → `1.2.4` |
-| Persistent program, shared `src-tauri/host`, persistent dependencies, Rust toolchain or shared build configuration | Minor: `1.2.3` → `1.3.0` |
+| Anything shipped that leaves the shell contract alone: frontend, app assets, installers, frontend dependencies | Patch: `1.2.3` → `1.2.4` — applied live, uninterruptible |
+| Anything the shell contract hashes: `src-tauri/src`, `src-tauri/host/src`, `src-tauri/persistent/src`, `src/shell`, `index.html`, `vite.config.ts`, the Cargo manifests and lock, `scripts/ephemeral-build.mjs`, `scripts/shell-contract.json` itself; also `tauri.conf.json`, the shell's own entries in `package.json` and the Tauri API in `pnpm-lock.yaml` | Minor: `1.2.3` → `1.3.0` — installed and restarted, interruptible |
 | Developer milestone, requested with **Release → Run workflow → major** on main | Major: `1.2.3` → `2.0.0` |
 | Documentation, standalone tests, release automation or the separate `setup/` installer | No app release |
 
-These tag-numbering categories describe the release planner's historical artifact
-areas, not the update boundary above. A patch may require a persistent update;
-only the published shell identity determines whether the frontend can be swapped.
-Service changes take precedence over window-only changes. The socket client,
-`src-tauri/persistent/src/talk.rs`, is classified as window-only for tag numbering. Dependency comparisons
-walk the locked graph for all platforms, including indirect dependencies;
-development-only dependencies are excluded. Changes inside a production Rust
-source file count even if they only edit an inline test. The policy lives in
-`scripts/release.py`; shared build configuration, including `build.yml`, is
-conservatively treated as persistent because it builds both programs. Markdown
-shipped under source or asset directories is app content, not excluded documentation.
+The bump is derived from `scripts/shell-contract.json`, the same file list
+`shellContract()` in `scripts/ephemeral-build.mjs` hashes into the published
+shell identity, compared through the same normalisation, so a patch can never
+carry a shell change and a minor is exactly a shell change. Everything under
+`src-tauri/persistent/src` is on that list, the socket client included. Changes
+inside a hashed Rust source file count even if they only edit an inline test.
+The policy lives in `scripts/release.py`. Markdown shipped under source or asset
+directories is app content, not excluded documentation.
 The policy is covered by temporary-repository tests in
 `tests/test_release.py`. `task check` includes these tests and needs Python 3.11
 or newer; CI installs Python 3.12.

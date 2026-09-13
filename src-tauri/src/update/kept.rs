@@ -1,6 +1,6 @@
 //! What the app remembers about updating itself.
 //!
-//! Which release each row is pointed at, where one was named. Small, and kept
+//! Which release the update row is pointed at, where one was named. Small, and kept
 //! by this program rather than by the pages on purpose: the pages are thrown
 //! away and drawn again, and a window drawn out of pages that were rolled back
 //! is a window that would find whatever the newer pages had written, in
@@ -21,8 +21,15 @@ const KEPT: &str = "update.json";
 /// What was remembered, as it is written down.
 #[derive(Default, Deserialize, Serialize)]
 struct Written {
-    /// Which version each layer is pointed at, where one was named by hand.
-    #[serde(default, deserialize_with = "known")]
+    /// The one version the row is pointed at, where one was named by hand. A
+    /// release is a patch or a minor by its number alone, so there is one row
+    /// and one pin: the release named is the pages, and the program too where
+    /// its line differs from the one running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    /// What copies from before the rows were one row wrote: a version per
+    /// layer. Read, never written again -- see [`Kept::picked`].
+    #[serde(default, deserialize_with = "known", skip_serializing)]
     picked: HashMap<Layer, String>,
 }
 
@@ -79,23 +86,29 @@ impl Kept {
         }
     }
 
-    /// Which version one layer is pointed at, if one was named.
-    pub fn picked(&self, layer: Layer) -> Option<String> {
-        self.written
-            .read()
-            .ok()
-            .and_then(|written| written.picked.get(&layer).cloned())
+    /// Which version the row is pointed at, if one was named.
+    ///
+    /// A file from before the rows were one row named a version per layer.
+    /// The pages' pin is the one read out of it, since that is the row that
+    /// moved most and the one whose version is what is drawn; the program's
+    /// pin stands in where there was no other.
+    pub fn picked(&self) -> Option<String> {
+        self.written.read().ok().and_then(|written| {
+            written.version.clone().or_else(|| {
+                [Layer::Ephemeral, Layer::Front, Layer::Persistent]
+                    .iter()
+                    .find_map(|layer| written.picked.get(layer).cloned())
+            })
+        })
     }
 
-    /// Points one layer at a version, or at whatever is newest.
-    pub fn pick(&self, layer: Layer, version: Option<String>) {
-        self.change(|written| match version {
-            Some(version) => {
-                written.picked.insert(layer, version);
-            }
-            None => {
-                written.picked.remove(&layer);
-            }
+    /// Points the row at a version, or at whatever is newest.
+    pub fn pick(&self, version: Option<String>) {
+        self.change(|written| {
+            written.version = version;
+            // Named once, under one name: what an older copy wrote per layer
+            // is not read past this pin again.
+            written.picked.clear();
         });
     }
 
