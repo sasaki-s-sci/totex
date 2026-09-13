@@ -1,0 +1,15 @@
+.cli-page .page__body {
+  display: flex;
+  flex-direction: column;
+}
+
+.cli-page__terminal {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cli-page:focus-within {
+  border-color: var(--mui-palette-primary-main);
+}

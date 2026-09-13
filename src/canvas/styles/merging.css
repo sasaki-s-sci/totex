@@ -1,0 +1,26 @@
+/* Only the rings change while a merge is aimed: fading the whole SVG made Chromium rasterise a graph-sized layer at pointer down. */
+.graph.is-merging .head__ring {
+  cursor: grabbing;
+}
+
+.graph.is-merging .head__origin {
+  cursor: grabbing;
+}
+
+.graph .head.is-merge-source .head__ring {
+  opacity: 0.55;
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.graph .head.is-merge-target .head__ring {
+  box-shadow: var(--clearance), var(--halo-selected);
+}
+
+.graph .head.is-merge-origin .head__origin {
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.graph .head.is-merge-target .head__origin {
+  border-style: solid;
+  box-shadow: var(--clearance), var(--halo-selected);
+}

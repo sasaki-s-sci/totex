@@ -4,50 +4,26 @@ import type { Placed } from "./history";
 import { graphIgnore } from "./ignore";
 import type { BranchHeadData, Fetch, Origin } from "./model";
 
-/**
- * The branch half of a band: a column of names, read downwards.
- *
- * Every branch stands in one column, dealt into its own grid row in logical-name
- * order. Its edge can therefore fork from a commit just like another commit
- * edge; several names pointing at one commit never share a label track. Only a
- * synchronized local/remote pair shares one row and grid point.
- *
- * Every branch the repository has, and not only the ones standing on the
- * commits that fit on screen. A graph opens folded, so a branch cut a fortnight
- * ago points behind the fold — and drawing a repository as though it had three
- * branches because it is showing three commits was the graph hiding the very
- * thing it is for. What is behind the fold hangs off the fold, which is the
- * mark that stands for it. Which names are not worth a row is the repository's
- * own to say: see `ignore`.
- */
+// Every branch of the repository is dealt a row, not only those on visible
+// commits: what points behind the fold hangs off the fold.
 
-/** A branch head, and the row of the column it was dealt. */
 export type PlacedRef = {
   id: string;
   data: BranchHeadData;
-  /**
-   * The commit it points at, as a position in the history's own order, or null
-   * where that commit is behind the fold.
-   */
+  /** Position in the history's order, or null when the commit is behind the fold. */
   from: number | null;
-  /** Its row, counted from the top of the column. */
   row: number;
-  /** The name this ref is gathered by, which is its name without the remote. */
+  /** The name without its remote, which the column is sorted and gathered by. */
   group: string;
-  /** What this branch is to the repository, set above its name; see `noteOf`. */
   note: string | null;
 };
 
-/** What a band knows about itself that decides which refs it draws. */
 export type Shown = {
-  /** Whether there is a fold to hang the branches behind it off. */
   folded: boolean;
-  /** Whether anything is running in a directory, which keeps its branch drawn
-   *  however the repository's own list reads. */
+  /** A branch something is running in is drawn whatever the ignore list says. */
   running: (cwd: string | null) => boolean;
 };
 
-/** Every branch the repository has, in a column. */
 export function placeBranches(
   repository: Repository,
   placed: readonly Placed[],
@@ -55,23 +31,15 @@ export function placeBranches(
 ): { refs: PlacedRef[]; rows: number } {
   const pairs = pairsOf(repository);
   const hidden = graphIgnore(repository.graphIgnore);
-  // Where each commit that is drawn stands, so a name can be asked whether the
-  // history under it is on screen.
   const at = new Map(placed.map((entry, position) => [entry.commit.id, position]));
 
   const found: { ref: Ref; from: number | null }[] = [];
   for (const [commit, entry] of namedCommits(repository)) {
     const from = at.get(commit) ?? null;
-    // A branch behind the fold hangs off the fold. Where there is none — a
-    // repository showing the whole of what it handed over — a name pointing
-    // outside it is a name pointing at history nothing on this canvas draws,
-    // and there is nowhere to run its line from.
+    // Without a fold there is nowhere to run the line of an off-canvas commit from.
     if (from === null && !shown.folded) continue;
 
     for (const ref of refsOf(entry, pairs)) {
-      // A branch somebody is working in is drawn whatever the list says: the
-      // graph is where a running terminal is found, and a mark that answers to
-      // something cannot be left off it.
       if (hidden(ref.name, ref.group) && !shown.running(ref.cwd)) continue;
       found.push({ ref, from });
     }
@@ -106,17 +74,9 @@ export function placeBranches(
   return { refs, rows: taken.size };
 }
 
-/** The names standing on one commit, whether or not that commit is drawn. */
 type Named = { branches: readonly Branch[]; worktrees: readonly Worktree[] };
 
-/**
- * Every commit any name points at, with the names on it.
- *
- * The whole repository rather than the slice on screen: what is behind the fold
- * still has branches, and they are drawn off the fold. A worktree with no head
- * is bucketed under a key no commit can have, which leaves it out — there is no
- * commit for its line to come from.
- */
+// A worktree with no head is bucketed under "" and left out: no commit to draw from.
 function namedCommits(repository: Repository): Map<string, Named> {
   const branchesAt = groupBy(repository.branches, (branch) => branch.commit);
   const worktreesAt = groupBy(repository.worktrees, (worktree) => worktree.head ?? "");
@@ -132,11 +92,7 @@ function namedCommits(repository: Repository): Map<string, Named> {
   return named;
 }
 
-/** Where two names are drawn: first by the branch name without its remote
- *  namespace, then with remote ends before the local end. Thus `main`,
- *  `origin/main`, and `upstream/main` stay next to one another regardless of
- *  what their remotes happen to be called. Remote comes first only so its
- *  larger ring sits behind the local control when both share a point. */
+// Remote first only so its larger ring sits behind the local control on a shared point.
 function inOrder(left: Ref, right: Ref): number {
   return (
     byName(left.group, right.group) ||
@@ -145,23 +101,11 @@ function inOrder(left: Ref, right: Ref): number {
   );
 }
 
-/**
- * Names in the order git itself puts them in, which is the order the backend
- * hands the branches over in.
- */
 function byName(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/**
- * What a branch is to the repository, set on a line above its name: the one it
- * is standing on, and the one it treats as its default. Nearly every branch is
- * neither and is left as its name alone, because a note on everything is a note
- * on nothing. A branch that is both reads as one line saying both.
- *
- * `fallback` is the default as git reports it — a full ref name, so it matches
- * `refName` rather than the shortened name that is drawn.
- */
+// `fallback` is a full ref name, so it is matched against `refName`.
 function noteOf(ref: Ref, fallback: string | null): string | null {
   const notes: string[] = [];
   if (ref.head) notes.push("Head");
@@ -169,27 +113,19 @@ function noteOf(ref: Ref, fallback: string | null): string | null {
   return notes.length > 0 ? notes.join(", ") : null;
 }
 
-/** A branch or worktree name, and what can be done where it points. */
 type Ref = ReturnType<typeof refsOf>[number];
 
-/** The other end of one branch, and what both ends need to know about it. */
 type Pairing = {
-  /** The branch at the other end. */
   other: Branch;
-  /** The remote that end stands on. */
   remote: string;
-  /** Both ends stand on one commit, which is a branch at rest. */
+  /** Both ends on one commit. */
   together: boolean;
   /** The local end's worktree, whichever end is asking. */
   work: string | null;
 };
 
-/**
- * Which branches are two ends of one branch, paired by name — the same guess
- * `git switch` makes, except read afresh every time rather than written into the
- * config once. Where one name is on several remotes the branch's own upstream
- * settles it, and failing that the first remote the repository lists.
- */
+// Local and remote ends are paired by name, the guess `git switch` makes; the
+// upstream settles a name on several remotes, else the first remote listed.
 function pairsOf(repository: Repository): Map<string, Pairing> {
   const order = new Map(repository.remotes.map((remote, at) => [remote.name, at]));
   const rank = (branch: Branch) => order.get(branch.remote ?? "") ?? order.size;
@@ -208,8 +144,7 @@ function pairsOf(repository: Repository): Map<string, Pairing> {
     const remote =
       candidates.find((end) => end.refName === local.upstream) ??
       candidates.reduce((best, end) => (rank(end) < rank(best) ? end : best));
-    // A remote-tracking ref under no remote this repository has is a ref
-    // somebody left behind, not an end of anything.
+    // A remote-tracking ref under no known remote is a leftover, not an end.
     const on = remote.remote;
     if (on === null) continue;
 
@@ -224,9 +159,7 @@ function pairsOf(repository: Repository): Map<string, Pairing> {
   return pairs;
 }
 
-/** What a head can ask a remote for. The end standing on the remote asks,
- *  because that is the ref a fetch moves. Local and remote heads are always
- *  separate nodes, even when the canvas puts them at the same point. */
+// Only the remote end fetches: that is the ref a fetch moves.
 function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
   if (branch.kind === "remote") {
     return branch.remote === null
@@ -236,18 +169,13 @@ function fetchOf(branch: Branch, pair: Pairing | undefined): Fetch | null {
   return null;
 }
 
-/** The remote end a local branch can be laid over, which is the whole of what
- *  the pairing is worth to the local end. Only where the two have parted: two
- *  ends drawn on one grid point are already level, and a mark cannot be laid
- *  over the one it is standing on — the fetch on the remote ring is what asks
- *  whether they still are. */
+// Only a local end that has parted from its remote can be laid over it.
 function originOf(branch: Branch, pair: Pairing | undefined): Origin | null {
   if (branch.kind !== "local" || pair === undefined || pair.together) return null;
   return { head: pair.other.name, remote: pair.remote, branch: branch.logicalName };
 }
 
-/** The names pointing at one commit. A branch is checked out in at most one
- *  worktree, so only a detached one is named after itself. */
+// A branch is checked out in at most one worktree; only a detached one is named after itself.
 function refsOf(entry: Named, pairs: ReadonlyMap<string, Pairing>) {
   const named = new Set<string>();
 
@@ -263,15 +191,11 @@ function refsOf(entry: Named, pairs: ReadonlyMap<string, Pairing>) {
       {
         key: branch.id,
         name: branch.name,
-        /** How the backend spells it, which is what `defaultBranch` names. */
         refName: branch.refName,
         kind: remote ? ("remote" as const) : ("local" as const),
-        /** Only synchronized counterparts may occupy one branch lane. */
+        // Only synchronized counterparts share one lane.
         shared: pair?.together === true ? [branch.id, pair.other.id].sort().join("+") : branch.id,
-        /** Remote namespaces never affect order: all forms of `main` group. */
         group: branch.logicalName,
-        // A local branch and its remote-tracking counterpart are separate refs,
-        // but the local ring still says when the branch also exists elsewhere.
         hasRemote: remote || pair !== undefined,
         together: pair?.together === true,
         fetch: fetchOf(branch, pair),

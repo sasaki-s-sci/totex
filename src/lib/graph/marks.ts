@@ -1,187 +1,74 @@
-/**
- * What the marks off the history carry: a repository folded into one, a fold in
- * the history, a terminal, and a file card.
- */
-
 import type { Repository } from "../../types/git";
 import type { FilePreviewView } from "../filePreview";
 import type { Session } from "../session";
 import type { AppNode } from "./flow";
 import { CLI_STEP, SESSION_WIDTH } from "./stacks";
 
-/**
- * One repository folded into a single mark, on its own row under its folder.
- *
- * The simplification is the point: a folder of a dozen repositories is a dozen
- * rows of one line each, and pressing one opens that repository's history out
- * in place. Until then the ring is the whole of the repository — everything
- * working in any of its worktrees stands beside that ring, so folding a
- * repository away never loses what is running in it.
- */
 export type RepoMarkData = {
   repository: Repository;
 };
 
-/** The history that is not being shown, and the way to ask for it. */
 export type CollapseNodeData = {
   repository: Repository;
   hidden: number;
 };
 
-/**
- * Where the branches that share a name are gathered on their way out.
- *
- * A knot in the wiring rather than a thing in the repository: `dev/` is not a
- * ref and nothing can be done to it. So the mark stands under the size of a
- * commit, which is the least thing on the canvas that is real, and is struck
- * rather than filled — an asterisk. The prefix is set on the line above it, in
- * the branch names' own quiet, and the count is there for the pointer: what the
- * group is is a word, and what it amounts to is a number. See `junctions`.
- */
 export type JunctionNodeData = {
-  /** The shared start of the names, without its trailing slash. */
+  /** Without its trailing slash. */
   prefix: string;
-  /** How many rows of the branch column run through it. */
+  /** Rows of the branch column running through it. */
   members: number;
-  /** Pressed shut, so that the branches under it have left the column. */
   closed: boolean;
 };
 
-/**
- * One terminal: the single mark this canvas draws for anything to do with a
- * shell.
- *
- * There used to be three of these — the offer beside a branch, this window's
- * own session, and a terminal the sweep found somebody else running — and they
- * were three shapes in two places. The offer is not a mark at all now: it is
- * the button on the branch's own ring, and pressing it puts one of these on the
- * canvas. So every mark in a stack is a terminal that exists, and the stack is
- * exactly what is running in that branch, oldest first.
- *
- * The whole of what a terminal is is said by its state: whose it is, and what
- * it is running. Which of those it is is read off the two fields below, and
- * there is no third case.
- */
+/** Every mark in a stack is a terminal that exists; the offer is on the ring. */
 export type CliNodeData = {
-  /** The terminal itself, which is what a press on the mark shows and ends. */
   session: Session;
-  /** The one the panel is showing, if it is this one. */
   showing: boolean;
-  /** Which of the directory's sessions it is, when there is more than one. */
+  /** Which of the directory's sessions this is, when there is more than one. */
   ordinal: number | null;
-  /**
-   * The row it is hanging on: a repository's band, a folded repository's mark,
-   * or a folder's own row.
-   *
-   * It is here because the panel's strip reads the terminals off what is drawn
-   * — the same order the numbers are given out in — and what it cannot work out
-   * from a session alone is which of them are standing in the same place. See
-   * `cliRun`.
-   *
-   * The mark draws one thing from it, and only the mark the panel is holding:
-   * that row's name, over the glyph while Ctrl is held. See `.cli__place`.
-   */
+  /** The row it hangs on: a band, a folded repository's mark, or a folder row. See `cliRun`. */
   group: string;
 };
 
-/**
- * The box every terminal mark is drawn in, wherever it is standing.
- *
- * One box for all of them, which is what lets a stack be read down a single
- * line: a terminal this window opened and one the sweep found somebody else
- * running are the same mark in the same room, and the stack grows by a box
- * rather than by a shape.
- */
 export const STACK_STYLE = {
   width: SESSION_WIDTH,
   height: CLI_STEP,
   pointerEvents: "none",
 } as const;
 
-/**
- * What the canvas is being built against.
- *
- * Nothing is collected across the build any more: every terminal stands beside
- * the row it is running in, and a row knows where its own marks go — so this is
- * only what did not have to be rebuilt at all.
- */
 export type Draw = {
-  /** The graph this one replaces, which is what did not have to be rebuilt. */
+  /** The graph this one replaces, for reusing nodes that did not change. */
   before: ReadonlyMap<string, AppNode>;
 };
 
-/**
- * A terminal taken out of the panel and stood on the canvas as a page.
- *
- * The same session the mark in its branch's stack is drawn for: the mark stays
- * where it was, and what changes is where the terminal itself is drawn — in a
- * box over the graph, moved by its bar and resized by its edges, rather than in
- * the panel beside it. Which of the two it is in is the window's to say (see
- * `useSessions`); the page only holds what the canvas needs to draw one.
- */
+/** A terminal stood on the canvas as a page; its stack mark stays where it was. */
 export type CliPageNodeData = {
   session: Session;
-  /** The one in hand, if it is this one — the terminal the keys go to. */
   showing: boolean;
-  /** The terminal is put away and the page is left as tall as its header. */
   collapsed: boolean;
-  /** What the page was last left at, for the same reason a file card keeps its own. */
   box: FilePreviewBox;
 };
 
-/**
- * How big a file card is, in canvas units. A card pinned over the window is
- * drawn at the same box scaled by the zoom it was pinned at, so the box itself
- * is never carried between coordinate systems — see `pinnedScale`.
- */
+/** Canvas units; a pinned card scales the same box by `pinnedScale`. */
 export type FilePreviewBox = { width: number; height: number };
 
-/** A bounded file reading shown in a freely placed card on the canvas. */
 export type FilePreviewNodeData = {
   requestId: number;
   path: string;
   name: string;
   text: string | null;
-  /**
-   * The file as something a picture can be drawn from, for a card that is
-   * showing one: a data URL of the whole of it, and null for every card that is
-   * not — and for a picture too large to have been read at all, which is a card
-   * that says so instead.
-   */
+  /** A data URL of the whole file, or null when not a picture or too large to read. */
   picture: string | null;
   size: number | null;
   truncated: boolean;
   state: "loading" | "ready" | "failed";
-  /**
-   * What the card is showing of it: the file, the patch against the commit
-   * under it, or the file drawn as the page it is written to be.
-   *
-   * Kept here rather than in the card, because a card that is pinned over the
-   * window is a card drawn again somewhere else — and what it was showing is
-   * not something a pin should put back to the beginning.
-   */
+  /** Kept on the node so pinning does not reset what the card was showing. */
   view: FilePreviewView;
-  /** The reading is put away and the card is left as tall as its header. */
   collapsed: boolean;
-  /**
-   * What the card was last left at.
-   *
-   * The size a card is at belongs to the node itself, because that is what an
-   * edge dragged writes to. A card put away has no height of its own for the
-   * canvas to measure, so the one it had is kept here to be given back.
-   */
+  /** Kept here because a collapsed card has no height for the canvas to measure. */
   box: FilePreviewBox;
-  /**
-   * Where the card is pinned over the window, in the canvas pane's own pixels,
-   * or null while it is still standing on the canvas.
-   *
-   * A pinned card has left the canvas: it is drawn over it instead, at the
-   * place on screen it was pinned at, and nothing the canvas is dragged or
-   * zoomed to reaches it. So where it is cannot be a position on the canvas —
-   * that is exactly the coordinate system it has stepped out of — and this is
-   * the one it is in instead. The position it left behind is kept on the node,
-   * unread until it is put back.
-   */
+  /** Pane pixels while pinned over the window; the canvas position stays on the node unread. */
   pinnedScale?: number;
   pinnedAt: { x: number; y: number } | null;
 };

@@ -1,5 +1,4 @@
-/** Mirrors the serde types in `src-tauri/src/git/model.rs`. */
-
+/** Mirrors the serde types in src-tauri/src/git/model.rs. */
 export type BranchKind = "local" | "remote";
 
 export type Remote = {
@@ -10,10 +9,10 @@ export type Remote = {
 export type Branch = {
   id: string;
   repoId: string;
-  refName: string;
   /** `main` for locals, `origin/main` for remotes. */
+  refName: string;
   name: string;
-  /** Name without the remote prefix, so a local and its remote pair up. */
+  /** Without the remote prefix, so a local and its remote pair up. */
   logicalName: string;
   kind: BranchKind;
   remote: string | null;
@@ -69,18 +68,9 @@ export type Repository = {
   remotes: Remote[];
   branches: Branch[];
   worktrees: Worktree[];
-  /** Newest first, in topological order. */
   commits: Commit[];
   historyTruncated: boolean;
-  /**
-   * The branch names this repository asks the graph to leave out, as its
-   * `.totex/.graphignore` writes them — blank lines and comments already gone.
-   *
-   * Optional because these pages can be running on a program from before the
-   * file was read at all, and a window that drew nothing rather than drawing
-   * every branch would be a worse answer than ignoring nothing. See
-   * `lib/graph/ignore`.
-   */
+  /** From `.totex/.graphignore`; optional because an older backend never read it. */
   graphIgnore?: string[];
 };
 
@@ -90,19 +80,13 @@ export type Workspace = {
   warnings: string[];
 };
 
-/** Everything but the three lists, sent whole when any of it changed. */
 export type RepositorySummary = Omit<Repository, "id" | "branches" | "worktrees" | "commits">;
 
-/**
- * History as a diff: the bodies we have not seen, plus the resulting order.
- * Commits that dropped out of history are simply absent from the order.
- */
 export type CommitDelta = {
   added: Commit[];
   order: string[];
 };
 
-/** The changed parts of one repository; an absent field did not move. */
 export type RepositoryDelta = {
   id: string;
   summary?: RepositorySummary;
@@ -111,14 +95,12 @@ export type RepositoryDelta = {
   commits?: CommitDelta;
 };
 
-/** What a rescan actually changed. Mirrors `src-tauri/src/git/delta.rs`. */
+/** Mirrors src-tauri/src/git/delta.rs; an absent field did not move. */
 export type WorkspaceDelta = {
   root: string;
   added: Repository[];
   changed: RepositoryDelta[];
-  /** Ids of repositories that are gone. */
   removed: string[];
-  /** Every repository id in display order, sent when the set or order moved. */
   order?: string[];
   warnings?: string[];
 };

@@ -1,0 +1,140 @@
+.markdown {
+  font-size: calc(var(--reading-size, 11px) + 1px);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 1.4em 0 0.6em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown h1 {
+  font-size: 1.7em;
+}
+
+.markdown h2 {
+  font-size: 1.4em;
+}
+
+.markdown h3 {
+  font-size: 1.2em;
+}
+
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 1em;
+}
+
+.markdown h1,
+.markdown h2 {
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--mui-palette-divider);
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown table,
+.markdown pre {
+  margin: 0 0 0.8em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.4em;
+}
+
+.markdown li {
+  margin: 0.2em 0;
+}
+
+.markdown li > input {
+  margin-right: 0.4em;
+}
+
+.markdown a {
+  color: var(--mui-palette-primary-main);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown code {
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  background: var(--mui-palette-action-hover);
+  font:
+    calc(var(--reading-size, 11px) * 0.95) / 1.5 ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+.markdown pre {
+  padding: 0.6em 0.8em;
+  border-radius: 5px;
+  background: var(--mui-palette-action-hover);
+  tab-size: 2;
+  white-space: pre-wrap;
+}
+
+.markdown pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.markdown blockquote {
+  padding-left: 0.8em;
+  border-left: 3px solid var(--mui-palette-divider);
+  color: var(--mui-palette-text-secondary);
+}
+
+.markdown hr {
+  height: 0;
+  margin: 1.2em 0;
+  border: 0;
+  border-top: 1px solid var(--mui-palette-divider);
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.markdown th,
+.markdown td {
+  padding: 0.3em 0.5em;
+  border: 1px solid var(--mui-palette-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: var(--mui-palette-action-hover);
+  font-weight: 600;
+}
+
+.markdown img {
+  max-width: 100%;
+  height: auto;
+}

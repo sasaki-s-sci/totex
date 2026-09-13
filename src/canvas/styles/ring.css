@@ -1,0 +1,60 @@
+.head__ring.is-dirty,
+.head__ring.is-unopened {
+  border-style: none;
+}
+
+.head__ring__ink {
+  position: absolute;
+  inset: 0;
+  fill: none;
+  pointer-events: none;
+}
+
+.head__ring__here {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  transform: translate(calc(-50% + 5px), calc(-50% + 5px));
+  pointer-events: none;
+}
+
+.head__ring.is-dirty.is-busy,
+.head__ring.is-dirty.is-failed {
+  border-style: solid;
+}
+
+.head__ring.is-failed {
+  color: var(--mui-palette-error-main);
+  animation: mark-refused 1.1s ease-out;
+}
+
+.head__ring.is-busy {
+  animation: mark-working 1.4s ease-in-out infinite;
+}
+
+@keyframes mark-refused {
+  0%,
+  40% {
+    box-shadow:
+      var(--clearance),
+      0 0 0 3px color-mix(in srgb, var(--mui-palette-error-main) 45%, transparent);
+  }
+  100% {
+    box-shadow: var(--clearance);
+  }
+}
+
+@keyframes mark-working {
+  50% {
+    border-color: color-mix(in srgb, currentcolor 35%, transparent);
+    stroke-opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .head__ring.is-failed,
+  .head__ring.is-busy {
+    animation: none;
+  }
+}

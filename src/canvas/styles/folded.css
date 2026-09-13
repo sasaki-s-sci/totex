@@ -1,0 +1,69 @@
+.collapse__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 56px;
+  height: 16px;
+  padding: 0 6px;
+  border: 0.75px solid color-mix(in srgb, var(--mui-palette-divider) 75%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--mui-palette-background-paper) 75%, transparent);
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    color var(--reveal),
+    border-color var(--reveal),
+    background-color var(--reveal);
+}
+
+.collapse__arrows {
+  color: var(--mark);
+}
+
+.collapse__more:hover,
+.collapse__more:focus-visible {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+}
+
+.collapse__more.is-pulling {
+  border-color: currentcolor;
+  background: var(--mui-palette-background-paper);
+  box-shadow: var(--halo);
+  color: var(--mui-palette-text-secondary);
+  cursor: ew-resize;
+}
+
+.band-lines--provisional path {
+  stroke-dasharray: 4 5;
+  stroke-opacity: 0.5;
+}
+
+.band-lines--provisional .commit-dots {
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1.4;
+  stroke-opacity: 0.6;
+  stroke-dasharray: 3 3;
+}
+
+.head.is-provisional {
+  pointer-events: none;
+}
+
+.head.is-provisional .head__ring {
+  border-style: dashed;
+  box-shadow: var(--clearance);
+  opacity: 0.7;
+}
+
+.head.is-provisional .head__ring__ink,
+.head.is-provisional .head__ring__here,
+.head.is-provisional .head__cli {
+  display: none;
+}

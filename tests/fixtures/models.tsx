@@ -2,9 +2,9 @@ import i18next from "i18next";
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next } from "react-i18next";
-import { ModelReading } from "../../src/components/nodes/preview/ModelReading";
+import { ModelReading } from "../../src/canvas/nodes/preview/ModelReading";
 import en from "../../src/i18n/locales/en.json";
-import "../../src/canvas/reading.css";
+import "../../src/canvas/styles/reading.css";
 
 void i18next.use(initReactI18next).init({ lng: "en", resources: { en: { translation: en } } });
 const encode = (bytes: Uint8Array) =>

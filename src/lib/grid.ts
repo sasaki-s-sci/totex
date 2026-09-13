@@ -1,43 +1,14 @@
-/**
- * The grid behind the canvas, and what is held to it.
- *
- * The lines are drawn a set distance apart, and that distance is the one thing
- * about them a hand can change: a fine grid for laying cards edge to edge, a
- * coarse one for a canvas read from across the room. A file card can be held
- * to the same lines — where its corner stands and how wide and tall it is are
- * all multiples of the spacing — so that cards put down near one another line
- * up without being nudged into it. Only file cards: the graph is dealt onto a
- * grid of its own (see `lib/graph/grid`), and a folder carried somewhere lands
- * on that one.
- *
- * Stored in the application settings document alongside theme and language.
- */
-
 import type { NodeChange } from "@xyflow/react";
 import { useSyncExternalStore } from "react";
 import { settingsNow, subscribeSettings } from "./appSettings";
 
-/**
- * The room the spacing has, and what a window that has never been told uses.
- *
- * One pixel to a hundred: the page offers every whole number between, and one
- * notch past the hundred, which is no grid at all — see `GRID_OFF`.
- */
 export const GRID = { least: 1, most: 100, start: 24 } as const;
 
-/**
- * The notch past the widest spacing, which the page reads as infinity: lines
- * infinitely far apart are no lines, so landing on it is what turns the grid
- * off. One slider rather than a slider and a tick, because "how far apart" and
- * "at all" are the same question asked of the same hand.
- */
+/** One notch past the widest spacing reads as no grid at all. */
 export const GRID_OFF = GRID.most + 1;
 
-/** The smallest a card may be, which a snapped size is never taken below. */
 export type Least = { width: number; height: number };
 
-/** The grid as the settings page shows it: how far apart, and whether cards
- *  are held to it. */
 export function gridNow(): { step: number; holding: boolean } {
   const { gridStep, gridSnap } = settingsNow();
   return { step: gridStep, holding: gridSnap };
@@ -47,27 +18,19 @@ export function useGrid(): { step: number; holding: boolean } {
   return useSyncExternalStore(subscribeSettings, gridNow, gridNow);
 }
 
-/** The nearest line to a point along one axis. */
 export function onGrid(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
 
-/**
- * The nearest whole number of steps to a length, and never fewer than fit the
- * least the card may be: a card dragged to its smallest is rounded up to the
- * line beyond it rather than down past what the edge would have allowed.
- */
+/** Never below the least a card may be: the smallest size rounds up, not down. */
 export function sizeOnGrid(value: number, step: number, least: number): number {
   return Math.max(onGrid(value, step), Math.ceil(least / step) * step);
 }
 
-/** The first line at or past a length: for a width that was measured, so that
- *  what was measured still fits. */
 export function upToGrid(value: number, step: number): number {
   return Math.ceil(value / step) * step;
 }
 
-/** A card's corner and box, both held to the grid. */
 export function placeOnGrid(
   position: { x: number; y: number },
   box: { width: number; height: number },
@@ -83,16 +46,7 @@ export function placeOnGrid(
   };
 }
 
-/**
- * The canvas's changes with every card among them held to the grid.
- *
- * A drag reports where the card now stands and an edge dragged reports how big
- * it now is, each worked out afresh from where the pointer is rather than from
- * the last change, so rounding every one of them is a card that moves a line
- * at a time and never drifts. Only what an edge set is rounded: a card folded
- * away has no height of its own, and the one the canvas measured for its bar
- * is left as it was measured.
- */
+/** Only sizes an edge set are rounded; a folded card's measured bar height stays. */
 export function heldToGrid<Change extends NodeChange>(
   changes: readonly Change[],
   leastOf: (id: string) => Least | null,

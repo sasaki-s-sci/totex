@@ -5,7 +5,7 @@ import {
   parseTable,
   TABLE_MAX_COLUMNS,
   TABLE_MAX_ROWS,
-} from "../src/components/nodes/preview/tableData.ts";
+} from "../src/canvas/nodes/preview/tableData.ts";
 
 test("CSV preserves quoted separators, escaped quotes, embedded newlines and empty cells", () => {
   assert.deepEqual(

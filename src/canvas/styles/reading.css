@@ -1,0 +1,284 @@
+.file-preview .page__body {
+  overflow: clip;
+}
+
+.file-preview__reach {
+  position: absolute;
+  z-index: 2;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mui-palette-text-disabled) 70%, transparent);
+  pointer-events: none;
+}
+
+.file-preview__reach--y {
+  top: 0;
+  right: 2px;
+  width: 3px;
+}
+
+.file-preview__reach--x {
+  bottom: 2px;
+  left: 0;
+  height: 3px;
+}
+
+.file-preview__code {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 100%;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+.file-preview {
+  --reading-line: calc(var(--reading-size, 11px) * 1.55);
+  --reading-pad: 10px;
+}
+
+.file-preview__gutter,
+.file-preview__text {
+  margin: 0;
+  padding: var(--reading-pad) 0;
+  font:
+    var(--reading-size, 11px) / var(--reading-line, 17px) ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+
+.file-preview__rule {
+  z-index: 1;
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: stretch;
+}
+
+.file-preview__mark {
+  position: absolute;
+  right: 2px;
+  width: 3px;
+  border-radius: 2px;
+}
+
+.file-preview__mark.is-added {
+  background: var(--mui-palette-success-main);
+}
+
+.file-preview__mark.is-modified {
+  background: var(--mui-palette-warning-main);
+}
+
+.file-preview__mark.is-deleted {
+  width: 0;
+  height: 0;
+  margin-top: -3px;
+  border-top: 3px solid transparent;
+  border-right: 4px solid var(--mui-palette-error-main);
+  border-bottom: 3px solid transparent;
+  background: none;
+}
+
+.file-preview__patch {
+  display: flex;
+  min-width: 100%;
+  width: max-content;
+  min-height: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.file-preview__patch .file-preview__text {
+  position: relative;
+}
+
+.file-preview__tint {
+  position: absolute;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.file-preview__tint.is-added {
+  background: color-mix(in srgb, var(--mui-palette-success-main) 16%, transparent);
+}
+
+.file-preview__tint.is-deleted {
+  background: color-mix(in srgb, var(--mui-palette-error-main) 16%, transparent);
+}
+
+.file-preview__tint.is-hunk {
+  background: color-mix(in srgb, var(--mui-palette-primary-main) 12%, transparent);
+}
+
+.file-preview__markdown {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  padding: var(--reading-pad) 12px;
+}
+
+.file-preview__picture {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: var(--reading-pad);
+}
+
+.file-preview__picture img {
+  max-width: 100%;
+  max-height: 100%;
+  background-image:
+    linear-gradient(45deg, var(--mui-palette-action-hover) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--mui-palette-action-hover) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--mui-palette-action-hover) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--mui-palette-action-hover) 75%);
+  background-position:
+    0 0,
+    0 6px,
+    6px -6px,
+    -6px 0;
+  background-size: 12px 12px;
+  object-fit: contain;
+}
+
+.file-preview__picture.is-drawing img {
+  width: 100%;
+  height: 100%;
+}
+
+.file-preview__gutter {
+  flex: none;
+  padding-right: 8px;
+  padding-left: 10px;
+  border-right: 1px solid var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  color: var(--mui-palette-text-secondary);
+  text-align: right;
+  user-select: none;
+}
+
+.file-preview__text {
+  flex: 1 0 auto;
+  padding-right: 14px;
+  padding-left: 10px;
+}
+
+.file-preview__text.is-editable {
+  cursor: text;
+  outline: none;
+  /* React Flow sets user-select: none on every node; the reading takes it back. */
+  user-select: text;
+}
+
+.file-preview__message {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  color: var(--mui-palette-text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.file-preview__message.is-error {
+  color: var(--mui-palette-error-main);
+}
+
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .cli__open,
+.react-flow__node.is-picked .folder__name {
+  color: var(--mui-palette-primary-main);
+}
+
+.react-flow__node.is-picked .mark,
+.react-flow__node.is-picked .folder__name {
+  filter: var(--lit);
+}
+
+.react-flow__node-ask.is-picked,
+.react-flow__node-report.is-picked,
+.react-flow__node-file-preview.is-picked {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 55%, transparent));
+}
+
+.react-flow__controls {
+  box-shadow: var(--mui-shadows-3);
+}
+
+.react-flow__controls-button {
+  border-bottom-color: var(--mui-palette-divider);
+  background: var(--mui-palette-background-paper);
+  fill: var(--mui-palette-text-primary);
+}
+
+.file-preview__document {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.file-preview__document-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--mui-palette-divider);
+}
+
+.file-preview__document-tools button {
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.file-preview__document-tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.file-preview__document-status {
+  flex: none;
+  margin: 4px 8px;
+  font-size: 12px;
+}
+
+.file-preview__pdf-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.file-preview__pdf-paper {
+  width: max-content;
+  min-width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.file-preview__pdf-paper canvas {
+  display: block;
+  margin: auto;
+}
+
+.file-preview__dxf {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}

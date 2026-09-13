@@ -1,0 +1,102 @@
+.junction__knot {
+  width: var(--knot);
+  height: var(--knot);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--mui-palette-background-default);
+  box-shadow: var(--clearance);
+  cursor: pointer;
+}
+
+.junction__knot:focus-visible {
+  outline: none;
+}
+
+.junction__arms {
+  position: absolute;
+  inset: 0;
+  fill: none;
+  stroke: var(--mark);
+  stroke-width: 1;
+  transition: stroke-width var(--reveal);
+  pointer-events: none;
+}
+
+.junction__knot:hover .junction__arms,
+.junction__knot:focus-visible .junction__arms {
+  stroke-width: 1.6;
+}
+
+.junction__arms line {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.junction__arms.is-turning line {
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.2, 1);
+  animation-fill-mode: both;
+}
+
+.junction__arms.is-turning line:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.junction__arms.is-turning line:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.junction__arms.is-turning--shut line:nth-child(1),
+.junction__arms.is-turning--shut line:nth-child(3),
+.junction__arms.is-turning--open line:nth-child(2) {
+  animation-name: knot-turn-with;
+}
+
+.junction__arms.is-turning--shut line:nth-child(2),
+.junction__arms.is-turning--open line:nth-child(1),
+.junction__arms.is-turning--open line:nth-child(3) {
+  animation-name: knot-turn-against;
+}
+
+@keyframes knot-turn-with {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(180deg);
+  }
+}
+
+@keyframes knot-turn-against {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-180deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .junction__arms.is-turning line {
+    animation: none;
+  }
+}
+
+.junction__name {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  max-width: 100%;
+  margin-bottom: calc(var(--knot) / 2 + 3px);
+  overflow: hidden;
+  transform: translateX(-50%);
+  color: var(--line);
+  font-size: 6px;
+  font-weight: 300;
+  letter-spacing: 0.015em;
+  line-height: 1;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}

@@ -1,0 +1,17 @@
+.graph .react-flow__node {
+  cursor: default;
+}
+
+.graph .react-flow__node {
+  /* A pan costs hit-testing and layer assignment over a thousand cells, not paint. */
+  contain: layout paint;
+}
+
+.graph .react-flow__node-collapse {
+  /* No paint containment: what these hold reaches past their own box. */
+  contain: layout;
+}
+
+.graph .react-flow__node-cli {
+  contain: layout;
+}

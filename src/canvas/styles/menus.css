@@ -1,0 +1,18 @@
+.tools__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--mui-palette-text-secondary) 70%, transparent);
+  cursor: pointer;
+  transition: color var(--reveal);
+}
+
+.tools__button:hover,
+.tools__button:focus-visible {
+  color: var(--mui-palette-text-secondary);
+}

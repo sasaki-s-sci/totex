@@ -2,190 +2,88 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { Repository } from "../types/git";
 
-/** A branch and the directory it is checked out in. */
 export type Workspace = {
   repoId: string;
   branch: string;
   path: string;
 };
 
-/**
- * What is uncommitted in a worktree, counted in files by what became of them.
- *
- * Files rather than lines, and split three ways, because that is what the graph
- * draws: a branch's rim is these three as shares of one circle, so a copy that
- * is only adding reads differently from one that is throwing things away.
- */
 export type WorktreeStatus = {
-  /** Files the worktree has that its commit does not, tracked or not. */
   added: number;
-  /** Files its commit has that the worktree does not. */
   deleted: number;
-  /** Files both have, with something different in them. */
   modified: number;
 };
 
-/**
- * How far a branch was brought level with the remote end of itself.
- *
- * Counted in commits rather than said in words: what happened is already on the
- * canvas, since the branch has moved along its remote's line and the gap that
- * is left is the gap that is drawn. This is only enough to tell the two kinds
- * of nothing apart — a branch that took nothing because there was nothing to
- * take is at rest, and one that took nothing because the first commit would not
- * go is a refusal, and only the second turns a ring red.
- *
- * Mirrors `Sync` in `src-tauri/src/git/workspace/history.rs`.
- */
+/** Mirrors `Sync` in src-tauri/src/git/workspace/history.rs. Only `blocked` turns a ring red. */
 export type Sync = {
-  /** Commits taken from the remote end onto the branch. */
   taken: number;
-  /** Commits the remote still has that the branch now does not. */
   left: number;
-  /** What is left was stopped by a conflict rather than never being there. */
   blocked: boolean;
 };
 
-/** Whether there is anything uncommitted here at all, counted in files. */
 export function dirtyCount(status: WorktreeStatus): number {
   return status.added + status.deleted + status.modified;
 }
 
-/**
- * Cuts a branch at a commit and gives it a worktree.
- *
- * No path is asked for: where a branch's worktree goes is derived from the
- * repository and the branch, so the same branch always comes back to the same
- * directory and nobody has to invent one.
- */
 export function createWorkspace(repoId: string, branch: string, oid: string): Promise<Workspace> {
   return invoke("create_workspace", { repoId, branch, oid });
 }
 
-/** Gives an existing branch its worktree, or hands back the one it has. */
 export function openWorkspace(repoId: string, branch: string): Promise<Workspace> {
   return invoke("open_workspace", { repoId, branch });
 }
 
-/**
- * Deletes a local branch and everything standing on it: its linked worktree,
- * and whatever was left uncommitted in there. A branch nothing has merged goes
- * the same way. The remote-tracking branch is left alone.
- */
 export function deleteBranch(repoId: string, branch: string): Promise<void> {
   return invoke("delete_branch", { repoId, branch });
 }
 
-/**
- * What is uncommitted in each of many worktrees, in one crossing.
- *
- * Keyed by the path asked about. A directory git would not answer for is absent
- * rather than an error: the graph draws a ring for it either way.
- */
 export function worktreeStatuses(paths: string[]): Promise<Record<string, WorktreeStatus>> {
   return invoke("workspace_statuses", { paths });
 }
 
-/**
- * Brings one branch down from one remote.
- *
- * `branch` is the name the remote knows it by — `main`, not `origin/main` —
- * because that is what is being asked for and the remote is named beside it.
- * Nothing in any working tree moves: a fetch writes refs and objects, so the
- * only thing that changes is where the remote end of the branch is drawn.
- */
+/** `branch` is the remote's own name: `main`, not `origin/main`. */
 export function fetchBranch(repoId: string, remote: string, branch: string): Promise<void> {
   return invoke("fetch_branch", { repoId, remote, branch });
 }
 
-/**
- * Asks every remote of one repository, and takes the branches that were only
- * behind up to what came back.
- *
- * The automatic round, and fast-forward only: a branch with commits of its own
- * is two ends that have parted, and joining those is a decision rather than
- * something a timer does. Nothing is reported and nothing can fail — a remote
- * that would not answer is a branch left where it was.
- */
+/** Fast-forward only; a remote that will not answer leaves the branch where it was. */
 export function followRepository(repoId: string): Promise<void> {
   return invoke("follow_repository", { repoId });
 }
 
-/**
- * The same round over one repository, asked for by hand.
- *
- * What it does to the branches is exactly what `followRepository` does — see
- * `round`, which is the one piece of work behind both. The difference is that
- * somebody pressed for this one, so a remote that would not answer comes back
- * as the reason rather than as silence. What did answer is taken and drawn
- * before that is raised.
- */
 export function fetchRepository(repoId: string): Promise<void> {
   return invoke("fetch_repository", { repoId });
 }
 
-/** Merges `source` into `target`, in `target`'s own worktree. */
 export function mergeBranch(repoId: string, source: string, target: string): Promise<string> {
   return invoke("merge_branch", { repoId, source, target });
 }
 
-/**
- * Brings a branch level with its remote, as far as it can go unattended.
- *
- * The fetch and the merge in one, because they are one thing to whoever asked:
- * what the remote has now, taken up to the first commit that would have to be
- * settled by hand. Stopping short is an outcome rather than a failure — see
- * `Sync`, which is how the window tells that apart from a branch that was
- * already level.
- */
 export function syncBranch(repoId: string, remote: string, branch: string): Promise<Sync> {
   return invoke("sync_branch", { repoId, remote, branch });
 }
 
-/**
- * Whether git would take this as a branch name.
- *
- * `git check-ref-format --branch` is the authority and the backend still asks
- * it, but a box that offers to create a name git is about to refuse has already
- * failed: the offer is what tells you, so it is withheld instead. These are
- * that command's rules, as far as something typed into a box can break them.
- */
+/** Mirrors `git check-ref-format --branch`, so a name git would refuse is never offered. */
 export function isBranchName(name: string): boolean {
   if (name.length === 0 || name === "@") return false;
-  // Control characters, space, and the characters git reserves for the ways a
-  // ref can be asked for.
   if (/[\0-\x20\x7f~^:?*[\\]/.test(name)) return false;
   if (name.includes("..") || name.includes("@{")) return false;
   if (name.startsWith("/") || name.endsWith("/") || name.includes("//")) return false;
   if (name.endsWith(".") || name.endsWith(".lock")) return false;
-  // No part of the path may start with a dot or end in `.lock` either.
   return name
     .split("/")
     .every((part) => part.length > 0 && !part.startsWith(".") && !part.endsWith(".lock"));
 }
 
-/** Whether the repository already has a local branch under this name. */
 export function branchTaken(repository: Repository, name: string): boolean {
   return repository.branches.some(
     (branch) => branch.kind === "local" && branch.name === name.trim(),
   );
 }
 
-/** The prefix the box opens under, and the whole of what it suggests. */
 export const DRAFT_PREFIX = "dev/";
 
-/**
- * The name already in the box when a branch is cut from a commit by hand.
- *
- * What the branch is for is not known here, and a suggestion that has to be
- * cleared before anything can be typed is worth less than none at all — so it
- * is a prefix and a random tail rather than a guess drawn from the history. It
- * is a name git will take and a name no repository is likely to hold, which is
- * what lets the tick be out from the moment the box opens: pressing it straight
- * away is the whole of the common case. A random tail rather than a counter,
- * for the same reason branches cut by the graph get one — two of these can be
- * started a second apart, and neither has read the other's branch list.
- */
+/** A random tail rather than a counter: two windows may cut a branch a second apart. */
 export function draftBranchName(): string {
   return `${DRAFT_PREFIX}${Math.random().toString(36).slice(2, 8)}`;
 }

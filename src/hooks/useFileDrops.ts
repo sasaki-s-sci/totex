@@ -1,18 +1,8 @@
-import { useFrontState } from "../shell/state";
-/**
- * The file cards the window is holding, and the ways one is asked for.
- *
- * A card is opened from a row in the column, from another card, or by dropping
- * a file on the canvas — which is `useNativeDrops`, since a native drop is a
- * point on the window before it is anything else and the canvas is only one of
- * the things that can be under it.
- */
-
 import { useCallback, useRef } from "react";
-import { draftKey } from "../components/nodes/preview/draft";
+import { draftKey } from "../canvas/nodes/preview/draft";
 import type { CardSeed } from "../lib/cardWindow";
 import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
-import { keepFrontValue } from "../shell/state";
+import { keepFrontValue, useFrontState } from "../shell/state";
 
 export function useFileDrops() {
   const [filePreviews, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
@@ -29,13 +19,7 @@ export function useFileDrops() {
     ]);
   }, []);
 
-  /**
-   * Opens a rendering of one file beside the card it is of.
-   *
-   * One preview to a file: a second press over a card whose file is already
-   * being drawn somewhere is answered by the card that is already standing,
-   * rather than by another one of it.
-   */
+  // One preview per file: a second press is answered by the card already standing.
   const previewFile = useCallback((path: string, beside: number) => {
     const id = nextFilePreview.current++;
     const view = previewView(path);
@@ -48,13 +32,7 @@ export function useFileDrops() {
     );
   }, []);
 
-  /**
-   * Takes a card back from a window of its own, pinned at a place in the pane.
-   *
-   * A card of its own again, under a new id: the one it left with was the old
-   * card's, and what was being typed into it is put where the new card's draft
-   * will look before the card is placed.
-   */
+  // A new id: the draft is put where the new card looks before it is placed.
   const openPinned = useCallback((seed: CardSeed, at: { x: number; y: number }) => {
     const id = nextFilePreview.current++;
     if (seed.draft) keepFrontValue(draftKey(id, seed.path), seed.draft);

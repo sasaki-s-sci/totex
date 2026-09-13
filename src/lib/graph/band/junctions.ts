@@ -1,12 +1,3 @@
-/**
- * The knots between the history and the branch column: where the names that
- * share a start are gathered, and the lines that arrive at each of them.
- *
- * What hangs off a junction is drawn by `drawHeads`, which asks this for where
- * the knot ended up. Which names are gathered at all is `junctions`; this is
- * only where they stand and what runs into them.
- */
-
 import type { PlacedRef } from "../branches";
 import type { Point } from "../geometry";
 import {
@@ -19,31 +10,8 @@ import {
 } from "../model";
 import { FOLD_DASH, type Frame, sourceOf } from "./frame";
 
-/** How a gathered group is drawn, which is how one of its branches is drawn. */
 const GROUP_STROKE = { colour: LINE_COLOR, width: 1.1, opacity: 0.72 };
 
-/**
- * Every knot in one band: where it stands, its mark, and what arrives at it.
- *
- * Placed before anything else in the branch column is drawn, because a branch
- * gathered at one leaves the knot rather than the history — see `drawHeads`.
- *
- * Across, a knot stands in its own column of the grid, one per level of the
- * name it gathers. Down, it takes no row at all: it stands half way between the
- * topmost and bottommost row running through it, which is usually off the
- * lattice everything else is on. That is the point of it — the branch column
- * keeps the rhythm it had, and so do the terminals hanging off it, while the
- * knot sits in the gap the fan leaves. A knot given a row of its own would push
- * a branch down for something that is not a branch.
- *
- * The one exception is a knot pressed shut with nothing left under it: there is
- * no fan for it to sit in the gap of, so it is seated in a row of the column —
- * see `dealColumn`.
- *
- * `refs` is what the column draws; `every` is every branch the repository has,
- * the ones a shut knot has put away included, because the lines from the
- * history into a knot are read off the whole of what it gathers.
- */
 export function drawJunctions(
   frame: Frame,
   refs: readonly PlacedRef[],
@@ -52,9 +20,6 @@ export function drawJunctions(
   const { repository, history, bundle, seats, junctionAt, columnX, drawn, nodes } = frame;
   if (bundle.junctions.length === 0) return;
 
-  // What each knot has to cover: the rows of the branches gathered at it, and
-  // the knots gathered at it. Deepest first, so a knot's own children have
-  // been placed by the time it asks where they are.
   const covers = new Map<string, number[]>();
   const cover = (id: string, y: number) => {
     const held = covers.get(id);
@@ -67,12 +32,11 @@ export function drawJunctions(
   }
   for (const [id, row] of seats) cover(id, frame.branchLine[row]);
 
+  // Deepest first, so a knot's children are placed before it asks where they are.
   for (const junction of [...bundle.junctions].reverse()) {
     const held = covers.get(junction.id) ?? [];
-    // Half way between the two ends of the fan rather than the average of it:
-    // what the knot has to sit in the middle of is the room the lines take,
-    // and a group of ten with nine of them on one row would otherwise put the
-    // knot on top of those nine.
+
+    // Midpoint of the fan, not the average: nine of ten on one row would put the knot on them.
     const y = (Math.min(...held) + Math.max(...held)) / 2;
     const at: Point = { x: columnX(history.width + junction.column) + COMMIT_STEP.x / 2, y };
     junctionAt.set(junction.id, at);
@@ -91,14 +55,14 @@ export function drawJunctions(
     } satisfies JunctionFlowNode);
   }
 
-  // The outermost knot each one hangs off, worked out once: the junctions are
-  // shallowest first, so a parent's own answer is already in here.
+  // Shallowest first, so a parent's answer is already in here.
   const roots = new Map<string, string>();
   for (const junction of bundle.junctions) {
     const parent = junction.parent;
     roots.set(junction.id, parent === null ? junction.id : (roots.get(parent) ?? parent));
   }
 
+  // The same commit twice is one line.
   const arriving = new Map<string, Set<number | null>>();
   for (const ref of every) {
     const over = bundle.parentOf.get(ref.id);
@@ -109,10 +73,6 @@ export function drawJunctions(
     else arriving.set(root, new Set([ref.from]));
   }
 
-  // And what arrives. A knot gathered at another one is a single line from it;
-  // one gathered at nothing is the group leaving the history, which is one line
-  // per commit any of its branches stands on — the same commit twice is one
-  // line, which is the whole saving.
   for (const junction of bundle.junctions) {
     if (junction.parent !== null) {
       drawn.add({
@@ -136,9 +96,7 @@ export function drawJunctions(
         shape: "curve",
         trim: JUNCTION_TRIM,
         lead: source.lead,
-        // The run out of the fold stands for history that is not on screen, and
-        // is drawn as the fold's own dash — the fan out of the knot is real and
-        // is not.
+
         stroke: source.folded ? { ...GROUP_STROKE, dash: FOLD_DASH } : GROUP_STROKE,
       });
     }

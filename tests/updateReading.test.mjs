@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compatibleChoices, standing } from "../src/components/settings/updateReading.ts";
+import { compatibleChoices, standing } from "../src/settings/updateReading.ts";
 
 const choice = (version, ephemeralContract, persistentAvailable = true) => ({
   version,

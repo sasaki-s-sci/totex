@@ -1,17 +1,10 @@
-/**
- * What a mark on the canvas asks the window for: a terminal in a branch, a
- * commit's menu, a branch cut from a commit, a merge, a sync, and a fetch.
- *
- * Every one of them is held still, because the graph's actions are context: a
- * callback rebuilt on every render is every node on the canvas told that
- * something changed.
- */
+// Every callback is held still: the canvas actions are context, and a rebuilt one re-renders every
+// node.
 
 import { useCallback } from "react";
-import type { CommitTarget } from "../components/CommitMenu";
-import type { FetchRequest, MergeRequest, SyncRequest } from "../components/GitGraph";
-import type { WorkRequest } from "../components/graphActions";
-import { branchMark } from "../components/graphMarks";
+import type { MergeRequest, SyncRequest } from "../canvas/CanvasProps";
+import type { FetchRequest, WorkRequest } from "../canvas/graphActions";
+import { branchMark } from "../canvas/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
 import { shellSession } from "../lib/session";
 import {
@@ -22,6 +15,7 @@ import {
   openWorkspace,
   syncBranch,
 } from "../lib/workspace";
+import type { CommitTarget } from "../menus/CommitMenu";
 import type { Repository } from "../types/git";
 import type { useMarks } from "./useMarks";
 import type { useSessions } from "./useSessions";
@@ -41,18 +35,9 @@ export function useCanvasWork({
   setCommitMenu: React.Dispatch<React.SetStateAction<CommitTarget | null>>;
   onBrowseFolder: (repository: Repository, path: string) => void;
 }) {
-  /**
-   * Opens a terminal in a branch.
-   *
-   * A branch that has no worktree yet gets one here, on the way in: a branch
-   * you can see is a branch you can work in, and the directory it needs is
-   * derived rather than asked for — so there is nothing to decide and nothing
-   * to distinguish a branch that has one from a branch that does not.
-   */
   const openWork = useCallback(
     ({ repository, branch, cwd }: WorkRequest) => {
-      // A folder is already a directory, so there is nothing to make; only a
-      // branch that has never been checked out is answered with a worktree.
+      // A folder is already a directory; only a branch never checked out gets a worktree.
       const start = cwd
         ? Promise.resolve(cwd)
         : repository
@@ -61,20 +46,11 @@ export function useCanvasWork({
 
       start
         .then((path) => openSession(shellSession(path, branch)))
-        // Nothing to mark when there is no branch: a folder that would not open
-        // is the shell saying so, in the terminal that was asked for.
         .catch(() => repository && fail(branchMark(repository.id, branch)));
     },
     [openSession, fail],
   );
 
-  /**
-   * Moves the folder explorer to a branch's worktree.
-   *
-   * An unopened branch gets its directory first, just as opening a terminal
-   * there does. Git never checks the main working tree out to another branch:
-   * the result is a path, and the sidebar browses that path as a folder.
-   */
   const browseWorktree = useCallback(
     ({ repository, branch, cwd }: WorkRequest & { repository: Repository }) => {
       const key = branchMark(repository.id, branch);
@@ -96,12 +72,6 @@ export function useCanvasWork({
     [fail, hold, onBrowseFolder, release],
   );
 
-  // What the last change was is not reported. The graph has already moved:
-  // the commit is drawn, the ring has filled, the branch is where it now is —
-  // and a line of text saying so was the same news a second time.
-
-  // Clicking a commit is how work starts from it: the graph already answers
-  // everything else about a commit, so there is nothing to open a panel for.
   const pickCommit = useCallback(
     (node: CommitFlowNode, at: { x: number; y: number }) => {
       const { repository, commit } = node.data;
@@ -110,22 +80,6 @@ export function useCanvasWork({
     [setCommitMenu],
   );
 
-  /**
-   * Cuts a branch at a commit, under the name nobody was asked for.
-   *
-   * What Ctrl and Shift and A comes to, on the commit the walk is standing on.
-   * The same thing the menu does when the name it opens with is simply accepted
-   * — the same suggestion, the same worktree, and the same terminal opened in
-   * it — with the one press that names it taken out. That is the whole of the
-   * common case: a branch cut to start work on something is a branch whose name
-   * is decided later, if ever, and the menu is still there for one that wants a
-   * name of its own.
-   *
-   * Nothing is drawn if git refuses. Every other refusal in this window goes on
-   * the mark that was pressed, and a branch that was never made has no mark to
-   * go on: what it looks like is a graph that did not change, which is what
-   * happened.
-   */
   const cutBranch = useCallback(
     (node: CommitFlowNode) => {
       const { repository, commit } = node.data;
@@ -138,8 +92,7 @@ export function useCanvasWork({
 
   const merge = useCallback(
     ({ repository, source, target }: MergeRequest) => {
-      // The branch being merged into is the one that changes, so it is the one
-      // that waits — and the one that goes red when git will not do it.
+      // The target branch is the one that changes, so it is the mark that waits and goes red.
       const key = branchMark(repository.id, target);
       hold(key);
       mergeBranch(repository.id, source, target)
@@ -152,18 +105,7 @@ export function useCanvasWork({
     [fail, hold, release],
   );
 
-  /**
-   * Brings a branch level with its remote, as far as it goes on its own.
-   *
-   * The local end is what moves, so the local end is the mark that waits — the
-   * same rule the merge follows, and the branch that was in hand either way.
-   *
-   * Stopping part of the way is not a refusal. The graph says what happened on
-   * its own: the branch has moved along its remote's line and the two ends are
-   * still drawn apart, which is a conflict waiting in the commits that are
-   * left. Only a sync that could take nothing at all goes red, because there
-   * the graph has nothing to show and the ring is the whole of the answer.
-   */
+  // Only a sync that could take nothing goes red; a partial sync is drawn by the graph itself.
   const sync = useCallback(
     ({ repository, branch, origin }: SyncRequest) => {
       const key = branchMark(repository.id, branch);
@@ -183,10 +125,7 @@ export function useCanvasWork({
 
   const fetch = useCallback(
     ({ repository, branch, fetch }: FetchRequest) => {
-      // The head the pull was made on is the one that waits: on a branch at
-      // rest that is the ring the pair share, and on one whose ends have parted
-      // it is the remote end hanging under the local one. Either way it is the
-      // mark the hand was on, which is where an answer is looked for.
+      // The head the pull was made on is the mark that waits.
       const key = branchMark(repository.id, branch);
       hold(key);
       fetchBranch(repository.id, fetch.remote, fetch.branch)
@@ -198,8 +137,6 @@ export function useCanvasWork({
     },
     [fail, hold, release],
   );
-
-  /** Something the whole window depends on is not answering. */
 
   return { openWork, browseWorktree, pickCommit, cutBranch, merge, sync, fetch };
 }

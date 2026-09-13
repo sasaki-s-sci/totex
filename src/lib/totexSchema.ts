@@ -1,6 +1,6 @@
 import type { RJSFSchema } from "@rjsf/utils";
 
-/** The editable document in ~/.totex/totex.json; unknown fields are retained. */
+/** ~/.totex/totex.json; unknown fields are retained on write. */
 export const totexSchema: RJSFSchema = {
   $schema: "http://json-schema.org/draft-07/schema#",
   title: "totex.json",

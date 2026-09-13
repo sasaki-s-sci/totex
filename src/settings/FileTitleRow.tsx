@@ -1,0 +1,22 @@
+import { MenuItem, Select } from "@mui/material";
+import { useTranslation } from "react-i18next";
+import { updateSettings, useAppSettings } from "../lib/appSettings";
+import { PICK_SX, Row } from "./Row";
+export function FileTitleRow() {
+  const { t } = useTranslation();
+  const { fileTitle } = useAppSettings();
+  return (
+    <Row label={t("settings.fileTitle")}>
+      <Select
+        size="small"
+        value={fileTitle}
+        inputProps={{ "aria-label": t("settings.fileTitle") }}
+        onChange={(event) => updateSettings({ fileTitle: event.target.value as "name" | "path" })}
+        sx={PICK_SX}
+      >
+        <MenuItem value="name">{t("settings.fileName")}</MenuItem>
+        <MenuItem value="path">{t("settings.fullPath")}</MenuItem>
+      </Select>
+    </Row>
+  );
+}

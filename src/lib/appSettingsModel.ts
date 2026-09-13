@@ -1,24 +1,20 @@
-/** The editable preferences stored in ~/.totex/totex.json. */
 export type AppSettings = {
   theme: "system" | "light" | "dark";
   language: "system" | "en" | "ja";
   reveal: "never" | "edge" | "centre";
   follow: boolean;
   backgroundGrid: boolean;
-  /** How far apart the lines of that grid are, in canvas units. */
   gridStep: number;
-  /** Whether a file card is held to that grid: where it stands and how big it is. */
   gridSnap: boolean;
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
-  /** How far one notch of the wheel takes a terminal, in percent of xterm's own. */
+  /** Percent of xterm's own wheel distance. */
   cliWheel: number;
-  /** How far one notch of the wheel takes the canvas, in percent of d3-zoom's own. */
+  /** Percent of d3-zoom's own wheel distance. */
   graphWheel: number;
   said: {
     showing: boolean;
-    /** How solid the lines are when kept on, in percent. */
     opacity: number;
     face: "terminal" | "window";
     size: number;
@@ -56,12 +52,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
-/** Unknown fields remain on disk; missing known fields use the app defaults. */
+/** Unknown fields stay on disk; missing known fields take the defaults. */
 export function settingsFrom(value: SettingsPatch): AppSettings {
   return { ...DEFAULT_SETTINGS, ...value, said: { ...DEFAULT_SETTINGS.said, ...value.said } };
 }
 
-/** Used only when the JSON file does not exist yet. */
 export function legacySettings(read: (key: string) => string | null): AppSettings {
   const pick = <T extends string>(key: string, choices: readonly T[], fallback: T): T =>
     choices.find((choice) => choice === read(key)) ?? fallback;

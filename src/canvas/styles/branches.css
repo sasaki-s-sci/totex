@@ -1,0 +1,89 @@
+.head__ring {
+  padding: 0;
+  color: var(--mark);
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: var(--clearance);
+  stroke: currentcolor;
+  stroke-width: 1;
+  cursor: grab;
+}
+
+.head:hover .head__ring {
+  box-shadow: var(--clearance), var(--halo);
+}
+
+.head__origin {
+  padding: 0;
+  color: var(--mark);
+  border: 1.4px dashed currentcolor;
+  border-radius: 50%;
+  background: transparent;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(calc(1 + var(--reach, 0) * 0.22));
+  transition:
+    transform 160ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.head__origin.is-together {
+  border: 0;
+}
+
+.head__origin.is-together::after {
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed currentcolor;
+  border-radius: 50%;
+  content: "";
+}
+
+.head__origin.is-asking {
+  opacity: 1;
+}
+
+.head:hover .head__origin.is-asking {
+  opacity: 1;
+}
+
+.head__ring.is-asking,
+.head__origin.is-asking {
+  cursor: ew-resize;
+}
+
+.head__ring.is-pulling,
+.head__origin.is-pulling {
+  box-shadow: var(--clearance), var(--halo);
+  transition: none;
+}
+
+.head__ring.is-pulling {
+  transform: translate(-50%, -50%) scale(calc(1 + var(--reach, 0) * 0.4));
+}
+
+.head__ring.is-reached,
+.head__origin.is-reached {
+  box-shadow: var(--clearance), var(--halo-selected);
+}
+
+.head__origin.is-reached {
+  border-style: solid;
+  opacity: 1;
+}
+
+.head__cli {
+  position: absolute;
+  top: calc(50% - 26px);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: all;
+}
+
+.graph[data-coarse] .head__cli {
+  display: none;
+}
+
+.graph[data-coarse] .commit-branch {
+  display: none;
+}

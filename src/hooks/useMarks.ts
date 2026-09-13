@@ -1,19 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import type { GraphMark, GraphMarks } from "../components/graphMarks";
+import type { GraphMark, GraphMarks } from "../canvas/graphMarks";
 
-/** How long a refusal stays on the mark it happened to. */
 const HOLD_MS = 2400;
 
-/**
- * The window's answer to a failure, which is to show it where it happened.
- *
- * Nothing is said about it. A branch whose merge would not go through goes red
- * for a moment and is then a branch again, which is what happened: the graph
- * did not move, and the mark that was pressed is the one that answers. What can
- * be refused for a reason the window can know beforehand is not offered at all
- * — see the menus, where those items are simply not pressable.
- */
+// A refusal is shown on the mark it happened to and nowhere else.
 export function useMarks() {
   const state = useRef({
     failed: new Set<string>(),

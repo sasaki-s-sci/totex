@@ -2,10 +2,10 @@ import i18next from "i18next";
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next } from "react-i18next";
-import { DxfReading } from "../../src/components/nodes/preview/DxfReading";
-import { PdfReading } from "../../src/components/nodes/preview/PdfReading";
+import { DxfReading } from "../../src/canvas/nodes/preview/DxfReading";
+import { PdfReading } from "../../src/canvas/nodes/preview/PdfReading";
 import en from "../../src/i18n/locales/en.json";
-import "../../src/canvas/reading.css";
+import "../../src/canvas/styles/reading.css";
 
 void i18next.use(initReactI18next).init({ lng: "en", resources: { en: { translation: en } } });
 

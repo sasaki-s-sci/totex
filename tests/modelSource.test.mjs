@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { prepareModel } from "../src/components/nodes/preview/modelAssets.ts";
+import { prepareModel } from "../src/canvas/nodes/preview/modelAssets.ts";
 import {
   inspectModel,
   MODEL_BYTE_LIMIT,
   modelJson,
-} from "../src/components/nodes/preview/modelSource.ts";
+} from "../src/canvas/nodes/preview/modelSource.ts";
 
 const bytes = (value) =>
   new TextEncoder().encode(typeof value === "string" ? value : JSON.stringify(value));

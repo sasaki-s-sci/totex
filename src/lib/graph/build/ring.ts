@@ -1,8 +1,3 @@
-/**
- * What is running in a folder that holds no repository at all, set round its
- * row rather than stacked off the end of it.
- */
-
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
@@ -14,33 +9,14 @@ import { cliNode } from "./nodes";
 import { REACH_TRIM } from "./parts";
 import type { RowStack } from "./stack";
 
-/**
- * The same terminals, set round the folder's own row instead of beside it.
- *
- * For the folder that holds no repository: see `ring` in `folderGroup`. The
- * places are the ring's — from three o'clock, clockwise — and what is done at
- * each of them is what the stack does at each of its own, so a terminal reads
- * and behaves exactly as it does anywhere else on the canvas. Only where it
- * stands has changed.
- *
- * Each line comes out of the row's edge on the way to its own mark rather than
- * out of one end of it, which is what keeps a line to something at nine o'clock
- * from being drawn across the name it belongs to.
- *
- * The cards, on the other hand, keep their column: they are set past the whole
- * ring rather than beside the mark that raised them, because a card is wider
- * than the row itself and one hung off a mark at eleven o'clock would be a card
- * over the folder. Past the ring is where the first one stands either way — a
- * ring of one reaches exactly as far as the stack it replaced.
- */
 export function rowRing(
   standing: readonly Session[],
   where: {
     open: ReadonlyMap<string, Session[]>;
-    /** The folder's own node, which is the row every line here leaves. */
+
     node: string;
     ring: Ring;
-    /** The row's own corner, which the ring is measured from. */
+
     at: { x: number; y: number };
     showing: string | null;
     asks: ReadonlyMap<string, Ask>;
@@ -59,7 +35,7 @@ export function rowRing(
     floor: where.floor,
   };
 
-  /** The one column the cards stand in, clear of everything on the ring. */
+  // Cards stand past the whole ring: one hung off a mark at eleven o'clock would cover the folder.
   const column = at.x + ring.right + ASK_GAP;
 
   for (const [slot, session] of standing.entries()) {
@@ -77,7 +53,7 @@ export function rowRing(
           session,
           showing: session.id === showing,
           ordinal: ordinalOf(open.get(session.cwd) ?? [], session),
-          // The row every line here leaves is also the place they are all in.
+
           group: node,
         },
         null,
@@ -92,8 +68,7 @@ export function rowRing(
       from: inBand(node, spot.socket.x, spot.socket.y),
       to: onStack(id),
       shape: "curve",
-      // Half the glyph it arrives at, so the line stops beside the terminal
-      // rather than being drawn across it.
+
       trim: CLI_MARK / 2,
       lead: REACH_TRIM,
       stroke: CLI_STROKE,
