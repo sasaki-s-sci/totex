@@ -1,9 +1,4 @@
-/**
- * What the window does with an answer to a question a session is asking.
- *
- * Held still, because the graph's actions are context: a callback rebuilt on
- * every render is every node on the canvas told that something changed.
- */
+// Held still: the canvas actions are context.
 
 import { useCallback } from "react";
 import type { Ask } from "../lib/ask";
@@ -27,9 +22,6 @@ export function useAskActions({
     [reply],
   );
 
-  // And the three that work the question rather than answer it. Two of them
-  // leave it standing — the mark moved, an answer picked up — and the third is
-  // the return that ends the kind of question no key ends.
   const pointAtAsk = useCallback(
     (session: Session, ask: Ask, key: string) => point(session.id, ask, key),
     [point],

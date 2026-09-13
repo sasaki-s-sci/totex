@@ -23,11 +23,8 @@ const SIZING: Sizing = { min: 200, max: 560, initial: 288, storageKey: "totex.si
 export interface LeftSidebarProps {
   open: boolean;
   onClose: () => void;
-  /** Panes to stand up on the first render. They browse; nothing is scanned. */
   initialFolders?: string[];
-  /** Every folder the canvas should draw, whenever that set moves. */
   onExpandedChange?: (paths: string[]) => void;
-  /** Where the panes are browsing, for restoring the column. */
   onFoldersChange?: (paths: string[]) => void;
   onOpenSettings?: () => void;
   onOpenFile?: (path: string) => void;
@@ -37,8 +34,7 @@ export interface LeftSidebarProps {
 }
 
 /**
- * A stack of independent explorers, one per open folder. Browsing costs one
- * directory read; putting a folder on the canvas is asked for by its own mark.
+ * Browsing costs one directory read; putting a folder on the canvas is asked for by its own mark.
  */
 export function LeftSidebar({
   open,
@@ -61,8 +57,8 @@ export function LeftSidebar({
     homes,
   );
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
-  // Held by the column, not the level: the levels open their way down to the
-  // folder being named, so the name has to outlast them.
+  // Held by the column, not the level: the levels open their way down to the folder being named, so
+  // the name has to outlast them.
   const [naming, setNaming] = useState<Naming | null>(null);
   const under = panes.panes.at(-1) ?? null;
 

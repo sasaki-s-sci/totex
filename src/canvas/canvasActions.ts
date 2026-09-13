@@ -1,19 +1,6 @@
-/**
- * The canvas's own answers to what a mark can be pressed to do, gathered into
- * the one value the nodes read them through.
- */
-
 import { useMemo } from "react";
 import type { GraphActions } from "./graphActions";
 
-/**
- * Everything a mark can be pressed to do, gathered into one value.
- *
- * Stable, so that handing it down does not make every node look changed: the
- * provider's value is compared by identity, so a single callback rebuilt per
- * graph would re-render every edge and every node on the canvas — which is the
- * cost `reconcile` exists to avoid.
- */
 export function useCanvasActions({
   onOpenWork,
   onBrowseWorktree,
@@ -79,6 +66,7 @@ export function useCanvasActions({
   fitFilePreview: GraphActions["fitFilePreview"];
   pinFilePreview: GraphActions["pinFilePreview"];
 }): GraphActions {
+  // One stable value: the provider compares by identity, so a rebuilt callback re-renders every node.
   return useMemo(
     () => ({
       openWork: onOpenWork,

@@ -32,8 +32,7 @@ export function useTaskKeys({ sessions, showing, open }: Options) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // A fresh terminal rather than the shown one: whatever is running in there is
-  // somebody's, and a line typed into it is a line typed into that.
+  // A fresh terminal rather than the shown one: whatever runs in there is somebody's.
   const run = useCallback(
     (session: Session, line: string) => {
       close();

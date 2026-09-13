@@ -1,8 +1,3 @@
-/**
- * The history inside a band: one dot per commit, a line to each of its parents,
- * and the mark that stands where a fold hides the rest.
- */
-
 import { type LineShape, shortOf } from "../geometry";
 import { commitNodeId } from "../history";
 import {
@@ -16,7 +11,6 @@ import {
 } from "../model";
 import { collapseId, type Frame } from "./frame";
 
-/** How history itself is drawn. */
 const HISTORY_STROKE = { colour: LINE_COLOR, width: 1.2, opacity: 0.82 };
 
 export function drawCommits(frame: Frame) {
@@ -49,10 +43,7 @@ export function drawCommits(frame: Frame) {
       const parentPosition = history.index.get(parent);
       if (parentPosition === undefined) continue;
 
-      // A line that stays in its row is drawn straight — which is what the same
-      // curve degenerates to anyway, at a fraction of the work. One that moves
-      // between rows takes the S, and that is what makes a fork or a merge
-      // readable at a glance.
+      // Straight within a row: what the curve degenerates to anyway, at a fraction of the work.
       const shape: LineShape =
         entry.row === history.placed[parentPosition].row ? "straight" : "curve";
       const start = shortOf(dots[parentPosition], dots[position], COMMIT_TRIM, shape);
@@ -68,9 +59,9 @@ export function drawCommits(frame: Frame) {
           lead: COMMIT_TRIM,
           stroke: HISTORY_STROKE,
         },
-        // Folding here keeps everything from this commit forwards; what the
-        // line runs down to, and all the history behind it, goes away.
+
         {
+          // Folding here keeps this commit forward and hides everything behind it.
           keep: position + 1,
           hides: history.placed.length - (position + 1),
           from: start,
@@ -81,9 +72,6 @@ export function drawCommits(frame: Frame) {
     }
   }
 
-  // What is folded away, and the way to bring it back. `hidden > 0` means the
-  // slice was cut short, so there is always an oldest commit for the dash to
-  // run to.
   if (history.hidden > 0) {
     const oldest = history.placed[history.placed.length - 1];
 
@@ -92,35 +80,26 @@ export function drawCommits(frame: Frame) {
       type: "collapse",
       parentId: repository.id,
       extent: "parent",
-      // The band's own first line, at the head of the first column: the fold
-      // is where the history carries on past what is drawn, and the
-      // repository's name is set in the air directly over it.
+
       position: { x: columnX(0), y: historyLine(0) - COMMIT_STEP.y / 2 },
+      // No z of its own: lifting it would put it over the neighbours' lines.
       data: { repository, hidden: history.hidden },
       style: COMMIT_CELL,
       draggable: false,
       selectable: false,
-      // Deliberately no z of its own: lifting a node above its row would lift
-      // it over the lines its neighbours are drawn on.
     });
 
-    // Joined to the oldest commit still shown, so the line reads as history
-    // carrying on off the end rather than starting there. A plain line: what
-    // can be done about the fold is on the node it comes out of, which is a
-    // button standing where the rest of the history would be.
     drawn.add({
       id: `${repository.id}collapse-edge`,
       from: onCommit(collapseId(repository)),
       to: onCommit(commitNodeId(repository, oldest.commit.id)),
-      // The same S every line off the row takes; level ends make it straight.
+
       shape: "curve",
       trim: COMMIT_TRIM,
-      // The fold is a pill centred on this end. Start just past its edge
-      // instead of showing the dash through its translucent background.
+
+      // Past the pill's edge, so the dash does not show through its translucent fill.
       lead: FOLD_TRIM,
       stroke: { colour: LINE_COLOR, width: 1.2, opacity: 0.5, dash: "4 5" },
     });
   }
-
-  // A branch is the curve from the commit it points at out to the column every
 }

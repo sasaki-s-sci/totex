@@ -25,9 +25,7 @@ function attached(path: string): Attachment | null {
   try {
     const stored = localStorage.getItem(storageKey(path));
     if (stored) return JSON.parse(stored);
-  } catch {
-    /* In-memory attachments still work when storage is unavailable. */
-  }
+  } catch {}
   return /(^|[/\\])totex\.json$/i.test(path)
     ? { name: "totex.json schema", schema: totexSchema }
     : null;

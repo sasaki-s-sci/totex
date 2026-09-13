@@ -3,7 +3,6 @@ import { MODEL_BYTE_LIMIT, ModelError, type ModelResource, modelJson } from "./m
 
 export type ModelResourceReader = (path: string, uri: string) => Promise<Uint8Array<ArrayBuffer>>;
 
-/** Resolve only bounded embedded or adjacent assets; the renderer sees blob URLs. */
 export async function prepareModel(
   bytes: Uint8Array<ArrayBuffer>,
   format: string,

@@ -1,16 +1,9 @@
-/**
- * The cards that have been pinned off the canvas, drawn over it.
- *
- * The layer itself is the whole pane and lets everything through — what answers
- * on it is the cards, and the graph underneath answers for the rest, so a
- * pinned card costs the canvas around it nothing.
- */
-
 import type { FilePreviewFlowNode } from "../lib/graph";
 import { fileSize } from "./hooks/useFilePreviews";
 import type { usePinDrag } from "./hooks/usePinDrag";
 import { FilePreviewCard } from "./nodes/FilePreviewNode";
 
+/** A layer over the whole pane that lets the pointer through; only the cards answer. */
 export function PinnedCards({
   pinnedFiles,
   pinDrag,
@@ -38,8 +31,7 @@ export function PinnedCards({
               width: box.width,
               transform: `scale(${node.data.pinnedScale ?? 1})`,
               transformOrigin: "top left",
-              // Put away, a card is as tall as its header, which is
-              // the header's own answer and not a number kept here.
+
               height: node.data.collapsed ? undefined : box.height,
             }}
           >

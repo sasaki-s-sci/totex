@@ -2,27 +2,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { FS_CHANGED_EVENT, watchDirectories } from "../../folder/api";
 
-/**
- * Which directories the tree has open, and who to tell when one of them moves.
- *
- * A module rather than a context: every expanded level subscribes, and running
- * the whole tree through React state would redraw all of it to tell one row its
- * folder gained a file. The backend is handed the set of open directories and
- * answers with the ones that actually changed, so a directory re-reads itself
- * and nothing else moves.
- */
+// A module rather than a context: a directory re-reads itself and nothing else moves.
 const open = new Map<string, Set<() => void>>();
 
 let pending: ReturnType<typeof setTimeout> | null = null;
 let listener: Promise<UnlistenFn> | null = null;
 
-/**
- * Watches `path` for as long as the returned function has not been called.
- *
- * `onChange` is what the directory does about it — re-read itself — and it is
- * called for the directory's own contents only: a file two levels down belongs
- * to whichever level is showing it.
- */
+/** `onChange` is for the directory's own contents only. */
 export function watchDirectory(path: string, onChange: () => void): () => void {
   attach();
 
@@ -44,7 +30,6 @@ export function watchDirectory(path: string, onChange: () => void): () => void {
   };
 }
 
-/** One listener for the whole tree, started with the first directory. */
 function attach() {
   if (listener) return;
   listener = listen<string[]>(FS_CHANGED_EVENT, (event) => {
@@ -54,13 +39,7 @@ function attach() {
   });
 }
 
-/**
- * Hands the backend the set as it now stands.
- *
- * Deferred by a tick: expanding a folder mounts its children, which subscribe
- * one after another in the same render, and the watch is worth rebuilding once
- * for all of them rather than once each.
- */
+/** Deferred a tick: expanding a folder subscribes its children one after another in one render. */
 function sync() {
   if (pending) clearTimeout(pending);
   pending = setTimeout(() => {

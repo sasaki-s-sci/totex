@@ -61,7 +61,6 @@ export function modelJson(
   return { json, binary };
 }
 
-/** Inspect allocation sizes and resource references before invoking a loader. */
 export function inspectModel(
   bytes: Uint8Array<ArrayBuffer>,
   format: string,

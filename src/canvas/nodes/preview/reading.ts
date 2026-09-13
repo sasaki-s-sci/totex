@@ -1,31 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rail } from "./measure";
 
-/** What one line of a wheel comes to, for the mice that count in lines. */
 const LINE = 16;
 
-/** How much of the box is kept past the caret when it is brought back in. */
 const CARET_ROOM = 16;
 
-/**
- * Moving the reading inside its card, rather than scrolling it.
- *
- * A box with more in it than fits, that can be scrolled to reach the rest, is a
- * scroller — and a scroller on the canvas is a compositing layer of its own,
- * which is enough to have the whole graph drawn once at one scale and stretched
- * to whatever it is zoomed to. `canvas/index.css` states the rule at its head. So the
- * body is clipped, the reading is moved by a transform, and how far it has been
- * moved is drawn as a pair of rails.
- *
- * Written to the elements rather than held as state: a wheel arrives many times
- * a second, a keystroke nearly as often, and none of it is anything the graph
- * has to be laid out again for.
- */
+// Moved by a transform, never scrolled: a scroller on the canvas is its own compositing layer,
+// and the whole graph then rasterises at one scale (see styles/index.css).
 export function useReading() {
-  // The two elements that anything here has to be told about are held as state
-  // rather than as refs: a card put away and taken back out draws a new box and
-  // a new reading, and an effect that watches a ref is never told. What was
-  // watched then was an element that is no longer in the window.
+  // State, not refs: a card put away and back draws new elements, and an effect watching a ref is never told.
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   const [paper, setPaper] = useState<HTMLPreElement | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
@@ -37,7 +20,6 @@ export function useReading() {
   const wheelFrame = useRef<number | null>(null);
   const caretFrame = useRef<number | null>(null);
 
-  /** Move by this much, and redraw where that leaves everything. */
   const move = useCallback(
     (dx: number, dy: number) => {
       const box = body;
@@ -60,17 +42,13 @@ export function useReading() {
     [body],
   );
 
-  /** Back to the top of a reading that has just been opened. */
   const home = useCallback(() => {
     wheel.current = { x: 0, y: 0 };
     at.current = { x: 0, y: 0 };
     move(0, 0);
   }, [move]);
 
-  // A trackpad can send several wheel events inside one display frame. Their
-  // distance is additive, but measuring and writing the reading for each event
-  // only forces the same layout several times before any of it can be painted.
-  // Keep all of the distance and apply it once at the next frame boundary.
+  // Several wheel events per frame are summed and applied once.
   const queueMove = useCallback(
     (dx: number, dy: number) => {
       wheel.current.x += dx;
@@ -86,10 +64,6 @@ export function useReading() {
     [move],
   );
 
-  // The box changes size when the card is dragged by an edge or put away, and
-  // the reading changes when the file is read or typed into: either can leave
-  // it standing past its own end, so both settle it back with a move of
-  // nothing.
   useEffect(() => {
     if (!body) return;
     const watch = new ResizeObserver(() => move(0, 0));
@@ -99,7 +73,6 @@ export function useReading() {
 
   const onWheel = useCallback(
     (event: React.WheelEvent) => {
-      // Most wheels count in pixels; some count in lines, and a page is the box.
       const step =
         event.deltaMode === 1 ? LINE : event.deltaMode === 2 ? (body?.clientHeight ?? 0) : 1;
       queueMove(event.deltaX * step, event.deltaY * step);
@@ -107,15 +80,7 @@ export function useReading() {
     [body, queueMove],
   );
 
-  /**
-   * Brings the caret back into the box when typing has taken it outside.
-   *
-   * Nothing else would: the box is clipped rather than scrolled, so there is no
-   * scroller for the engine to bring the caret into view in, and the line being
-   * typed would simply carry on past the edge. The caret is measured on screen,
-   * where the canvas's zoom is already in it, so the move is taken back through
-   * the scale the box is drawn at.
-   */
+  // The box is clipped, so nothing brings the caret into view; measured on screen, so divided by the zoom.
   const showCaretNow = useCallback(() => {
     const box = body;
     const selection = document.getSelection();
@@ -141,9 +106,7 @@ export function useReading() {
     move(dx / scale, dy / scale);
   }, [body, move]);
 
-  // Selection geometry is only settled after the edit event. Waiting for the
-  // next frame both gives the browser that chance and coalesces input and keyup
-  // into one measurement.
+  // Selection geometry settles only after the edit event.
   const showCaret = useCallback(() => {
     if (caretFrame.current !== null) return;
     caretFrame.current = requestAnimationFrame(() => {

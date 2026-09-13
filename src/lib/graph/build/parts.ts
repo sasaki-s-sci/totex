@@ -1,72 +1,36 @@
-/**
- * The pieces a folder's column is assembled from: what one laid-out group is,
- * and the two things every row in it needs.
- */
-
 import type { Session } from "../../session";
 import type { AppNode, Band, GraphLine, Hold, LineEnd } from "../model";
 import { FOLDER_MARK, FOLDER_STROKE } from "../model";
 
-/** One folder laid out, and everything the canvas needs to know about it. */
 export type LaidGroup = {
   nodes: AppNode[];
   bands: Band[];
-  /** Its own lines, in canvas coordinates: what it holds, and what is running. */
+
   links: GraphLine[];
-  /** Which of those lead to an opened band, and so can be folded at. */
+
   holds: Hold[];
-  /** Everything that travels with the folder — see `Group`. */
+
   members: string[];
-  /**
-   * How far into its own slot the folder row had to be set.
-   *
-   * Nothing but a ring puts anything above or to the left of the row, and the
-   * lines are drawn in one box that starts at the corner of the canvas: a mark
-   * at nine o'clock would be off the edge of it. So the row is set in by
-   * whatever its ring reaches back past it, and the group is read from there.
-   */
+
+  /** How far the ring reaches past the row; lines are drawn in one box from the canvas corner. */
   inset: { x: number; y: number };
-  /** How far what is drawn for it reaches, cards and all. */
+
   right: number;
   bottom: number;
-  /**
-   * How tall the group is, which is the room the next folder is laid out after.
-   *
-   * The rows and nothing else. A question standing beside a terminal is several
-   * rows deep and comes and goes with the asking, and a canvas that reflowed
-   * every folder under it each time an agent spoke would be a canvas nobody
-   * could read while anything was running.
-   */
+
+  /** Rows only, not cards: a card must not reflow the folders below it. */
   height: number;
 };
 
-/**
- * How far short of a row a line into it stops.
- *
- * A hair, so that the line arrives at the row rather than under whatever is
- * standing at that end of it: the folder's own line stops just before the name
- * it is pointing at, and a terminal's just past the last of its row's buttons.
- * A folder's line is pulled back down its own trunk at the near end for the
- * same reason — it leaves vertically, so what keeps it off the mark is a step
- * down rather than a step across. See `downFrom`.
- */
+/** A hair short of the row, so the line arrives at it rather than under what stands there. */
 export const REACH_TRIM = 4;
 
-/**
- * One line from a folder's mark to something it holds.
- *
- * A right angle rather than a curve: down the folder's own column and then
- * square into the row. Every line the folder draws leaves the same mark, so
- * they all share that one vertical and the group reads as a tree with a trunk —
- * which is the shape a directory holding things is drawn in everywhere else,
- * and the shape nothing else on this canvas takes. History curves; containment
- * turns a corner.
- */
 export function holds(band: string, from: LineEnd, repository: string, to: LineEnd): GraphLine {
   return {
     id: `${band}holds${repository}`,
     from,
     to,
+    // History curves; containment turns a corner.
     shape: "elbow",
     trim: REACH_TRIM,
     lead: FOLDER_MARK / 2,
@@ -74,17 +38,11 @@ export function holds(band: string, from: LineEnd, repository: string, to: LineE
   };
 }
 
-/**
- * The terminals running in one directory, taken out of what is still going
- * spare.
- *
- * A terminal is drawn once. Which row draws it is settled by whichever asks
- * first, and the rows are asked in the order they are read down the canvas.
- */
+// A terminal is drawn once: the first row to ask keeps it.
 export function take(
   open: ReadonlyMap<string, Session[]>,
   claimed: Set<string>,
-  /** Every directory this row answers for, in the order they are stacked. */
+
   home: readonly string[],
 ): Session[] {
   const standing: Session[] = [];
@@ -97,5 +55,3 @@ export function take(
   }
   return standing;
 }
-
-/** One row's terminals, and what they cost the row they stand beside. */

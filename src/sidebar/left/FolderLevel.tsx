@@ -24,43 +24,27 @@ import { useLevel } from "./useLevel";
 
 interface LevelProps {
   path: string;
-  /** The pane's top-level folder, for paths copied relative to it. */
   root: string;
-  /** How far in the rows are drawn: one step per folder that was opened. */
   depth: number;
   graphed: readonly string[];
   selected: string | null;
-  /** The folder a drop is landing in, and the one that would not take one.
-   *  Either is a folder anywhere in the column, so every level is told both
-   *  and the one row that is it draws itself as it. */
+  /** Anywhere in the column; every level is told, and the one row that is it draws itself. */
   dropping: string | null;
   refused: string | null;
   onOpen: (entry: FsEntry) => void;
   onNavigate: (path: string) => void;
   onToggleGraph: (path: string) => void;
   onOpenFile?: (path: string) => void;
-  /** A row was right-clicked. The menu itself belongs to the column, so that
-   *  one of them is open at a time however deep the rows go — and which pane
-   *  the row is in is the pane's to say, not a level's. */
+  /** The menu belongs to the column so one is open at a time; the pane says which pane. */
   onMenu: (target: Omit<FileMenuTarget, "pane">) => void;
-  /** The name being typed in this pane, wherever in it that is. A level draws
-   *  it when it is one of its own rows, and opens the folder on the way to it
-   *  when it is deeper down. */
+  /** Drawn by the level it is a row of; deeper down, the levels open the folder on the way. */
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
-  /** What this directory answered, for a caller that needs to know. */
   onListing?: (listing: Listing) => void;
 }
 
-/**
- * One directory's rows, and the levels opened underneath them.
- *
- * A level reads its own directory and watches its own directory, so opening a
- * folder costs one read of that folder and nothing else — however deep the tree
- * already is, and whatever is underneath what was opened. A change on disk
- * reaches the level that is showing the file and redraws that level alone.
- */
+/** A level reads and watches its own directory only, so opening a folder costs one read. */
 export function Level({
   path,
   root,
@@ -94,7 +78,6 @@ export function Level({
     drawMore,
   } = useLevel(path, depth, onNavigate, onListing);
 
-  /** Opening a folder is one more level under this one; closing takes it away. */
   function toggle(folder: string) {
     setExpanded((held) =>
       held.includes(folder) ? held.filter((one) => one !== folder) : [...held, folder],
@@ -102,21 +85,15 @@ export function Level({
   }
   const indent = ROW_INDENT + depth * LEVEL_STEP;
 
-  /* A name being typed in a folder that is not open yet opens it, one level per
-     step down: the field is drawn among that folder's rows, and until it is
-     open there are no such rows to draw it among. Checked on every render
-     rather than against a list of dependencies, because the rows it looks
-     through arrive at their own pace — and it does nothing at all once the
-     folder on the way is open. */
+  // A name typed in a folder not yet open opens it one level per step; checked every render because
+  // rows arrive at their own pace.
   useEffect(() => {
     if (!naming || naming.folder === path) return;
     const step = rows.find((entry) => entry.isDir && isInside(entry.path, naming.folder));
     if (step && !expanded.includes(step.path)) setExpanded((held) => [...held, step.path]);
   });
 
-  /** The row being made here, which is drawn at the top of this folder's rows:
-   *  directly under the folder it is going into, where it is read as being in
-   *  that folder and is in view without anything having to be scrolled. */
+  /** Drawn at the top of this folder's rows, directly under the folder it goes into. */
   const making = naming && !naming.path && naming.folder === path ? naming : null;
 
   return (
@@ -136,9 +113,7 @@ export function Level({
       )}
 
       {rows.map((entry) => {
-        // A row being renamed is the field and nothing else: what is being
-        // asked for is its name, and the marks beside a name answer for a row
-        // that is called something.
+        // A row being renamed is the field alone.
         if (naming?.path === entry.path) {
           return (
             <Box key={entry.path}>
@@ -155,24 +130,12 @@ export function Level({
         }
 
         const open = expanded.includes(entry.path);
-        // The whole of what a row says about git: a name in the colour of what
-        // became of the file behind it, a faint one where git was told to leave
-        // that file alone, and nothing at all when it is what the last commit
-        // says it is. No badge and no second column — the listing is already a
-        // list of names, and this is those names read again.
-        //
-        // A row that is both — a folder on the ignore list holding a tracked
-        // file that moved — takes the colour. What became of a file is the
-        // thing worth seeing, and being ignored is what a row says when it has
-        // nothing else to say.
+        // A row both ignored and changed takes the colour: what became of a file is worth more.
         const change = changes.get(entry.name);
         const dim = allIgnored || ignored.has(entry.name);
         const colour = change ? CHANGE_COLOUR[change] : dim ? IGNORED_COLOUR : undefined;
-        // Where a drop on this row lands: inside the folder it names, or in the
-        // directory listing it when it names a file — the same place its
-        // context menu makes a new file. So a file's row is a destination too,
-        // and the folder that would take it is the one that draws itself as
-        // taking it, which is a row above this one or the pane's own heading.
+        // A file's row drops into the directory listing it, the same place its menu makes a new
+        // file.
         const into = entry.isDir ? entry.path : path;
         const mark = !entry.isDir
           ? null
@@ -202,17 +165,13 @@ export function Level({
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
-                // The row answers for itself rather than letting the folder
-                // around it answer: the menu is asked of what was pointed at.
+                // The row answers for itself: the menu is asked of what was pointed at.
                 event.stopPropagation();
                 onOpen(entry);
                 onMenu({
                   path: entry.path,
                   name: entry.name,
                   isDir: entry.isDir,
-                  // A folder is made into, and a file is made beside — which is
-                  // the directory listing it, the one these rows are. The same
-                  // folder a drop on this row lands in.
                   into,
                   root,
                   at: { x: event.clientX, y: event.clientY },
@@ -220,29 +179,17 @@ export function Level({
               }}
               onClick={() => {
                 onOpen(entry);
-                // A folder opens where it is. Going to it is the mark beside
-                // the name, and reading it is what that mark does not do.
+                // A folder opens where it is; going to it is the mark beside the name.
                 if (entry.isDir) toggle(entry.path);
               }}
             >
-              {/* The same grey as a file's, and the same grey whatever git
-                  says: a folder is told from a file by the drawing, and a
-                  listing where one kind of row is coloured reads as a listing
-                  of that kind with the rest around it. What became of the row
-                  is said by the name alone — the drawing stays the drawing,
-                  and only the word beside it takes the colour. */}
               <ListItemIcon sx={ICON}>
-                {/* Open or shut, which is the whole of what the row's own
-                    click does — so the icon is where that is said. */}
                 {entry.isDir ? (
                   <FolderMark on={open} />
                 ) : (
                   <DescriptionOutlinedIcon fontSize="small" />
                 )}
               </ListItemIcon>
-              {/* The path belongs to the name, not to the whole row: a row that
-                  carried it would hand the same tooltip to everything inside
-                  it, and the marks at the far end would each answer twice. */}
               <ListItemText
                 primary={entry.name}
                 slotProps={{
@@ -254,11 +201,6 @@ export function Level({
                 }}
               />
               {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
-              {/* Both offers at the right hand end, in the same order at every
-                  level: go to this folder, and put it on the graph. Beside the
-                  row rather than inside it, so a folder is reached — or drawn —
-                  from where it is listed, without having to be walked into
-                  first. Files have neither. */}
               {entry.isDir && (
                 <Stack direction="row" sx={{ ml: "auto", flex: "none", gap: 0.25 }}>
                   <MarkButton
@@ -309,10 +251,6 @@ export function Level({
         );
       })}
 
-      {/* Where the rest of the directory would be. Keyed by how much is drawn
-          so that it is watched again after each chunk: a mark that is still in
-          view when its rows arrive has not crossed anything, and an observer
-          left on it would never speak again. */}
       {rest > 0 && <MoreRows key={shown} indent={indent} onSeen={drawMore} />}
     </>
   );

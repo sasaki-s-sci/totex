@@ -1,30 +1,11 @@
-/**
- * How many repositories a folder holds, asked for a whole listing at once.
- */
-
 import { startTransition, useEffect, useRef, useState } from "react";
 import { repositoryCounts } from "../../folder/api";
 
-/**
- * How many repositories each of `paths` holds, as far as the backend has been
- * asked.
- *
- * Nothing turns on this but the number on the graph mark — every folder can be
- * put on the graph, repository or not — so it is read for what it says rather
- * than for what it allows.
- *
- * Empty until the answer comes back, so the numbers appear rather than
- * disappearing: the walk behind them takes a moment on a folder that has none,
- * and a mark that shows and then goes away reads as something having gone
- * wrong.
- */
+/** Empty until the answer comes back, so numbers appear rather than disappear. */
 export function useRepositoryCounts(paths: readonly string[]): ReadonlyMap<string, number> {
   const [counts, setCounts] = useState<ReadonlyMap<string, number>>(EMPTY);
-  /** What has already been sent out, so that scrolling only asks about rows
-   *  that have just appeared. */
   const asked = useRef(new Set<string>());
-  // The paths themselves are what the answer depends on; the array they arrive
-  // in is rebuilt on every render.
+  // By value: the array is rebuilt each render.
   const key = paths.join("\n");
 
   useEffect(() => {
@@ -40,22 +21,17 @@ export function useRepositoryCounts(paths: readonly string[]): ReadonlyMap<strin
         settled = true;
         const entries = Object.entries(found);
         if (entries.length === 0) return;
-        // The answers are kept together rather than replaced: they arrive a
-        // chunk of rows at a time, and a map rebuilt from the last chunk would
-        // take the numbers off every row above it.
+        // Merged, not replaced: answers arrive a chunk of rows at a time.
         startTransition(() => setCounts((held) => new Map([...held, ...entries])));
       })
       .catch(() => {
-        // A folder whose answer never came is asked about again the next time
-        // its listing is read.
+        // A folder whose answer never came is asked again on the next read.
         for (const path of wanted) asked.current.delete(path);
       });
 
     return () => {
       cancelled = true;
-      // Strict Mode replays a newly mounted effect. An unanswered request must
-      // become askable again for the replay rather than being left as checked
-      // when its result is deliberately ignored by this cleanup.
+      // Strict Mode replays a mounted effect: an unanswered request must become askable again.
       if (!settled) {
         for (const path of wanted) asked.current.delete(path);
       }

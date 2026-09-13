@@ -1,4 +1,3 @@
-/** One live settings document, with serialized writes that preserve unrelated JSON fields. */
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
 import {
@@ -57,13 +56,11 @@ function accept(next: SettingsDocument) {
   cacheBootTheme();
   changes.notify();
 }
-/** Only the pre-paint HTML uses this cache; the JSON document is authoritative. */
+/** Only the pre-paint HTML reads this cache; the JSON document is authoritative. */
 function cacheBootTheme() {
   try {
     localStorage.setItem("totex.mode", settings.theme);
-  } catch {
-    /* The document still holds it. */
-  }
+  } catch {}
 }
 
 function refused(reason: unknown) {
@@ -79,7 +76,7 @@ export async function loadSettings(): Promise<void> {
   }
 }
 
-/** Refresh on returning from an external editor, without discarding pending UI edits. */
+/** On returning from an external editor, without discarding pending UI edits. */
 export function refreshSettings(): Promise<void> {
   queue = queue.then(async () => {
     if (Object.keys(pending).length === 0) await loadSettings();
@@ -120,7 +117,6 @@ export async function flushSettingsForHandoff(): Promise<void> {
   if (Object.keys(pending).length) throw new Error("Settings could not be saved before updating");
 }
 
-/** The raw file view uses the same validation and write queue as the form. */
 export async function writeSettingsText(text: string, expected: string): Promise<number> {
   await flushSettings();
   let size = 0;

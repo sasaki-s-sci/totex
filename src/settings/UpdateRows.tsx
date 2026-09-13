@@ -7,11 +7,6 @@ import { PageButton, Row } from "./Row";
 import { standing } from "./updateReading";
 import { VersionRow } from "./VersionRow";
 
-/**
- * The two halves of the app, each with the press that moves it and the pin
- * that says where to. Nothing is explained beside them: which half is which is
- * said by its name, and what a press would do by the word on it.
- */
 export function UpdateRows() {
   const { t } = useTranslation();
   const at = useUpdate();

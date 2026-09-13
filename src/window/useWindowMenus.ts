@@ -3,7 +3,6 @@ import type { BranchPick } from "../canvas/graphActions";
 import type { CommitTarget } from "../menus/CommitMenu";
 import { useFrontState } from "../shell/state";
 
-/** The menus the canvas opens, and the settings page it asks for. */
 export function useWindowMenus() {
   const [commit, setCommit] = useState<CommitTarget | null>(null);
   const [worktree, setWorktree] = useState<BranchPick | null>(null);

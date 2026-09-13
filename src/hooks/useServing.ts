@@ -10,53 +10,28 @@ import {
   stopServing,
 } from "../lib/mcp";
 
-/** What the last press against one agent did, for the button to draw. */
 export type Installing = "rest" | "working" | "done" | "failed";
 
 export type ServingControls = {
   serving: boolean;
   activity: "checking" | "idle" | "changing" | "failed";
   change: (next: boolean) => void;
-  /** What each agent would be set up with, in the words it would be typed in. */
   setups: Setup[];
-  /** What the last press did, for each agent that has been pressed at all. */
   installing: Partial<Record<Agent, Installing>>;
   register: (agent: Agent) => void;
 };
 
-/**
- * Whether the server is standing, and the two things that can be done about it.
- *
- * The choice outlives the window and the server does not. A server is a port
- * held open by this process: it goes when the app goes, and a window that comes
- * back up stands it again because that is what was asked for the last time
- * anybody said. So what is remembered is the answer to "should there be one",
- * and the port itself is asked for afresh.
- *
- * It is off until it is turned on, and stays off until it is. Opening a port
- * because the app happened to start is a program doing something on somebody's
- * machine that they did not ask for — and until an agent has been registered
- * against it there is nothing at the other end to say anything anyway.
- */
+// Remembered is whether there should be a server; the port is asked afresh each start.
 export function useServing(): ServingControls {
   const [serving, setServing] = useState(false);
   const [activity, setActivity] = useState<ServingControls["activity"]>("checking");
   const [setups, setSetups] = useState<Setup[]>([]);
-  /** What the last press did, for the mark on each button to draw. */
   const [installing, setInstalling] = useState<ServingControls["installing"]>({});
 
-  /**
-   * What the agents would be set up with, asked again whenever the door moves.
-   *
-   * One of the lines carries the port in it, and the port is the one standing:
-   * a line read off this page while the server was down and pressed after it
-   * came up would be a line about a door somewhere else.
-   */
+  // Re-asked whenever the door moves: one line carries the port.
   const read = useCallback(() => {
     askSetups()
       .then(setSetups)
-      // A page with no lines on it says nothing, which is the right amount to
-      // say about a machine that could not be asked.
       .catch(() => setSetups([]));
   }, []);
 
@@ -82,9 +57,7 @@ export function useServing(): ServingControls {
         if (alive) {
           try {
             setServing((await servingNow()) !== null);
-          } catch {
-            /* Keep the last observed state. */
-          }
+          } catch {}
           setActivity("failed");
         }
       }
@@ -98,18 +71,6 @@ export function useServing(): ServingControls {
     setRetry((attempt) => attempt + 1);
   }, []);
 
-  /**
-   * Writes the setup into one coding agent on this machine.
-   *
-   * Separate from turning the server on, because they are separate things: one
-   * is this app opening a door and the other is somebody else's program being
-   * told where it is. The second is done once and rarely again — what is
-   * written is the same for every session there will ever be.
-   *
-   * One agent at a time, and one answer per agent: two of them are set up by
-   * two different programs, and a press that failed says nothing about the one
-   * beside it.
-   */
   const register = useCallback((agent: Agent) => {
     setInstalling((was) => ({ ...was, [agent]: "working" }));
     install(agent)

@@ -1,15 +1,3 @@
-/**
- * What a file's bar carries, which is what the card is holding.
- *
- * A reading offers its patch and the page the file is written to be; a drawing
- * offers neither — there is nothing to compare a picture against, and a
- * rendering of a rendering is the card it is standing beside. What is left is
- * true of every card whatever is in it: it can be taken off the canvas, fitted
- * to what it is showing, folded away and closed. So the row is the kind of file
- * said in marks, and it is read in that order — what this card can do first,
- * what any card can do after it.
- */
-
 import CloseIcon from "@mui/icons-material/Close";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import DifferenceIcon from "@mui/icons-material/Difference";
@@ -33,11 +21,7 @@ export function FileTools({
   onShrink,
 }: {
   data: FilePreviewNodeData;
-  /** The commit under the file disagrees with it, so there is a patch to turn
-   *  the reading over to. */
   changed: boolean;
-  /** What is being typed goes to disk before anything that redraws the card:
-   *  the patch is against what is on screen, and so is the page. */
   save: () => Promise<boolean>;
   onFit: () => void;
   onShrink: () => void;
@@ -80,9 +64,6 @@ export function FileTools({
           Schemaed
         </option>
       </select>
-      {/* The patch, in place of the reading. Drawn only while there is one,
-          which is the same moment the gutter has bars in it: a file the commit
-          under it agrees with has nothing to turn over to. */}
       {!isSettings && !drawn(data.view) && changed && (
         <PageTool
           label={t(data.view === "diff" ? "filePreview.showFile" : "filePreview.showDiff", {
@@ -100,10 +81,6 @@ export function FileTools({
         </PageTool>
       )}
 
-      {/* Pinned, the card leaves the canvas and is drawn over it: the graph is
-          dragged, zoomed and laid out again underneath, and the reading stays
-          where it was put. A pin driven in is a pin that is holding something,
-          which is why the mark fills in rather than changes. */}
       <PageTool
         label={t(data.pinnedAt ? "filePreview.unpin" : "filePreview.pin", { name: data.name })}
         onClick={() => void save().then((saved) => saved && pinFilePreview(data.requestId))}
@@ -115,10 +92,6 @@ export function FileTools({
         )}
       </PageTool>
 
-      {/* Sideways: the arrow points the two ways the card is being asked to
-          move, which is the whole of what this does. The reading is not
-          reflowed and the file is not touched — only the edges go out to the
-          longest line, or in to it. */}
       <PageTool label={t("filePreview.fitWidth", { name: data.name })} onClick={onFit}>
         <HeightIcon sx={{ fontSize: 12, transform: "rotate(90deg)" }} />
       </PageTool>
@@ -136,9 +109,6 @@ export function FileTools({
         )}
       </PageTool>
 
-      {/* Down to the least of it: the smallest an edge could be dragged to,
-          in one press, with the reading still in it. Between folding and
-          closing, because it is the third way of making less of a card. */}
       <PageTool label={t("filePreview.shrink", { name: data.name })} onClick={onShrink}>
         <CloseFullscreenIcon sx={{ fontSize: 12 }} />
       </PageTool>

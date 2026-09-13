@@ -1,19 +1,11 @@
-/**
- * What a file card is: the size it stands at, and the name its node goes under.
- * The layer every page stands on is `PAGE_Z`, beside the rest of what places
- * one.
- */
-
 import type { FilePreviewBox, FilePreviewFlowNode } from "../../lib/graph";
 
 export const FILE_PREVIEW_SIZE = { width: 360, height: 160 } as const;
 
-/** The smallest box a reading is still worth drawing in. */
 export const FILE_LEAST = { width: 180, height: 96 } as const;
-/** The settings form is wider than a file, and its page is never smaller than it. */
+
 export const SETTINGS_LEAST = { width: 520, height: 220 } as const;
 
-/** The least a card may be dragged to: the form's or a file's. */
 export function fileLeast(node: FilePreviewFlowNode): FilePreviewBox {
   return node.data.view === "settings" ? SETTINGS_LEAST : FILE_LEAST;
 }
@@ -22,15 +14,7 @@ export function fileNodeId(requestId: number): string {
   return `file-preview:${requestId}`;
 }
 
-/**
- * The size a card is standing at: its own once an edge has been dragged, and
- * the size it was opened at until then. A card put away has no height of its
- * own, so the box keeps the one it had.
- *
- * Always in canvas units, pinned or not: a pinned card is drawn scaled by the
- * zoom it was pinned at rather than measured again, so pinning and unpinning
- * leave the box exactly as it was.
- */
+// Always canvas units, pinned or not: a pinned card is drawn scaled by its pin zoom, never remeasured.
 export function fileSize(node: FilePreviewFlowNode): FilePreviewBox {
   const box = node.data.box;
   return { width: node.width ?? box.width, height: node.height ?? box.height };

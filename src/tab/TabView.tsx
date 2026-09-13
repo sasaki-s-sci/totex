@@ -5,7 +5,6 @@ import type { Tab } from "./tab";
 type Props = {
   tab: Tab;
   shown: boolean;
-  /** A terminal also drawn as a page on the canvas follows that page's grid. */
   follow: boolean;
   onEnded: (tab: Tab) => void;
 };

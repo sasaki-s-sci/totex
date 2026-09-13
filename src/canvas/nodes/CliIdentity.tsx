@@ -7,7 +7,6 @@ import { pollVisible } from "../../lib/pollVisible";
 
 type Identity = { author: string | null; committer: string | null };
 
-/** The two halves of a `Name <mail>` ident, as git prints one. */
 function split(ident: string): { name: string; mail: string } {
   const open = ident.lastIndexOf("<");
   if (open < 0) return { name: ident.trim(), mail: "" };
@@ -20,7 +19,6 @@ function split(ident: string): { name: string; mail: string } {
   };
 }
 
-/** The git mark, drawn in the ink of the text beside it. */
 function GitIcon() {
   return (
     <svg className="cli__identity-icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -32,7 +30,6 @@ function GitIcon() {
   );
 }
 
-/** One ident as two short lines: the name over the mail. */
 function Ident({ ident }: { ident: string }) {
   const { name, mail } = split(ident);
   return (
@@ -68,7 +65,6 @@ export function CliIdentity({ cwd, shown }: { cwd: string; shown: boolean }) {
           ? t("cli.identity", { identity: author })
           : t("cli.identityRoles", { author, committer });
 
-  // Nothing read yet, or nothing to read: one line says so, in place of the two.
   const idents =
     identity === undefined
       ? null

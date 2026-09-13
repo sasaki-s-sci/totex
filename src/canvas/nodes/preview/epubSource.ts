@@ -7,7 +7,6 @@ const MAX_EXPANDED = 64 * 1024 * 1024;
 export const EPUB_POLICY =
   "default-src 'none'; script-src 'none'; style-src 'unsafe-inline' blob: data:; img-src blob: data:; font-src blob: data:; media-src blob: data:; base-uri 'none'; form-action 'none'";
 
-/** Reject ZIP64, split archives, excessive entries and declared expansion before loading. */
 export function validateEpubZip(bytes: Uint8Array): void {
   if (bytes.length > 16 * 1024 * 1024) throw new Error("epub-too-large");
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -46,7 +45,6 @@ export function validateEpubZip(bytes: Uint8Array): void {
   if (offset !== end) throw new Error("unsupported-epub");
 }
 
-/** Only relative book references survive preprocessing; the renderer creates its own blobs. */
 export function internalEpubLink(value: string): boolean {
   return (
     ![...value].some(
@@ -129,7 +127,6 @@ export function cleanEpubDocument(text: string, chapter: boolean, generated = fa
   return new XMLSerializer().serializeToString(page);
 }
 
-/** Stream each inflation so dishonest ZIP sizes cannot allocate an unlimited buffer. */
 function readEntry(file: JSZip.JSZipObject, signal: AbortSignal): Promise<Uint8Array<ArrayBuffer>> {
   const stream = (
     file as JSZip.JSZipObject & {

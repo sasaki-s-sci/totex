@@ -3,10 +3,7 @@ import { remember } from "../lib/remembered";
 import { ROOTS_KEY, storedRoots } from "../parts";
 import { useFrontState } from "../shell/state";
 
-/**
- * What the left sidebar reports: the folders it has put on the canvas, and the
- * folders its panes are browsing. Only the first causes a scan.
- */
+/** Graphed folders are scanned; browsed folders are only remembered. */
 export function useFolderRoots() {
   const [roots, setRoots] = useFrontState<string[]>("window.roots", []);
   const [initial] = useState(storedRoots);

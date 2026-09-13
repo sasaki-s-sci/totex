@@ -1,4 +1,3 @@
-/** How far the canvas follows keyboard navigation. */
 import { useSyncExternalStore } from "react";
 import { settingsNow, subscribeSettings, updateSettings } from "./appSettings";
 export type Reveal = "never" | "edge" | "centre";

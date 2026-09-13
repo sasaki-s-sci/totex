@@ -1,32 +1,15 @@
 import type { AppNode } from "./graph";
 
-/** A node the cursor keys can land on, at its centre on the canvas. */
 export type Pickable = {
   id: string;
   x: number;
   y: number;
 };
 
-/**
- * How far off the straight line a candidate may be, per unit travelled towards
- * it.
- *
- * The graph is rows of history: pressing right should walk along the row it is
- * on, not jump to whatever happens to be nearest overall. Weighting the sideways
- * distance is what keeps the walk on its line while still allowing the step to a
- * branch that is genuinely the next thing along.
- */
+// Sideways distance is penalised so Right walks along the row rather than to the nearest node.
 const ACROSS_WEIGHT = 3;
-/** Below this, two nodes count as level with one another rather than apart. */
 const LEVEL = 4;
 
-/**
- * Everything on the canvas that can be picked, with its centre in canvas
- * coordinates.
- *
- * Bands are not pickable — a repository is a backdrop, not a thing to open — but
- * they carry the position everything inside them is relative to.
- */
 export function pickables(nodes: readonly AppNode[]): Pickable[] {
   const bands = new Map<string, { x: number; y: number }>();
   for (const node of nodes) {
@@ -48,10 +31,6 @@ export function pickables(nodes: readonly AppNode[]): Pickable[] {
   return picks;
 }
 
-/**
- * The node a cursor key lands on: the nearest one that really is in that
- * direction, counting sideways distance against a candidate.
- */
 export function step(
   from: Pickable,
   picks: readonly Pickable[],
@@ -75,7 +54,6 @@ export function step(
   return best;
 }
 
-/** Where a node sits on the canvas, for anything that has to point at it. */
 export function centreOf(nodes: readonly AppNode[], id: string): { x: number; y: number } {
   const wanted = nodes.find((node) => node.id === id);
   if (!wanted || wanted.type === "repository") return { x: 0, y: 0 };
@@ -92,20 +70,8 @@ export function centreOf(nodes: readonly AppNode[], id: string): { x: number; y:
 }
 
 /**
- * The terminal a cursor key lands on: the next one down the numbers, or the
- * one before.
- *
- * Not the nearest in that direction, which is what `step` finds, because the
- * terminals are not a graph to be walked across: they are a run with a number
- * on each, and a key that read the canvas geometrically landed somewhere that
- * depended on how the cards happened to lie — two level with one another were
- * unreachable from each other with Down, and a lone card off to the side was
- * skipped or never reached at all. Walking the numbers instead reaches every
- * terminal in the order they are worn, the same order Ctrl and a digit reads,
- * and wraps at either end so no press is a press that went nowhere.
- *
- * A walk not standing on any of them — one that crossed over from the history
- * — starts at the first going forward and the last going back.
+ * Walks the numbers, not the geometry: every terminal is reachable in Ctrl+digit order, wrapping at
+ * both ends.
  */
 export function neighbour(
   standing: string | null,
@@ -118,7 +84,6 @@ export function neighbour(
   return stacks[(place + by + stacks.length) % stacks.length];
 }
 
-/** Where a walk starts when nothing has been picked yet: the top left of it. */
 export function first(picks: readonly Pickable[]): Pickable | null {
   let best: Pickable | null = null;
   for (const pick of picks) {
@@ -127,63 +92,22 @@ export function first(picks: readonly Pickable[]): Pickable | null {
   return best;
 }
 
-/**
- * The terminals on the canvas, top to bottom.
- *
- * The order Ctrl and a number reach them in: a mark's number is its place down
- * the canvas, so it is read off what is drawn rather than out of the order the
- * sessions happen to have been opened in — the numbers then run down the window
- * the way the eye does, and two terminals level with one another are numbered
- * left to right.
- *
- * The bands are handed through with them because a terminal standing in one is
- * positioned against it; `pickables` is where that offset is worked out, and it
- * draws nothing for a band itself.
- */
+/** Top to bottom, then left to right: the order Ctrl+digit reads. */
 export function jumpable(nodes: readonly AppNode[]): Pickable[] {
   const stacks = nodes.filter((node) => node.type === "cli" || node.type === "repository");
   return pickables(stacks).sort((one, other) => one.y - other.y || one.x - other.x);
 }
 
-/**
- * One terminal in the run the panel's strip draws, in the order the numbers are
- * given out.
- */
 export type CliPlace = {
-  /** The session's own id, which is what the panel knows a terminal by. */
   session: string;
-  /** The row it is hanging on, which is where the run is broken in two. */
   group: string;
-  /**
-   * What that place is called: the repository's name, or the folder's.
-   *
-   * The strip heads each run with it, so the panel says where a terminal is
-   * running and not only which of them it is. Read off the node the row belongs
-   * to rather than off the session's own directory: a worktree cut from a
-   * repository is that repository's, and the name over the run has to be the
-   * one on the canvas the run was read from.
-   */
   name: string;
 };
 
-/**
- * Every terminal on the canvas, read the way the numbers are.
- *
- * The same list `jumpable` hands the keys, said in what the panel knows rather
- * than in nodes: a session's id, the row it is standing on, and what that row is
- * called. A place in this
- * run is the number that reaches it — Ctrl and that number — so the strip and
- * the key cannot drift apart, because they are one reading of one canvas.
- */
 export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
   const marks = new Map(
     nodes.flatMap((node) => (node.type === "cli" ? [[node.id, node.data] as const] : [])),
   );
-  // What each of those rows is called. Three kinds of node can be a row — a
-  // repository opened out into a band, one folded into a single mark, and a
-  // folder's own row — and all three carry the name that is already drawn over
-  // that place on the canvas, so the strip names a run in the words the canvas
-  // does.
   const names = new Map(
     nodes.flatMap((node) => {
       if (node.type === "repository" || node.type === "repo-mark") {
@@ -199,18 +123,6 @@ export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
   });
 }
 
-/**
- * The commits on the canvas.
- *
- * What Ctrl and Shift and an arrow walks through, and the one thing it walks
- * through: the history is what is being read out here, and a branch/workspace
- * node is no longer a second copy of its commit. A walk from an open terminal
- * resolves that ref back to the real commit before it enters this list.
- *
- * The bands come along for the same reason they do in `jumpable`: a commit is
- * positioned against the repository it belongs to, and `pickables` is where that
- * offset is worked out.
- */
 export function history(nodes: readonly AppNode[]): Pickable[] {
   return pickables(nodes.filter((node) => node.type === "commit" || node.type === "repository"));
 }

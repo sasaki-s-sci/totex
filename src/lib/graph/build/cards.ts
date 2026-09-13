@@ -1,8 +1,3 @@
-/**
- * The cards that stand beside a terminal: the question it is being asked, and
- * what it says it is working on.
- */
-
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
@@ -11,14 +6,6 @@ import { type AppNode, CLI_STEP, type Draw, type GraphLine } from "../model";
 import { type ReportFlowNode, type ReportNodeData, reportCard } from "../reporting";
 import { cardLine } from "./column";
 
-/**
- * One question's card, handed back unchanged where it can be.
- *
- * The same holding-on every other node here does, and it matters more for this
- * one than for most: a question is redrawn whenever the terminal under it says
- * anything at all, and a card rebuilt each time would be a card whose buttons
- * were new objects under a pointer that was already on one of them.
- */
 export function askNode(
   id: string,
   data: AskNodeData,
@@ -52,27 +39,11 @@ export function askNode(
   };
 }
 
-/**
- * What a terminal has standing beside it, and where.
- *
- * Two things can be there and only ever one of them at a time: the question the
- * session has stopped to ask, and — where nothing is waiting — what it says it
- * is working on. The question wins, and not because it is newer. A question is
- * a turn nobody has taken, nothing else happens in that session until it is
- * answered, and what the agent said it was doing a moment before it stopped to
- * ask is the less useful of the two things it could be saying.
- *
- * `floor` is how far down the last card in this column reached. A card is
- * several times the height of the mark it belongs to, so each one is set beside
- * its own terminal wherever there is room and pushed down past the last one
- * where there is not: a card shoved down the canvas is still readable, and two
- * drawn over each other are not.
- */
 export function besideMark(
   session: Session,
   asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
-  /** The terminal mark it belongs to, which its line comes out of. */
+
   mark: string,
   band: string | null,
   x: number,
@@ -80,9 +51,10 @@ export function besideMark(
   floor: number,
   draw: Draw,
 ): { node: AppNode; line: GraphLine; at: number; width: number; height: number } | null {
-  /** Beside its own terminal, or under whatever was drawn last. */
+  // A card is taller than its mark: beside its own terminal if there is room, else below the last card.
   const place = (height: number) => Math.max(y + CLI_STEP / 2 - height / 2, floor);
 
+  // A question wins over a report: nothing else happens in that session until it is answered.
   const asking = asks.get(session.id);
   if (asking) {
     const id = `ask${session.id}`;
@@ -112,15 +84,6 @@ export function besideMark(
   };
 }
 
-/**
- * One report's card, handed back unchanged where it can be.
- *
- * The same holding-on as a question's, and for a gentler version of the same
- * reason: a report changes when the agent says something new rather than
- * whenever the terminal draws, but the graph around it is rebuilt for every
- * commit, every fold and every keystroke in a session — and a card rebuilt each
- * of those times is a card React Flow has to place again.
- */
 export function reportNode(
   id: string,
   data: ReportNodeData,

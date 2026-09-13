@@ -5,7 +5,6 @@ import TerminalIcon from "@mui/icons-material/Terminal";
 import type { Root, RootKind } from "../../folder/api";
 import { groupBy } from "../../lib/collections";
 
-/** One icon per kind of place a pane can be started at. */
 export const ROOT_ICONS: Record<RootKind, typeof HomeIcon> = {
   home: HomeIcon,
   "windows-drive": StorageIcon,
@@ -19,13 +18,7 @@ export interface RootGroup {
   roots: Root[];
 }
 
-/**
- * Groups roots by origin while keeping the order the backend chose.
- *
- * The groups are not named. Each kind has its own mark and they come in a
- * settled order, so what a group is, is the mark every row in it carries — a
- * heading over them would be that same thing said once more in words.
- */
+/** Groups keep the backend's order and are not named: each kind's mark already says what it is. */
 export function groupRoots(roots: Root[]): RootGroup[] {
   return [...groupBy(roots, (root) => root.kind)].map(([kind, grouped]) => ({
     kind: kind as RootKind,

@@ -1,8 +1,3 @@
-/**
- * The menu a pane is started from: every place this machine can reach, the
- * folders somebody kept, and a field to write one out in.
- */
-
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import { Box, Divider, ListItemIcon, ListItemText, Menu, MenuItem, TextField } from "@mui/material";
 import { useTranslation } from "react-i18next";
@@ -47,9 +42,8 @@ export function RootsMenu({
       autoFocus={false}
       slotProps={{ list: { dense: true, sx: { minWidth: 240 } } }}
     >
-      {/* Held here rather than let through: a menu answers a keystroke by
-            jumping to the row it begins with, and every letter of a path would
-            be one more jump out of the field it was typed in. */}
+      {/* Held here: a menu jumps to the row a keystroke begins with, and every letter of a path
+          would be a jump. */}
       <Box
         key="path"
         sx={{ px: 1.5, pt: 0.5, pb: 1 }}
@@ -97,10 +91,6 @@ export function RootsMenu({
         }),
       ])}
 
-      {/* The folders that were kept. Each carries the mark that drops it,
-            which is at the end of the row where every other mark in this
-            column is — and takes the press for itself, so dropping a folder is
-            never also opening it. */}
       {(places ?? []).length > 0 && <Divider key="kept-rule" sx={{ my: 0.5 }} />}
       {(places ?? []).map((place) => (
         <MenuItem key={place.path} onClick={() => addPane(place.path)}>

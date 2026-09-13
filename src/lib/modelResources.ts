@@ -1,7 +1,7 @@
 import { readFileData } from "../folder/api";
 import { modelResourcePath } from "./modelResourcePath";
 
-/** Read adjacent buffers and textures through the same bounded host API. */
+/** Adjacent buffers and textures go through the same bounded host API as the model. */
 export async function localModelResource(
   modelPath: string,
   uri: string,

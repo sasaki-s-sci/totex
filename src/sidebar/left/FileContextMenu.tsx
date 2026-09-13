@@ -26,52 +26,34 @@ import { displayPath } from "../../folder/format";
 import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
-  /** What was right-clicked: a row, or the folder a pane is standing in. */
   path: string;
   name: string;
-  /** True when the target is a folder, which is offered less than a file is.
-   *  Copying one and renaming one are refused by the layer underneath, so they
-   *  are not offered here either. Removing one is its own operation, and is
-   *  offered — see `deleteFolder`, which is what says how much it takes. */
+  /**
+   * Folders are offered less: copy and rename are refused underneath; removal is `deleteFolder`.
+   */
   isDir: boolean;
-  /** Where a new file or folder is made — inside the folder that was
-   *  right-clicked, or beside the file, in the directory listing it. This is
-   *  also the folder whose rows a name is typed among. */
+  /** Inside a folder, or beside a file in the directory listing it; also where a name is typed. */
   into: string;
-  /** The pane's own folder, which relative paths are measured from. */
   root: string;
-  /** Which pane the row is drawn in. Two panes can be showing one folder, and
-   *  a name typed in answer to this menu is typed in one of the two. */
+  /** Two panes can show one folder; the name is typed in one of them. */
   pane: number;
   at: { x: number; y: number };
 };
 
 type Props = {
   target: FileMenuTarget | null;
-  /**
-   * Starts a name being typed among the rows, rather than in a box over them.
-   *
-   * The menu is where it is asked for and not where it is answered: the answer
-   * is a row's name, the place to type a row's name is the row, and the column
-   * is what holds it — see `Naming`.
-   */
   onName: (kind: Naming["kind"]) => void;
   onClose: () => void;
 };
 
-/** The operations offered by a row — or by the folder a pane is showing — at
- *  the point it was right-clicked. */
 export function FileContextMenu({ target, onName, onClose }: Props) {
   const { t } = useTranslation();
-  /** The one thing here that is still asked in a box over the window: what a
-   *  removal takes away cannot be undone, and is not visible from the row. */
+  /** Removal is still asked in a box: it cannot be undone and is not visible from the row. */
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
-  /** Where a download put its copy, which is the one answer worth reading. */
   const [went, setWent] = useState<string | null>(null);
 
-  // Nothing from one file's menu belongs to the next one opened.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the target itself is the opening
   useEffect(() => {
     setDeleting(false);
@@ -82,20 +64,11 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
 
   if (!target) return null;
   const { path, isDir, root } = target;
-  /* The folder a pane is standing in is not offered for removal: the pane is
-     standing in it, and what it would be left showing is a folder that is not
-     there. It is a row in the pane above, where deleting it is deleting
-     something you are looking at rather than something you are inside. */
+  // The folder a pane stands in is not offered for removal: the pane would be left showing a folder
+  // that is not there.
   const removable = !isDir || path !== root;
 
-  /**
-   * One press, and what became of it.
-   *
-   * The menu shuts on its way out, because what was asked for has happened and
-   * the row it happened to is behind it. `tell` is the exception: an operation
-   * whose answer is worth reading keeps the menu open to say it, and is closed
-   * by the person who read it.
-   */
+  /** The menu shuts on its way out, except `tell`: an answer worth reading keeps it open. */
   const run = async (
     label: string,
     action: () => Promise<unknown>,
@@ -137,10 +110,6 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
           disabled={busy !== null}
           onClick={() => onName("new-folder")}
         />
-        {/* What is read out of the file: its contents, a copy of it, and the
-            file itself. A folder is none of these — and each item stands on
-            its own rather than in a fragment, which a menu cannot step
-            through. */}
         {!isDir && <Divider />}
         {!isDir && (
           <FileItem
@@ -159,10 +128,6 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
           />
         )}
         <Divider />
-        {/* A folder comes down whole, so this is offered whatever was
-            right-clicked. Where it lands is said rather than assumed: on a
-            path inside a distribution the copy crosses to the machine the
-            window is running on, which is not where the row is. */}
         <FileItem
           icon={<DownloadOutlinedIcon />}
           label={t("file.download")}
@@ -188,10 +153,6 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
           disabled={busy !== null}
           onClick={() => void run("copy-relative-path", () => copyText(relativePath(root, path)))}
         />
-        {/* What is done to the entry itself. Renaming is a file's alone — the
-            layer refuses to rename a folder, and an item that always fails is
-            worse than no item. Removing is offered on both, and what the two
-            take away is said in the asking rather than here. */}
         {removable && <Divider />}
         {!isDir && (
           <FileItem
@@ -228,9 +189,6 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
       <Dialog open={deleting} onClose={busy ? undefined : () => setDeleting(false)}>
         <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
         <DialogContent>
-          {/* A folder takes everything under it with it, which is the whole of
-              what somebody is agreeing to here and is not visible from the row
-              they pressed. So the two are asked differently. */}
           <DialogContentText>
             {isDir ? t("file.deleteFolderBody") : t("file.deleteBody")}
           </DialogContentText>
@@ -299,7 +257,6 @@ async function copyText(text: string) {
   }
 }
 
-/** A path as it stands under the pane root, with separators left native. */
 export function relativePath(root: string, path: string): string {
   const bare = root.replace(/[\\/]+$/, "");
   if (path === bare) return path.split(/[\\/]/).at(-1) ?? path;

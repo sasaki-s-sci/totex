@@ -11,7 +11,6 @@ import type { FileTab as FileTabModel } from "./tab";
 
 const TAB_BOX = { width: 0, height: 0 };
 
-/** A file card standing in the sidebar rather than on the canvas. */
 export function FileTab({ tab }: { tab: FileTabModel }) {
   const { path } = tab.file;
   const view = tab.file.view ?? openingView(path);

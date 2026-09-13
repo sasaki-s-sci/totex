@@ -1,11 +1,3 @@
-/**
- * Placing one file request on the canvas, and reading the file behind it.
- *
- * Each request is placed once in the current viewport and React Flow owns its
- * position from then on. Reading happens after the loading card appears, and
- * stays bounded by the backend even for very large files.
- */
-
 import { useEffect, useRef } from "react";
 import { readFileData, readFileHead } from "../../folder/api";
 import { baseName } from "../../folder/format";
@@ -27,15 +19,12 @@ import { FILE_LEAST, FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePrevi
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
-/** The gap left between a card and the one opened beside it, so that the two
- *  read as two cards rather than as one split down the middle. */
 const BESIDE_GAP = 12;
 
 export function useFilePreviewPlacing(
   requests: readonly FilePreviewRequest[],
   { host, instance, standing, setNodes, flowReady }: PageCanvas,
 ) {
-  // bounded by the backend even for very large files.
   const placedFiles = useRef(new Set<number>());
   useEffect(() => {
     if (!flowReady || !instance.current) return;
@@ -64,9 +53,7 @@ export function useFilePreviewPlacing(
         (node) => node.data.requestId === preview.id && node.data.path === preview.path,
       );
       if (kept) return kept;
-      // A card opened from another one stands beside it, at its size and on
-      // whichever layer it is standing on. Everything else is placed where it
-      // was dropped, or in the middle of what the canvas is showing.
+
       const from = standing.current.find(
         (node): node is FilePreviewFlowNode =>
           node.type === "file-preview" && node.data.requestId === preview.beside,
@@ -85,17 +72,12 @@ export function useFilePreviewPlacing(
       const wanted = from
         ? { x: from.position.x + asked.width + BESIDE_GAP, y: from.position.y }
         : pageCorner(flow, preview.at ?? canvasMiddle(bounds, asked, stagger * 16), asked);
-      // A card opened onto a canvas whose cards are held to the grid opens on
-      // it, rather than off it until it is first touched. A pinned card is
-      // not on the canvas, and keeps the box it was pinned at.
+
       const { position: corner, box } =
         grid.holding && !preview.pinned && !from?.data.pinnedAt
           ? placeOnGrid(wanted, asked, grid.step, FILE_LEAST)
           : { position: wanted, box: asked };
-      // A preview of a card that has been pinned off the canvas is pinned
-      // beside it, in the pane's own pixels: the two are being read against
-      // each other, and one of them left the canvas. A card back from a window
-      // of its own is pinned where it was let go — see `useCardWindows`.
+
       const pinnedAt = preview.pinned
         ? preview.pinned.at
         : from?.data.pinnedAt
@@ -113,8 +95,7 @@ export function useFilePreviewPlacing(
         draggable: true,
         dragHandle: PAGE_HANDLE,
         zIndex: PAGE_Z,
-        // Written on the node rather than into its style: a dragged edge is a
-        // dimension change, and the node's own width wins over both.
+
         width: box.width,
         height: collapsed ? undefined : box.height,
         data: {
@@ -144,9 +125,6 @@ export function useFilePreviewPlacing(
       ...additions,
     ]);
 
-    // Asked of the cards that were just placed rather than of the requests they
-    // came from: what a card is showing is what says how its file is read, and
-    // the card is where that was settled.
     for (const { data } of additions) {
       const card = data.requestId;
       void readyAfter(
@@ -176,8 +154,6 @@ export function useFilePreviewPlacing(
   }, [requests, flowReady, setNodes, host, instance, standing]);
 }
 
-/** What of a file a card is given, for what the card is showing of it: the
- *  whole of a file that is drawn, and the head of one that is read. */
 export function readFilePreview(
   path: string,
   view: FilePreviewView,
@@ -187,8 +163,6 @@ export function readFilePreview(
     : readFile(path);
 }
 
-/** What of a file a card is given: as much of the head of it as one is drawn
- *  in, which is where a reading comes from. */
 async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {
   const head = await readFileHead(path);
   return {
@@ -200,15 +174,7 @@ async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {
   };
 }
 
-/**
- * And the whole of one, for a card that draws it.
- *
- * The bytes arrive as base64 and are turned into the one thing an image is
- * drawn from without being decoded on the way — what a picture is written in is
- * the engine's to read, and this app never looks inside it. A file the layer
- * would not read the whole of comes back with nothing in it, and the card says
- * so rather than drawing half a picture.
- */
+// Base64 goes straight into a data URL; the bytes are never decoded here.
 async function drawnFile(path: string): Promise<Partial<FilePreviewNodeData>> {
   const read = await readFileData(path);
   const type = pictureType(read.path) ?? mediaType(read.path) ?? "application/octet-stream";

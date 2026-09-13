@@ -1,15 +1,5 @@
 /**
- * A window holding one card and nothing else — see `lib/cardWindow`.
- *
- * The card fills the window: the window is the card's edge, and resizing the
- * one resizes the other. It is drawn at the scale it was pinned at in the
- * window it came off, so what was being read goes on being read at the same
- * size. Carried by its header the way a pinned card is, except that what moves
- * is the window; let go, it tells the main window where, and the main window
- * decides whether that is over the canvas.
- *
- * Nothing here is the graph's: no canvas, no column, no terminals. The card is
- * handed the few actions it can still ask for, and the rest do nothing.
+ * One card filling a torn-off window, drawn at the scale it was pinned at. See `lib/cardWindow`.
  */
 
 import { LogicalSize } from "@tauri-apps/api/dpi";
@@ -53,19 +43,15 @@ import { keepFrontValue, readFrontValue } from "../shell/state";
 import "../canvas/styles/index.css";
 import "../canvas/styles/torn.css";
 
-/** The card's own edge, outside the header it measures — `BORDERS` in the card. */
+/** The card's own edge; `BORDERS` in the card. */
 const BORDERS = 2;
-/** What a header comes to when it cannot be measured — the least it is drawn at. */
 const HEADER_ROW = 20;
 
-/** How tall a card folded away is, in its own pixels: its header, and the
- *  edge round it. Measured, because the header's height is the header's own. */
 function folded(card: HTMLElement | null, scale: number): number {
   const header = card?.querySelector(".page__header")?.getBoundingClientRect();
   return (header ? header.height / scale : HEADER_ROW) + BORDERS;
 }
 
-/** The card as it opens: loading, and pinned in the sense the header shows. */
 function opening(seed: CardSeed): FilePreviewNodeData {
   return {
     requestId: seed.requestId,
@@ -90,11 +76,8 @@ export function CardWindow() {
   const [data, setData] = useState<FilePreviewNodeData | null>(null);
   const seeded = useRef<CardSeed | null>(null);
   const scale = seeded.current?.scale ?? 1;
-  /** The card's element, for the header it measures when folding. */
   const card = useRef<HTMLDivElement>(null);
 
-  // Say hello, and draw whatever comes back. Once: a seed is the whole of what
-  // this window is for, and a second would be a second card.
   useEffect(() => {
     let cancelled = false;
     let stop: UnlistenFn | null = null;
@@ -102,8 +85,7 @@ export function CardWindow() {
       if (cancelled || payload.label !== label || seeded.current) return;
       const seed = payload.seed;
       seeded.current = seed;
-      // Put where the card's draft looks for it before the card is drawn, so
-      // what was being typed is what is in the box.
+      // Put where the card's draft looks before the card is drawn.
       if (seed.draft) keepFrontValue(draftKey(seed.requestId, seed.path), seed.draft);
       setData(opening(seed));
       void readFilePreview(seed.path, seed.view)
@@ -131,9 +113,7 @@ export function CardWindow() {
     };
   }, [label]);
 
-  // On screen once there is something to see: shown after the frame the card
-  // is drawn in, and said so, which is when the window it came off lets go of
-  // its own copy.
+  // Shown after the card's frame; that is when the main window lets go of its copy.
   const shown = useRef(false);
   useLayoutEffect(() => {
     if (shown.current || !data || data.state === "loading") return;
@@ -148,7 +128,6 @@ export function CardWindow() {
     );
   }, [data, here, label]);
 
-  // The window's edge is the card's: dragged, the card follows.
   useEffect(() => {
     let cancelled = false;
     let stop: UnlistenFn | null = null;
@@ -174,14 +153,12 @@ export function CardWindow() {
     };
   }, [here, scale]);
 
-  /** Puts the window at a size said in the card's own pixels. */
   const size = useCallback(
     (width: number, height: number) =>
       here.setSize(new LogicalSize(width * scale, height * scale)).catch(() => undefined),
     [here, scale],
   );
 
-  /** The card as it stands, for the window it is going back to. */
   const seedNow = useCallback(async (): Promise<CardSeed | null> => {
     const seed = seeded.current;
     if (!seed || !data) return null;
@@ -195,7 +172,6 @@ export function CardWindow() {
     };
   }, [data]);
 
-  /** Tells the main window where the card was let go — or that it is to go back. */
   const dropped = useCallback(
     async (at: Point, grab: Point, force: boolean) => {
       const seed = await seedNow();
@@ -249,7 +225,6 @@ export function CardWindow() {
     [data, dropped, here, scale, size],
   );
 
-  // Carried by the header: the window goes where the pointer goes.
   const drag = useRef<{ grab: Point; move: (at: Point) => void } | null>(null);
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {

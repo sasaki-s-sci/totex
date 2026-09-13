@@ -1,59 +1,23 @@
-/**
- * The mark that says an update is on its way, and the window's own controls.
- */
-
 import { Box } from "@mui/material";
 
 import type { UpdateStage } from "../lib/update";
 import { Frame } from ".";
 
-/**
- * The radius the two ring marks are struck at, and the way round it.
- *
- * A circle's dash offset is counted in the length of its own outline, so the
- * circumference has to be a number here rather than a shape — it is what says
- * how much of the ring a part-finished download has filled.
- */
+// Circumference as a number: the dash offset is what fills the ring by progress.
 const RING = 7.5;
 const AROUND = 2 * Math.PI * RING;
 
-/** The turn the two waiting rings are spun at. */
 const SPIN = {
   transformOrigin: "12px 12px",
   animation: "totex-mark-spin 900ms linear infinite",
   "@keyframes totex-mark-spin": { to: { transform: "rotate(360deg)" } },
-  // A window that has asked for less movement gets a ring standing still,
-  // which still says the same thing: three quarters of a circle is not a
-  // circle, and what is missing from it is what is being waited for.
   "@media (prefers-reduced-motion: reduce)": { animation: "none" },
 } as const;
 
-/**
- * Where one part of the app is in being adjusted, as one mark beside its
- * version declarations.
- *
- * Six drawings, one press between them, the way `MaximiseMark` is one button
- * for both of its moves: an arrow down for the offer to take a release, a ring
- * while it is being taken, the same ring filling instead of turning once the
- * download has said how long it is, a tick for nothing to do, two arrows round
- * a circle for the reload that finishes the pages, and one arrow round a circle
- * for a program that is down and goes in when the app is closed. A failure is
- * the arrow again, in red — see the update row of the settings page, which is
- * what colours it.
- *
- * The last is the arrow struck through: a release this half cannot take. The
- * two circles are told apart by how many arrows are in them, which is also how
- * much of the app each of them replaces.
- *
- * The arrow is the download and not a version number, because the versions are
- * said by the two pull-downs: the mark is what the automatic adjustment is
- * doing about them.
- */
 export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: number | null }) {
   if (stage === "taking" && progress === null) {
     return (
       <Frame>
-        {/* Three quarters of a ring: a whole one turning is a whole one. */}
         <Box component="g" sx={SPIN}>
           <path d="M12 4.5 A7.5 7.5 0 1 1 4.5 12" />
         </Box>
@@ -64,8 +28,6 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
   if (stage === "taking") {
     return (
       <Frame>
-        {/* The ring it is filling, faint, so that how far along it is can be
-            read against how far there is to go. */}
         <circle cx="12" cy="12" r={RING} opacity={0.3} />
         <circle
           cx="12"
@@ -73,8 +35,7 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
           r={RING}
           strokeDasharray={AROUND}
           strokeDashoffset={AROUND * (1 - (progress ?? 0))}
-          // Dashes start where the outline does, which is the right-hand side.
-          // Turned a quarter back so that a ring fills from the top.
+          // Dashes start at the right; turned back a quarter so the ring fills from the top.
           transform="rotate(-90 12 12)"
         />
       </Frame>
@@ -92,8 +53,6 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
   if (stage === "swapped") {
     return (
       <Frame>
-        {/* Two halves of a ring chasing each other, both stopped and both with
-            a head: the page going round again, which is all a reload is. */}
         <path d="M4.5 12 A7.5 7.5 0 0 1 16.6 6.1" />
         <path d="M13.9 4.1 L17 6.2 L14.9 9.3" />
         <path d="M19.5 12 A7.5 7.5 0 0 1 7.4 17.9" />
@@ -105,9 +64,6 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
   if (stage === "ready") {
     return (
       <Frame>
-        {/* Three quarters of a ring again, but stopped and with a head on it:
-            the waiting is over, and what is left is not a press — the release
-            goes in on the way out of the app. */}
         <path d="M19.5 12 A7.5 7.5 0 1 1 12 4.5" />
         <path d="M9.8 2.3 L12 4.5 L9.8 6.7" />
       </Frame>
@@ -117,8 +73,6 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
   if (stage === "held") {
     return (
       <Frame>
-        {/* The arrow that would have taken it, struck through: there is one,
-            and it is not this copy's to have. */}
         <path d="M12 4 V14.6" />
         <path d="M7.6 10.2 L12 14.6 L16.4 10.2" />
         <path d="M5 19 H19" />
@@ -131,13 +85,10 @@ export function UpdateMark({ stage, progress }: { stage: UpdateStage; progress: 
     <Frame>
       <path d="M12 4 V14.6" />
       <path d="M7.6 10.2 L12 14.6 L16.4 10.2" />
-      {/* The line it lands on: an arrow with nothing under it is a direction,
-          and this one is a thing arriving somewhere. */}
       <path d="M5 19 H19" />
     </Frame>
   );
 }
-/** A line: the window down to the taskbar. */
 export function MinimiseMark() {
   return (
     <Frame>
@@ -146,7 +97,6 @@ export function MinimiseMark() {
   );
 }
 
-/** The window filling the screen, or coming back off it. */
 export function MaximiseMark({ on }: { on: boolean }) {
   return (
     <Frame>

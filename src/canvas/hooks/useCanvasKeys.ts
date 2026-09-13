@@ -1,8 +1,3 @@
-/**
- * What the canvas answers a press with: a commit picked out, a node activated,
- * and a terminal reached by its number.
- */
-
 import type { Edge, NodeMouseHandler, ReactFlowInstance } from "@xyflow/react";
 import { type RefObject, useCallback, useState } from "react";
 import type { AppNode, CommitFlowNode, GraphResult } from "../../lib/graph";
@@ -37,8 +32,7 @@ export function useCanvasKeys({
   onJumpSession,
   onEndSession,
 }: KeysCanvas) {
-  // Commit marks are drawn in the shared SVG rather than as React Flow nodes,
-  // so their selection is the one small piece of canvas state kept here.
+  // Commit marks live in the shared SVG, not in React Flow nodes, so their selection is kept here.
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
   const handleCommitClick = useCallback(
     (node: CommitFlowNode, at: { x: number; y: number }) => {
@@ -48,42 +42,20 @@ export function useCanvasKeys({
     [onSelect],
   );
 
-  // Picking any remaining HTML node takes the emphasis off a commit.
   const handleNodeClick: NodeMouseHandler<AppNode> = () => setSelectedCommit(null);
 
-  /**
-   * Where a walk with the cursor keys arrived.
-   *
-   * A commit reached that way is picked out the same as one that was clicked,
-   * and it stays picked out after Ctrl is let go: the ring the walk wears goes
-   * with the key it is held by, and the offer standing over what it found does
-   * not. Landing anywhere else takes the emphasis off a commit, which is what
-   * clicking anywhere else does as well.
-   */
   const land = useCallback((node: AppNode | null) => {
     setSelectedCommit(node?.type === "commit" ? node.id : null);
   }, []);
 
-  /**
-   * Does to a node what clicking it would.
-   *
-   * A session goes into the panel, a branch opens a shell in it — which is what
-   * the button on its ring does — and the rest do the one thing they are there
-   * for. Enter is the keyboard's click, so it has to mean the same as the click
-   * does.
-   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const activate = useCallback(
     (node: AppNode) => {
       switch (node.type) {
         case "cli":
-          // A terminal that is this window's own goes into the panel; somebody
-          // else's answers to nothing.
           if (node.data.session) onShowSession(node.data.session);
           return;
         case "ask":
-          // What the card's own head does under the pointer: everything a
-          // question is too small to hold is in the terminal it was asked in.
           onShowSession(node.data.session);
           return;
         case "head":
@@ -98,7 +70,6 @@ export function useCanvasKeys({
           expand(node.data.repository.id);
           return;
         case "commit": {
-          // A commit answers with its menu, where the cursor would have opened it.
           const at = instance.current?.flowToScreenPosition(centreOf(graph.nodes, node.id));
           if (at) onSelect(node, at);
           return;
@@ -108,14 +79,7 @@ export function useCanvasKeys({
     [expand, graph.nodes, onOpenWork, onSelect, onShowSession],
   );
 
-  /**
-   * Goes to a terminal that was asked for by its number.
-   *
-   * Apart from `activate` because it means something else: Return is the
-   * keyboard's click and a click on a terminal's mark is a toggle, while a
-   * number names one terminal and has to land on it whether or not the panel is
-   * already holding it.
-   */
+  // Not a toggle like activate: a number names a terminal and must land on it even if the panel already holds it.
   const jump = useCallback(
     (node: AppNode) => {
       if (node.type === "cli") onJumpSession(node.data.session);
@@ -123,14 +87,6 @@ export function useCanvasKeys({
     [onJumpSession],
   );
 
-  /**
-   * Ends a terminal the walk is standing on.
-   *
-   * The one press on the walk that takes something away rather than going
-   * somewhere, so it answers for terminals and for nothing else: a commit, a
-   * branch and a folder are all things this window draws rather than things it
-   * is running, and none of them is its to close.
-   */
   const finish = useCallback(
     (node: AppNode) => {
       if (node.type === "cli") onEndSession(node.data.session);
@@ -138,14 +94,6 @@ export function useCanvasKeys({
     [onEndSession],
   );
 
-  /**
-   * Cuts a branch at the commit the walk is standing on.
-   *
-   * A commit and nothing else: the walk crosses terminals, branches and folders
-   * on its way along the history, and none of those is a thing to cut from. The
-   * name is nobody's to choose here — see `useCanvasWork`, which cuts it under
-   * the same suggestion the menu opens with.
-   */
   const cut = useCallback(
     (node: AppNode) => {
       if (node.type === "commit") onCutBranch(node);
@@ -165,7 +113,6 @@ export function useCanvasKeys({
     selected: selectedCommit,
   });
 
-  // Ctrl and a plus or a minus, answered by whichever file card has the focus.
   useReadingKeys();
 
   return {

@@ -15,21 +15,18 @@ const SIZING: Sizing = { min: 320, max: 1100, initial: 460, storageKey: "totex.p
 
 type Props = {
   tabs: readonly Tab[];
-  /** The tab in front, or null when the column is put away. */
   showing: string | null;
-  /** Terminals also standing on the canvas as pages; the tab follows the page. */
+  /** A terminal also standing on the canvas as a page follows that page's grid. */
   paged: readonly string[];
   run: readonly CliPlace[];
   doings: ReadonlyMap<string, Doing>;
-  /** The tab in front leaves for the canvas. */
   onPage: (tab: Tab) => void;
   onEnded: (tab: Tab) => void;
 };
 
 /**
- * Every tab is mounted for as long as it exists and all but one are hidden
- * with `visibility`, still laid out: a terminal given no box stops drawing and
- * has to redraw every row when it gets one back.
+ * Every tab stays mounted and hidden with `visibility`, still laid out: a terminal given no box
+ * stops drawing and redraws every row when it gets one back.
  */
 export function RightSidebar({ tabs, showing, paged, run, doings, onPage, onEnded }: Props) {
   const { t } = useTranslation();

@@ -1,4 +1,3 @@
-/** How file paths are displayed in every panel header. */
 import { MenuItem, Select } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { updateSettings, useAppSettings } from "../lib/appSettings";

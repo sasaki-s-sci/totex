@@ -77,7 +77,6 @@ export function compareTableCells(left: string, right: string, direction: "asc" 
   if (!a || !b) return a ? -1 : b ? 1 : 0;
   const aNumeric = numberPattern.test(a) && Number.isFinite(Number(a));
   const bNumeric = numberPattern.test(b) && Number.isFinite(Number(b));
-  // Keep numeric and text categories consistent across mixed-column comparisons.
   const delta =
     aNumeric !== bNumeric
       ? aNumeric

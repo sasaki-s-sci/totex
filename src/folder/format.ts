@@ -1,10 +1,9 @@
-/** Use forward slashes for display while keeping filesystem paths unchanged. */
+/** Forward slashes for display; filesystem paths stay as they are. */
 export function displayPath(path: string): string {
   return path.replaceAll("\\", "/");
 }
 
-/** Last segment of a path, for both `C:\dir`, `\\wsl.localhost\Ubuntu` and `/dir`.
- *  Roots such as `/` or `C:\` keep their full spelling because they have none. */
+/** Roots such as `/` or `C:\\` keep their full spelling. */
 export function baseName(path: string): string {
   const trimmed = path.replace(/[\\/]+$/, "");
   const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
@@ -12,8 +11,7 @@ export function baseName(path: string): string {
   return name || path;
 }
 
-/** The folder a path is in, or null for a root, which is in none. Spelled the
- *  way the path was: what git is asked about a file is asked in this. */
+/** Spelled the way the path was: git is asked about a file in this. */
 export function folderOf(path: string): string | null {
   const trimmed = path.replace(/[\\/]+$/, "");
   const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
@@ -22,9 +20,7 @@ export function folderOf(path: string): string | null {
   return trimmed.slice(0, cut) || trimmed.slice(0, cut + 1);
 }
 
-/** Whether `path` is the folder `parent` or something under it. Both are
- *  spelled the way the listing they came from spells them, so the separators
- *  are taken as they are rather than settled first. */
+/** Separators are taken as they are, not settled first. */
 export function isInside(parent: string, path: string): boolean {
   const bare = parent.replace(/[\\/]+$/, "");
   return path === bare || path.startsWith(`${bare}/`) || path.startsWith(`${bare}\\`);

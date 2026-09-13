@@ -96,20 +96,17 @@ export function Canvas({
   mcp,
   onCloseSettings,
 }: CanvasProps) {
-  // The graph React Flow is currently showing, which is what the next one is
-  // built against.
   const applied = useRef<GraphResult | null>(null);
   const depth = useHistoryDepth(workspace.repositories);
   const { visible, reaching } = depth;
-  // What each worktree has uncommitted, which the branch rings are drawn from.
+
   const worktreeStatus = useWorktreeStatus(workspace);
-  // And which of them the column is standing in, which is drawn inside them.
+
   const browsed = useBrowsedWorktrees(workspace, browsing);
   const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);
-  // And which namespaces in the branch columns have been pressed shut.
+
   const { closed, toggleJunction } = useJunctionView();
-  // Where each folder has been carried to, which is the one thing about this
-  // canvas that was decided by hand rather than laid out.
+
   const { places, placeFolder } = useFolderPlaces();
   const graph = useMemo(
     () =>
@@ -151,15 +148,12 @@ export function Canvas({
   ]);
   const instance = useRef<ReactFlowInstance<AppNode, Edge> | null>(null);
   const [flowReady, setFlowReady] = useState(false);
-  /** The canvas itself, which the cursor keys measure their panning against. */
+
   const host = useRef<HTMLDivElement>(null);
-  /** React Flow's own element inside it, which is where the wheel is heard.
-   *  The pinned cards are drawn over the canvas rather than on it, and a wheel
-   *  turned on one of those is not the canvas being zoomed. */
+
   const pane = useRef<HTMLDivElement>(null);
   const glide = useNodeGlide(setNodes);
-  // Where everything is standing on screen, which is where the next move starts
-  // from — mid-move included, so a second change does not jump.
+
   const standing = useRef(nodes);
   useLayoutEffect(
     () =>
@@ -176,9 +170,7 @@ export function Canvas({
     [],
   );
   standing.current = nodes;
-  // A file card dragged or resized while the window holds cards to the grid
-  // lands on a line of it — see `heldToGrid`. Read at the moment of the change
-  // rather than rendered in, so turning it on or off costs the canvas nothing.
+
   const onNodesChange = useCallback(
     (changes: NodeChange<AppNode>[]) => {
       const { holding, step } = gridNow();
@@ -201,8 +193,8 @@ export function Canvas({
     const canvas = host.current;
     if (!flowReady || !canvas) return;
     let previous = canvas.getBoundingClientRect();
-    // Sidebar changes move the canvas origin. Offset the viewport by the
-    // opposite amount so graph content keeps its screen position and zoom.
+
+    // Sidebar changes move the canvas origin: offset the viewport by the opposite amount so content keeps its screen position.
     const observer = new ResizeObserver(() => {
       const next = canvas.getBoundingClientRect();
       const dx = previous.left - next.left;
@@ -221,9 +213,6 @@ export function Canvas({
     return () => observer.disconnect();
   }, [flowReady]);
 
-  // How the lines beside the terminals are set, written onto the canvas for the
-  // marks to inherit. What comes back is how the canvas tells it the zoom,
-  // which is half of the room it has to fit one of those lines into.
   const fitSaid = useSaidStyle(host);
 
   const { expand, fold, reachFold, keepFold } = useCanvasFold({
@@ -251,8 +240,7 @@ export function Canvas({
     filePreviews,
     { host, instance, standing, nodes, setNodes, flowReady },
     onPreviewFile,
-    // The two the card windows need, remembered together so the traffic is
-    // one value and not two callbacks re-listened for on every render.
+
     useMemo(
       () => ({ closeFilePreview: onCloseFilePreview, openPinned: onOpenPinned }),
       [onCloseFilePreview, onOpenPinned],
@@ -268,26 +256,12 @@ export function Canvas({
     flowReady,
   });
 
-  // The canvas is never re-framed once it has been looked at. A repository
-  // arriving or leaving used to fit the whole graph into the pane, and a fit
-  // is the canvas moving out from under whoever is reading it: the band they
-  // had in front of them at the zoom they chose is gone, wherever it went.
-  // What arrives is laid out beside what is there, and what leaves leaves a
-  // gap, and either can be panned to. Only the first frame of a window that
-  // has nothing kept is framed, by the `fitView` prop, because there is
-  // nothing yet to keep still for.
-
-  /** Whether the canvas is far enough out that the offers are not worth drawing:
-   *  out there they are a couple of pixels across. Only the crossing is a change,
-   *  which is what makes this cheap. */
   const [coarse, setCoarse] = useState(false);
   const resolve = useCallback(
     (zoom: number) => {
-      // Apart, so that settling exactly on the threshold does not put the
-      // buttons in and out on alternate frames.
+      // Hysteresis, so settling on the threshold does not flicker the offers.
       setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
-      // And the same number again, for the one line on the canvas that is
-      // measured against how much of it is on screen.
+
       fitSaid(zoom);
     },
     [fitSaid],
@@ -324,10 +298,6 @@ export function Canvas({
     onEndSession,
   });
 
-  // The commit the walk is standing on, while the history is being read. The
-  // rest of them say their subject, which the canvas already has; this is the
-  // one that says the whole of what it says, so it is the one worth asking git
-  // about — and only for as long as somebody is stopped on it.
   const readingCommit = useMemo(() => {
     if (!reading || !picked) return null;
     const node = graph.nodes.find((candidate) => candidate.id === picked);
@@ -335,25 +305,11 @@ export function Canvas({
   }, [reading, picked, graph.nodes]);
   const message = useCommitMessage(readingCommit);
 
-  // The same numbers, said to the window: the panel draws this run in its band,
-  // and where a terminal ended up on the canvas is the only place the number
-  // that reaches it comes from. Told on the change rather than every render —
-  // the run is a handful of ids, and the graph is rebuilt for every commit that
-  // lands.
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
   useEffect(() => onCliRun(run), [run, onCliRun]);
 
-  // The same run again, read by the row rather than by the number: what the
-  // strip heads each run with is what a mark out on the canvas has to say it is
-  // standing in, so the two are taken from the one reading and cannot drift.
-  // Only the rows something is running in are in here, which is every row that
-  // could ask.
   const cliPlaces = useMemo(() => new Map(run.map((place) => [place.group, place.name])), [run]);
 
-  // And what each of those numbers is standing beside, taken at the press and
-  // held for as long as the key is — or kept on all the time, where the window
-  // has been told to in settings. The numbers are what a key would reach; the
-  // lines are which terminal is which.
   const typed = useCliTyped(jumps !== null, showing, asks, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
@@ -413,44 +369,14 @@ export function Canvas({
     <GraphActionsProvider value={actions}>
       <SettingsControlsProvider controls={mcp}>
         <WorktreeStatusProvider value={worktreeStatus}>
-          {/* Where the column is looking, which is a mark on the rings and
-          nothing else on the canvas. */}
           <BrowsingProvider value={browsed}>
             <GraphMarksProvider value={marks}>
-              {/* The numbers the terminals are wearing, which is nothing at all
-            until Ctrl is held. Only the terminal marks read this, so the key
-            costs a render of those and of nothing else on the canvas. */}
               <CliJumpsProvider value={jumps}>
-                {/* And where each of them is standing, which is what a number
-              cannot say: a mark wearing one says which key reaches it, and
-              this says what the terminal being read is running in. The run the
-              panel's strip is drawn from, keyed by the row it heads — one
-              reading of one canvas, said out here as well as in the band. */}
                 <CliPlacesProvider value={cliPlaces}>
-                  {/* And what each of them is running, which unlike the two above is
-                not a key being held: it is on the canvas all the time, because a
-                stack of identical glyphs cannot otherwise say which of them is
-                busy and which is an agent somebody is working with. Through
-                context for the same reason those are — a session turns over twice
-                a command, and the layout is not rebuilt for that. */}
                   <CliDoingProvider value={doings}>
-                    {/* And what each of them was last told to do, which is the
-                  other half of the same key — or standing on its own, where the
-                  lines have been asked for outright: the number says which mark
-                  a press would reach, and the line says which terminal that mark
-                  is. */}
                     <CliTypedProvider value={typed}>
-                      {/* `is-merging` and the two ends of a merge are written on here by
-                  `useBranchDrag` rather than handed down, so the class stays put
-                  across a render: React only writes an attribute whose prop changed,
-                  and this one never does. Which is why how far out the canvas is
-                  zoomed is said in an attribute of its own rather than in the class:
-                  a class React rewrote would take the merge's own marks with it. */}
+                      {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
                       <div ref={host} className="graph" data-coarse={coarse || undefined}>
-                        {/* The canvas stays mounted while folders enter and leave it. Its
-                    controlled nodes and repository-set framing already carry those
-                    changes; replacing the instance would initialise an empty view
-                    before the scanned nodes arrive. */}
                         <ReactFlow<AppNode, Edge>
                           ref={pane}
                           nodes={shown}
@@ -461,8 +387,7 @@ export function Canvas({
                             const kept = frontValue<Viewport>("canvas.viewport");
                             if (kept) void flow.setViewport(kept);
                             setFlowReady(true);
-                            // The first frame is framed by `fitView` rather than by a move, so
-                            // the canvas has to be asked where it ended up.
+
                             resolve(flow.getViewport().zoom);
                           }}
                           onMove={handleMove}
@@ -474,17 +399,14 @@ export function Canvas({
                           nodesConnectable={false}
                           nodesDraggable
                           elevateNodesOnSelect={false}
-                          // Commit history is the unbounded part and is one shared SVG;
-                          // the small interactive node set stays mounted. React Flow's own
-                          // per-frame visibility pass cost more than moving those nodes.
+                          // React Flow's per-frame visibility pass cost more than moving the nodes.
                           onlyRenderVisibleElements={false}
                           minZoom={MIN_ZOOM}
                           maxZoom={MAX_ZOOM}
-                          // The wheel is `useCanvasZoom`'s: d3-zoom holds the point
-                          // under the cursor still, and this canvas comes in on its
-                          // own middle instead. A pinch is still React Flow's.
+                          // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
                           zoomOnScroll={false}
                           proOptions={proOptions}
+                          // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
                           fitView={!frontValue("canvas.viewport")}
                         >
                           <CanvasBackground />
@@ -496,9 +418,6 @@ export function Canvas({
                             nodes={lineNodes}
                             selected={selectedCommit}
                             picked={picked}
-                            // Not out where a line of this is two pixels tall:
-                            // words at that scale are a grey smear over the shape
-                            // the canvas was taken out to see.
                             reading={reading && !coarse}
                             message={message}
                             onCommit={handleCommitClick}

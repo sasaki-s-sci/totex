@@ -1,45 +1,13 @@
-/**
- * The marks a row or a bar carries: a terminal, an agent, a close, an add, a
- * jump, a step up, and the settings.
- */
-
 import { Box } from "@mui/material";
 
 import { Frame, HAIRLINE, SIZE, struck } from ".";
 
-/** The cursor a terminal waits at: the one part of this mark that ever moves. */
 const CARET = "M13.4 16.4 H20";
 
-/**
- * That cursor turning over, which is what says the terminal is not waiting.
- *
- * The glyph is a chevron and the block that sits after it, which is a drawing
- * of a shell waiting to be typed at. So the part of the mark that stands for
- * the wait is the part that moves, and the chevron — which is what makes the
- * glyph a terminal at all — is left exactly where it is.
- *
- * Two half turns rather than a spin. A cursor turning steadily is a spinner,
- * and a spinner beside every busy terminal is a screen of things revolving;
- * this turns over, stops long enough to be a mark again, and turns over once
- * more. Which way up it lands is not read — a block is the same block at nought
- * and at a hundred and eighty — so the turn is the whole of the telling and the
- * rest of the cycle is the mark standing still.
- *
- * The turn is a fixed length and the stillness is what the cycle is stretched
- * with: the percentages are worked back from about a third of a second of
- * turning, so that slowing the mark down puts the extra time into the standing
- * still rather than into the movement.
- *
- * Carried on the drawing rather than in a stylesheet, the way `UpdateMark`
- * carries its own spin: this mark is drawn on the canvas and in the panel's
- * band, and an animation that lived in the canvas's own rules would be one the
- * band could only borrow. `transform` and nothing else, because it is the one
- * property the compositor can run without the canvas being redrawn.
- */
+// Two half turns with a pause, not a spin. Transform only, so the compositor runs it
+// without a redraw; on the drawing because the canvas and the sidebar band share no stylesheet.
 const TURN = {
-  // In the square the paths are written in, rather than in the box this one
-  // stroke happens to fill: a horizontal line has no height, so the middle of
-  // its own bounds is a place the drawing does not have.
+  // view-box: a horizontal line has no height to centre on.
   transformBox: "view-box",
   transformOrigin: "16.7px 16.4px",
   animation: "totex-cli-caret 5.4s cubic-bezier(0.4, 0, 0.2, 1) infinite",
@@ -48,50 +16,12 @@ const TURN = {
     "6.7%, 50%": { transform: "rotate(180deg)" },
     "56.7%, 100%": { transform: "rotate(360deg)" },
   },
-  // A window that has asked for less movement gets the mark it has always had,
-  // which still says what it says: what is running is also on the terminal's
-  // own screen, one press away.
   "@media (prefers-reduced-motion: reduce)": { animation: "none" },
 } as const;
 
-/**
- * The whole of the agent mark turning, which is what says the agent is working.
- *
- * The other two states move the part of the glyph that carries what they mean —
- * a busy terminal turns the cursor it is waiting at, and leaves the chevron
- * alone. This mark has no such part: three points and the lines between them
- * are one drawing of a session somebody is having, and there is nothing in it
- * that stands for the working in particular. So the whole mark turns.
- *
- * A third of a turn every 2.7 seconds, and the loop is that third rather than
- * the whole turn. The three points are all but evenly spaced round the mark's
- * centre — a degree and a half out, and a fifth of a pixel apart at the size
- * this is drawn — so a third of a turn lands on the shape it started as and the
- * seam has nothing in it to see. What that reads as is a mark that keeps
- * arriving back at itself rather than one going somewhere.
- *
- * Eight seconds for the whole way round, against the second and a half a busy
- * terminal takes to turn its cursor over twice. The two are different news and
- * should not read as one speed down a stack: a cursor turning over is something
- * being waited on, and this is an agent answering. It is slow enough to be read
- * as movement rather than as haste, which is the difference between a mark that
- * is alive and a spinner.
- *
- * It runs while the agent is working and not otherwise. A session left standing
- * at its composer is one waiting to be answered, which is the same news as a
- * shell standing at its prompt: nothing is happening, and the mark that says so
- * is a mark that stands still. A stack of agents turning all night would be a
- * canvas saying `busy` about the ones nobody has typed into since lunch.
- *
- * Carried on the drawing rather than in a stylesheet, for the reason `TURN` is:
- * this mark is drawn on the canvas and in the panel's band, and the two have no
- * container in common.
- */
+// A third of a turn loops seamlessly: the three points are near-evenly spaced. Runs only while working.
 const SPIN = {
-  // The square the paths are written in, the way the caret's origin is — and
-  // the three points' own centre rather than the middle of that square, which
-  // sits a little above it. About the square, the mark would walk round a small
-  // circle instead of turning where it stands.
+  // The points' own centre, a little below the square's; about the square the mark would orbit.
   transformBox: "view-box",
   transformOrigin: "12px 13.47px",
   animation: "totex-agent-turn 2.7s linear infinite",
@@ -99,24 +29,6 @@ const SPIN = {
   "@media (prefers-reduced-motion: reduce)": { animation: "none" },
 } as const;
 
-/**
- * A line with a branch leaving it for a ring — the graph in miniature, which is
- * what expanding a folder puts on the canvas. The ring fills once it is there,
- * so the mark says the state as well as the offer.
- *
- * It is the only way onto the graph, and it sits beside every folder — a
- * folder is a place work happens whether or not there is a repository in it,
- * and one on the graph is a row with a terminal on it either way. The one on a
- * pane's heading is for the folder the pane is showing, and the one on a row is
- * for that row. Browsing never draws anything by itself, which is what keeps a
- * walk through a folder of repositories from reading all of them.
- *
- * `working` is for the ones that are a terminal rather than an offer to open
- * one: it turns the cursor over and leaves the rest of the mark where it is.
- * A prop rather than a class hung on whatever the mark is sitting in, because
- * the same mark is drawn on the canvas and in the panel's band and the two have
- * no container in common — see `CliGlyph`, which is what both of them draw.
- */
 export function CliMark({ size, working }: { size?: number; working?: boolean }) {
   return (
     <Frame size={size}>
@@ -126,44 +38,20 @@ export function CliMark({ size, working }: { size?: number; working?: boolean })
   );
 }
 
-/**
- * Three points joined: what stands in a terminal's place while an agent is
- * running in it, turning while that agent is working.
- *
- * A terminal running an agent is not a terminal somebody is waiting on. The
- * glyph beside it says `a shell, and a command in it` — a chevron to type after
- * — and that is the wrong thing to say about a session somebody is having, so
- * the whole mark changes rather than something being hung off it.
- *
- * Points and the lines between them rather than a face or a star. It is drawn
- * at eleven pixels in a stack of other marks at eleven pixels: an eye in a
- * drawing that small is a pixel, and a pixel is not a feature. Three dots and
- * three strokes hold their shape all the way down, and they are the same
- * hairline everything else in this file is struck at.
- */
 export function AgentMark({ size, working }: { size?: number; working?: boolean }) {
   return (
     <Frame size={size}>
-      {/* Grouped so that the three points and the lines between them turn as
-          one drawing — and so that the group is what the turn is hung on, which
-          is what lets the same three points stand still. A prop rather than a
-          class, for the reason `CliMark` takes one: this mark is drawn on the
-          canvas and in the panel's band, and the two have no container in
-          common. See `SPIN`. */}
       <Box component="g" sx={working ? SPIN : undefined}>
         <circle cx="12" cy="5.6" r="2.6" />
         <circle cx="5.6" cy="17.4" r="2.6" />
         <circle cx="18.4" cy="17.4" r="2.6" />
-        {/* Rim to rim rather than centre to centre: a stroke run under a circle
-            is a stroke drawn twice at the hairline, and at eleven pixels that is
-            a blot where a point should be. */}
+        {/* Rim to rim: a stroke under a circle doubles the hairline into a blot. */}
         <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
       </Box>
     </Frame>
   );
 }
 
-/** Two strokes, crossed. */
 export function CloseMark() {
   return (
     <Frame>
@@ -172,7 +60,6 @@ export function CloseMark() {
   );
 }
 
-/** The same two strokes, uncrossed. */
 export function AddMark() {
   return (
     <Frame>
@@ -181,16 +68,6 @@ export function AddMark() {
   );
 }
 
-/**
- * An arrow into the far corner: the pane leaves where it is and lists this
- * folder from the top instead.
- *
- * Opening a folder and moving to it are two different things — one shows what
- * is inside it where it stands, the other makes it the folder the pane is
- * showing — so the second one is a mark of its own rather than the same click
- * meaning both. It points the opposite way to `UpMark`, which is the way back
- * out.
- */
 export function JumpMark() {
   return (
     <Frame>
@@ -199,15 +76,6 @@ export function JumpMark() {
   );
 }
 
-/**
- * An arrow into the near corner: the pane leaves this folder and lists the one
- * above it instead.
- *
- * It stands with the pane's own marks rather than as the first of its rows. A
- * row is something the folder holds, and the folder above it is not one of
- * those — where the pane is standing is the heading's business, which is where
- * the mark that moves it belongs.
- */
 export function UpMark() {
   return (
     <Frame>
@@ -216,27 +84,12 @@ export function UpMark() {
   );
 }
 
-/**
- * A wheel: the rim, the eight teeth on it and the bore through the middle.
- *
- * The teeth are what make it a wheel rather than a sun, and at fifteen pixels
- * they are the first thing to go — a tooth drawn at the hairline the rest of
- * this file is drawn at lands under two pixels and reads as a ray. So they are
- * struck half again as heavy as everything around them and squared off at the
- * tip, and they start on the rim rather than clear of it: a mark that touches
- * what it belongs to is a tooth, and one that stands off it is a ray. Half
- * again rather than a number of their own, so that they follow `HAIRLINE`
- * wherever it goes.
- */
+// Teeth heavier and butt-capped: at 15px a hairline tooth reads as a ray.
 export function SettingsMark() {
   return (
     <Frame>
       <circle cx="12" cy="12" r="6.4" />
       <circle cx="12" cy="12" r="2.4" />
-      {/* Eight teeth: four on the axes, four on the diagonals, each from the
-          rim out to the same radius. The diagonal ends are the axis ones over
-          the root of two, written out rather than computed — this is a drawing,
-          and the numbers are the drawing. */}
       <g strokeWidth={struck(SIZE, HAIRLINE * 1.6)} strokeLinecap="butt">
         <path d="M12 5.6 V2.8 M12 18.4 V21.2 M5.6 12 H2.8 M18.4 12 H21.2" />
         <path d="M7.47 7.47 L5.51 5.51 M16.53 16.53 L18.49 18.49 M16.53 7.47 L18.49 5.51 M7.47 16.53 L5.51 18.49" />

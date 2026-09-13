@@ -10,8 +10,8 @@ import { Window } from "./window/Window";
 export default function App() {
   const [torn] = useState(isCardWindow);
   return (
-    // `main` already wrote the mode onto the document; the provider is told the
-    // same so the two agree from the first render, with no transition between.
+    // `main` already wrote the mode onto the document; the provider is told the same so the two
+    // agree from the first render.
     <ThemeProvider
       theme={theme}
       defaultMode={storedMode()}
@@ -25,7 +25,7 @@ export default function App() {
   );
 }
 
-/** A window holding one card torn off the main one — see `lib/cardWindow`. */
+/** A window holding one card torn off the main one; see `lib/cardWindow`. */
 function TornCard() {
   const CardWindow = cardPart.use();
   return CardWindow ? <CardWindow /> : null;

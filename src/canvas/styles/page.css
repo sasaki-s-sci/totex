@@ -1,38 +1,15 @@
-/**
- * The panel a page is drawn in.
- *
- * A file's card and the settings page are one box with one bar across the top,
- * and this is that box: the paper, the edges it is resized by, the bar and the
- * marks in it. What each kind of page carries in the bar and holds in the body
- * is its own — `preview.css` and `settings.css` — and neither of them draws
- * chrome of its own.
- */
-
-/* The paint half of `contain` is left off here alone: a page's grips sit on its
-   edges, half of each one outside the box, and contained paint would clip away
-   the half that is easiest to aim at. There are a handful of pages against a
-   cell per commit, so what the layout half buys is untouched. */
 .graph .react-flow__node-file-preview,
 .graph .react-flow__node-cli-page {
+  /* No paint containment: a page's grips sit half outside its box. */
   contain: layout;
 }
 
-/* The focus lands on the node itself when a page is reached by tabbing, or
-   left by Shift+Tab out of its reading, and the browser answers with its own
-   ring round the node's box — a second edge outside the card, and a square one
-   round a rounded card. The card says the same thing in its own border (see
-   `preview.css` and `terminal.css`), so the ring is taken off. The engine
-   takes it off only for nodes it lets be selected, and a page is not one. */
 .graph .react-flow__node-file-preview:focus,
 .graph .react-flow__node-cli-page:focus,
 .graph .react-flow__node-settings-page:focus {
   outline: none;
 }
 
-/* Nothing is drawn for a grip. What says a page can be resized is the cursor
-   over the edge it already has — the same answer the panels give. Written
-   against the engine's own class as well, which is what its blue line and its
-   blue corner squares are set on. */
 .react-flow__resize-control.page__edge {
   border-color: transparent;
 }
@@ -89,10 +66,6 @@
   cursor: grabbing;
 }
 
-/* A pinned page is lifted a little further off what is behind it, because what
-   is behind it is now the whole canvas rather than the cell it was standing on.
-   Its bar is still the handle: the pin takes it out of what the graph is doing,
-   not out of the reader's hands. */
 .page.is-pinned {
   box-shadow: var(--mui-shadows-8);
 }
@@ -110,10 +83,6 @@
   white-space: nowrap;
 }
 
-/* How the body is filled is the page's own answer: a reading is clipped and
-   moved about, a column of settings is scrolled. Neither is said here, because
-   the two are not the same kind of box — see the head of `index.css` for why a
-   reading may not be a scroller. */
 .page__body {
   position: relative;
   min-height: 0;
@@ -149,9 +118,6 @@
   color: var(--mui-palette-text-primary);
 }
 
-/* A mark that is not offering something but saying what the page is already
-   doing: the card is showing the patch, and pressing it again puts the file
-   back. The same ink everything else that means `this one` is lit in. */
 .page__tool.is-on {
   background: var(--mui-palette-action-selected);
   color: var(--mui-palette-primary-main);

@@ -1,4 +1,3 @@
-/** The gear opens the settings file through the same card as any other file. */
 import { useEffect, useRef } from "react";
 import { refreshSettings, useSettingsDocument } from "../../lib/appSettings";
 import { SETTINGS_REQUEST_ID } from "../../lib/filePreview";
@@ -37,7 +36,7 @@ export function useSettingsPage(
       if (existing?.data.pinnedAt) return current;
       const asked = existing ? fileSize(existing) : BOX;
       const middle = { x: center.x - asked.width / 2, y: center.y - asked.height / 2 };
-      // Opened onto the grid when cards are held to it — see `useFilePreviewPlacing`.
+
       const grid = gridNow();
       const { position, box } = grid.holding
         ? placeOnGrid(middle, asked, grid.step, SETTINGS_LEAST)

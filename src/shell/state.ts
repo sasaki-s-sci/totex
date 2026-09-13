@@ -17,10 +17,8 @@ export function frontValue<T>(key: string): T | undefined {
 export function keepFrontValue(key: string, value: unknown): void {
   values[key] = value;
 }
-/**
- * One value as it stands now: asked of whatever holds it, the way the whole
- * snapshot is, or what was last kept under the key when nothing reads it.
- */
+
+/** Asked of whatever holds it now, or what was last kept under the key. */
 export async function readFrontValue<T>(key: string): Promise<T | undefined> {
   const read = readers.get(key);
   return (read ? await read() : values[key]) as T | undefined;

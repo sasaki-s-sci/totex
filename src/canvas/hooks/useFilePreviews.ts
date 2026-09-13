@@ -1,12 +1,3 @@
-/**
- * The file cards on the canvas.
- *
- * A card belongs to the canvas but not to a repository rebuild, so none of this
- * goes through the graph: placing and reading is one half — see
- * `useFilePreviewPlacing` — and what a standing card can be asked to do is the
- * other, in `useFilePreviewCard`.
- */
-
 import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import type { RefObject } from "react";
 import type { FilePreviewRequest } from "../../lib/filePreview";
@@ -17,10 +8,9 @@ import { useFilePreviewPlacing } from "./useFilePreviewPlacing";
 export { fileSize } from "./filePreviewBox";
 
 export type PageCanvas = {
-  /** The canvas element, which pinned cards are placed in the pixels of. */
   host: RefObject<HTMLDivElement | null>;
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
-  /** Where everything is standing on screen right now. */
+
   standing: RefObject<readonly AppNode[]>;
   nodes: readonly AppNode[];
   setNodes: (update: (current: AppNode[]) => AppNode[]) => void;

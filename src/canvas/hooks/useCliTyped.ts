@@ -6,10 +6,7 @@ import { useShowingSaid } from "../../lib/said";
 import { typedNow } from "../../lib/typed";
 import type { CliTyped } from "../cliTyped";
 
-/** Keep visible labels current, with faster reads while a terminal is open. */
 export function useCliTyped(
-  /** Whether Ctrl is down, which is one of the two things that puts these on
-   *  the marks. The other is the choice in settings, read here. */
   holding: boolean,
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,

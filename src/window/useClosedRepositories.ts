@@ -3,10 +3,8 @@ import { useFrontState } from "../shell/state";
 import type { Repository, Workspace } from "../types/git";
 
 /**
- * Repositories taken off the canvas by the mark beside their name. Closing is
- * about the canvas only: the folder stays watched and its sessions carry on.
- * A repository no longer scanned is forgotten rather than kept closed, so
- * re-graphing its folder brings it back.
+ * Closing is about the canvas only; a repository no longer scanned is forgotten, so re-graphing its
+ * folder brings it back.
  */
 export function useClosedRepositories(workspace: Workspace | null) {
   const [closed, setClosed] = useFrontState<ReadonlySet<string>>("window.closed", () => new Set());

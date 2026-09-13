@@ -1,21 +1,7 @@
-/**
- * What is in the card: the reading, clipped rather than scrolled.
- */
-
-/* Clipped, not scrolled. A box with more in it than fits and a bar to reach the
-   rest of it is a scroller, and a scroller is a layer of its own — which would
-   draw the whole canvas at one scale and stretch it to the zoom, as the head of
-   this file has it. `clip` rather than `hidden`, because a hidden box is still
-   a scroller to the engine: it can be scrolled from script, and it is composited
-   for it. What is in the box is moved by `FilePreviewNode` instead. */
 .file-preview .page__body {
   overflow: clip;
 }
 
-/* How far the reading has been moved, and how much of it is being shown. There
-   is no scrollbar to say either now, and a card that can be moved with nothing
-   to say so reads as a card that is showing the whole file. Drawn only while
-   there is somewhere to move: the rails are given a length of zero otherwise. */
 .file-preview__reach {
   position: absolute;
   z-index: 2;
@@ -45,23 +31,11 @@
   align-items: stretch;
 }
 
-/* The two lengths a reading is laid out by, said once.
-
-   A reading is one block of text with no element per line in it, so anything
-   drawn against a particular line — the bars saying what became of it, the tint
-   behind a line of a patch — is placed by arithmetic rather than by measuring
-   something. These are the numbers that arithmetic is done in, and they are the
-   same ones the text itself is laid out by: a bar and its line cannot drift,
-   because neither of them was told a length the other was not. */
 .file-preview {
   --reading-line: calc(var(--reading-size, 11px) * 1.55);
   --reading-pad: 10px;
 }
 
-/* The size is the card's to say — Ctrl and a plus or a minus moves it, and
-   `useReadingSize` holds where it has got to. The fallback here is what a
-   reading was always drawn at, and what it is drawn at again if it is ever
-   rendered outside a card. */
 .file-preview__gutter,
 .file-preview__text {
   margin: 0;
@@ -76,9 +50,6 @@
   white-space: pre;
 }
 
-/* The gutter and what stands beside it, held in one box because they move as
-   one: the whole of it is given the reading's sideways move back, so both the
-   numbers and the bars stay against the lines they are counting. */
 .file-preview__rule {
   z-index: 1;
   position: relative;
@@ -87,10 +58,6 @@
   align-items: stretch;
 }
 
-/* What became of a run of lines, in the three colours the folder column draws
-   its rows in and a branch its rim: green for what has arrived, amber for what
-   has been rewritten, red for what has gone. Drawn against the numbers rather
-   than against the words, because what it is about is the line. */
 .file-preview__mark {
   position: absolute;
   right: 2px;
@@ -106,9 +73,6 @@
   background: var(--mui-palette-warning-main);
 }
 
-/* Lines that went and left nothing to colour. There is no line of the file
-   there any more, so the mark stands in the gap they left: a wedge pointing at
-   where they were, no taller than the join it is on. */
 .file-preview__mark.is-deleted {
   width: 0;
   height: 0;
@@ -119,9 +83,6 @@
   background: none;
 }
 
-/* The patch: the same one block of text every reading in a card is, with what
-   each line of it is drawn behind it rather than around it — an element per
-   line of a patch is thousands of elements on a canvas counted in them. */
 .file-preview__patch {
   display: flex;
   min-width: 100%;
@@ -131,8 +92,6 @@
   box-sizing: border-box;
 }
 
-/* Above the bars, so that what is being said is read over the colour saying
-   what kind of line it is rather than under it. */
 .file-preview__patch .file-preview__text {
   position: relative;
 }
@@ -152,16 +111,10 @@
   background: color-mix(in srgb, var(--mui-palette-error-main) 16%, transparent);
 }
 
-/* Where the patch starts again somewhere else in the file. Not one of the three
-   — nothing became of a line here — so it is the window's own emphasis, which
-   is what everything that is a place rather than a change is drawn in. */
 .file-preview__tint.is-hunk {
   background: color-mix(in srgb, var(--mui-palette-primary-main) 12%, transparent);
 }
 
-/* A file drawn as the page it is written to be. As wide as the card and no
-   wider: a page is read down rather than across, so nothing in it may set a
-   width the card would then have to be moved sideways across. */
 .file-preview__markdown {
   box-sizing: border-box;
   width: 100%;
@@ -169,15 +122,6 @@
   padding: var(--reading-pad) 12px;
 }
 
-/* A picture, drawn whole inside whatever the card is.
-
-   A reading is moved about because there is more of it than fits and every line
-   of it has to be readable; a picture is one thing, and a card showing the top
-   left corner of one is a card showing nothing. So it is fitted instead, and
-   the ways to see it larger are the ways everything else on this canvas is seen
-   larger: an edge of the card dragged out, and the canvas zoomed in — which
-   redraws the picture at the scale rather than magnifying what was drawn. The
-   header's fit is the third, and it is the one that says "at its own size". */
 .file-preview__picture {
   display: grid;
   box-sizing: border-box;
@@ -187,10 +131,6 @@
   padding: var(--reading-pad);
 }
 
-/* Never drawn larger than it is: a 16-pixel icon blown up to fill a card is a
-   card lying about what is in it. The chequer is what says where the picture
-   ends and what in it is transparent — faint, because it is the paper behind a
-   picture and not a thing to be read. */
 .file-preview__picture img {
   max-width: 100%;
   max-height: 100%;
@@ -208,22 +148,11 @@
   object-fit: contain;
 }
 
-/* Unless there are no pixels in it to blow up. A drawing is given the whole of
-   the card and drawn again at whatever size that is, which is the one thing it
-   can do that a photograph cannot. */
 .file-preview__picture.is-drawing img {
   width: 100%;
   height: 100%;
 }
 
-/* The numbers stay where they are while the reading is moved sideways: a line
-   is being counted from its own end, and a gutter that has slid off the left
-   leaves nothing to count against. It is given the move back rather than being
-   made sticky, because nothing here is scrolling for sticky to hold against.
-
-   Standing over the text is `.file-preview__rule` above, and not this: the
-   numbers are a flex item, and a flex item given a layer of its own is one the
-   bars beside it are drawn under — which is a gutter with nothing in it. */
 .file-preview__gutter {
   flex: none;
   padding-right: 8px;
@@ -236,22 +165,15 @@
 }
 
 .file-preview__text {
-  /* Grown into whatever the card has left over, so that the whole of the box
-     under the reading answers to a click rather than only the lines
-     themselves. Never shrunk: a long line is what the card is moved across. */
   flex: 1 0 auto;
   padding-right: 14px;
   padding-left: 10px;
 }
 
-/* A reading that can be typed into. React Flow says `user-select: none` on
-   every node it draws, and an editable box that cannot be selected cannot be
-   worked in either — this is where the reading takes it back. No focus ring:
-   the caret says which card is being typed into, and a ring around the reading
-   would be a second box drawn inside the card. */
 .file-preview__text.is-editable {
   cursor: text;
   outline: none;
+  /* React Flow sets user-select: none on every node; the reading takes it back. */
   user-select: text;
 }
 
@@ -270,23 +192,6 @@
   color: var(--mui-palette-error-main);
 }
 
-/* Where the cursor keys have walked to, while Ctrl is held: the mark itself,
-   lit.
-
-   It was a ring around the whole cell, on the reading that a cell is easier to
-   follow across the canvas than a dot the size of a full stop. What it drew was
-   a box, and a box round a mark reads as another kind of mark — a second, empty
-   thing standing where the walk had got to, next to the thing the walk had got
-   to. Lighting the mark says the same in the mark's own terms, and it is the
-   one light on this canvas: the terminal the panel is holding wears it too, and
-   both times it means `this one`.
-
-   The number a terminal carries while the key is down is lit with it, because
-   the number is that mark — see `CliGlyph`, which strikes it in the mark's own
-   square and in the mark's own ink rather than naming a colour. `.cli__open` is named beside the mark because the
-   button inside it sets a colour of its own, which an inherited one would lose
-   to, and a folder's name is named because the name is that row's whole
-   control — there is no mark on it to light. */
 .react-flow__node.is-picked .mark,
 .react-flow__node.is-picked .cli__open,
 .react-flow__node.is-picked .folder__name {
@@ -298,11 +203,6 @@
   filter: var(--lit);
 }
 
-/* A card is not a mark: there is no glyph in it to light, and the paper is what
-   it is read as. So the light goes round the outside of it — the same ink
-   spilled the same way, wider because the thing it is spilling round is, and
-   still not a border. Written on the node rather than on the card inside it, so
-   that a card's own rules further down this file are not being reached past. */
 .react-flow__node-ask.is-picked,
 .react-flow__node-report.is-picked,
 .react-flow__node-file-preview.is-picked {

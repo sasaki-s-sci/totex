@@ -26,53 +26,25 @@ import {
   SESSION_WIDTH,
 } from "./model";
 
-/**
- * One repository, laid out: where every commit, branch head and offer goes
- * inside the band that holds them.
- *
- * A band is read left to right in four parts — the name, the history on a grid
- * of its own, every branch in a single column of branch lanes, and what is
- * running in each of them stacked off that row. An edge forks from its commit
- * lane into the branch lane exactly as history forks between commit lanes.
- *
- * What is actually in each stack is `build`'s to fill — terminals come and go
- * while the layout does not — but how deep each stack is belongs here, because
- * a stack pushes the branches under it down. The band's own position on the
- * canvas is `build`'s too, so everything below is relative to it.
- */
+// Everything here is relative to the band; `build` places the band and fills
+// the terminal stacks whose depth is reserved here.
 
-/**
- * One repository, drawn. The commits are positioned inside the band rather than
- * on the canvas, so the column can move the band without touching any of them.
- */
 export type PreparedRepository = {
   repository: Repository;
-  /** The band's own node data and box, which is what the column moves. */
   data: RepositoryNodeData;
   style: { width: number; height: number };
   /** The trunk line, where the folder connects to this band. */
   trunk: number;
   nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[];
-  /** Every line the band draws, already batched by how it is drawn. */
   lines: BandLines;
-  /** Where each branch's terminals stand, in the order the bands were laid out. */
   runs: BranchRun[];
 };
 
-/**
- * One branch's stack of terminals: where it starts, and how much room it has.
- *
- * The layout says where the stack stands and `build` puts the marks in it,
- * because which terminals are running is not history. The marks are packed a
- * `CLI_STEP` at a time and centred on `x, y`; a branch running nothing has no
- * stack at all, only the button on its own ring.
- */
+/** Where one branch's stack of terminals stands; `build` fills it. */
 export type BranchRun = {
-  /** The branch's own node, which is what a terminal working here is joined to. */
   head: string;
-  /** The directory the stack is of, or null while the branch is only a name. */
   cwd: string | null;
-  /** Band-relative middle of that node, where a line into this branch lands. */
+  /** Band-relative middle of the head node, where a line into this branch lands. */
   at: Point;
   /** Band-relative corner of the box a stack of one would stand in: its middle. */
   x: number;
@@ -81,35 +53,26 @@ export type BranchRun = {
   lead: number;
 };
 
-/** How many terminals are running in each directory. All of them, because a
- *  stack is centred on its branch's line: spacing two rows is a sum over both
- *  of their stacks. */
+/** Terminals running per directory. */
 export type Depth = ReadonlyMap<string, number>;
 
-/** Laying a repository out is the expensive half of drawing the graph, and a
- *  change touches one at a time. Keyed by the repository object, which the delta
- *  preserves for everything it did not change. */
+// Keyed by the repository object, which the workspace delta preserves when unchanged.
 const layouts = new WeakMap<
   Repository,
   { shown: number; deep: string; shut: string; prepared: PreparedRepository }
 >();
 
-/** No knot pressed shut, which is how a repository opens. */
 const NONE_SHUT: ReadonlySet<string> = new Set();
 
 export function prepare(
   repository: Repository,
   want: number | undefined,
   deep: Depth,
-  /** The junctions pressed shut, by node id — this repository's and every other's. */
   closed: ReadonlySet<string> = NONE_SHUT,
 ): PreparedRepository {
   const shown = depthOf(repository, want);
-  // What of that map this repository is actually affected by, as one string, so
-  // that terminals opening and closing somewhere else on the canvas are not a
-  // reason to lay this one out again.
+  // Only this repository's own worktrees and knots are part of the cache key.
   const key = repository.worktrees.map((worktree) => deep.get(worktree.path) ?? 0).join(",");
-  // And the same for the knots: only this repository's own are a change to it.
   const shut = [...closed]
     .filter((id) => id.startsWith(junctionId(repository.id, "")))
     .sort()
@@ -125,15 +88,9 @@ export function prepare(
   return prepared;
 }
 
-/** How far past the end of the history the branches stand.
- *
- * `columnX(history.width)` is half a commit step past the centre of the last
- * history column. Adding the other half puts a branch/worktree ring exactly one
- * commit step after that column, so the transition out of history keeps the
- * same rhythm as the commits themselves. */
+// Puts the ring exactly one commit step past the last history column.
 const BRANCH_GAP = COMMIT_STEP.x / 2;
 
-/** Every node and line one repository contributes, relative to its band. */
 function layout(
   repository: Repository,
   shown: number,
@@ -143,36 +100,27 @@ function layout(
   const history = placeHistory(repository, shown);
   const running = (cwd: string | null) => cwd !== null && (deep.get(cwd) ?? 0) > 0;
   const { refs: every } = placeBranches(repository, history.placed, {
-    // Every branch the repository has is drawn, and the ones standing on
-    // history that is folded away hang off the fold.
     folded: history.hidden > 0,
     running,
   });
-  // And the ones whose names start the same way are gathered on the way out —
-  // or, where the knot they are gathered at was pressed shut, not drawn at all.
   const bundle = bundleBranches(repository.id, every, {
     closed,
     running: (ref) => running(ref.data.cwd),
   });
   const { refs, rows, seats } = dealColumn(every, bundle);
 
-  // How deep each row of the branch column is: what is running there, and
-  // nothing else. The offer of a terminal is a button on the branch's own ring
-  // now, so a branch with nothing in it asks for no room out here.
   const stacks = new Array<number>(rows).fill(0);
   for (const ref of refs) {
     const cwd = ref.data.cwd;
     if (cwd !== null) stacks[ref.row] = Math.max(stacks[ref.row], deep.get(cwd) ?? 0);
   }
 
-  // Open history lanes alternately above and below the trunk. Lane identities
-  // stay intact, including reuse and first-parent continuity.
+  // History lanes open alternately above and below the trunk.
   const laneOffset = (row: number) => (row % 2 === 0 ? row / 2 : -(row + 1) / 2) * COMMIT_STEP.y;
   const historyTop = -Math.floor(history.depth / 2) * COMMIT_STEP.y;
   const historyBottom = Math.floor(Math.max(history.depth - 1, 0) / 2) * COMMIT_STEP.y;
 
-  // Keep names in order and reserve room for both neighbouring terminal stacks.
-  // Then centre the whole occupied column on the trunk, to the nearest grid row.
+  // The branch column is centred on the trunk to the nearest grid row.
   const branchLine: number[] = [];
   for (let row = 0; row < rows; row++) {
     branchLine.push(
@@ -182,32 +130,21 @@ function layout(
   const branchTop = rows > 0 ? -rowReach(stacks[0]) : 0;
   const branchBottom = rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0;
   const centre = Math.round((branchTop + branchBottom) / (2 * COMMIT_STEP.y)) * COMMIT_STEP.y;
-  // Leave room for the name above all history, and keep every stack inside the band.
   const top = gridRows(Math.max(NAME_HEIGHT - historyTop, centre - branchTop));
   const historyLine = (row: number) => top + laneOffset(row);
   for (let row = 0; row < rows; row++) branchLine[row] += top - centre;
 
-  /** The left edge of a column of the history, which the band opens on: the
-   *  name is set over the first of them rather than in a cell before it, so
-   *  nothing stands between the folder's line and the history it arrives at. */
   const columnX = (column: number) => column * COMMIT_STEP.x;
-  // Where every branch's own mark stands, which is what everything hanging off
-  // one is measured from: the ring itself rather than the edge of its cell, so
-  // that the terminals beside a branch read as that branch's own and not as a
-  // row of their own.
+  // Terminals are measured from the ring itself, not its cell edge.
   const ring = columnX(history.width + bundle.width) + BRANCH_GAP;
   const heads = ring - COLUMN_WIDTH / 2;
-  // The terminals stack out past the ring, in a column of their own that no
-  // line of the history ever crosses.
   const working = ring + CHIP_STEP;
 
   const nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[] = [];
   const drawn = new Lines();
   const runs: BranchRun[] = [];
 
-  // Where every commit's dot ends up, which is where the lines into and out of
-  // it are drawn from. A line runs mark to mark, and a mark is the middle of
-  // its cell — so this is the cell's middle and not its corner.
+  // Cell middles, since lines run mark to mark.
   const dots = history.placed.map((entry, position) => ({
     x: columnX(history.columns[position]) + COMMIT_STEP.x / 2,
     y: historyLine(entry.row),
@@ -231,13 +168,10 @@ function layout(
     runs,
   };
   drawCommits(frame);
-  // Before the heads: a branch that is gathered leaves its knot rather than the
-  // history, and the knot has to be standing somewhere before that line can be
-  // drawn to it.
+  // Junctions before heads: a gathered branch's line is drawn to its knot.
   drawJunctions(frame, refs, every);
   drawHeads(frame, refs);
 
-  // Reserve the lower extent of both history and branch stacks.
   const bottom = gridRows(
     Math.max(
       top + historyBottom + COMMIT_STEP.y / 2,
@@ -245,9 +179,8 @@ function layout(
     ),
   );
 
-  // Where the terminals stand is part of the band whether or not anything is
-  // standing there: the room belongs to the repository, and a band that widened
-  // the moment a terminal opened in it would move every repository beside it.
+  // The terminal column is reserved whether or not anything stands in it, so a
+  // band never widens when a terminal opens.
   const width = Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2);
 
   return {
@@ -256,15 +189,9 @@ function layout(
       repository,
       label: {
         x: 0,
-        // The name stays above the history even when lanes open above the trunk.
         y: top + historyTop - NAME_HEIGHT,
         width: working - SESSION_WIDTH / 2,
         height: NAME_HEIGHT,
-        // The column the band opens on, which the name is centred in: the mark
-        // standing there is the middle of it, and a name set at the left edge
-        // of the box read as heading the row rather than that mark. A name too
-        // long for the column keeps to the left of it and runs out to the
-        // right, because the left is the side the folder's line arrives on.
         column: COMMIT_STEP.x,
       },
     },

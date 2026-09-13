@@ -13,7 +13,6 @@ const POLICY = [
   "form-action 'none'",
 ].join("; ");
 
-/** Keep the document's layout inside an inert, opaque-origin frame. */
 export function htmlDocument(text: string): string {
   const page = DOMPurify.sanitize(text, {
     WHOLE_DOCUMENT: true,
@@ -64,8 +63,6 @@ export function htmlDocument(text: string): string {
     }
   }
 
-  // Prepend the policy before any untrusted styles or resources are parsed by
-  // the iframe. Never attach the sanitized document to the application DOM.
   const head =
     page.querySelector("head") ??
     page.insertBefore(document.createElement("head"), page.firstChild);

@@ -1,5 +1,3 @@
-/** A numeric preference with a slider and its current value. */
-
 import { Slider, Stack, Typography } from "@mui/material";
 import { Row } from "./Row";
 
@@ -16,14 +14,8 @@ export function Measure({
   label: string;
   value: number;
   room: { least: number; most: number };
-  /** How far apart the numbers offered are, where every one of them is too many. */
   step?: number;
-  /** What the number is counted in, where it is not obvious — drawn after it. */
   unit?: string;
-  /**
-   * How the number is written, where it is not simply the number and its unit:
-   * a slider whose last notch means something other than one more.
-   */
   read?: (value: number) => string;
   disabled?: boolean;
   onPick: (next: number) => void;

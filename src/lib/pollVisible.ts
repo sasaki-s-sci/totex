@@ -1,4 +1,7 @@
-/** Poll serially, pause while hidden, and refresh immediately on return. */
+/**
+ * Polls serially, pauses while hidden, refreshes on return, and keeps the last reading through
+ * transient IPC failures.
+ */
 export function pollVisible<T>(
   read: () => Promise<T>,
   receive: (value: T) => void,
@@ -16,7 +19,6 @@ export function pollVisible<T>(
       const value = await read();
       if (alive && !page.hidden) receive(value);
     } catch {
-      // Keep the last reading and retry after transient IPC failures.
     } finally {
       pending = false;
       if (alive && !page.hidden) timer = setTimeout(round, every);

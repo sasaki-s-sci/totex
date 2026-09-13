@@ -1,7 +1,4 @@
-/**
- * What the pointer is on, found by arithmetic rather than by asking the engine
- * to hit-test a thousand lines.
- */
+// Hit-testing by arithmetic rather than asking the engine to test a thousand lines.
 
 import { useReactFlow, useStoreApi, type XYPosition } from "@xyflow/react";
 import { useEffect, useRef, useState } from "react";
@@ -22,62 +19,35 @@ import {
 import { type CommitDot, commitAt } from "./bands";
 import { endsOf } from "./path";
 
-/** How near the pointer has to come to a line, in screen pixels. */
 const HOVER_SCREEN = 22;
 
-/**
- * And the most that comes to on the canvas, so that a graph taken far out does
- * not make every line in a band answer at once.
- */
 const HOVER_LIMIT = COMMIT_STEP.y * 0.6;
 
-/** How near the pointer has to be to a dot to be on that commit. */
 const DOT_REACH = 13;
 
-/** The halo a live commit wears, which the offer stands inside the reach of. */
 export const HALO_RADIUS = DOT_SIZE / 2 + 4;
 
-/** How far above its dot the offer of a branch stands. */
 export const BRANCH_LIFT = COMMIT_STEP.y / 2;
 
-/** The disc it is drawn on, which is what there is to aim at. */
 export const BRANCH_RADIUS = 9;
 
-/** And how far from the dot that disc still answers. */
 const BRANCH_REACH = 12;
 
-/** What the pointer is on, which is the only thing these are ever drawn for. */
 export type Under =
   | {
       kind: "band";
       band: Band;
       fold: FoldTarget | null;
       dot: CommitDot | null;
-      /** How near the pointer had to come, which the hit target is drawn at. */
+
       reach: number;
     }
   | {
-      /**
-       * A folder's line into a band it holds. Only the line is kept: where it
-       * runs is read off the marks at either end when it is drawn, so the
-       * offer stays on the line while the band it leads to is still settling.
-       */
       kind: "hold";
       hold: Hold;
       reach: number;
     };
 
-/**
- * The stretch of a folder's line that is the repository's own, as a run of
- * points and the middle of it.
- *
- * Only the last leg: an elbow leaves the folder's mark down a trunk every line
- * out of that folder shares, and the pointer on the trunk is on all of them at
- * once. The leg that turns off it into the band is the one stretch that
- * belongs to this repository and no other, so it is the stretch that offers to
- * fold it. Worked out on demand rather than indexed: there is one of these per
- * opened repository, and either end of it is on something that moves.
- */
 export function holdRun(
   hold: Hold,
   standing: ReadonlyMap<string, XYPosition>,
@@ -106,7 +76,7 @@ export function useUnder(
   const flow = useReactFlow();
   const store = useStoreApi();
   const [under, setUnder] = useState<Under | null>(null);
-  // What is on screen now, so the listener can stay put across a rebuild.
+
   const showing = useRef(under);
   showing.current = under;
   const held = useRef(bands);
@@ -132,13 +102,10 @@ export function useUnder(
       const reach = Math.min(HOVER_LIMIT, HOVER_SCREEN / zoom);
 
       for (const band of held.current) {
+        // The band as it stands now, so a cell is not looked up in a neighbouring band's index.
         const bandAt = placed.current.get(band.id) ?? band;
         const local = { x: at.x - bandAt.x, y: at.y - bandAt.y };
-        // The band the cursor is actually in. Without this the cell worked out
-        // against one band is looked up in another's index, and a repository
-        // answers for a line that belongs to the one beside it. The margin is
-        // what hangs off a band's own box: the offer of a branch, and the run
-        // of sessions past the end of a row.
+
         if (
           local.x < -STEP.x ||
           local.y < -STEP.y ||
@@ -151,17 +118,13 @@ export function useUnder(
 
         const dot = band.lines.dots.get(cell);
         const dotAt = dot ? commitAt(dot, placed.current) : null;
-        // The dot and the offer standing over it are one target. Aiming at the
-        // offer means leaving the dot, and a commit that let go of the cursor
-        // partway would take the offer away before it could be pressed.
+
         const onDot =
           dot &&
           dotAt &&
           (Math.hypot(dotAt.x - local.x, dotAt.y - local.y) <= DOT_REACH ||
             Math.hypot(dotAt.x - local.x, dotAt.y - BRANCH_LIFT - local.y) <= BRANCH_REACH);
 
-        // Only the lines in the pointer's own cell are ever measured, which is
-        // a handful of them however long the history is.
         let nearest: FoldTarget | null = null;
         let best = reach;
         for (const line of band.lines.folds.get(cell) ?? []) {
@@ -176,10 +139,6 @@ export function useUnder(
         return { kind: "band", band, fold: nearest, dot: onDot ? dot : null, reach };
       }
 
-      // After the bands, so that a band answers for its own box first: the
-      // folder's line ends inside that box, and a commit standing where it
-      // arrives is the nearer thing. These are in canvas coordinates already,
-      // and few enough to be measured every one.
       let nearest: Hold | null = null;
       let best = reach;
       for (const hold of holding.current) {
@@ -197,8 +156,6 @@ export function useUnder(
     };
 
     const move = (event: PointerEvent) => {
-      // Mid-drag the canvas is moving under the cursor, and an offer that
-      // appeared while it did would be an offer to fold whatever went past.
       if (event.buttons !== 0) {
         clear();
         return;
@@ -207,8 +164,7 @@ export function useUnder(
       const next = find(event.clientX, event.clientY);
       if (next) {
         const now = showing.current;
-        // The same answer as last time, which is what most moves of the mouse
-        // come to: the cursor travels a long way inside one cell.
+
         if (now && same(now, next)) return;
         setUnder(next);
         return;
@@ -217,12 +173,7 @@ export function useUnder(
       clear();
     };
 
-    /**
-     * Commits no longer have DOM hit targets. Catch a press before React Flow
-     * reads it as a pan, then turn a release on the same dot into the click the
-     * old node supplied. A move remains neither a click nor a pan, just as a
-     * press on the old `nopan` mark did.
-     */
+    // Commits have no DOM hit targets: take the press before React Flow reads it as a pan, and turn a release on the same dot into the click.
     const down = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const target = event.target;
@@ -262,11 +213,7 @@ export function useUnder(
       window.addEventListener("blur", cancel);
     };
 
-    // The native click still follows the pointer pair even though its press was
-    // stopped above. Keep React Flow's pane click from immediately clearing the
-    // commit selection and closing the menu that release just opened — except
-    // over the offer, which stands inside the commit's own reach and is the one
-    // thing there that answers a click of its own.
+    // The native click still fires after the stopped press; keep React Flow's pane click from clearing the selection the release just made.
     const click = (event: MouseEvent) => {
       const target = event.target;
       if (target instanceof Element && target.closest(".nopan")) return;
@@ -289,7 +236,6 @@ export function useUnder(
   return under;
 }
 
-/** The same answer as last time, which is not a change to draw. */
 function same(now: Under, next: Under): boolean {
   if (now.kind === "band" && next.kind === "band") {
     return now.band === next.band && now.fold === next.fold && now.dot === next.dot;

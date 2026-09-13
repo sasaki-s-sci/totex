@@ -10,17 +10,11 @@ type Props = Omit<BoxProps, "children"> & {
   side: "left" | "right";
   open: boolean;
   sizing: Sizing;
-  /** What stands in the window's band across the top of this column. */
   band: ReactNode;
   children: ReactNode;
 };
 
-/**
- * One column beside the canvas, either side of it: a draggable edge, the
- * window's band along the top, and whatever the column holds under it. Put
- * away with `display: none` rather than unmounted, so what is inside keeps
- * its state.
- */
+/** Put away with `display: none` rather than unmounted, so what is inside keeps its state. */
 export function Sidebar({ side, open, sizing, band, children, sx, ...box }: Props) {
   const { t } = useTranslation();
   const element = useRef<HTMLDivElement>(null);
@@ -49,8 +43,8 @@ export function Sidebar({ side, open, sizing, band, children, sx, ...box }: Prop
     >
       <ResizeGrip label={t("resize.width")} {...grip} />
       <Box sx={{ position: "relative", flex: "none", height: HEADER_HEIGHT }}>
-        {/* A press inside a drag region is a press on the window, so the sheet
-            sits behind the marks rather than around them. */}
+        {/* A press inside a drag region is a press on the window, so the sheet sits behind the
+            marks, not around them. */}
         <Box
           data-tauri-drag-region
           sx={{

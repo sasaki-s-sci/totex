@@ -1,4 +1,4 @@
-/** Resolve a glTF resource inside the model's directory, without URL fetching. */
+/** Resolves a glTF resource inside the model's directory, never by URL fetch. */
 export function modelResourcePath(modelPath: string, uri: string): string {
   if (/[?#]/.test(uri)) throw new Error("modelExternalResources");
   let decoded: string;

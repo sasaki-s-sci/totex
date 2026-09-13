@@ -27,7 +27,6 @@ export function MediaReading({
       player.removeEventListener("error", fail);
       player.pause();
       player.removeAttribute("src");
-      // Reset the decoder and release playback resources when the preview closes.
       player.load();
     };
   }, [source, kind]);

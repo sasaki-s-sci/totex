@@ -1,8 +1,3 @@
-/**
- * What a card can be asked to do once it is standing: written back to its file,
- * put away, fitted to its reading, and taken off the canvas.
- */
-
 import { useCallback, useMemo } from "react";
 import { writeFile } from "../../folder/api";
 import { refreshChanges } from "../../folder/changes";
@@ -16,12 +11,9 @@ import { useCardWindows } from "./useCardWindows";
 import type { PageCanvas } from "./useFilePreviews";
 import { heldInPane, usePinDrag } from "./usePinDrag";
 
-/** The two ways a card passes between this window and one of its own — see
- *  `useCardWindows`. */
 export type CardTraffic = {
-  /** The card has gone out to a window of its own: take it off this one. */
   closeFilePreview: (requestId: number) => void;
-  /** A card back from its window, pinned at a place in the pane's pixels. */
+
   openPinned: (seed: CardSeed, at: { x: number; y: number }) => void;
 };
 
@@ -30,18 +22,6 @@ export function useFilePreviewCard(
   previewFile: (path: string, beside: number) => void,
   windows: CardTraffic,
 ) {
-  /**
-   * Writes one card's reading back to its file.
-   *
-   * The card holds what is being typed — a keystroke is not something the graph
-   * is rebuilt for — and hands it over here when it is to be kept. What comes
-   * back is how long the file now is, which is what the next write is checked
-   * against, so the card is only told the two things the disk has just settled.
-   *
-   * A card whose file has not been read whole is never written: the backend
-   * refuses it, and so does the card, because what is on screen is only the
-   * head of it and writing that back would drop the rest.
-   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const saveFilePreview = useCallback(
     async (requestId: number, text: string, expected?: string) => {
@@ -49,6 +29,7 @@ export function useFilePreviewCard(
         (candidate): candidate is FilePreviewFlowNode =>
           candidate.type === "file-preview" && candidate.data.requestId === requestId,
       );
+      // A truncated card is never written: the head on screen would replace the whole file.
       if (!node || node.data.size === null || node.data.truncated) return false;
       try {
         const config = settingsDocument();
@@ -56,9 +37,7 @@ export function useFilePreviewCard(
           config?.path === node.data.path
             ? await writeSettingsText(text, expected ?? node.data.text ?? "")
             : await writeFile(node.data.path, text, node.data.size);
-        // Every card on that file, not only the one that was typed into: a
-        // preview stands beside the card it is of, and what it is a preview of
-        // is what has just gone to disk.
+
         setNodes((current) =>
           current.map((one) =>
             one.type === "file-preview" && one.data.path === node.data.path
@@ -66,9 +45,7 @@ export function useFilePreviewCard(
               : one,
           ),
         );
-        // What git says about the folder this is in has just moved, and the
-        // clock that would notice is a slow one. The column redraws off the
-        // same reading, and so does the card's own gutter.
+
         refreshChanges();
         return true;
       } catch {
@@ -89,9 +66,7 @@ export function useFilePreviewCard(
             ...node,
             data: { ...node.data, collapsed, box: size },
             width: size.width,
-            // Put away, the card is given no height at all and the canvas
-            // measures what its header comes to — so a header that changes
-            // shape has nothing here to be kept in step with.
+
             height: collapsed ? undefined : size.height,
           };
         }),
@@ -100,7 +75,6 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  /** Switches the content while retaining the common panel and its geometry. */
   const setFilePreviewView = useCallback(
     (requestId: number, view: import("../../lib/filePreview").FilePreviewView) => {
       setNodes((current) =>
@@ -114,13 +88,6 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  /**
-   * Opens a rendering of one card's file beside it.
-   *
-   * Refused for a card that is already a drawing — a preview of a preview is
-   * the card it is standing on — and for a file there is no drawing of, which
-   * is everything but markdown and SVG.
-   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const previewFilePreview = useCallback(
     (requestId: number) => {
@@ -134,20 +101,7 @@ export function useFilePreviewCard(
     [previewFile],
   );
 
-  /**
-   * Puts one card at a width that was measured rather than dragged to.
-   *
-   * What it needs is the card's own answer — it is the only thing that can see
-   * its reading — and how much of that it gets is the canvas's: a minified file
-   * is one line a hundred thousand characters long, and a card as wide as that
-   * line is a card whose header cannot be reached without the whole graph being
-   * zoomed out past reading. So the width is held to what is on screen, which
-   * is the widest a card can be and still be a card.
-   *
-   * Only the width, unless a height is asked for as well. A reading is as long
-   * as the file, and a card as tall as one would be a card with no canvas left
-   * around it; the one height a card asks for is its smallest.
-   */
+  // Width is held to the pane: a minified file is one line, and a card that wide cannot be reached.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const fitFilePreview = useCallback(
     (requestId: number, wanted: number, tall?: number) => {
@@ -157,15 +111,11 @@ export function useFilePreviewCard(
       setNodes((current) =>
         current.map((node) => {
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
-          // A pinned card is drawn over the canvas rather than on it, so the
-          // room there is for it is the pane itself — the zoom is something it
-          // stepped out of when it was pinned.
+
           const most = room / (node.data.pinnedAt ? (node.data.pinnedScale ?? 1) : zoom);
           const fitted = room > 0 ? Math.min(wanted, most) : wanted;
           const asked = tall ?? fileSize(node).height;
-          // A card held to the grid comes to the line at or past what was
-          // measured, so that what was measured still fits. A pinned card is
-          // off the canvas, and the grid is the canvas's.
+
           const held = grid.holding && !node.data.pinnedAt;
           const least = fileLeast(node);
           const width = held ? upToGrid(Math.max(fitted, least.width), grid.step) : fitted;
@@ -173,7 +123,7 @@ export function useFilePreviewCard(
           return {
             ...node,
             width,
-            // A card put away keeps no height of its own — see `collapseFilePreview`.
+
             height: node.data.collapsed ? undefined : height,
             data: { ...node.data, box: { width, height } },
           };
@@ -183,23 +133,7 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  /**
-   * Takes a card off the canvas and holds it over the window, or puts it back.
-   *
-   * Pinned, the node is hidden and the card is drawn on the layer over the
-   * graph instead, so nothing the canvas does — a pan, a zoom, a repository
-   * opening out and pushing every band along — reaches it. Where it floats is
-   * measured in the pane's own pixels, which is the coordinate system it has
-   * just stepped into.
-   *
-   * Unpinned, it goes back under itself rather than back where it came from:
-   * the canvas is asked what is now at the point the card has been floating
-   * over, and the node is put there. A card pinned, the graph panned across a
-   * repository, and the card let go stays on screen where the reader left it.
-   *
-   * Keep the canvas scale on the floating card so pinning preserves both its
-   * visible dimensions and the size of its contents.
-   */
+  // Pinned cards float over the canvas in pane pixels at the zoom they were pinned at; unpinning drops the node at the point under the card.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const pinFilePreview = useCallback(
     (requestId: number) => {
@@ -211,8 +145,6 @@ export function useFilePreviewCard(
           if (node.type !== "file-preview" || node.data.requestId !== requestId) return node;
           const at = node.data.pinnedAt;
           if (at) {
-            // Back at the size it left at: the box never changed, only the
-            // scale it was drawn at up there.
             const box = fileSize(node);
             return {
               ...node,
@@ -231,10 +163,7 @@ export function useFilePreviewCard(
             data: {
               ...node.data,
               pinnedScale,
-              // Held inside the pane by the same rule a drag is, so that a card
-              // pinned while it is half off the canvas is not pinned half out
-              // of the window. Its own width, because that is what it will be
-              // drawn at up there.
+
               pinnedAt: heldInPane(
                 { x: corner.x - pane.left, y: corner.y - pane.top },
                 pane,
@@ -248,12 +177,6 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  /**
-   * Where a pinned card has been dragged to, once it is let go.
-   *
-   * Only then: the card writes where it is standing to its own element for the
-   * length of the drag, so the graph is left alone until it comes to rest.
-   */
   const movePinned = useCallback(
     (requestId: number, at: { x: number; y: number }) => {
       setNodes((current) =>
@@ -267,12 +190,9 @@ export function useFilePreviewCard(
     [setNodes],
   );
 
-  // Dragged out of the window altogether, a pinned card goes on in a window
-  // of its own — see `useCardWindows`, which the drag is handed to out there.
   const tearing = useCardWindows({ host, standing, ...windows });
   const pinDrag = usePinDrag(host, movePinned, tearing);
 
-  /** The cards that have left the canvas, in the order they were opened. */
   const pinnedFiles = useMemo(
     () =>
       nodes.filter(

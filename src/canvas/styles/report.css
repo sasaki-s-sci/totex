@@ -1,15 +1,3 @@
-/**
- * What a terminal says it is working on.
- */
-
-/* What a terminal says it is working on.
-
-   The same card as a question's, in the same place and at the same width: from
-   across the canvas the shape says there is something to read beside this
-   terminal, and which of the two it is is read at the card rather than guessed
-   at from its outline. What is different is that there is nothing on it to
-   press — nobody is waiting, the agent is working, and one press on the head is
-   the whole way into the terminal where anything could be done about it. */
 .report {
   display: flex;
   box-sizing: border-box;
@@ -50,9 +38,6 @@
   white-space: nowrap;
 }
 
-/* How far through the plan it is, where there is a plan. In the corner, which
-   is the one place on the card a number can stand without being read as part
-   of the sentence under it. */
 .report__count {
   flex: none;
   color: var(--mui-palette-text-secondary);
@@ -66,8 +51,6 @@
   color: var(--mui-palette-text-primary);
 }
 
-/* What is being done, in the window's own face rather than the terminal's:
-   this is a sentence written to be read, not a command to be checked. */
 .report__doing {
   flex: none;
   margin: 7px 0 0;
@@ -84,9 +67,6 @@
   margin-top: 7px;
 }
 
-/* One step. Marked rather than numbered, and set quieter than the line above
-   it: the sentence is what is happening, and this is only where in the list it
-   is happening. */
 .report__step {
   display: flex;
   height: 14px;
@@ -98,7 +78,6 @@
   overflow: hidden;
 }
 
-/* Behind it, and out of the way of what is in hand. */
 .report__step.is-done {
   color: var(--mui-palette-text-disabled);
 }

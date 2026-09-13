@@ -8,45 +8,27 @@ import { readyAfter, retiring } from "../shell/bridge";
 import { useFrontState } from "../shell/state";
 import type { Repository, Workspace, WorkspaceDelta } from "../types/git";
 
-/** Carries what a change actually changed. */
 const DELTA_EVENT = "workspace:delta";
-/** Says that a refresh could not be completed. What it carries is not read:
- *  the window draws that something is wrong, and nowhere says what. */
 const FAILED_EVENT = "workspace:failed";
 
-/** Joins the open folders into one effect dependency. No path on any platform
- *  can contain it, which is what keeps the join reversible. */
+// No path on any platform contains NUL, which keeps the join reversible.
 const SEPARATOR = "\u0000";
 
-/** What the backend has open, by the path it was asked to open. */
 type Open = Record<string, Workspace>;
 
-/** One folder that was put on the graph, and what was found in it: which folder
- *  a repository came through is what the canvas groups by, and one reached
- *  through two belongs to the first. */
 export type Folder = {
-  /** The path the scan settled on, which is what the folder is known by. */
   root: string;
   name: string;
-  /** Its repositories by id, in the order the scan gave them. */
   repositories: string[];
 };
 
-/** Opens every folder in `roots` and then follows them. Each is its own scan and
- *  snapshot on the backend, so a commit arrives as a diff of the one folder it
- *  happened in; what the graph draws is the folders put together. */
 export function useWorkspaces(roots: string[]) {
   const [open, setOpen] = useFrontState<Open>("workspace.open", {});
   const [loading, setLoading] = useState(false);
-  /** Whether the last thing asked of the backend came back. Nothing about what
-   *  it said: what is drawn from this is a rule along the top of the canvas. */
   const [failed, setFailed] = useState(false);
 
-  // Which folders the backend is holding, so a folder that is already open is
-  // not scanned again when another one is added next to it.
   const held = useRef(new Set<string>());
-  // The listener is registered once, so what it needs to place an incoming
-  // delta is read through a ref rather than captured.
+  // Registered once, so it reads through a ref.
   const current = useRef<Open>(open);
   useEffect(() => {
     current.current = open;
@@ -79,7 +61,6 @@ export function useWorkspaces(roots: string[]) {
         fresh.map((root) =>
           invoke<Workspace>("scan_workspace", { root })
             .then((workspace) => {
-              // The folder can be collapsed while its scan is still running.
               if (held.current.has(root))
                 setOpen((previous) => ({ ...previous, [root]: workspace }));
             })
@@ -95,21 +76,15 @@ export function useWorkspaces(roots: string[]) {
   useEffect(() => {
     const pending = Promise.all([
       listen<WorkspaceDelta>(DELTA_EVENT, (event) => {
-        // Deltas name the root their scan settled on, which is not always the
-        // path it was asked for -- `~` and `..` are folded, links resolved.
+        // Deltas name the root the scan settled on (`~`, `..`, links resolved), not the path asked
+        // for.
         const entry = Object.entries(current.current).find(
           ([, workspace]) => workspace.root === event.payload.root,
         );
-        // A delta for a folder that is no longer open, or one whose own scan is
-        // still on its way; either way its scan is what is right.
         if (!entry) return;
         const [root] = entry;
 
-        // A commit landing is the machine talking, not the window being used:
-        // laying a repository out again and walking its nodes over is a frame's
-        // work, and it waits behind whatever is being done here rather than
-        // interrupting it. A scan asked for by pressing a folder is the other
-        // kind, and stays urgent.
+        // A landing commit is not a user action: it waits behind input.
         startTransition(() => {
           setOpen((previous) => {
             const showing = previous[root];
@@ -134,7 +109,6 @@ export function useWorkspaces(roots: string[]) {
   useEffect(() => {
     return () => {
       held.current.clear();
-      // No folder named: everything the window had open goes with it.
       if (!retiring) void invoke("close_workspace", {}).catch(() => undefined);
     };
   }, []);
@@ -145,9 +119,7 @@ export function useWorkspaces(roots: string[]) {
   return { workspace, folders, loading, failed };
 }
 
-/** The open folders as the single workspace the graph draws, in folder order.
- *  Repository objects are passed through untouched, which is what lets the graph
- *  rebuild without moving what did not change. */
+/** Repository objects pass through untouched so the graph can keep what did not change. */
 function merge(roots: string[], open: Open): Workspace | null {
   const workspaces = roots.map((root) => open[root]).filter(Boolean);
   if (workspaces.length === 0) return null;
@@ -167,8 +139,6 @@ function merge(roots: string[], open: Open): Workspace | null {
   };
 }
 
-/** The open folders, each with the repositories drawn under it. One whose scan
- *  has not come back is left out rather than drawn empty and then grown. */
 function group(roots: string[], open: Open): Folder[] {
   const seen = new Set<string>();
   const folders: Folder[] = [];
@@ -189,17 +159,10 @@ function group(roots: string[], open: Open): Folder[] {
   return folders;
 }
 
-/**
- * Whether the git that would read these folders is there at all. Asked of the
- * folders rather than of the machine: a folder inside a WSL distribution is read
- * by that distribution's git, and asking about the machine would draw this rule
- * over a window that works perfectly. With nothing open there is nothing to
- * answer for.
- */
+/** Asked of the folders, not the machine: a WSL folder is read by that distribution's git. */
 export function useGitMissing(roots: readonly string[]): boolean {
   const [missing, setMissing] = useState(false);
-  // By value: the array is rebuilt on every render, and each report costs a
-  // question per folder.
+  // By value: the array is rebuilt each render.
   const key = JSON.stringify([...roots]);
 
   useEffect(() => {

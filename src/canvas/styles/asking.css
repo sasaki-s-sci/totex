@@ -1,20 +1,3 @@
-/**
- * A question, as the canvas grows it.
- */
-
-/* The one card the canvas grows by itself.
- *
- * Every number in here is paired with one in `asking.ts`, which measures the
- * card before the canvas places it: the padding, the line heights and the row a
- * choice takes are how tall the box is worked out to be, and a rule changed on
- * one side without the other is a card that clips what it says or leaves a hole
- * under it. The text arrives already broken to width, which is why nothing here
- * wraps: `pre` keeps the lines the layout counted, and the overflow is the
- * guard for a line it measured a column short.
- *
- * Nothing in here scrolls and nothing in here animates opacity or transform —
- * see the note at the top of this file. What is too long to draw was cut before
- * it arrived. */
 .ask {
   display: flex;
   box-sizing: border-box;
@@ -31,9 +14,6 @@
   pointer-events: auto;
 }
 
-/* Whose question it is, and the way into the terminal it is being asked in.
-   The whole row is the way in: a card is small, and a target the size of one
-   word is a target somebody has to aim at. */
 .ask__head {
   display: flex;
   height: 15px;
@@ -70,8 +50,6 @@
   color: var(--mui-palette-text-primary);
 }
 
-/* What the question is about, in the face it was written in: a command in a
-   proportional face is a command that has to be read twice. */
 .ask__detail {
   flex: none;
   margin-top: 7px;

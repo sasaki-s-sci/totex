@@ -1,5 +1,3 @@
-/** The window's settings, opened as a page on the graph. */
-
 import { Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { FileTitleRow } from "./FileTitleRow";
@@ -16,20 +14,11 @@ import { ThemeRow } from "./ThemeRow";
 import { UpdateRows } from "./UpdateRows";
 import { WheelRow } from "./WheelRow";
 
-/**
- * The form is the rendered view of the application's settings file.
- *
- * Cut by where each setting is felt — the canvas and the two kinds of thing on
- * it, a terminal, the agents' door — and the rest under one last name. See
- * `Section` for why it is cut that way rather than by what kind of control
- * each one is.
- */
 export function SettingsContent() {
   const { t } = useTranslation();
   const mcp = useSettingsControls();
   return (
-    // The rule each part opens with is what separates it from the one above,
-    // and the first has nothing above it to be separated from.
+    // Each section opens with a rule; the first has nothing above it.
     <Stack
       sx={{
         px: 2,

@@ -1,13 +1,3 @@
-/**
- * How the canvas answers a fold, an expand and a pull.
- *
- * All three lay a band out from a different end — the history is drawn oldest
- * first, so revealing what was behind a fold gives every commit already on the
- * canvas a column further along. None of that is a reason for the graph to move
- * under whoever asked for it, so the canvas is walked by the same amount
- * instead and the newest commit is left exactly where it was.
- */
-
 import {
   type Edge,
   getViewportForBounds,
@@ -22,24 +12,17 @@ import { centreOf } from "../../lib/graphNav";
 import type { Workspace } from "../../types/git";
 import type { useHistoryDepth } from "./useHistoryDepth";
 
-/**
- * How far the canvas may be taken, either way.
- *
- * Far enough out to hold a workspace of long histories — a pull standing the
- * canvas back to fit one runs into this and no sooner — and far enough in for a
- * commit to be a thing rather than a dot.
- */
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 5;
-/** The share of the pane left round what is framed, which is `fitView`'s own. */
+
 const FIT_PADDING = 0.1;
-/** How long the canvas takes to come back from a pull that asked for nothing. */
+
 const RETURN_MS = 200;
 
 export type FoldCanvas = {
   workspace: Workspace;
   graph: GraphResult;
-  /** The graph React Flow is showing, which the next one is built against. */
+
   applied: RefObject<GraphResult | null>;
   standing: RefObject<readonly AppNode[]>;
   host: RefObject<HTMLDivElement | null>;
@@ -62,25 +45,8 @@ export function useCanvasFold({
 }: FoldCanvas) {
   const { reaching, expand: expandDepth, fold: foldDepth, reach, keep } = depth;
 
-  /**
-   * A mark to hold still across the next rebuild, and where it is standing now.
-   *
-   * Folding and expanding are the one thing that lays a band out from a
-   * different end: the history is drawn oldest first, so revealing what was
-   * behind the fold gives every commit already on the canvas a column further
-   * along, and the band grows into its neighbours. None of that is a reason for
-   * the graph to move under whoever asked for it, so the canvas is walked by
-   * the same amount instead and the newest commit is left exactly where it was.
-   */
   const pinned = useRef<{ id: string; at: XYPosition } | null>(null);
 
-  /**
-   * Holds the newest commit of a repository still: the end a history is read
-   * from, and the one mark a fold or an expand can never take away.
-   *
-   * Measured against what is standing on screen rather than against the graph
-   * as built, so a fold asked for mid-walk holds the mark where the eye has it.
-   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const pin = useCallback(
     (repository: string) => {
@@ -95,6 +61,7 @@ export function useCanvasFold({
     [workspace.repositories],
   );
 
+  // History is laid out oldest first, so revealing a fold shifts every commit; the viewport is walked by the same amount to keep the newest commit still.
   const expand = useCallback(
     (repository: string) => {
       pin(repository);
@@ -111,15 +78,7 @@ export function useCanvasFold({
     [foldDepth, pin],
   );
 
-  /**
-   * Stands the canvas back far enough to hold the whole of what is drawn.
-   *
-   * Worked out from the extent the build measured rather than by asking React
-   * Flow to fit its own nodes: a fit is a pass over the store, and the store is
-   * handed this frame's nodes after this frame — a wait a pull cannot spend
-   * eighty times over. The extent is the same box the lines are given, and it
-   * is already in hand.
-   */
+  // From the build's extent rather than fitView: React Flow's store only has this frame's nodes next frame.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const standBack = useCallback((extent: { width: number; height: number }) => {
     const flow = instance.current;
@@ -138,15 +97,7 @@ export function useCanvasFold({
     );
   }, []);
 
-  /**
-   * Where the canvas was standing when the pull began.
-   *
-   * A pull let go where it started asked for nothing, and a canvas left
-   * standing back from a graph that never changed would be the one thing such a
-   * gesture had left behind. So it is put back, over a moment rather than at
-   * once: the band closing up and the canvas coming in are the same movement
-   * undone, and a jump would read as a third thing having happened.
-   */
+  // Taken on the pull's first frame; the canvas moves every frame after.
   const beforeReach = useRef<Viewport | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
@@ -159,9 +110,7 @@ export function useCanvasFold({
         if (was) instance.current?.setViewport(was, { duration: RETURN_MS });
         return;
       }
-      // Taken on the first frame of the pull and held for the whole of it: the
-      // canvas moves on every frame after that, and what it is being put back
-      // to is where it was before any of them.
+
       beforeReach.current ??= instance.current?.getViewport() ?? null;
       reach(repository, shown);
     },
@@ -170,19 +119,15 @@ export function useCanvasFold({
 
   const keepFold = useCallback(
     (repository: string) => {
-      // Nothing to put back: the canvas is standing where the pull left it, and
-      // what it is looking at is exactly what was asked for.
       beforeReach.current = null;
       keep(repository);
     },
     [keep],
   );
 
-  // Only what the last workspace change actually moved is handed over; a
-  // repository that stayed put keeps the nodes React Flow already measured,
-  // selected and drew. What did move is walked there rather than put there.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   useEffect(() => {
+    // Only what the last change moved is walked; the rest keeps React Flow's measured nodes.
     const before = applied.current;
     applied.current = graph;
     const from = new Map(standing.current.map((node) => [node.id, node.position] as const));
@@ -197,23 +142,12 @@ export function useCanvasFold({
       return [...merged, ...pages];
     });
 
-    // A pull is under way, and the band it is in was laid out again for this
-    // very frame of it. Nothing is walked and nothing is held still: what is
-    // drawn is what the hand is asking for, the fold it is on stays at the
-    // column it has always been at, and the history runs out to the right of it
-    // — which is a band that is wider every frame. The canvas takes that by
-    // standing back far enough to hold the whole of what is now drawn.
     if (reaching) {
       pinned.current = null;
       standBack(graph.extent);
       return;
     }
 
-    // A fold or an expand: the canvas takes the whole of the move, so nothing
-    // on it appears to have moved at all — the history that arrives comes in
-    // from the side, and the commit under the cursor stays under the cursor.
-    // Nothing is walked here either: a walk is how a node says it is the same
-    // node somewhere else, and none of them are anywhere else.
     const held = pinned.current;
     pinned.current = null;
     const view = held ? instance.current?.getViewport() : undefined;

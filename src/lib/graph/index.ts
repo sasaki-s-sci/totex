@@ -1,16 +1,4 @@
-/**
- * The commit graph: what the canvas is made of, and how it is built.
- *
- * Four parts, in the order a change moves through them — `model` is the
- * vocabulary; `history` and `branches` deal out the cells one repository takes,
- * which `layout` turns into the nodes and lines of a band; and `build` lays the
- * bands out and draws what is running on them. Everything the window needs
- * comes out here; the rest is between them.
- */
-
 export type { AskCard, AskFlowNode, AskNodeData } from "./asking";
-// The card's own way of breaking text to a width, which the canvas borrows to
-// set what a commit says beside its mark.
 export { cellsOf, clamp, wrap } from "./asking";
 export { buildCommitGraph, type GraphInput } from "./build";
 export { isOpen } from "./folders";

@@ -16,8 +16,7 @@ import {
 import { connection, disconnect, retire, settled } from "./shell/bridge";
 import { captureFocus, restoreFocus } from "./shell/focus";
 import { snapshot } from "./shell/state";
-// Side effect: settles the language and loads the catalogues before anything
-// calls `useTranslation`.
+// Side effect: settles the language before anything calls `useTranslation`.
 import "./i18n";
 import {
   flushSettings,
@@ -29,15 +28,10 @@ import { prime } from "./lib/remembered";
 import { isCardWindow } from "./lib/thisWindow";
 import { applyStoredMode } from "./theme";
 
-// Which of the two palettes the window opens in, written onto the document
-// before anything is drawn from it. The provider settles the same thing an
-// effect later, which is a frame after the first paint -- long enough to see.
+// Written before the first paint; the provider settles the same thing an effect later.
 applyStoredMode();
 
-// A window holding one card is see-through around it: the card is the whole
-// of what is drawn, and the window has its shape — see `lib/cardWindow`.
-// Written here, before the first paint, and on the element rather than in a
-// sheet, so that nothing the theme writes onto the body paints over it.
+// On the element rather than in a sheet, so nothing the theme writes onto the body paints over it.
 if (isCardWindow()) {
   document.documentElement.classList.add("is-card-window");
   document.documentElement.style.background = "transparent";
@@ -49,9 +43,7 @@ if (!container) {
   throw new Error("#root is missing from index.html");
 }
 
-// What the last window left with the persistent half, brought across before the column
-// reads where it was -- see `remembered`. One round trip on the loopback,
-// which is nothing beside the first paint.
+// One loopback round trip before the column reads where it was; see `remembered`.
 const root = createRoot(container, {
   onUncaughtError(reason) {
     connection?.failed(reason);

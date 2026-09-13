@@ -64,7 +64,6 @@ export function EpubReading({ source, name }: { source: string; name: string }) 
           book.destroy();
           return;
         }
-        // Spine items are XHTML even when their archive paths have no extension.
         const archive = book.archive;
         const load = book.load.bind(book);
         const chapterUrls = new Set<string>();
@@ -88,7 +87,6 @@ export function EpubReading({ source, name }: { source: string; name: string }) 
         });
         rendition.current = reader;
         reader.hooks.content.register((contents: Contents) => {
-          // EPUB.js handles in-book links; browser navigation itself stays disabled.
           contents.document.addEventListener(
             "click",
             (event) => {
@@ -135,7 +133,6 @@ export function EpubReading({ source, name }: { source: string; name: string }) 
       clearTimeout(timer);
       observer?.disconnect();
       if (rendition.current?.book === book) rendition.current = null;
-      // Opening has no cancellation API: let it settle before destroying its internals.
       if (opened) book?.destroy();
       mount.remove();
     };

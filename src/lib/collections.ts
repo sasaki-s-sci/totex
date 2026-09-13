@@ -1,12 +1,4 @@
-/**
- * The one collection helper the app needs, kept where everything can reach it:
- * the layout buckets branches and worktrees by commit, the build buckets
- * sessions by repository and by branch, and the folder column buckets roots by
- * where they came from.
- *
- * Insertion order is the contract — a `Map` iterates in it — so a caller that
- * hands over an ordered list gets its groups back in that order.
- */
+/** Insertion order is the contract: groups come back in the order of the list handed in. */
 export function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
   const grouped = new Map<string, T[]>();
   for (const item of items) {

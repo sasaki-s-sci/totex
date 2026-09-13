@@ -1,4 +1,4 @@
-/** Synchronous change notifications, in subscription order. */
+/** Synchronous, in subscription order. */
 export function notifications() {
   const listeners = new Set<() => void>();
 

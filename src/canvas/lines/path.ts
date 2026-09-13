@@ -1,7 +1,3 @@
-/**
- * One batch of lines, as the `d` of a single path.
- */
-
 import type { XYPosition } from "@xyflow/react";
 import {
   downFrom,
@@ -16,19 +12,6 @@ import {
   straightPath,
 } from "../../lib/graph";
 
-/**
- * A run of lines as one piece of path data.
- *
- * Every line drawn the same way is a piece of the same path, which is what
- * makes a repository a dozen elements instead of one per commit. A line whose
- * ends are not both on the canvas is left out rather than drawn to nowhere.
- *
- * Both ends are pulled back off the marks they belong to: `trim` for the far
- * one, which is what keeps a line from being drawn across the hole in a ring,
- * and `lead` for the near one, which is what keeps a line out of the box a
- * terminal is drawn in. The ring of canvas every mark carries covers what is
- * left between the line and the mark.
- */
 export function pathOf(
   parts: readonly GraphLine[],
   standing: ReadonlyMap<string, XYPosition>,
@@ -43,16 +26,6 @@ export function pathOf(
   return path;
 }
 
-/**
- * Where one line runs, as it is drawn now: both ends read off the marks they
- * belong to and pulled back off them, and the pair moved off the track when
- * the line shares it.
- *
- * What the path is made from, and what the pointer is measured against when a
- * line drawn on the canvas rather than in a band is asked what it offers: a
- * band's lines are indexed once in the band's own coordinates, but a line from
- * a folder to a band has an end on each of two things that move apart.
- */
 export function endsOf(
   part: GraphLine,
   standing: ReadonlyMap<string, XYPosition>,
@@ -60,10 +33,7 @@ export function endsOf(
   const from = endOf(part.from, standing);
   const to = endOf(part.to, standing);
   if (!from || !to) return null;
-  // The far end is the same sum with the ends swapped: `shortOf` pulls the
-  // second point back towards the first. The near end depends on the
-  // direction the line leaves in, which for an elbow is straight down its own
-  // column rather than towards anything.
+
   const start =
     part.shape === "elbow"
       ? downFrom(from, to, part.lead)
@@ -73,15 +43,13 @@ export function endsOf(
   return { start, end };
 }
 
-/** One line as path data, in whichever of the three shapes it takes. */
 function pieceOf(shape: LineShape, start: Point, end: Point): string {
   if (shape === "curve") return sigmoidPath(start, end);
   if (shape === "elbow") return elbowPath(start, end);
   return straightPath(start, end);
 }
 
-/** Move both ends along the line's normal. Positive is below a left-to-right
- *  line, so coincident local and remote strokes can each keep half the track. */
+/** Positive moves below a left-to-right line, so local and remote strokes each keep half the track. */
 function offset(start: Point, end: Point, distance: number): void {
   if (distance === 0) return;
   const dx = end.x - start.x;
@@ -96,20 +64,12 @@ function offset(start: Point, end: Point, distance: number): void {
   end.y += y;
 }
 
-/**
- * Where one end of a line is: the middle of the mark it belongs to.
- *
- * A band's own lines are drawn inside the band's transform and their ends are
- * the commits in it, so a node's position — which React Flow keeps relative to
- * whatever it is placed in — is already the answer either way. A line into a
- * row names the band itself and the point inside it, which is the same sum.
- */
+/** A band's lines are drawn inside the band's transform, so node positions are already relative to it. */
 function endOf(end: LineEnd, standing: ReadonlyMap<string, XYPosition>): Point | null {
   const at = standing.get(end.node);
   return at ? { x: at.x + end.dx, y: at.y + end.dy } : null;
 }
 
-/** How a batch is drawn. The same shape for every path on the canvas. */
 export function stroke(style: StrokeStyle) {
   return {
     fill: "none",

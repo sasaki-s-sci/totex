@@ -10,24 +10,14 @@ import { useFetchPull } from "../hooks/useFetchPull";
 import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
 
-/**
- * One ref at the end of its edge from history.
- *
- * This is deliberately not another commit: the real commit remains in the
- * history grid. Local/workspace refs use a compact solid ring, while remote
- * refs use a clear dashed ring. Synchronized refs are still separate React Flow
- * nodes, but the remote's visible ring collapses to the local size at their
- * shared centre so the result reads as one simple node.
- */
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
   const { name, kind, together, fetch, cwd, repository, provisional } = data;
   const { openWork, browseWorktree, pickBranch, dragBranch, fetchBranch } = useGraphActions();
   const statuses = useWorktreeStatuses();
   const status = statuses.get(cwd ?? "");
-  /** The column is reading this copy: the one worktree of the several a
-   *  repository can have that is actually in front of whoever is here. */
   const browsing = useBrowsing();
+  // Whether the left sidebar is browsing this worktree.
   const here = cwd !== null && browsing.has(cwd);
 
   const live = fetch !== null && atRest(statuses, fetch.work);
@@ -106,12 +96,6 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
               </svg>
             )}
 
-            {/* The column is in this copy, said with the folder the column's
-                own heading carries. Worn over the ring's rim rather than laid
-                along it: the ring's own line is spoken for several times over
-                — what is uncommitted, a branch with no worktree, a refusal, a
-                wait — so the folder is set across it, small, where nothing
-                else on this mark is drawn; see `.head__ring__here`. */}
             {here && (
               <span className="head__ring__here">
                 <RimFolderMark />

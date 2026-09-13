@@ -1,13 +1,3 @@
-/**
- * The terminals stood on the canvas as pages.
- *
- * Which sessions are pages is the window's to say — `paged` in `useSessions`,
- * because the panel on the other side of the window has to stop drawing a
- * terminal the moment the canvas starts. What is the canvas's own is where each
- * page stands and how big it is, which React Flow owns once the page is placed
- * and which is kept across a change of front the way a file card's is.
- */
-
 import { useCallback, useEffect } from "react";
 import type { CliPageFlowNode, FilePreviewBox } from "../../lib/graph";
 import type { Session } from "../../lib/session";
@@ -15,16 +5,12 @@ import { frontValue } from "../../shell/state";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
-/** The size a terminal page opens at, in canvas units: eighty columns of the
- *  panel's face and a couple of dozen rows, at the canvas's own scale. */
 export const CLI_PAGE_SIZE = { width: 640, height: 400 } as const;
 
 export function cliPageId(sessionId: string): string {
   return `cli-page:${sessionId}`;
 }
 
-/** The size a page is standing at: its own once an edge has been dragged, and
- *  the size it was opened at until then. Put away, it keeps the one it had. */
 export function cliPageSize(node: CliPageFlowNode): FilePreviewBox {
   const box = node.data.box;
   return { width: node.width ?? box.width, height: node.height ?? box.height };
@@ -45,8 +31,7 @@ export function useCliPages(
     const bounds = host.current?.getBoundingClientRect();
     setNodes((current) => {
       let changed = false;
-      // A page whose session has gone back to the panel, or ended, comes down;
-      // one still standing is told whether it is the one in hand.
+
       const kept: typeof current = [];
       const standing = new Set<string>();
       for (const node of current) {
@@ -70,7 +55,6 @@ export function useCliPages(
       const fresh = [...wanted.values()].filter((session) => !standing.has(session.id));
       if (fresh.length === 0) return changed ? kept : current;
       const additions = fresh.map((session, at) => {
-        // A page this front was handed from the last one stands where it stood.
         const remembered = frontValue<CliPageFlowNode[]>("canvas.clis")?.find(
           (node) => node.data.session.id === session.id,
         );
@@ -103,8 +87,8 @@ export function useCliPages(
             ...node,
             data: { ...node.data, collapsed, box: size },
             width: size.width,
-            // Put away, the page is given no height at all and the canvas
-            // measures what its header comes to.
+
+            // Collapsed, the page has no height; the canvas measures the header.
             height: collapsed ? undefined : size.height,
           };
         }),
@@ -113,8 +97,6 @@ export function useCliPages(
     [setNodes],
   );
 
-  /** Puts a page at a size, the way a file card is fitted: what the shrink
-   *  mark on its bar asks for. */
   const fitCliPage = useCallback(
     (sessionId: string, width: number, height: number) => {
       setNodes((current) =>
@@ -123,7 +105,7 @@ export function useCliPages(
           return {
             ...node,
             width,
-            // Put away, the page keeps no height of its own — see `collapseCliPage`.
+
             height: node.data.collapsed ? undefined : height,
             data: { ...node.data, box: { width, height } },
           };
