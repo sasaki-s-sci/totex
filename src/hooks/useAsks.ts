@@ -11,6 +11,7 @@ import {
   takeAsk,
 } from "../lib/ask";
 import { onShellExit } from "../lib/pty";
+import type { Session } from "../lib/session";
 import { watchReadings } from "../lib/watchReadings";
 
 const NOTHING: ReadonlyMap<string, Ask> = new Map();
@@ -75,7 +76,7 @@ export function useAsks() {
 
   // The card goes at once, not on the agent's next frame; a refusal brings the new question back.
   const answer = useCallback(
-    (id: string, ask: Ask, key: string) => {
+    ({ id }: Session, ask: Ask, key: string) => {
       settle(id, null);
       void answerAsk(id, ask.seq, key).catch(() => undefined);
     },
@@ -83,7 +84,7 @@ export function useAsks() {
   );
 
   const reply = useCallback(
-    (id: string, ask: Ask, text: string) => {
+    ({ id }: Session, ask: Ask, text: string) => {
       settle(id, null);
       void replyAsk(id, ask.seq, text).catch(() => undefined);
     },
@@ -92,16 +93,16 @@ export function useAsks() {
 
   // These leave the question standing: the card follows the agent's next drawing rather than
   // guessing.
-  const point = useCallback((id: string, ask: Ask, key: string) => {
+  const point = useCallback(({ id }: Session, ask: Ask, key: string) => {
     void pointAsk(id, ask.seq, key).catch(() => undefined);
   }, []);
 
-  const pick = useCallback((id: string, ask: Ask, key: string) => {
+  const pick = useCallback(({ id }: Session, ask: Ask, key: string) => {
     void pickAsk(id, ask.seq, key).catch(() => undefined);
   }, []);
 
   const take = useCallback(
-    (id: string, ask: Ask) => {
+    ({ id }: Session, ask: Ask) => {
       settle(id, null);
       void takeAsk(id, ask.seq).catch(() => undefined);
     },

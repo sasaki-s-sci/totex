@@ -1,7 +1,6 @@
 import { Box } from "@mui/material";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAskActions } from "../hooks/useAskActions";
 import { useAsks } from "../hooks/useAsks";
 import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
@@ -70,7 +69,6 @@ export function Window() {
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
-  const askActions = useAskActions(asks);
   const { drawn, closeRepository } = useClosedRepositories(workspace);
   useWindowBoot(workspace);
 
@@ -162,11 +160,11 @@ export function Window() {
             asks={asks.asks}
             reports={reports}
             doings={doings}
-            onAnswer={askActions.answerAsk}
-            onReply={askActions.replyToAsk}
-            onPoint={askActions.pointAtAsk}
-            onPick={askActions.pickInAsk}
-            onTake={askActions.takeAsking}
+            onAnswer={asks.answer}
+            onReply={asks.reply}
+            onPoint={asks.point}
+            onPick={asks.pick}
+            onTake={asks.take}
             marks={marks}
             onSelect={work.pickCommit}
             onCutBranch={work.cutBranch}
