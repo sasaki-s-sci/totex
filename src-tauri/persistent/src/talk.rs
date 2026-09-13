@@ -1,6 +1,8 @@
 //! The native host's connection to its persistent CLI service.
-//! Ephemeral updates leave this connection untouched. A newly installed runtime
-//! starts its matching service, while reconnecting the same runtime preserves it.
+//! Ephemeral updates leave this connection untouched. A runtime installed on
+//! this line goes on with the service that is already up, whatever patch
+//! started it; only a runtime on another line starts a service of its own, at
+//! the cost of every terminal the old one held.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
@@ -174,20 +176,28 @@ impl Link {
 
     /// Finds the program, or starts `program` and finds that.
     ///
-    /// Reuse only the same runtime version and protocol. A different installed
-    /// runtime must start its bundled service; ephemeral updates never enter here.
+    /// A program already running on this line is kept, whatever its patch
+    /// number: within a line the two speak the same wire, so a window of one
+    /// patch goes on with the program another patch started rather than taking
+    /// its terminals down. Only a program on another line is replaced.
     pub fn reach(home: &Path, program: &Path) -> Result<Self, String> {
-        Self::reach_version(home, program, crate::VERSION)
+        Self::reach_version(home, program, None)
     }
 
-    /// The same, for a window that brought a program of another version than
-    /// its own -- one it was told to start instead, see the window's settings
-    /// page -- so that "the version this window brought" is that one.
-    pub fn reach_version(home: &Path, program: &Path, version: &str) -> Result<Self, String> {
+    /// The same, with a version asked for by name.
+    ///
+    /// `None` is "anything on this line will do", which is what a window that
+    /// brought its own program asks for. `Some(version)` is a version pinned on
+    /// the window's settings page: that one exactly, and anything else running
+    /// is stopped -- terminals and all -- to make room for it.
+    pub fn reach_version(
+        home: &Path,
+        program: &Path,
+        version: Option<&str>,
+    ) -> Result<Self, String> {
         match Self::connect(home) {
             Ok(link) => {
-                let same = link.version == version;
-                if link.line == crate::LINE && same {
+                if keeps(link.line, &link.version, version) {
                     return Ok(link);
                 }
                 link.stop();
@@ -204,7 +214,9 @@ impl Link {
     /// The one way the program is replaced on purpose while a window is open,
     /// and the one press on the settings page that ends every terminal: the
     /// shells go with the program that held them, and the window that asked
-    /// for this is the window that said so first.
+    /// for this is the window that said so first. Used after a whole runtime
+    /// has been installed -- see [`crate::RESTART_RUNTIME`] -- which is the
+    /// other thing that replaces the program, and never a patch.
     pub fn restart(home: &Path, program: &Path) -> Result<Self, String> {
         if let Ok(link) = Self::connect(home) {
             link.stop();
@@ -362,6 +374,17 @@ impl Link {
         asking.write_all(b"\n")?;
         asking.flush()
     }
+}
+
+/// Whether a program that is already running is one to go on with.
+///
+/// It has to be on this window's line -- see [`crate::LINE`] -- and, where a
+/// version was asked for by name, be that version. Nothing else is compared:
+/// a patch release shares the line, the wire and the program, so a window at
+/// 0.10.6 goes on with the 0.10.4 program it found rather than ending every
+/// terminal it holds.
+fn keeps(line: u32, version: &str, wanted: Option<&str>) -> bool {
+    line == crate::LINE && wanted.is_none_or(|wanted| wanted == version)
 }
 
 /// Reads until there is no more, handing answers to whoever asked and events to
@@ -526,5 +549,23 @@ impl Link {
     /// told, so that the program going away is read as that session ending.
     pub fn know(&self, id: &str) {
         lock(&self.known).insert(id.to_string());
+    }
+}
+
+#[cfg(test)]
+mod kept {
+    use super::*;
+
+    #[test]
+    fn a_program_on_this_line_is_kept_unless_another_version_was_asked_for() {
+        let other = "0.0.0";
+        // Nothing pinned: any patch on this line will do, and nothing off it.
+        assert!(keeps(crate::LINE, crate::VERSION, None));
+        assert!(keeps(crate::LINE, other, None));
+        assert!(!keeps(crate::LINE + 1, crate::VERSION, None));
+        // Pinned: that version exactly, and still only on this line.
+        assert!(keeps(crate::LINE, other, Some(other)));
+        assert!(!keeps(crate::LINE, crate::VERSION, Some(other)));
+        assert!(!keeps(crate::LINE + 1, other, Some(other)));
     }
 }

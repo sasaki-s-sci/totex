@@ -2,9 +2,12 @@
 //!
 //! It owns running shells, their output, agent reports and stored documents.
 //! Ephemeral rendering updates leave both this service and the native window
-//! host alive. Persistent updates install a bundle and restart totex with its
-//! matching service and views. `LINE` describes the socket protocol; view
-//! compatibility is determined by the frontend host identity, not that number.
+//! host alive. A patch release shares the line, and with it this service: the
+//! window that arrives goes on with the service already running and the shells
+//! it holds. A minor release is the one thing that puts another service in its
+//! place, and the one thing that closes the terminals. `LINE` describes the
+//! socket protocol; view compatibility is determined by the frontend host
+//! identity, not that number.
 
 pub mod door;
 pub mod serve;
@@ -32,10 +35,13 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// What the two ends of the socket have to agree on. A window and a program
 /// on the same line ask and answer the same questions, whatever the patch
 /// number of either — that is what a patch release promises, and what
-/// `.github/workflows/release.yml` refuses to cut one that breaks. A window
-/// that finds a program on another line cannot ask it anything, and replaces
-/// it at the cost of what it holds — which is the one cost this arrangement
-/// exists to avoid, paid once per minor release and never otherwise.
+/// `.github/workflows/release.yml` refuses to cut one that breaks. So a window
+/// that finds a program on its own line keeps it and the terminals it holds,
+/// however the two patch numbers differ, and the data directory `keep/` is
+/// shared for the life of the line. A window that finds a program on another
+/// line cannot ask it anything, and replaces it at the cost of what it holds —
+/// which is the one cost this arrangement exists to avoid, paid once per minor
+/// release and never otherwise.
 ///
 /// Said on the wire under the name the line before this one gave it — see
 /// [`wire::hello`] — so that a window from earlier in the line reads it as the

@@ -6,12 +6,16 @@
 //! writes where it is, answers a window that was not the one that started it,
 //! and goes when it is told to.
 
-use std::path::PathBuf;
+use std::io::{BufRead, BufReader, Write};
+use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use serde_json::json;
+use serde_json::{Value, json};
 use totex_persistent::talk::{Link, Missing};
-use totex_persistent::wire::Address;
+use totex_persistent::wire::{Address, hello};
 
 /// A temporary directory that removes itself, so a failing test cannot leave
 /// an address file behind for a real window to find.
@@ -156,6 +160,132 @@ fn a_window_can_restart_the_program_and_the_shells_go_with_the_old_one() {
     second.stop();
     assert!(
         second.wait_gone(Duration::from_secs(5)),
+        "stop did not end it"
+    );
+}
+
+/// A program of another patch on this line, standing where a release from
+/// earlier in the line left one: it says a version of its own in the hello and
+/// remembers whether it was ever told to stop.
+///
+/// One window is all `reach` opens, and the listener closes with the thread, so
+/// a program that was told to stop is one nothing can reach again -- as a real
+/// one that has gone would be.
+fn standing_as(home: &Path, version: &str) -> Arc<AtomicBool> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("a port");
+    let port = listener.local_addr().expect("the address").port();
+    let token = format!("token-{}-{port}", std::process::id());
+    let address = Address {
+        port,
+        token: token.clone(),
+        pid: std::process::id(),
+        version: version.to_string(),
+        line: totex_persistent::LINE,
+    };
+    std::fs::write(
+        Address::path(home),
+        serde_json::to_vec(&address).expect("json"),
+    )
+    .expect("the address");
+
+    let stopped = Arc::new(AtomicBool::new(false));
+    let told = Arc::clone(&stopped);
+    let said = hello(version).to_string();
+    std::thread::spawn(move || {
+        let Ok((stream, _)) = listener.accept() else {
+            return;
+        };
+        let mut writing = stream.try_clone().expect("the other half");
+        let mut lines = BufReader::new(stream).lines();
+        let Some(Ok(first)) = lines.next() else {
+            return;
+        };
+        let first: Value = serde_json::from_str(&first).unwrap_or(Value::Null);
+        if first["token"].as_str() != Some(&token) {
+            return;
+        }
+        if writeln!(writing, "{said}").is_err() {
+            return;
+        }
+        for line in lines.map_while(Result::ok) {
+            let Ok(asked) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+            let stop = asked["do"] == json!("stop");
+            // Noted before the answer goes, so that a window which reads the
+            // answer reads it after this was true.
+            if stop {
+                told.store(true, Ordering::Relaxed);
+            }
+            let answer = json!({ "id": asked["id"], "said": {} });
+            if writeln!(writing, "{answer}").is_err() || stop {
+                return;
+            }
+        }
+    });
+    stopped
+}
+
+/// A patch on this line, as a later release would be numbered.
+fn later_patch() -> String {
+    format!(
+        "{}.{}.99999",
+        env!("CARGO_PKG_VERSION_MAJOR"),
+        env!("CARGO_PKG_VERSION_MINOR")
+    )
+}
+
+/// What a patch release costs: nothing. A window that finds a program of
+/// another patch on its own line asks that one, terminals and all, rather than
+/// starting the program it brought.
+#[test]
+fn a_program_of_another_patch_on_this_line_is_the_one_gone_on_with() {
+    let temp = TempDir::new("patch");
+    let home = &temp.0;
+    let running = later_patch();
+    let stopped = standing_as(home, &running);
+
+    let link = Link::reach(home, &program()).expect("the program that is up is found");
+    assert_eq!(
+        link.version(),
+        running,
+        "the window brought its own instead"
+    );
+    assert!(
+        !stopped.load(Ordering::Relaxed),
+        "a patch ended the terminals of another patch"
+    );
+    assert_eq!(
+        Address::read(home).expect("the address").pid,
+        std::process::id(),
+        "a second program was started beside the one running"
+    );
+}
+
+/// The one thing that still replaces a program on this line: a version the
+/// persistent row was left pointed at by name.
+#[test]
+fn a_version_asked_for_by_name_replaces_a_program_of_another_patch() {
+    let temp = TempDir::new("pinned");
+    let home = &temp.0;
+    let stopped = standing_as(home, &later_patch());
+
+    let link = Link::reach_version(home, &program(), Some(totex_persistent::VERSION))
+        .expect("the version asked for starts");
+    assert!(
+        stopped.load(Ordering::Relaxed),
+        "the program that was running was left there"
+    );
+    assert_eq!(link.version(), totex_persistent::VERSION);
+    assert_ne!(
+        Address::read(home).expect("the address").pid,
+        std::process::id(),
+        "nothing of its own was started"
+    );
+
+    link.stop();
+    assert!(
+        link.wait_gone(Duration::from_secs(5)),
         "stop did not end it"
     );
 }

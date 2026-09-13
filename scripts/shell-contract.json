@@ -1,0 +1,16 @@
+{
+  "directories": ["src-tauri/src", "src-tauri/host/src", "src-tauri/persistent/src"],
+  "files": [
+    "src/shell/main.ts",
+    "src/shell/protocol.ts",
+    "index.html",
+    "vite.config.ts",
+    "scripts/ephemeral-build.mjs",
+    "scripts/shell-contract.json",
+    "src-tauri/build.rs",
+    "src-tauri/Cargo.toml",
+    "src-tauri/host/Cargo.toml",
+    "src-tauri/persistent/Cargo.toml",
+    "src-tauri/Cargo.lock"
+  ]
+}

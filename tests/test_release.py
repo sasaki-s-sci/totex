@@ -28,7 +28,39 @@ class ReleaseTests(unittest.TestCase):
         self.git("config", "user.name", "Release tests")
         self.git("config", "user.email", "tests@example.invalid")
         self.git("config", "commit.gpgsign", "false")
-        self.write("package.json", '{\n  "version": "1.2.3",\n  "scripts": {}\n}\n')
+        self.write(
+            "package.json",
+            json.dumps(
+                {
+                    "version": "1.2.3",
+                    "frontContract": 7,
+                    "scripts": {},
+                    "dependencies": {
+                        "@tauri-apps/api": "^2.11.1",
+                        "react": "^19.2.8",
+                    },
+                },
+                indent=2,
+            )
+            + "\n",
+        )
+        self.write(
+            "pnpm-lock.yaml",
+            """lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      '@tauri-apps/api':
+        specifier: ^2.11.1
+        version: 2.11.1
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
+packages:
+  '@tauri-apps/api@2.11.1': {}
+  react@19.2.8: {}
+""",
+        )
         self.write("src-tauri/tauri.conf.json", '{\n  "version": "1.2.3"\n}\n')
         self.write(
             "src-tauri/Cargo.toml",
@@ -99,6 +131,10 @@ version = "1.0.0"
 """,
         )
         self.write("src/App.tsx", "original\n")
+        self.write("src/shell/main.ts", "original\n")
+        self.write("index.html", "<!doctype html><title>shell</title>\n")
+        self.write("vite.config.ts", "export default {};\n")
+        self.write("src-tauri/src/lib.rs", "original\n")
         self.write("src-tauri/persistent/src/main.rs", "original\n")
         self.write("src-tauri/persistent/src/talk.rs", "original\n")
         self.write("src-tauri/host/src/host/file.rs", "original\n")
@@ -125,6 +161,12 @@ version = "1.0.0"
             self.root, {"v1.2.3"} if published is None else published, mode
         )
 
+    def changes(self):
+        """Classify against the tag directly, past the version-agreement checks."""
+        return release.classify(
+            release.Tree(self.root, "v1.2.3"), release.Tree(self.root, "HEAD")
+        )
+
     def test_ephemeral_is_patch(self):
         self.write("src/App.tsx", "updated\n")
         self.commit()
@@ -149,10 +191,65 @@ version = "1.0.0"
         self.commit()
         self.assertEqual(self.plan()["part"], "minor")
 
-    def test_window_client_is_ephemeral(self):
+    def test_window_client_is_persistent(self):
+        # The contract hashes every Rust source, the window client included.
         self.write("src-tauri/persistent/src/talk.rs", "updated\n")
         self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_native_shell_source_is_persistent(self):
+        self.write("src-tauri/src/lib.rs", "updated\n")
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_shell_bridge_source_is_persistent(self):
+        self.write("src/shell/main.ts", "updated\n")
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_shell_document_and_bundler_configuration_are_persistent(self):
+        for path in ("index.html", "vite.config.ts"):
+            with self.subTest(path=path):
+                self.write(path, "updated\n")
+                self.commit()
+                self.assertEqual(self.plan()["part"], "minor")
+
+    def test_window_configuration_is_persistent(self):
+        self.write(
+            "src-tauri/tauri.conf.json",
+            '{\n  "version": "1.2.3",\n  "app": {"withGlobalTauri": true}\n}\n',
+        )
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_frontend_manifest_is_patch_unless_it_carries_the_contract(self):
+        original = json.loads((self.root / "package.json").read_text())
+        value = dict(original, scripts={"dev": "vite"})
+        self.write("package.json", json.dumps(value, indent=2) + "\n")
+        self.commit()
         self.assertEqual(self.plan()["part"], "patch")
+        value = dict(value, frontContract=original["frontContract"] + 1)
+        self.write("package.json", json.dumps(value, indent=2) + "\n")
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_shell_dependency_decides_the_frontend_lock(self):
+        original = (self.root / "pnpm-lock.yaml").read_text()
+        self.write("pnpm-lock.yaml", original.replace("19.2.8", "19.3.0"))
+        self.commit()
+        self.assertEqual(self.plan()["part"], "patch")
+        self.write(
+            "pnpm-lock.yaml",
+            original.replace("19.2.8", "19.3.0").replace("2.11.1", "2.12.0"),
+        )
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
+
+    def test_editing_the_contract_list_is_persistent(self):
+        # The list decides which files the hash reads, so it hashes itself.
+        self.write("scripts/shell-contract.json", '{"directories": [], "files": []}\n')
+        self.commit()
+        self.assertEqual(self.plan()["part"], "minor")
 
     def test_shared_build_configuration_is_persistent(self):
         self.write(".github/workflows/build.yml", "updated build\n")
@@ -258,14 +355,9 @@ version = "1.0.0"
         self.git("tag", "-d", "v1.2.3")
         self.assertEqual(self.plan()["to"], "1.3.0")
 
-    def test_lock_changes_follow_transitive_dependencies(self):
+    def test_every_locked_dependency_is_part_of_the_contract(self):
         original = (self.root / release.LOCK).read_text()
-        for name, expected in (
-            ("leaf", "minor"),
-            ("shared", "minor"),
-            ("window", "patch"),
-            ("testing", ""),
-        ):
+        for name in ("leaf", "shared", "window", "testing"):
             with self.subTest(package=name):
                 updated = original.replace(
                     f'name = "{name}"\nversion = "1.0.0"',
@@ -273,17 +365,32 @@ version = "1.0.0"
                 )
                 self.write(release.LOCK, updated)
                 self.commit()
-                self.assertEqual(self.plan()["part"], expected)
+                self.assertEqual(self.plan()["part"], "minor")
 
-    def test_manifest_features_are_minor_but_dev_dependencies_are_not(self):
+    def test_local_release_numbers_in_the_lock_are_not_a_release(self):
+        original = (self.root / release.LOCK).read_text()
+        self.write(release.LOCK, original.replace('"1.2.3"', '"1.2.4"'))
+        self.commit()
+        self.assertEqual(self.changes(), ([], []))
+
+    def test_manifest_declarations_are_minor(self):
+        for path in ("src-tauri/Cargo.toml", "src-tauri/persistent/Cargo.toml"):
+            with self.subTest(path=path):
+                original = (self.root / path).read_text()
+                self.write(
+                    path, original.replace("[dependencies]", '[dependencies]\nextra = "1"')
+                )
+                self.commit()
+                self.assertEqual(self.plan()["part"], "minor")
+                self.write(path, original)
+                self.commit()
+
+    def test_manifest_release_numbers_are_not_a_release(self):
         path = "src-tauri/persistent/Cargo.toml"
         original = (self.root / path).read_text()
-        self.write(path, original.replace('testing = "1"', 'testing = "2"'))
+        self.write(path, original.replace('version = "1.2.3"', 'version = "1.2.4"'))
         self.commit()
-        self.assertEqual(self.plan()["action"], "none")
-        self.write(path, original + '\n[features]\ndefault = ["extra"]\nextra = []\n')
-        self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.changes(), ([], []))
 
     def test_rust_toolchain_is_minor_and_node_toolchain_is_patch(self):
         self.write(
