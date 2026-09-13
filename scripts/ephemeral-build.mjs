@@ -207,31 +207,37 @@ export function prepareViews(root) {
   };
 }
 
+/**
+ * Every file whose bytes decide shell compatibility, sorted, without test sources.
+ *
+ * `scripts/shell-contract.json` is the single list behind both this hash and the
+ * release planner: `scripts/release.py` reads the same JSON to decide whether a
+ * release is a minor one (contract changed, install and restart) or a patch
+ * (contract intact, applied live). JSON carries no comments, so the meaning of
+ * its two keys lives here: `directories` are hashed whole, minus the Rust test
+ * sources the contract deliberately ignores, and `files` are named one by one.
+ * The list names itself, so widening or narrowing the contract changes it.
+ */
+export function shellContractFiles(root) {
+  const { directories, files } = JSON.parse(
+    readFileSync(resolve(root, "scripts/shell-contract.json"), "utf8"),
+  );
+  const paths = [
+    ...directories.flatMap((directory) => filesUnder(resolve(root, directory))),
+    // The bridge, handoff hooks and focus helpers run in the replaceable frontend.
+    ...files.map((path) => resolve(root, path)),
+  ];
+  return paths
+    .sort()
+    .map((path) => relative(root, path).replaceAll("\\", "/"))
+    .filter((name) => !name.includes("/tests/") && !name.endsWith("/tests.rs"));
+}
+
 /** Only the native host, shell and its IPC dependency define full-front compatibility. */
 export function shellContract(root) {
-  const paths = [
-    ...filesUnder(resolve(root, "src-tauri/src")),
-    ...filesUnder(resolve(root, "src-tauri/host/src")),
-    ...filesUnder(resolve(root, "src-tauri/persistent/src")),
-    // The bridge, handoff hooks and focus helpers run in the replaceable frontend.
-    resolve(root, "src/shell/main.ts"),
-    resolve(root, "src/shell/protocol.ts"),
-    ...[
-      "index.html",
-      "vite.config.ts",
-      "scripts/ephemeral-build.mjs",
-      "src-tauri/build.rs",
-      "src-tauri/Cargo.toml",
-      "src-tauri/host/Cargo.toml",
-      "src-tauri/persistent/Cargo.toml",
-      "src-tauri/Cargo.lock",
-    ].map((path) => resolve(root, path)),
-  ];
   const parts = [];
-  for (const path of paths.sort()) {
-    const name = relative(root, path).replaceAll("\\", "/");
-    if (name.includes("/tests/") || name.endsWith("/tests.rs")) continue;
-    let text = readFileSync(path, "utf8").replaceAll("\r\n", "\n");
+  for (const name of shellContractFiles(root)) {
+    let text = readFileSync(resolve(root, name), "utf8").replaceAll("\r\n", "\n");
     if (name.endsWith("Cargo.toml"))
       text = text.replace(/(\[package\][\s\S]*?\nversion\s*=\s*)"[^"]+"/, '$1"release"');
     if (name.endsWith("Cargo.lock"))

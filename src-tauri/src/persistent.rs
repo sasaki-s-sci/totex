@@ -32,10 +32,11 @@ const PROGRAM_BEFORE: &str = "totex-keep";
 
 /// Where the program keeps its things, for one identifier.
 ///
-/// Under the name the line was started with. This is where a window looks for
-/// the address of a program an earlier window started, and a window of one
-/// patch has to find the program of another -- see `totex_persistent::LINE` --
-/// so the name stays what it was until the minor turns over.
+/// Under the name the line was started with, and shared by every patch on the
+/// line. This is where a window looks for the address of a program an earlier
+/// window started, and a window of one patch has to find the program of
+/// another and go on with it -- see `totex_persistent::LINE` -- so the name
+/// stays what it was until the minor turns over.
 pub fn home(identifier: &str) -> Option<PathBuf> {
     dirs::data_dir().map(|dir| dir.join(identifier).join("keep"))
 }
@@ -68,10 +69,16 @@ impl Reached {
 
 /// Finds the program or starts it, and hands back the link to it.
 ///
+/// A program already running on this window's line is the one used, whatever
+/// patch it is: a patch release shares the line, the wire and the program, and
+/// only a minor puts a new program in place of the running one and takes the
+/// terminals with it.
+///
 /// `pinned` is the version the persistent row was left pointed at, if any: a
 /// program under that version this machine holds is the one started, in place
-/// of the one beside this window. A version this machine does not hold, or on
-/// another line, is a row pointed at nothing and is read as `latest`.
+/// of the one beside this window, and anything else running is stopped to make
+/// room for it. A version this machine does not hold, or on another line, is a
+/// row pointed at nothing and is read as `latest`.
 ///
 /// A machine with nowhere to keep things is a machine this window cannot open
 /// a terminal on: the program writes where it is into that directory, and
@@ -82,20 +89,24 @@ pub fn reach(identifier: &str, pinned: Option<&str>) -> Result<Arc<Reached>, Str
     let link = if std::env::args().any(|arg| arg == totex_persistent::RESTART_RUNTIME) {
         Link::restart(&home, &program)?
     } else {
-        Link::reach_version(&home, &program, &version)?
+        Link::reach_version(&home, &program, version.as_deref())?
     };
     Ok(Reached::holding(Arc::new(link)))
 }
 
-/// The program to start: the one pinned, where this machine holds it, and
-/// otherwise the one this window brought.
-fn chosen(home: &Path, pinned: Option<&str>) -> Result<(PathBuf, String), String> {
+/// The program to start, and the version to insist on.
+///
+/// The one pinned, where this machine holds it, and that version by name:
+/// nothing else will do for a row pointed at it. Otherwise the one this window
+/// brought and no version at all, so that a program of another patch already
+/// running on this line is gone on with rather than replaced.
+fn chosen(home: &Path, pinned: Option<&str>) -> Result<(PathBuf, Option<String>), String> {
     if let Some(version) = pinned
         && let Some(program) = held_at(home, version)
     {
-        return Ok((program, version.to_string()));
+        return Ok((program, Some(version.to_string())));
     }
-    Ok((placed(home)?, totex_persistent::VERSION.to_string()))
+    Ok((placed(home)?, None))
 }
 
 /// The program this window brought, copied out under its version and ready

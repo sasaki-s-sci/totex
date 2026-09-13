@@ -16,8 +16,13 @@ A signed schema-2 `ephemeral.json` declares two identities:
   existing rendering-slot update, preserving React and terminal DOM instances.
 
 The native download path verifies the artifact signature and shell identity.
-Changing the shell identity requires installation and an application restart;
-version numbering does not decide compatibility. The first migration from the
+The version number follows the contract. A minor release is exactly a release
+whose `contract` changed: it requires an installation and an application restart,
+which closes every terminal. A patch release leaves `contract` untouched and is
+always applied live in the running shell. `scripts/release.py` derives that bump
+from `scripts/shell-contract.json`, the same file list `shellContract()` in
+`scripts/ephemeral-build.mjs` hashes, and normalises release numbers the same
+way, so a patch can never carry a shell change. The first migration from the
 previous schema-1 architecture also requires this installation.
 
 ## Full frontend replacement

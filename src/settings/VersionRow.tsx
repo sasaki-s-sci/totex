@@ -1,16 +1,16 @@
 import { MenuItem, Select, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { ROW_HEIGHT } from "./Row";
+import { PICK_SX, ROW_HEIGHT } from "./Row";
 
 import { LATEST, type Standing } from "./updateReading";
 
 const NAME = 96;
 
-const PICK = 132;
+/** The caption starts where the versions do: past the name column and the row gap. */
+const HINT_INDENT = `${NAME + 12}px`;
 
 function VersionMove({ standing }: { standing: Standing }) {
-  const { t } = useTranslation();
-  const { at, aside, to } = standing;
+  const { at, to } = standing;
   return (
     <Stack
       direction="row"
@@ -19,13 +19,6 @@ function VersionMove({ standing }: { standing: Standing }) {
       <Typography variant="body2" sx={{ color: to ? "text.secondary" : "text.primary" }}>
         {at}
       </Typography>
-      {aside && (
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
-          {t(aside.part === "pages" ? "update.pagesAt" : "update.programAt", {
-            version: aside.version,
-          })}
-        </Typography>
-      )}
       {to && (
         <>
           <Typography variant="body2" sx={{ color: "text.disabled" }}>
@@ -85,7 +78,7 @@ function VersionSelect({
         else if (choices.some((choice) => choice.version === version)) onChange(version);
       }}
       inputProps={{ "aria-label": label }}
-      sx={{ minWidth: PICK }}
+      sx={PICK_SX}
     >
       {!picked && <MenuItem value="">—</MenuItem>}
       <MenuItem value={LATEST}>
@@ -110,35 +103,59 @@ function VersionSelect({
   );
 }
 
+/** One layer: its name, the version move it would make, the pin, its button and what it costs. */
 export function VersionRow({
   name,
+  hint,
   standing,
   disabled,
   onChange,
   blockedHint,
+  children,
 }: {
   name: string;
+  hint: string;
   blockedHint: string;
   standing: Standing;
   disabled: boolean;
   onChange: (version: string | null) => void;
+  children?: React.ReactNode;
 }) {
   const { t } = useTranslation();
   return (
-    <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, minHeight: ROW_HEIGHT }}>
-      <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
-        {name}
-      </Typography>
-      <Stack sx={{ flex: 1, minWidth: 0 }}>
-        <VersionMove standing={standing} />
+    <Stack sx={{ gap: 0.25 }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: "center",
+          gap: 1.5,
+          rowGap: 0.5,
+          minHeight: ROW_HEIGHT,
+          // A long button label (the whole of "adjusting") takes the next line rather
+          // than the room the versions are being read in.
+          flexWrap: "wrap",
+        }}
+      >
+        <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
+          {name}
+        </Typography>
+        <Stack sx={{ flex: 1, minWidth: 0 }}>
+          <VersionMove standing={standing} />
+        </Stack>
+        <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, flexShrink: 0, ml: "auto" }}>
+          <VersionSelect
+            label={t("update.pin", { name })}
+            standing={standing}
+            blockedHint={blockedHint}
+            disabled={disabled}
+            onChange={onChange}
+          />
+          {children}
+        </Stack>
       </Stack>
-      <VersionSelect
-        label={t("update.pin", { name })}
-        standing={standing}
-        blockedHint={blockedHint}
-        disabled={disabled}
-        onChange={onChange}
-      />
+      <Typography variant="caption" sx={{ pl: HINT_INDENT, color: "text.secondary" }}>
+        {hint}
+      </Typography>
     </Stack>
   );
 }

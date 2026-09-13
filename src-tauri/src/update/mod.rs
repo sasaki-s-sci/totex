@@ -1,5 +1,14 @@
 //! Two update boundaries: persistent installs and restarts the whole runtime;
 //! ephemeral replaces compatible views inside the existing document.
+//!
+//! What a persistent install costs depends on the line -- see
+//! [`totex_persistent::LINE`]. A patch stays on the line, so the service
+//! holding the terminals is shared rather than replaced and a window that
+//! comes up beside one finds the shells where they were. A minor turns the
+//! line over, and that is the release that puts another service in place and
+//! closes them. A whole-runtime install asks for the replacement outright --
+//! see [`totex_persistent::RESTART_RUNTIME`] and [`update_restart`] -- because
+//! what it installed is the program that is to hold them from here.
 
 mod kept;
 mod program;

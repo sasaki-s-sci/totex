@@ -1,10 +1,17 @@
 """Plan app releases from Git snapshots; write version files only on request.
 
+The version number follows the shell contract. A minor release is exactly a
+release that changes the contract hash `shellContract()` computes in
+`scripts/ephemeral-build.mjs`, so it needs an installation and a restart that
+closes every terminal; a patch release leaves the contract intact and is applied
+live in the running shell. Both sides read the same file list from
+`scripts/shell-contract.json` and normalise release numbers the same way, so a
+planned patch can never carry a contract change.
+
 Python 3.11+ and Git are the only dependencies. Planning never changes the tree.
 """
 
 import argparse
-import copy
 import json
 import re
 import subprocess
@@ -22,6 +29,14 @@ MANIFESTS = (
 LOCK = "src-tauri/Cargo.lock"
 PERSISTENT = "src-tauri/persistent/"
 HOST = "src-tauri/host/"
+CONFIGURATION = "src-tauri/tauri.conf.json"
+# The one list the shell-contract hash reads: whole directories, then single
+# files. Paths live next to this script, not in the planned working tree.
+CONTRACT = json.loads((Path(__file__).parent / "shell-contract.json").read_text())
+CONTRACT_DIRECTORIES = tuple(d.rstrip("/") + "/" for d in CONTRACT["directories"])
+CONTRACT_FILES = frozenset(CONTRACT["files"])
+# pnpm records the resolved version of the shell's IPC dependency as a key.
+LOCKED_API = re.compile(r"'@tauri-apps/api@([^'\s:]+)'")
 
 
 def git(root, *args):
@@ -40,9 +55,6 @@ class Tree:
         return (
             git(self.root, "show", f"{self.ref}:{path}") if path in self.files else ""
         )
-
-    def toml(self, path):
-        return tomllib.loads(self.text(path))
 
 
 def version_of(read):
@@ -65,73 +77,64 @@ def version_of(read):
     return versions[0]
 
 
-def manifest(text):
-    """Ignore release numbers and development-only declarations, not features."""
-    value = tomllib.loads(text)
-    value.get("package", {}).pop("version", None)
-    value.pop("dev-dependencies", None)
-    for target in value.get("target", {}).values():
-        target.pop("dev-dependencies", None)
+def hashed(path):
+    """True when the file's bytes reach the shell-contract hash.
+
+    The hash walks whole directories and skips Rust test sources; `test_or_doc`
+    already drops those, but repeating the rule keeps the two sides aligned.
+    """
+    if path in CONTRACT_FILES:
+        return True
+    return path.startswith(CONTRACT_DIRECTORIES) and not (
+        "/tests/" in path or path.endswith("/tests.rs")
+    )
+
+
+def hashed_text(path, text):
+    """Normalise a hashed file exactly as the shell-contract hash does.
+
+    Only the release number is erased: a Cargo manifest's own `[package]`
+    version, and the two local package versions Cargo records in the lock. Every
+    other byte, comments and formatting included, decides the contract.
+    """
+    text = text.replace("\r\n", "\n")
+    if path.endswith("Cargo.toml"):
+        text = re.sub(
+            r'(\[package\][\s\S]*?\nversion\s*=\s*)"[^"]+"',
+            r'\1"release"',
+            text,
+            count=1,
+        )
+    if path.endswith("Cargo.lock"):
+        text = re.sub(
+            r'(name = "(?:totex|totex-persistent)"\nversion = )"[^"]+"',
+            r'\1"release"',
+            text,
+        )
+    return text
+
+
+def configuration(text):
+    """The window and bundle declarations, without the release number."""
+    value = json.loads(text) if text else {}
+    value.pop("version", None)
     return value
 
 
-def direct_dependencies(value):
-    names = set()
-    for section in (value, *value.get("target", {}).values()):
-        for group in ("dependencies", "build-dependencies"):
-            for name, spec in section.get(group, {}).items():
-                names.add(spec.get("package", name) if isinstance(spec, dict) else name)
-    return names
+def package(text):
+    """The frontend manifest split into the parts the contract hash reads.
 
-
-def shipped_lock(tree, name):
-    """Compare only the locked dependency graph that can ship in one program.
-
-    Cargo records dependencies for every platform. Keep them all, even when the
-    release planner runs on Linux, and exclude the local crates' test roots.
+    `frontContract` and the declared Tauri API dependency enter the hash; the
+    rest is frontend-only, and the release number and test command never ship.
     """
-    packages = tree.toml(LOCK).get("package", [])
-    local = {}
-    for folder in ("src-tauri/", PERSISTENT, HOST):
-        value = tree.toml(folder + "Cargo.toml")
-        if value:
-            local[value["package"]["name"]] = direct_dependencies(value)
-
-    def resolve(reference):
-        parts = reference.split(" ", 2)
-        candidates = [p for p in packages if p["name"] == parts[0]]
-        if len(parts) > 1:
-            candidates = [p for p in candidates if p["version"] == parts[1]]
-        if len(parts) > 2:
-            candidates = [
-                p for p in candidates if p.get("source") == parts[2].strip("()")
-            ]
-        if len(candidates) != 1:
-            raise ValueError(f"cannot resolve locked dependency {reference!r}")
-        return candidates[0]
-
-    if name not in local:
-        return []
-    pending = [resolve(name)]
-    visited = {}
-    while pending:
-        package = pending.pop()
-        key = (package["name"], package["version"], package.get("source", ""))
-        if key in visited:
-            continue
-        value = copy.deepcopy(package)
-        dependencies = value.get("dependencies", [])
-        if package["name"] in local and "source" not in package:
-            dependencies = [
-                d for d in dependencies if d.split()[0] in local[package["name"]]
-            ]
-            value["version"] = "local"
-        value["dependencies"] = sorted(dependencies)
-        visited[key] = value
-        pending.extend(resolve(d) for d in dependencies)
-    return sorted(
-        visited.values(), key=lambda p: (p["name"], p["version"], p.get("source", ""))
+    value = json.loads(text) if text else {}
+    shell = (
+        value.get("frontContract"),
+        value.get("dependencies", {}).get("@tauri-apps/api"),
     )
+    value.pop("version", None)
+    value.get("scripts", {}).pop("test", None)
+    return shell, value
 
 
 def test_or_doc(path):
@@ -158,6 +161,13 @@ def test_or_doc(path):
 
 
 def classify(before, after):
+    """Split shipped changes into contract changes (minor) and the rest (patch).
+
+    Everything the shell-contract hash reads is compared through the hash's own
+    normalisation, so a planned patch can never move the contract. The extra
+    persistent entries below never reach the hash but still rebuild the installed
+    binaries, which only a fresh installation can carry.
+    """
     persistent, ephemeral = [], []
     paths = git(
         after.root, "diff", "--name-only", "--no-renames", "-z", before.ref, after.ref
@@ -166,35 +176,31 @@ def classify(before, after):
         if test_or_doc(path):
             continue
         old, new = before.text(path), after.text(path)
-        if path == LOCK:
-            if shipped_lock(before, "totex-persistent") != shipped_lock(
-                after, "totex-persistent"
-            ):
+        if hashed(path):
+            # A release-number bump alone leaves the contract exactly where it was.
+            if hashed_text(path, old) != hashed_text(path, new):
                 persistent.append(path)
-            elif shipped_lock(before, "totex") != shipped_lock(after, "totex"):
+        elif path == CONFIGURATION:
+            if configuration(old) != configuration(new):
+                persistent.append(path)
+        elif path == "package.json":
+            shell, frontend = package(old)
+            next_shell, next_frontend = package(new)
+            if shell != next_shell:
+                persistent.append(path)
+            elif frontend != next_frontend:
                 ephemeral.append(path)
-        elif path in (PERSISTENT + "Cargo.toml", HOST + "Cargo.toml"):
-            if manifest(old) != manifest(new):
+        elif path == "pnpm-lock.yaml":
+            if set(LOCKED_API.findall(old)) != set(LOCKED_API.findall(new)):
                 persistent.append(path)
-        elif path == "src-tauri/Cargo.toml":
-            left, right = manifest(old), manifest(new)
-            if any(
-                left.get(key) != right.get(key)
-                for key in ("workspace", "profile", "patch", "replace")
-            ):
-                persistent.append(path)
-            elif left != right:
+            else:
                 ephemeral.append(path)
         elif path.startswith((PERSISTENT, HOST)):
-            # talk.rs is linked into the window; the server never calls it.
-            (ephemeral if path == PERSISTENT + "src/talk.rs" else persistent).append(
-                path
-            )
+            persistent.append(path)
         elif path.startswith((".cargo/", "src-tauri/.cargo/")) or path in (
             "rust-toolchain",
             "rust-toolchain.toml",
             "scripts/persistent-sidecar.mjs",
-            "scripts/ephemeral-build.mjs",
             ".github/workflows/build.yml",
         ):
             persistent.append(path)
@@ -207,20 +213,9 @@ def classify(before, after):
                 persistent.append(path)
             elif any(left.get(key) != right.get(key) for key in ("node", "pnpm")):
                 ephemeral.append(path)
-        elif path in ("package.json", "src-tauri/tauri.conf.json"):
-            left, right = json.loads(old), json.loads(new)
-            for value in (left, right):
-                value.pop("version", None)
-                if path == "package.json":
-                    value.get("scripts", {}).pop("test", None)
-            if left != right:
-                ephemeral.append(path)
         elif path.startswith(("src/", "src-tauri/", "assets/", "public/")) or path in (
-            "index.html",
             "front.html",
-            "vite.config.ts",
             "tsconfig.json",
-            "pnpm-lock.yaml",
             "scripts/install.sh",
             "scripts/install.ps1",
             "scripts/update-manifest.mjs",

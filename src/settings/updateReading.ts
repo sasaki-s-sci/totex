@@ -1,10 +1,8 @@
 import type { Layer, UpdateChoice, UpdateState } from "../lib/update/model";
 
 export const LATEST = "latest";
-export type Aside = { part: "pages" | "program"; version: string };
 export type Standing = {
   at: string;
-  aside: Aside | null;
   to: string | null;
   picked: string;
   latest: string | null;
@@ -50,7 +48,6 @@ export function standing(at: UpdateState, layer: Layer): Standing | null {
     null;
   return {
     at: rung.at,
-    aside: null,
     picked,
     latest,
     choices,
