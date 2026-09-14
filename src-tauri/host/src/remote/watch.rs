@@ -1,13 +1,15 @@
-//! The loop that stands in for Windows' change notifications.
+//! The loop that stands in for change notifications from a machine that sends
+//! none.
 //!
-//! Nothing on the Windows side is told when a file inside a distribution moves —
-//! the share publishes no notifications at all — so the distribution is asked
-//! instead, once a second, for what has been written since the last look.
+//! Nothing on this side is told when a file inside a distribution moves — the
+//! share publishes no notifications at all — and nothing crosses a network to
+//! say a file on another machine did. So the machine is asked instead, once a
+//! second, for what has been written since the last look.
 
 use std::io::Read;
 use std::process::{Child, ChildStdout, Stdio};
 
-use super::shell::command;
+use super::Reach;
 
 /// How many paths one poll is given, so the command line stays a command line.
 const WATCHED: usize = 200;
@@ -15,7 +17,7 @@ const WATCHED: usize = 200;
 /// A depth that is not a depth, for the targets watched all the way down.
 const DEEP: usize = 64;
 
-/// A poll running inside a distribution. Dropping it stops the loop.
+/// A poll running at the far end. Dropping it stops the loop.
 pub struct Poll {
     children: Vec<Child>,
 }
@@ -45,12 +47,12 @@ while :; do
 done
 "#;
 
-/// Watches `paths` inside `distro`, and says which of them moved. `recursive` is
-/// whether a target's whole tree counts or only the directory itself — the same
-/// two modes the local watcher has. The paths handed to `on_change` are the
-/// distribution's own spelling.
+/// Watches `paths` at the far end of `reach`, and says which of them moved.
+/// `recursive` is whether a target's whole tree counts or only the directory
+/// itself — the same two modes the local watcher has. The paths handed to
+/// `on_change` are the far machine's own spelling.
 pub fn watch(
-    distro: &str,
+    reach: &Reach,
     recursive: bool,
     paths: &[String],
     on_change: impl Fn(Vec<String>) + Send + Clone + 'static,
@@ -59,19 +61,15 @@ pub fn watch(
     let mut children = Vec::new();
 
     for batch in paths.chunks(WATCHED) {
-        let mut child = command(distro, None)
-            .arg("-e")
-            .arg("sh")
-            .arg("-c")
-            .arg(POLL)
-            .arg("totex")
-            .arg(&depth)
-            .args(batch)
+        let mut argv = vec!["sh", "-c", POLL, "totex", &depth];
+        argv.extend(batch.iter().map(String::as_str));
+        let mut child = reach
+            .command(&argv)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|error| format!("wsl-unreachable: {error}"))?;
+            .map_err(|error| format!("{}: {error}", reach.unreachable()))?;
 
         let Some(output) = child.stdout.take() else {
             continue;

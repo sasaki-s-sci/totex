@@ -22,6 +22,8 @@ pub enum RootKind {
     UnixRoot,
     /// A Windows drive mounted inside WSL (`/mnt/c`).
     WindowsMount,
+    /// A machine named in the user's ssh config, reached over ssh.
+    SshHost,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -74,9 +76,10 @@ pub struct Listing {
     pub path: String,
     pub name: String,
     pub parent: Option<String>,
-    /// The distribution the directory is inside, when it is inside one — what
-    /// the window puts beside a Linux path so it reads as one place and not as
-    /// this machine's own `/home`.
+    /// The remote the directory is on, when it is on one — the distribution's
+    /// name or the ssh host — which the window puts beside a Linux path so it
+    /// reads as one place and not as this machine's own `/home`. Still called
+    /// `distro` on the wire, from when a distribution was the only remote.
     pub distro: Option<String>,
     pub entries: Vec<Entry>,
     /// Set when the directory holds more than [`super::MAX_ENTRIES`] children.

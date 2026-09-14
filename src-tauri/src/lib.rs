@@ -20,14 +20,15 @@ mod update;
 /// Everything here goes on being `crate::host`, `crate::wsl` and the rest to
 /// the program around it, because which crate a question is answered in is not
 /// something the asking should have to know.
-pub use totex_host::{fs_browse, host, sync, wsl};
+pub use totex_host::{fs_browse, host, remote, sync, wsl};
 
 use std::sync::Arc;
 
 use fs_browse::{FileData, FileHead, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
-/// Windows drives and the WSL distributions this platform can reach.
+/// Windows drives, the WSL distributions and the ssh hosts this platform can
+/// reach.
 ///
 /// The first of fifteen that read the same way: every one of these is a
 /// question about the machine rather than about the app, and every one of
@@ -52,8 +53,8 @@ fn describe_folders(paths: Vec<String>) -> Vec<Place> {
     fs_browse::describe_folders(&paths)
 }
 
-/// Reads one directory. `\\wsl.localhost\...` and `/mnt/c/...` are
-/// network-backed and can take a moment to answer.
+/// Reads one directory. `\\wsl.localhost\...`, `ssh://...` and `/mnt/c/...`
+/// are network-backed and can take a moment to answer.
 #[tauri::command(async)]
 fn read_directory(path: String, show_hidden: bool) -> Result<Listing, String> {
     fs_browse::read_directory(&path, show_hidden)

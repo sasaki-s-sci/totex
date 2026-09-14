@@ -3,7 +3,7 @@
 use std::time::{Duration, Instant};
 
 use super::{listening, sessions, wait_answering};
-use totex_host::wsl;
+use totex_host::{ssh, wsl};
 
 /// POSIX shell syntax, so it runs where that is what a shell speaks.
 #[cfg(unix)]
@@ -65,6 +65,82 @@ fn a_session_in_a_distribution_is_that_distribution_s_shell() {
         seen.contains("totex-at-/etc"),
         "the shell did not answer from inside the distribution: {seen:?}"
     );
+}
+
+/// And for a folder on a machine reached over ssh: `ssh` itself, holding a
+/// terminal to the login shell there, standing in the folder the url names.
+/// The machine is a fake — an `ssh` that runs the line it was handed on this
+/// one — so what is checked is the command line the real `ssh` would be given.
+#[cfg(unix)]
+#[test]
+fn a_session_over_ssh_is_a_shell_on_that_host() {
+    let host = fake_ssh();
+    let sessions = sessions();
+    let id = "far";
+    let rx = listening(&sessions);
+
+    sessions
+        .open(id, &ssh::url(host, "/tmp"), 24, 200, None)
+        .expect("the shell starts");
+
+    sessions
+        .write(id, "echo totex-at-$(pwd)\n")
+        .expect("the shell takes input");
+    let seen = wait_answering(&sessions, id, &rx, "totex-at-/tmp");
+    sessions.close(id);
+
+    assert!(
+        seen.contains("totex-at-/tmp"),
+        "the shell did not answer from the far machine: {seen:?}"
+    );
+}
+
+/// The name the fake ssh host goes by, once the fake is in place — the same
+/// stand-in the host crate's tests use, written again here because that one is
+/// test-only there. `TOTEX_SSH` points `ssh::program` at a script that skips
+/// the options `ssh` would be given, drops the host, and runs the line here.
+///
+/// Setting an environment variable is unsafe in this edition because another
+/// thread reading the environment through libc at the same moment is a data
+/// race; it is acceptable here because the variable is set exactly once,
+/// inside this lock, before any session over ssh is opened, and the readers
+/// that exist in this process are std's own, which take std's environment
+/// lock.
+#[cfg(unix)]
+fn fake_ssh() -> &'static str {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::OnceLock;
+    static FAKE: OnceLock<()> = OnceLock::new();
+    FAKE.get_or_init(|| {
+        let dir = std::env::temp_dir().join(format!("totex-fake-ssh-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a temp dir for the fake");
+        let script = dir.join("ssh");
+        // A real sshd always sets `SHELL` for the login line to expand; the
+        // test's own environment may not have, so the fake does.
+        std::fs::write(
+            &script,
+            "#!/bin/sh\n\
+             while [ $# -gt 0 ]; do\n\
+             \x20 case \"$1\" in\n\
+             \x20   -T|-t) shift ;;\n\
+             \x20   -o) shift 2 ;;\n\
+             \x20   --) shift ;;\n\
+             \x20   *) break ;;\n\
+             \x20 esac\n\
+             done\n\
+             shift\n\
+             [ \"$1\" = \"--\" ] && shift\n\
+             export SHELL=\"${SHELL:-/bin/sh}\"\n\
+             exec sh -c \"$*\"\n",
+        )
+        .expect("write the fake");
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+            .expect("make it runnable");
+        // SAFETY: see above — once, under this lock, and before any session
+        // over ssh has been opened.
+        unsafe { std::env::set_var("TOTEX_SSH", &script) };
+    });
+    "fake"
 }
 
 /// The whole point of the backlog: nothing is listening, and what the shell

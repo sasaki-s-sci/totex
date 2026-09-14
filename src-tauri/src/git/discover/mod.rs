@@ -1,10 +1,11 @@
 //! Finding the repositories under a folder.
 //!
 //! The walk is breadth-first and asks a whole level at once rather than a
-//! directory at a time. That shape is not for tidiness: a folder inside a WSL
-//! distribution is walked by asking the distribution, and a question per
-//! directory would be a round trip per directory — thousands of them, for a
-//! folder somebody expects to open. One question per level is a dozen.
+//! directory at a time. That shape is not for tidiness: a folder on a remote
+//! machine — a WSL distribution, or one across the network — is walked by
+//! asking that machine, and a question per directory would be a round trip per
+//! directory — thousands of them, for a folder somebody expects to open. One
+//! question per level is a dozen.
 
 mod shape;
 

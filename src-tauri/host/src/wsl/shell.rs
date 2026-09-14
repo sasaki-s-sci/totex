@@ -1,35 +1,8 @@
-//! `wsl.exe` itself: how it is spawned, how a command line is quoted for the
-//! shell at the far end, and which distributions there are.
+//! `wsl.exe` itself: how it is spawned, and which distributions there are.
+//! How a command line is quoted for the shell at the far end is
+//! [`crate::remote`]'s, being the same for every far end.
 
 use std::process::Command;
-
-/// One argument, as a Bourne shell has to read it to get it back unchanged.
-/// Single quotes, so nothing inside is expanded: these carry file paths and
-/// people's sentences, and `$`, backticks and backslashes all have to survive.
-pub fn quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
-}
-
-/// A command line for the shell at the other end of a channel: the directory to
-/// run in, the environment to run under, and the words themselves.
-pub fn line(cwd: Option<&str>, env: &[(&str, &str)], argv: &[&str]) -> String {
-    let mut rendered = String::new();
-    if let Some(cwd) = cwd {
-        rendered.push_str(&format!("cd {} && ", quote(cwd)));
-    }
-    for (name, value) in env {
-        rendered.push_str(&format!("{name}={} ", quote(value)));
-    }
-    let mut words = argv.iter();
-    if let Some(first) = words.next() {
-        rendered.push_str(&quote(first));
-    }
-    for word in words {
-        rendered.push(' ');
-        rendered.push_str(&quote(word));
-    }
-    rendered
-}
 
 /// `wsl.exe`, wherever this build can reach it. On Windows it is on the path; a
 /// Linux build is itself inside a distribution, where Windows programs are

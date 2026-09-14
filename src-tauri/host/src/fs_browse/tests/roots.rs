@@ -49,3 +49,38 @@ fn roots_always_offer_a_starting_point() {
     assert!(!roots.is_empty());
     assert!(roots.iter().all(|root| !root.path.is_empty()));
 }
+
+/// A machine in the ssh config is a row at its home, and the row is only a
+/// name: nothing about it was asked of the machine.
+#[test]
+fn ssh_hosts_are_offered_at_home_without_being_contacted() {
+    let roots = list_roots();
+    let hosts = crate::ssh::hosts();
+    let offered: Vec<_> = roots
+        .iter()
+        .filter(|root| root.kind == RootKind::SshHost)
+        .collect();
+    assert_eq!(offered.len(), hosts.len());
+    for (root, host) in offered.iter().zip(&hosts) {
+        assert_eq!(&root.label, host);
+        assert_eq!(root.detail.as_deref(), Some("~"));
+        assert_eq!(root.path, format!("ssh://{host}/~"));
+    }
+    // After everything this machine has: a network is further away than a disk.
+    if let (Some(first_ssh), Some(last_other)) = (
+        roots.iter().position(|root| root.kind == RootKind::SshHost),
+        roots
+            .iter()
+            .rposition(|root| root.kind != RootKind::SshHost),
+    ) {
+        assert!(last_other < first_ssh);
+    }
+}
+
+#[test]
+fn the_kind_of_an_ssh_root_is_spelled_for_the_window() {
+    assert_eq!(
+        serde_json::to_string(&RootKind::SshHost).expect("json"),
+        "\"ssh-host\""
+    );
+}

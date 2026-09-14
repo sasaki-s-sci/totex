@@ -67,10 +67,11 @@ const HOLD_BUDGET: usize = 200;
 /// Reports the git that would read `path`, so the UI can explain the problem
 /// instead of failing every scan with the same error.
 ///
-/// `path` rather than nothing: a folder inside a WSL distribution is read by
-/// that distribution's git, and a Windows window that only ever opens those has
-/// no use for the git beside it — which may well not be installed. Asking about
-/// the machine would draw the missing-git rule over a window that works.
+/// `path` rather than nothing: a folder on a remote machine — a WSL
+/// distribution, or one reached over ssh — is read by that machine's git, and a
+/// Windows window that only ever opens those has no use for the git beside it —
+/// which may well not be installed. Asking about the machine would draw the
+/// missing-git rule over a window that works.
 #[tauri::command(async)]
 pub fn git_version(path: Option<String>) -> Result<String, String> {
     cmd::version(path.as_deref().map(Path::new))

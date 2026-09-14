@@ -1,10 +1,13 @@
 //! The entries of the picker's left rail: everywhere this platform can start a
-//! pane, on the Windows and the WSL side alike.
+//! pane, on the Windows and the WSL side alike, and on every machine the ssh
+//! config names.
 
 use super::model::{Root, RootKind};
 use super::path::home_dir;
+use crate::ssh;
 
-/// The home directory first, then whatever this platform can reach.
+/// The home directory first, then whatever this platform can reach, then the
+/// machines across the network.
 pub fn list_roots() -> Vec<Root> {
     let mut roots = Vec::new();
     if let Some(home) = home_dir() {
@@ -21,7 +24,28 @@ pub fn list_roots() -> Vec<Root> {
         });
     }
     roots.extend(platform_roots());
+    roots.extend(ssh_roots());
     roots
+}
+
+/// One row per machine in `~/.ssh/config`, at its home.
+///
+/// Named and not contacted, for the same reason a distribution is named and
+/// not started: a rail is drawn every time the menu opens, and a connection per
+/// row would be a handshake per row — or a hang per row, for a machine that is
+/// switched off. Home is written `~` because that is all this side knows, and
+/// it is folded into the real path when the row is picked; see
+/// `path::expand_remote_home`.
+fn ssh_roots() -> Vec<Root> {
+    ssh::hosts()
+        .into_iter()
+        .map(|host| Root {
+            kind: RootKind::SshHost,
+            label: host.clone(),
+            detail: Some("~".to_string()),
+            path: ssh::url(&host, "/~"),
+        })
+        .collect()
 }
 
 #[cfg(windows)]

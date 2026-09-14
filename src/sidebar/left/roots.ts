@@ -1,3 +1,4 @@
+import CloudIcon from "@mui/icons-material/Cloud";
 import ComputerIcon from "@mui/icons-material/Computer";
 import HomeIcon from "@mui/icons-material/Home";
 import StorageIcon from "@mui/icons-material/Storage";
@@ -11,6 +12,7 @@ export const ROOT_ICONS: Record<RootKind, typeof HomeIcon> = {
   "wsl-distro": TerminalIcon,
   "unix-root": StorageIcon,
   "windows-mount": ComputerIcon,
+  "ssh-host": CloudIcon,
 };
 
 export interface RootGroup {

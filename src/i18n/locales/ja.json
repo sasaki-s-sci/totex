@@ -12,7 +12,7 @@
     "expandSidebar": "ルートフォルダー一覧を開く",
     "collapseSidebar": "ルートフォルダー一覧を閉じる",
     "add": "追加",
-    "pathHint": "パス（例: ~/repo）",
+    "pathHint": "パス（例: ~/repo、ssh://host/repo）",
     "noFolder": "そのフォルダはありません",
     "drop": "登録を外す",
     "settings": "設定",

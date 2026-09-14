@@ -1,23 +1,24 @@
-//! A shell held open inside a distribution, and commands handed to it down a
-//! pipe.
+//! A shell held open at the far end of a reach, and commands handed to it down
+//! a pipe.
 //!
 //! `wsl.exe` costs tens of milliseconds before the program it was asked for
-//! starts, and a scan of a folder of repositories is hundreds of small git runs
-//! — the difference between a graph that appears and one that arrives. So a
-//! distribution is opened once and reused. What comes back is framed by length
-//! rather than delimited, because the answers are file contents and a file holds
-//! every byte a delimiter could be.
+//! starts, and an `ssh` connection costs a handshake across a network; a scan
+//! of a folder of repositories is hundreds of small git runs — the difference
+//! between a graph that appears and one that arrives. So a machine is opened
+//! once and reused. What comes back is framed by length rather than delimited,
+//! because the answers are file contents and a file holds every byte a
+//! delimiter could be.
 
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Stdio};
 use std::sync::{Mutex, OnceLock};
 
-use super::shell::{command, line};
+use super::{Reach, line};
 use crate::base64::encode;
 
-/// How many held-open shells a distribution keeps. The scan walks repositories
-/// in parallel and each worker wants a shell of its own; past that they queue,
+/// How many held-open shells a machine keeps. The scan walks repositories in
+/// parallel and each worker wants a shell of its own; past that they queue,
 /// which is what they would do for the CPU anyway.
 const CHANNELS: usize = 8;
 
@@ -28,6 +29,10 @@ const CHANNELS: usize = 8;
 /// through files rather than a pipe so that the lengths are known before
 /// anything is sent. Every command is given `/dev/null` to read: a channel is
 /// shared, and one command waiting on a prompt would hold up everything behind.
+/// Each runs in a subshell of its own for the same reason: a command line
+/// begins with `cd`, and a shell that kept that directory would carry it into
+/// the next command — and, once the directory was removed, complain about it
+/// on every command's stderr after.
 const RUNNER: &str = r#"
 out=$(mktemp) || exit 1
 err=$(mktemp) || exit 1
@@ -35,7 +40,7 @@ trap 'rm -f "$out" "$err"' EXIT INT TERM HUP
 while IFS= read -r line; do
   [ -n "$line" ] || continue
   cmd=$(printf '%s\n' "$line" | base64 -d) || cmd='exit 127'
-  eval "$cmd" >"$out" 2>"$err" </dev/null
+  ( eval "$cmd" ) >"$out" 2>"$err" </dev/null
   code=$?
   printf 'R %s %s %s\n' "$code" "$(wc -c <"$out")" "$(wc -c <"$err")"
   cat "$out"
@@ -65,26 +70,28 @@ struct Channel {
     child: Child,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
+    /// What to say when the far end goes quiet, which names the kind of far end
+    /// it was.
+    gone: &'static str,
 }
 
 impl Channel {
-    fn open(distro: &str) -> Result<Self, String> {
-        let mut child = command(distro, None)
-            .arg("-e")
-            .arg("sh")
-            .arg("-c")
-            .arg(RUNNER)
+    fn open(reach: &Reach) -> Result<Self, String> {
+        let gone = reach.unreachable();
+        let mut child = reach
+            .command(&["sh", "-c", RUNNER])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|error| format!("wsl-unreachable: {error}"))?;
+            .map_err(|error| format!("{gone}: {error}"))?;
         let input = child.stdin.take().ok_or("no-input")?;
         let output = BufReader::new(child.stdout.take().ok_or("no-output")?);
         Ok(Self {
             child,
             input,
             output,
+            gone,
         })
     }
 
@@ -99,6 +106,12 @@ impl Channel {
         self.output
             .read_line(&mut header)
             .map_err(|error| error.to_string())?;
+        // Nothing at all is the bridge itself failing rather than the shell
+        // answering wrongly: `ssh` that could not connect starts fine and then
+        // closes its pipe, and so does a distribution that was shut down.
+        if header.is_empty() {
+            return Err(self.gone.to_string());
+        }
         let (code, out_len, err_len) = parse_header(&header)?;
 
         let mut stdout = vec![0u8; out_len];
@@ -150,57 +163,59 @@ fn pool() -> &'static Pool {
     POOL.get_or_init(Pool::default)
 }
 
-fn take(distro: &str) -> Option<Channel> {
-    crate::sync::lock(pool()).get_mut(distro)?.pop()
+fn take(key: &str) -> Option<Channel> {
+    crate::sync::lock(pool()).get_mut(key)?.pop()
 }
 
-fn give(distro: &str, channel: Channel) {
+fn give(key: &str, channel: Channel) {
     let mut held = crate::sync::lock(pool());
-    let channels = held.entry(distro.to_string()).or_default();
+    let channels = held.entry(key.to_string()).or_default();
     if channels.len() < CHANNELS {
         channels.push(channel);
     }
 }
 
-/// Runs one command inside `distro` and waits for it.
+/// Runs one command at the far end of `reach` and waits for it.
 ///
 /// A channel that fails is not handed back — the shell at the far end is gone,
 /// or has lost its place in the protocol — and the command is tried once more on
-/// a new one, which is what a distribution that was restarted looks like.
+/// a new one, which is what a distribution that was restarted or a connection
+/// that was dropped looks like.
 pub fn exec(
-    distro: &str,
+    reach: &Reach,
     cwd: Option<&str>,
     env: &[(&str, &str)],
     argv: &[&str],
 ) -> Result<Output, String> {
     let command = line(cwd, env, argv);
+    let key = reach.key();
     let mut last = None;
     for _ in 0..2 {
-        let mut channel = match take(distro) {
+        let mut channel = match take(&key) {
             Some(channel) => channel,
-            None => Channel::open(distro)?,
+            None => Channel::open(reach)?,
         };
         match channel.request(&command) {
             Ok(output) => {
-                give(distro, channel);
+                give(&key, channel);
                 return Ok(output);
             }
             Err(error) => last = Some(error),
         }
     }
-    Err(last.unwrap_or_else(|| "wsl-unreachable".to_string()))
+    Err(last.unwrap_or_else(|| reach.unreachable().to_string()))
 }
 
-/// Runs a shell script inside `distro`, with `args` as `$1` onwards. Passing the
-/// arguments as arguments is what keeps a file name with a quote in it from
-/// being read as part of the script.
+/// Runs a shell script at the far end of `reach`, with `args` as `$1` onwards.
+/// Passing the arguments as arguments is what keeps a file name with a quote in
+/// it from being read as part of the script.
 pub fn script(
-    distro: &str,
+    reach: &Reach,
     cwd: Option<&str>,
     body: &str,
     args: &[&str],
 ) -> Result<Output, String> {
     let mut argv = vec!["sh", "-c", body, "totex"];
     argv.extend_from_slice(args);
-    exec(distro, cwd, &[], &argv)
+    exec(reach, cwd, &[], &argv)
 }

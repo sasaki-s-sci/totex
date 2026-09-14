@@ -12,7 +12,7 @@
     "expandSidebar": "Expand root folders",
     "collapseSidebar": "Collapse root folders",
     "add": "Add",
-    "pathHint": "Path, e.g. ~/repo",
+    "pathHint": "Path, e.g. ~/repo or ssh://host/repo",
     "noFolder": "No folder there",
     "drop": "Forget",
     "settings": "Settings",

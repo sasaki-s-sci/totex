@@ -2,22 +2,21 @@
 
 use std::path::{Path, PathBuf};
 
-use super::Host;
 use super::script::{HEAD, PUT, WRITE};
+use super::{Host, said};
 use crate::base64;
-use crate::wsl;
 
 impl Host {
     /// The whole of one file, for an explicit copy or download.
     pub fn read(&self, path: &Path) -> Result<Vec<u8>, String> {
         match self {
             Self::Local => std::fs::read(path).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(distro, None, &[], &["cat", "--", &self.native(path)])?;
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output = self.remote_exec(None, &[], &["cat", "--", &self.native(path)])?;
                 if output.ok() {
                     Ok(output.stdout)
                 } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+                    Err(said(&output))
                 }
             }
         }
@@ -39,13 +38,13 @@ impl Host {
                     .map_err(|error| error.to_string())?;
                 Ok((bytes, metadata.len()))
             }
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let limit = limit.to_string();
-                let output = wsl::script(distro, None, HEAD, &[&self.native(path), &limit])?;
+                let output = self.remote_script(HEAD, &[&self.native(path), &limit])?;
                 match output.code {
                     0 => {}
                     3 => return Err("is-a-directory".to_string()),
-                    _ => return Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                    _ => return Err(said(&output)),
                 }
                 // The size comes first on a line of its own, then the bytes.
                 let cut = output
@@ -70,23 +69,18 @@ impl Host {
                 std::fs::write(path, text).map_err(|error| error.to_string())?;
                 Ok(text.len() as u64)
             }
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let expect = expect.to_string();
                 // The bytes ride inside the command rather than down the
                 // channel's own pipe: a command reads nothing, so one waiting on
                 // input cannot hold up everything queued behind it.
                 let payload = base64::encode(text.as_bytes());
-                let output = wsl::script(
-                    distro,
-                    None,
-                    WRITE,
-                    &[&self.native(path), &expect, &payload],
-                )?;
+                let output = self.remote_script(WRITE, &[&self.native(path), &expect, &payload])?;
                 match output.code {
                     0 => Ok(text.len() as u64),
                     3 => Err("is-a-directory".to_string()),
                     4 => Err("changed".to_string()),
-                    _ => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                    _ => Err(said(&output)),
                 }
             }
         }
@@ -95,14 +89,7 @@ impl Host {
     pub fn create_dir_all(&self, path: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::create_dir_all(path).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(distro, None, &[], &["mkdir", "-p", &self.native(path)])?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
-            }
+            Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&["mkdir", "-p", &self.native(path)]),
         }
     }
 
@@ -115,10 +102,9 @@ impl Host {
                 .open(path)
                 .map(|_| ())
                 .map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let native = self.native(path);
-                let output = wsl::exec(
-                    distro,
+                let output = self.remote_exec(
                     None,
                     &[],
                     &[
@@ -141,14 +127,7 @@ impl Host {
     pub fn create_dir(&self, path: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::create_dir(path).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(distro, None, &[], &["mkdir", "--", &self.native(path)])?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
-            }
+            Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&["mkdir", "--", &self.native(path)]),
         }
     }
 
@@ -165,28 +144,14 @@ impl Host {
                     .map(|_| ())
                     .map_err(|error| error.to_string())
             }
-            Self::Wsl(distro) => {
-                let from = self.native(from);
-                let to = self.native(to);
-                let output = wsl::exec(
-                    distro,
-                    None,
-                    &[],
-                    &[
-                        "sh",
-                        "-c",
-                        "test ! -e \"$2\" && test ! -L \"$2\" && cp -- \"$1\" \"$2\"",
-                        "sh",
-                        &from,
-                        &to,
-                    ],
-                )?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
-            }
+            Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&[
+                "sh",
+                "-c",
+                "test ! -e \"$2\" && test ! -L \"$2\" && cp -- \"$1\" \"$2\"",
+                "sh",
+                &self.native(from),
+                &self.native(to),
+            ]),
         }
     }
 
@@ -210,13 +175,13 @@ impl Host {
                     .map_err(|error| error.to_string())?;
                 file.write_all(bytes).map_err(|error| error.to_string())
             }
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let payload = base64::encode(bytes);
-                let output = wsl::script(distro, None, PUT, &[&self.native(path), &payload])?;
+                let output = self.remote_script(PUT, &[&self.native(path), &payload])?;
                 match output.code {
                     0 => Ok(()),
                     3 => Err("already-exists".to_string()),
-                    _ => Err(String::from_utf8_lossy(&output.stderr).trim().to_string()),
+                    _ => Err(said(&output)),
                 }
             }
         }
@@ -237,8 +202,8 @@ impl Host {
                 let _ = std::fs::remove_file(path);
                 let _ = std::fs::remove_dir_all(path);
             }
-            Self::Wsl(distro) => {
-                let _ = wsl::exec(distro, None, &[], &["rm", "-rf", "--", &self.native(path)]);
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let _ = self.remote_exec(None, &[], &["rm", "-rf", "--", &self.native(path)]);
             }
         }
     }
@@ -246,18 +211,8 @@ impl Host {
     pub fn rename(&self, from: &Path, to: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::rename(from, to).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(
-                    distro,
-                    None,
-                    &[],
-                    &["mv", "--", &self.native(from), &self.native(to)],
-                )?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
+            Self::Wsl(_) | Self::Ssh(_) => {
+                self.remote_run(&["mv", "--", &self.native(from), &self.native(to)])
             }
         }
     }
@@ -265,14 +220,7 @@ impl Host {
     pub fn remove_file(&self, path: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::remove_file(path).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(distro, None, &[], &["rm", "--", &self.native(path)])?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
-            }
+            Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&["rm", "--", &self.native(path)]),
         }
     }
 
@@ -280,23 +228,16 @@ impl Host {
     ///
     /// One command however much is under it, on either machine: the machine
     /// holding the folder already knows how to take a tree apart, and a walk
-    /// driven from here would be one crossing per file inside a distribution.
-    /// What [`remove_all`](Self::remove_all) is when somebody is waiting for
-    /// the answer — which is every time a person asked for the removal.
+    /// driven from here would be one crossing per file on a far machine. What
+    /// [`remove_all`](Self::remove_all) is when somebody is waiting for the
+    /// answer — which is every time a person asked for the removal.
     ///
     /// A folder that is not there is an error rather than a silence, so `rm`
     /// is asked without `-f`.
     pub fn remove_dir_all(&self, path: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::remove_dir_all(path).map_err(|error| error.to_string()),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(distro, None, &[], &["rm", "-r", "--", &self.native(path)])?;
-                if output.ok() {
-                    Ok(())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
-                }
-            }
+            Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&["rm", "-r", "--", &self.native(path)]),
         }
     }
 
@@ -313,7 +254,7 @@ impl Host {
             Self::Local => std::fs::remove_file(path)
                 .or_else(|_| std::fs::remove_dir(path))
                 .map_err(|error| error.to_string()),
-            Self::Wsl(_) => self.remove_file(path),
+            Self::Wsl(_) | Self::Ssh(_) => self.remove_file(path),
         }
     }
 
@@ -321,9 +262,10 @@ impl Host {
     pub fn home(&self) -> Option<PathBuf> {
         match self {
             Self::Local => crate::fs_browse::home_dir(),
-            Self::Wsl(distro) => {
-                let output =
-                    wsl::exec(distro, None, &[], &["sh", "-c", "printf %s \"$HOME\""]).ok()?;
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output = self
+                    .remote_exec(None, &[], &["sh", "-c", "printf %s \"$HOME\""])
+                    .ok()?;
                 let home = output.text();
                 (!home.trim().is_empty()).then(|| self.canonical(home.trim()))
             }
@@ -335,18 +277,26 @@ impl Host {
     pub fn resolve(&self, path: &Path) -> Option<PathBuf> {
         match self {
             Self::Local => path.canonicalize().ok(),
-            Self::Wsl(distro) => {
-                let output = wsl::exec(
-                    distro,
-                    None,
-                    &[],
-                    &["readlink", "-f", "--", &self.native(path)],
-                )
-                .ok()?;
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output = self
+                    .remote_exec(None, &[], &["readlink", "-f", "--", &self.native(path)])
+                    .ok()?;
                 let resolved = output.text();
                 let resolved = resolved.trim();
                 (output.ok() && !resolved.is_empty()).then(|| self.canonical(resolved))
             }
+        }
+    }
+
+    /// One command on the far machine whose only answer is whether it went,
+    /// and the machine's own words when it did not — which is most of the
+    /// commands above.
+    fn remote_run(&self, argv: &[&str]) -> Result<(), String> {
+        let output = self.remote_exec(None, &[], argv)?;
+        if output.ok() {
+            Ok(())
+        } else {
+            Err(said(&output))
         }
     }
 }

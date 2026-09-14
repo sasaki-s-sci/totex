@@ -49,7 +49,8 @@ pub(super) fn worktree_path(host: &Host, root: &Path, repo_path: &str, branch: &
 /// The worktree path, with its parent directory made. The repository is hashed
 /// by the name the machine holding it uses, not by the spelling this window has
 /// it under — so a checkout inside a distribution comes back to the same
-/// worktree whether it was opened from the Windows side or from inside.
+/// worktree whether it was opened from the Windows side or from inside, and
+/// one on a machine across the network likewise.
 pub(super) fn prepare_worktree_path(
     root: &Path,
     repo: &Path,
@@ -69,6 +70,7 @@ pub(super) fn prepare_worktree_path(
 /// A worktree of a Linux checkout put on the Windows side would be a checkout
 /// git reads over a network filesystem, with the wrong file modes, of files no
 /// Windows account owns — and it is the same repository, so the two would fight.
+/// A worktree of a repository on another machine has nowhere to go here at all.
 pub(super) fn worktrees_root(app: &AppHandle, repo: &Path) -> Result<PathBuf, String> {
     let host = Host::of(repo);
     match &host {
@@ -77,7 +79,8 @@ pub(super) fn worktrees_root(app: &AppHandle, repo: &Path) -> Result<PathBuf, St
             .app_data_dir()
             .map_err(|error| error.to_string())?
             .join("worktrees")),
-        Host::Wsl(_) => {
+        // The machine the repository is on, under its own user's home.
+        Host::Wsl(_) | Host::Ssh(_) => {
             let home = host.home().ok_or_else(|| "no-home".to_string())?;
             let home = host.native(&home);
             Ok(host.canonical(&format!(

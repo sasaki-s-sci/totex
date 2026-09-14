@@ -211,6 +211,27 @@ notch of the wheel scrolls a terminal or zooms the canvas, as a percentage),
 and the remaining `said` options. The
 repository-specific `.totex/settings.json` continues to control each space.
 
+## Folders on other machines
+
+The `+` over the folder sidebar lists everywhere a pane can start: the home
+directory, the drives, every WSL distribution on a Windows machine, and every
+machine named by a `Host` line in `~/.ssh/config`. Picking one of those opens
+its home over ssh; a path elsewhere on it is typed into the field as
+`ssh://<host>/<path>`, where `<host>` is whatever `ssh` itself takes — an alias
+from the config, or `user@hostname`.
+
+A folder over ssh is worked on the same way a folder inside a distribution
+is: the listing, the git graph, file edits, copies and the watch that refreshes
+them all run through one shell held open on the far machine, and a terminal
+opened there is that account's login shell in that folder. The held-open shell
+runs `ssh` in batch mode, so a key that needs a passphrase or a host that is
+not yet in `known_hosts` fails quietly there — open a terminal on the machine
+first, which asks in the normal way, or set up an agent. A `ControlMaster`
+entry for the host in the config makes every one of those shells share the
+first connection instead of handshaking on its own. The agents' door is not
+handed across: a session on another machine has no way back to this window's
+loopback.
+
 ## Updating
 
 Settings exposes two update boundaries:

@@ -22,8 +22,8 @@
 //!
 //! Asked of a directory rather than of the machine. These files live in the
 //! checkout, so two worktrees of one project answer the same, a folder with
-//! none of them answers with nothing, and a folder inside a distribution is
-//! asked by the runners installed in there.
+//! none of them answers with nothing, and a folder on a remote machine is
+//! asked by the runners installed there.
 
 mod ask;
 mod read;
