@@ -20,6 +20,7 @@ type Props = {
   paged: readonly string[];
   run: readonly CliPlace[];
   doings: ReadonlyMap<string, Doing>;
+  onHide: () => void;
   onPage: (tab: Tab) => void;
   onEnded: (tab: Tab) => void;
 };
@@ -28,12 +29,22 @@ type Props = {
  * Every tab stays mounted and hidden with `visibility`, still laid out: a terminal given no box
  * stops drawing and redraws every row when it gets one back.
  */
-export function RightSidebar({ tabs, showing, paged, run, doings, onPage, onEnded }: Props) {
+export function RightSidebar({
+  tabs,
+  showing,
+  paged,
+  run,
+  doings,
+  onHide,
+  onPage,
+  onEnded,
+}: Props) {
   const { t } = useTranslation();
   const open = tabs.find((tab) => tab.id === showing) ?? null;
 
   return (
     <Sidebar
+      id="cli-sidebar"
       component="aside"
       side="right"
       open={open !== null}
@@ -47,12 +58,24 @@ export function RightSidebar({ tabs, showing, paged, run, doings, onPage, onEnde
               alignItems: "center",
               height: "100%",
               pt: `${HEADER_INSET}px`,
-              pl: `${HEADER_INSET}px`,
+              pl: `${HEADER_INSET + MARK_BUTTON + 2}px`,
               pr: `${HEADER_MARKS + MARK_BUTTON}px`,
               pointerEvents: "none",
             }}
           >
             <TabStrip run={run} showing={showing} doings={doings} />
+          </Box>
+          <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET }}>
+            <MarkButton
+              label={t("cli.collapsePanel")}
+              aria-expanded={open !== null}
+              aria-controls="cli-sidebar"
+              onClick={onHide}
+            >
+              <Frame>
+                <path d="M9 6 15 12 9 18" />
+              </Frame>
+            </MarkButton>
           </Box>
           {open && (
             <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_MARKS }}>

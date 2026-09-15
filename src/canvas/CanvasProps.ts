@@ -1,4 +1,3 @@
-import type { ServingControls } from "../hooks/useServing";
 import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { CardSeed } from "../lib/cardWindow";
@@ -64,6 +63,9 @@ export type CanvasProps = {
   onPickBranch: (pick: BranchPick) => void;
 
   onCloseRepository: (repository: Repository) => void;
+
+  /** Closes every repository the folder holds. */
+  onCloseFolder: (root: string) => void;
   onMerge: (request: MergeRequest) => void;
 
   onSync: (request: SyncRequest) => void;
@@ -86,6 +88,5 @@ export type CanvasProps = {
   onOpenPinned: (seed: CardSeed, at: { x: number; y: number }) => void;
 
   settingsRequest: number;
-  mcp: ServingControls;
   onCloseSettings: () => void;
 };

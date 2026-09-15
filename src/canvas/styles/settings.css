@@ -2,11 +2,3 @@
   overflow: auto;
   overscroll-behavior: contain;
 }
-
-.settings-page__line {
-  overflow-wrap: anywhere;
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  line-height: 15px;
-  /* React Flow sets user-select: none on every node; the form takes it back. */
-  user-select: text;
-}

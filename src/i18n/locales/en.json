@@ -22,7 +22,8 @@
     "graph": "Graph",
     "door": "Agents report from {{space}}",
     "move": "Move",
-    "shell": "Shell"
+    "shell": "Shell",
+    "closeRepositories": "Close its repositories"
   },
   "file": {
     "newFile": "New file",
@@ -84,6 +85,7 @@
     "open": "Shell",
     "end": "End",
     "page": "Stand this terminal on the canvas",
+    "collapsePanel": "Close the terminal panel",
     "dock": "Put {{name}} back in the panel"
   },
   "tasks": {
@@ -128,40 +130,22 @@
     "now": "Fetch",
     "fetching": "Fetching…",
     "fetchFailed": "Could not reach",
-    "mcp": "MCP",
-    "mcpServer": "Server",
-    "register": "Agent setup",
-    "saidFace": "Line face",
+    "saidFace": "Font",
     "saidSize": "Line size",
     "saidFit": "Fit the lines to the canvas",
     "saidLines": "Lines",
     "saidWidth": "Line width",
     "wheel": "Wheel"
   },
-  "mcp": {
-    "on": "On",
-    "off": "Off",
-    "checking": "Checking…",
-    "changing": "Changing…",
-    "failed": "Change failed",
-    "register": "Set up",
-    "registering": "Setting up…",
-    "registered": "Done",
-    "refused": "Failed"
-  },
   "update": {
     "title": "Updates",
     "version": "Version",
-    "app": "app {{version}}",
     "pin": "Pin the version",
-    "hint": "patch is uninterruptible: the app and every terminal keep running; only the pages change. minor is interruptible: the app is installed and restarted; every terminal is closed.",
     "patch": "patch",
     "minor": "minor",
-    "uninterruptible": "uninterruptible",
-    "interruptible": "interruptible",
-    "take": "{{kind}} {{version}} · {{cost}}",
-    "kept": "{{kind}} up to date · {{cost}}",
-    "none": "{{kind}} · {{cost}}",
+    "take": "{{kind}} {{version}}",
+    "kept": "{{kind}} up to date",
+    "none": "{{kind}}",
     "ready": "Restarting",
     "failed": "Failed, try again",
     "adjusting": "Adjusting to the selected version…",

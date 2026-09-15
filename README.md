@@ -267,12 +267,12 @@ identity, a minor carries a new one (see [Releasing from main](#releasing-from-m
 
 **One persistent identity can support many ephemeral releases.** Settings has one
 version pull-down and two buttons. The pull-down lists every published release,
-newest first; a release on another line is marked *interruptible*, and one this
-copy cannot bring is disabled. `latest` follows what is published. The **patch**
-button is uninterruptible: it takes the newest release on the running line, or
-the one pinned there, and swaps the pages under the running app. The **minor**
-button is interruptible: it takes the newest line beyond the running one, or the
-one pinned there, and installs and restarts the app, closing every terminal.
+newest first, and one this copy cannot bring is disabled. `latest` follows what
+is published. The **patch** button takes the newest release on the running
+line, or the one pinned there, and swaps the pages under the running app
+without interrupting it. The **minor** button takes the newest line beyond the
+running one, or the one pinned there, and installs and restarts the app,
+closing every terminal.
 A line behind the running one is offered only by name.
 The listing currently covers the latest 30 published releases.
 
@@ -358,12 +358,12 @@ registered against it says what it is working on, and that is drawn on the
 graph beside the terminal it came from — a line, and how far through a plan it
 is — so it can be read without the terminal being opened.
 
-Two things have to be true, and they are the two rows the settings page gives
-them.
+Two things have to be true.
 
-**The server has to be standing.** It is off until it is switched on, and what
-was switched on is remembered for the next window. Terminals opened before it
-went up do not have its address; the next one opened does.
+**The server has to be standing.** It is off until `mcpServing` in
+`~/.totex/totex.json` says otherwise, and the window stands it up or takes it
+down as that document changes. Terminals opened before it went up do not have
+its address; the next one opened does.
 
 **The agent has to know where it is.** Every terminal totex opens is handed an
 address of its own in `TOTEX_MCP_URL`, so what is registered is the name of the
@@ -373,10 +373,8 @@ variable rather than an address:
 claude mcp add --scope user --transport http totex '${TOTEX_MCP_URL}'
 ```
 
-The setup button on the page runs exactly that, here and in every WSL
-distribution it can reach. Any other agent that expands environment variables
-in its own configuration is registered the same way — a streamable HTTP server
-pointed at `${TOTEX_MCP_URL}`:
+Any other agent that expands environment variables in its own configuration is
+registered the same way — a streamable HTTP server pointed at `${TOTEX_MCP_URL}`:
 
 ```json
 { "mcpServers": { "totex": { "type": "http", "url": "${TOTEX_MCP_URL}" } } }

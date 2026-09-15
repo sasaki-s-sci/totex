@@ -17,7 +17,6 @@ import {
 } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
 import { gridNow, heldToGrid } from "../lib/grid";
-import { SettingsControlsProvider } from "../settings/SettingsControls";
 import { frontValue, keepFrontValue, readOnSnapshot } from "../shell/state";
 import { BrowsingProvider } from "./browsing";
 import { CanvasBackground } from "./CanvasBackground";
@@ -80,6 +79,7 @@ export function Canvas({
   onBrowseWorktree,
   onPickBranch,
   onCloseRepository,
+  onCloseFolder,
   onMerge,
   onSync,
   onFetch,
@@ -93,7 +93,6 @@ export function Canvas({
   onCloseFilePreview,
   onOpenPinned,
   settingsRequest,
-  mcp,
   onCloseSettings,
 }: CanvasProps) {
   const applied = useRef<GraphResult | null>(null);
@@ -103,7 +102,7 @@ export function Canvas({
   const worktreeStatus = useWorktreeStatus(workspace);
 
   const browsed = useBrowsedWorktrees(workspace, browsing);
-  const { opened, openRepository, foldRepository, toggleFolder } = useFolderView(folders);
+  const { opened, openRepository, foldRepository } = useFolderView();
 
   const { closed, toggleJunction } = useJunctionView();
 
@@ -341,9 +340,9 @@ export function Canvas({
     dragBranch,
     onFetch,
     onCloseRepository,
+    onCloseFolder,
     openRepository,
     foldRepository,
-    toggleFolder,
     toggleJunction,
     expand,
     fold,
@@ -370,72 +369,70 @@ export function Canvas({
 
   return (
     <GraphActionsProvider value={actions}>
-      <SettingsControlsProvider controls={mcp}>
-        <WorktreeStatusProvider value={worktreeStatus}>
-          <BrowsingProvider value={browsed}>
-            <GraphMarksProvider value={marks}>
-              <CliJumpsProvider value={jumps}>
-                <CliPlacesProvider value={cliPlaces}>
-                  <CliDoingProvider value={doings}>
-                    <CliTypedProvider value={typed}>
-                      {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
-                      <div ref={host} className="graph" data-coarse={coarse || undefined}>
-                        <ReactFlow<AppNode, Edge>
-                          ref={pane}
-                          nodes={shown}
-                          nodeTypes={nodeTypes}
-                          onNodesChange={onNodesChange}
-                          onInit={(flow) => {
-                            instance.current = flow;
-                            const kept = frontValue<Viewport>("canvas.viewport");
-                            if (kept) void flow.setViewport(kept);
-                            setFlowReady(true);
+      <WorktreeStatusProvider value={worktreeStatus}>
+        <BrowsingProvider value={browsed}>
+          <GraphMarksProvider value={marks}>
+            <CliJumpsProvider value={jumps}>
+              <CliPlacesProvider value={cliPlaces}>
+                <CliDoingProvider value={doings}>
+                  <CliTypedProvider value={typed}>
+                    {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
+                    <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                      <ReactFlow<AppNode, Edge>
+                        ref={pane}
+                        nodes={shown}
+                        nodeTypes={nodeTypes}
+                        onNodesChange={onNodesChange}
+                        onInit={(flow) => {
+                          instance.current = flow;
+                          const kept = frontValue<Viewport>("canvas.viewport");
+                          if (kept) void flow.setViewport(kept);
+                          setFlowReady(true);
 
-                            resolve(flow.getViewport().zoom);
-                          }}
-                          onMove={handleMove}
-                          onNodeClick={handleNodeClick}
-                          onNodeDragStart={takeGroup}
-                          onNodeDrag={carryGroup}
-                          onNodeDragStop={dropGroup}
-                          onPaneClick={() => setSelectedCommit(null)}
-                          nodesConnectable={false}
-                          nodesDraggable
-                          elevateNodesOnSelect={false}
-                          // React Flow's per-frame visibility pass cost more than moving the nodes.
-                          onlyRenderVisibleElements={false}
-                          minZoom={MIN_ZOOM}
-                          maxZoom={MAX_ZOOM}
-                          // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
-                          zoomOnScroll={false}
-                          proOptions={proOptions}
-                          // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
-                          fitView={fitOnInit}
-                        >
-                          <CanvasBackground />
-                          <GraphLines
-                            bands={graph.bands}
-                            reach={graph.reach}
-                            holds={graph.holds}
-                            extent={graph.extent}
-                            nodes={lineNodes}
-                            selected={selectedCommit}
-                            picked={picked}
-                            reading={reading && !coarse}
-                            message={message}
-                            onCommit={handleCommitClick}
-                          />
-                        </ReactFlow>
-                        <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
-                      </div>
-                    </CliTypedProvider>
-                  </CliDoingProvider>
-                </CliPlacesProvider>
-              </CliJumpsProvider>
-            </GraphMarksProvider>
-          </BrowsingProvider>
-        </WorktreeStatusProvider>
-      </SettingsControlsProvider>
+                          resolve(flow.getViewport().zoom);
+                        }}
+                        onMove={handleMove}
+                        onNodeClick={handleNodeClick}
+                        onNodeDragStart={takeGroup}
+                        onNodeDrag={carryGroup}
+                        onNodeDragStop={dropGroup}
+                        onPaneClick={() => setSelectedCommit(null)}
+                        nodesConnectable={false}
+                        nodesDraggable
+                        elevateNodesOnSelect={false}
+                        // React Flow's per-frame visibility pass cost more than moving the nodes.
+                        onlyRenderVisibleElements={false}
+                        minZoom={MIN_ZOOM}
+                        maxZoom={MAX_ZOOM}
+                        // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
+                        zoomOnScroll={false}
+                        proOptions={proOptions}
+                        // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
+                        fitView={fitOnInit}
+                      >
+                        <CanvasBackground />
+                        <GraphLines
+                          bands={graph.bands}
+                          reach={graph.reach}
+                          holds={graph.holds}
+                          extent={graph.extent}
+                          nodes={lineNodes}
+                          selected={selectedCommit}
+                          picked={picked}
+                          reading={reading && !coarse}
+                          message={message}
+                          onCommit={handleCommitClick}
+                        />
+                      </ReactFlow>
+                      <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
+                    </div>
+                  </CliTypedProvider>
+                </CliDoingProvider>
+              </CliPlacesProvider>
+            </CliJumpsProvider>
+          </GraphMarksProvider>
+        </BrowsingProvider>
+      </WorktreeStatusProvider>
     </GraphActionsProvider>
   );
 }

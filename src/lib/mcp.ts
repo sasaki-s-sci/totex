@@ -35,22 +35,6 @@ export function reportsNow(): Promise<Reported[]> {
   return invoke<Reported[]>("mcp_reports");
 }
 
-export type Agent = "claude" | "codex";
-
-export type Setup = {
-  agent: Agent;
-  line: string;
-};
-
-/** Asked again whenever the server moves: one of the lines embeds the port. */
-export function setups(): Promise<Setup[]> {
-  return invoke<Setup[]>("mcp_setups");
-}
-
-export function install(agent: Agent): Promise<string> {
-  return invoke<string>("mcp_install", { agent });
-}
-
 export function onReport(next: (reported: Reported) => void): Promise<UnlistenFn> {
   return listen<Reported>(REPORT_EVENT, (event) => next(event.payload));
 }

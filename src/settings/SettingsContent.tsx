@@ -4,11 +4,9 @@ import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
 import { GridRows } from "./GridRows";
 import { LanguageRow } from "./LanguageRow";
-import { McpRows } from "./McpRows";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
-import { useSettingsControls } from "./SettingsControls";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { ThemeRow } from "./ThemeRow";
 import { UpdateRow } from "./UpdateRow";
@@ -16,7 +14,6 @@ import { WheelRow } from "./WheelRow";
 
 export function SettingsContent() {
   const { t } = useTranslation();
-  const mcp = useSettingsControls();
   return (
     // Each section opens with a rule; the first has nothing above it.
     <Stack
@@ -43,9 +40,6 @@ export function SettingsContent() {
       <Section name={t("settings.terminal")}>
         <WheelRow place="cli" />
         <SaidRows />
-      </Section>
-      <Section name={t("settings.mcp")}>
-        <McpRows controls={mcp} />
       </Section>
       <Section name={t("settings.other")}>
         <ThemeRow />

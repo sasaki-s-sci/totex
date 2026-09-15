@@ -52,6 +52,11 @@ export function useSessions() {
     setShowing(next.id);
   }, []);
 
+  // The panel's own close: the terminal stays open, only put away.
+  const hide = useCallback(() => {
+    setShowing(null);
+  }, []);
+
   const page = useCallback((next: Session) => {
     setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
     setShowing(null);
@@ -87,5 +92,5 @@ export function useSessions() {
 
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
 
-  return { sessions, showing, paged, attached, open, show, jump, page, dock, end, endIn };
+  return { sessions, showing, paged, attached, open, show, jump, hide, page, dock, end, endIn };
 }

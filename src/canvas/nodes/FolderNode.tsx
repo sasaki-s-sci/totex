@@ -9,7 +9,7 @@ import { useGraphActions } from "../graphActions";
 export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   const { t } = useTranslation();
   const { root, name, label, open, mark, tools } = data;
-  const { openWork, toggleFolder } = useGraphActions();
+  const { openWork, closeFolder } = useGraphActions();
 
   return (
     <div className="band folder">
@@ -22,15 +22,16 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
         className="band__name"
         style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
       >
+        {/* The name takes every repository the folder holds off the canvas; graphing the folder again brings them back. */}
         <button
           type="button"
           className="folder__name nopan"
           aria-label={name}
-          aria-expanded={open}
+          title={t("folder.closeRepositories")}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
-            toggleFolder(root);
+            closeFolder(root);
           }}
         >
           <Typography variant="body2" sx={{ minWidth: 0, fontWeight: "normal" }} noWrap>

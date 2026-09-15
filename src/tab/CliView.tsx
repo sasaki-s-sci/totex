@@ -135,8 +135,13 @@ export function CliView({
       accelerated = null;
     }
 
-    // Only a changed grid crosses into Rust; the panel edge reports every frame.
-    let told = { rows: terminal.rows, cols: terminal.cols };
+    // The grid last told to the pty is read from cliGrid, not remembered here: while this view
+    // followed a page, the page told the pty a grid this view never sent, and a fit that lands
+    // back on this view's own old grid must still cross into Rust.
+    const tell = (grid: { rows: number; cols: number }) => {
+      void resizeShell(session.id, grid.rows, grid.cols).catch(() => undefined);
+      tellGrid(session.id, grid);
+    };
 
     const shadow = () => {
       const grid = gridOf(session.id);
@@ -168,16 +173,21 @@ export function CliView({
       if (terminal.options.fontSize !== face) terminal.options.fontSize = face;
       fit.fit();
       const { rows, cols } = terminal;
-      if (rows === told.rows && cols === told.cols) return;
-      told = { rows, cols };
-      void resizeShell(session.id, rows, cols).catch(() => undefined);
-      tellGrid(session.id, told);
+      // Only a changed grid crosses into Rust; the panel edge reports every frame.
+      const held = gridOf(session.id);
+      if (held && rows === held.rows && cols === held.cols) return;
+      tell({ rows, cols });
     };
 
     settle.current = () => {
+      // Followed even while put away: the pty writes at the page's width, and a buffer kept at
+      // that width reflows rather than wraps when the tab is shown again.
+      if (following.current) {
+        shadow();
+        return;
+      }
       if (element.clientWidth === 0 || element.clientHeight === 0) return;
-      if (following.current) shadow();
-      else measure();
+      measure();
     };
     if (following.current) shadow();
     else fit.fit();
@@ -311,9 +321,7 @@ export function CliView({
           shadow();
           return;
         }
-        told = { rows: terminal.rows, cols: terminal.cols };
-        void resizeShell(session.id, told.rows, told.cols).catch(() => undefined);
-        tellGrid(session.id, told);
+        tell({ rows: terminal.rows, cols: terminal.cols });
       })(),
     );
 

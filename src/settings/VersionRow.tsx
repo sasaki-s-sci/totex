@@ -1,11 +1,11 @@
 import { MenuItem, Select, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { LATEST, layerOf, type Reading, type UpdateState } from "../lib/update";
+import { LATEST, type Reading } from "../lib/update";
 import { PICK_SX, ROW_HEIGHT } from "./Row";
 
 const NAME = 96;
 
-/** The buttons and caption start where the versions do: past the name column and the row gap. */
+/** The buttons start where the versions do: past the name column and the row gap. */
 const INDENT = `${NAME + 12}px`;
 
 function Latest({ version }: { version: string | null }) {
@@ -21,12 +21,10 @@ function Latest({ version }: { version: string | null }) {
 
 // A pinned version the release page no longer offers stays shown, greyed, rather than dropped.
 function VersionSelect({
-  at,
   read,
   disabled,
   onChange,
 }: {
-  at: UpdateState;
   read: Reading;
   disabled: boolean;
   onChange: (version: string | null) => void;
@@ -63,11 +61,6 @@ function VersionSelect({
       {choices.map((choice) => (
         <MenuItem key={choice.version} value={choice.version}>
           {choice.version}
-          {layerOf(at, choice) === "persistent" && (
-            <Typography component="span" variant="caption" sx={{ color: "text.secondary", ml: 1 }}>
-              {t("update.interruptible")}
-            </Typography>
-          )}
         </MenuItem>
       ))}
       {blocked.map((choice) => (
@@ -79,15 +72,13 @@ function VersionSelect({
   );
 }
 
-/** The one row: what is drawn, the pin, the two buttons, and what each costs. */
+/** The one row: what is drawn, the pin, and the two buttons. */
 export function VersionRow({
-  at,
   read,
   disabled,
   onChange,
   children,
 }: {
-  at: UpdateState;
   read: Reading;
   disabled: boolean;
   onChange: (version: string | null) => void;
@@ -109,26 +100,15 @@ export function VersionRow({
         <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
           {t("update.version")}
         </Typography>
-        <Stack
-          direction="row"
-          sx={{ flex: 1, minWidth: 0, alignItems: "baseline", gap: 1, whiteSpace: "nowrap" }}
-        >
-          <Typography variant="body2">{read.at}</Typography>
-          {read.app !== read.at && (
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              {t("update.app", { version: read.app })}
-            </Typography>
-          )}
-        </Stack>
-        <VersionSelect at={at} read={read} disabled={disabled} onChange={onChange} />
+        <Typography variant="body2" sx={{ flex: 1, minWidth: 0, whiteSpace: "nowrap" }}>
+          {read.at}
+        </Typography>
+        <VersionSelect read={read} disabled={disabled} onChange={onChange} />
       </Stack>
-      {/* A patch and a minor, side by side, each saying what it costs. */}
+      {/* A patch and a minor, side by side. */}
       <Stack direction="row" sx={{ pl: INDENT, gap: 1.5, rowGap: 0.5, flexWrap: "wrap" }}>
         {children}
       </Stack>
-      <Typography variant="caption" sx={{ pl: INDENT, color: "text.secondary" }}>
-        {t("update.hint")}
-      </Typography>
     </Stack>
   );
 }

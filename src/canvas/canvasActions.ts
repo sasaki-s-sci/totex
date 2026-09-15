@@ -8,9 +8,9 @@ export function useCanvasActions({
   dragBranch,
   onFetch,
   onCloseRepository,
+  onCloseFolder,
   openRepository,
   foldRepository,
-  toggleFolder,
   toggleJunction,
   expand,
   fold,
@@ -40,9 +40,9 @@ export function useCanvasActions({
   dragBranch: GraphActions["dragBranch"];
   onFetch: GraphActions["fetchBranch"];
   onCloseRepository: GraphActions["closeRepository"];
+  onCloseFolder: GraphActions["closeFolder"];
   openRepository: GraphActions["openRepository"];
   foldRepository: GraphActions["foldRepository"];
-  toggleFolder: GraphActions["toggleFolder"];
   toggleJunction: GraphActions["toggleJunction"];
   expand: GraphActions["expand"];
   fold: GraphActions["fold"];
@@ -75,9 +75,9 @@ export function useCanvasActions({
       dragBranch,
       fetchBranch: onFetch,
       closeRepository: onCloseRepository,
+      closeFolder: onCloseFolder,
       openRepository,
       foldRepository,
-      toggleFolder,
       toggleJunction,
       expand,
       fold,
@@ -108,9 +108,9 @@ export function useCanvasActions({
       dragBranch,
       onFetch,
       onCloseRepository,
+      onCloseFolder,
       openRepository,
       foldRepository,
-      toggleFolder,
       toggleJunction,
       expand,
       fold,

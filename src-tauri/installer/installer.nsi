@@ -586,9 +586,9 @@ Function .onInit
   ${EndIf}
 
   ; totex: what the tick on the directory page reads when that page is never
-  ; shown, which is every silent install and every update. 1 is ${BST_CHECKED},
-  ; and is what those installs have always done.
-  StrCpy $DesktopShortcutState 1
+  ; shown, which is every silent install and every update. 0 is
+  ; ${BST_UNCHECKED}; the box now defaults off everywhere.
+  StrCpy $DesktopShortcutState 0
 
   ${GetOptions} $CMDLINE "/NS" $NoShortcutMode
   ${IfNot} ${Errors}
