@@ -22,8 +22,9 @@ pub(super) struct Survey {
 ///
 /// Resolved because git answers in resolved paths, and the graph matches what
 /// git says against this. Asked of the machine holding the folder rather than
-/// of `Path`: a folder inside a distribution is resolved by the distribution,
-/// and `canonicalize` would answer for a share it is not going to read.
+/// of `Path`: a folder on a remote machine is resolved by that machine, and
+/// `canonicalize` would answer for a share it is not going to read — or for a
+/// url it cannot read at all.
 pub(super) fn normalize_root(root: &str) -> Result<PathBuf, String> {
     let host = crate::host::Host::of_str(root);
     let path = PathBuf::from(root);

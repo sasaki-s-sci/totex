@@ -10,9 +10,10 @@
 //! to the account that works in it.
 //!
 //! The other is the walk, and it is what a copy between two distributions comes
-//! to, or one onto a machine that has no name for the other: entry by entry,
-//! bytes through here, and a ceiling on how much of that one gesture is allowed
-//! to be.
+//! to, or one onto a machine that has no name for the other — which is every
+//! copy with a machine across the network at one end and anything but that
+//! same machine at the other: entry by entry, bytes through here, and a
+//! ceiling on how much of that one gesture is allowed to be.
 //!
 //! The two answer differently about symbolic links, and deliberately rather
 //! than accidentally. `cp` brings a link across as a link, which is what a file
@@ -26,6 +27,7 @@
 use std::path::Path;
 
 use crate::host::{Host, Stat};
+use crate::remote::{self, Reach};
 use crate::wsl;
 
 /// How much one copy is allowed to come to, in entries and in bytes.
@@ -54,8 +56,8 @@ pub(super) fn copy_tree(
     to: &Host,
     target: &Path,
 ) -> Result<(), String> {
-    if let Some((distro, source, target)) = side_by_side(from, source, to, target) {
-        return copy_inside(&distro, &source, &target);
+    if let Some((reach, source, target)) = side_by_side(from, source, to, target) {
+        return copy_inside(&reach, &source, &target);
     }
     let mut budget = Budget {
         entries: MAX_ENTRIES,
@@ -72,30 +74,41 @@ pub(super) fn sweep(to: &Host, target: &Path) {
     to.remove_all(target);
 }
 
-/// The two ends as one distribution spells them, when one of them can spell
+/// The two ends as one far machine spells them, when one of them can spell
 /// both.
 ///
-/// Three ways that happens, and a fourth that is deliberately not here: two
+/// Four ways that happens, and a fifth that is deliberately not here: two
 /// paths on this machine are copied by this machine, which is what the walk
-/// already does without any crossing at all.
+/// already does without any crossing at all. A machine across the network can
+/// name nothing but its own disk, so only a copy that stays on it is its to
+/// make; everything else to or from one is the walk.
 fn side_by_side(
     from: &Host,
     source: &Path,
     to: &Host,
     target: &Path,
-) -> Option<(String, String, String)> {
+) -> Option<(Reach, String, String)> {
     match (from, to) {
-        (Host::Local, Host::Wsl(distro)) => {
-            Some((distro.clone(), named_in(distro, source)?, to.native(target)))
-        }
+        (Host::Local, Host::Wsl(distro)) => Some((
+            Reach::Wsl(distro.clone()),
+            named_in(distro, source)?,
+            to.native(target),
+        )),
         (Host::Wsl(distro), Host::Local) => Some((
-            distro.clone(),
+            Reach::Wsl(distro.clone()),
             from.native(source),
             named_in(distro, target)?,
         )),
-        (Host::Wsl(one), Host::Wsl(other)) if one == other => {
-            Some((one.clone(), from.native(source), to.native(target)))
-        }
+        (Host::Wsl(one), Host::Wsl(other)) if one == other => Some((
+            Reach::Wsl(one.clone()),
+            from.native(source),
+            to.native(target),
+        )),
+        (Host::Ssh(one), Host::Ssh(other)) if one == other => Some((
+            Reach::Ssh(one.clone()),
+            from.native(source),
+            to.native(target),
+        )),
         _ => None,
     }
 }
@@ -123,7 +136,7 @@ fn named_in(distro: &str, path: &Path) -> Option<String> {
     }
 }
 
-/// The whole copy, run by the distribution that can name both ends of it.
+/// The whole copy, run by the far machine that can name both ends of it.
 ///
 /// Refusing to replace what is there, the same way every other copy in the app
 /// does: the name was chosen against a listing, and a file that arrived between
@@ -133,9 +146,9 @@ fn named_in(distro: &str, path: &Path) -> Option<String> {
 /// `cp` refuse the whole copy the moment one of them points at a folder holding
 /// it, which is a folder that cannot be copied at all rather than one copied
 /// with a link in it. See this module's own note on the two answers.
-fn copy_inside(distro: &str, source: &str, target: &str) -> Result<(), String> {
-    let output = wsl::exec(
-        distro,
+fn copy_inside(reach: &Reach, source: &str, target: &str) -> Result<(), String> {
+    let output = remote::exec(
+        reach,
         None,
         &[],
         &[

@@ -89,7 +89,6 @@ export async function verifyShell(
             "pty_asking",
             "pty_doing",
             "mcp_reports",
-            "mcp_setups",
             "list_roots",
             "describe_folders",
             "update_standing",

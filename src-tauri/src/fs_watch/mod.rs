@@ -10,10 +10,11 @@
 //! however large the checkout is.
 //!
 //! The tree can have folders from more than one machine open at once — a
-//! Windows drive in one pane and a distribution in the next — so the set is
-//! split by where each directory lives. This machine's own notifications watch
-//! its own; a distribution is asked from inside, because Windows is never told
-//! that a file under the share moved.
+//! Windows drive in one pane, a distribution in the next and a machine across
+//! the network in a third — so the set is split by where each directory lives.
+//! This machine's own notifications watch its own; a remote machine is asked
+//! from inside, because nothing on this side is ever told that a file there
+//! moved.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -25,7 +26,7 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, ne
 use tauri::{AppHandle, Emitter, Runtime, State};
 
 use crate::host::Host;
-use crate::wsl;
+use crate::remote;
 
 /// Carries the directories whose contents moved, as absolute paths.
 pub const CHANGED_EVENT: &str = "fs:changed";
@@ -39,7 +40,7 @@ type Local = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, Recomm
 /// Everything watching for the tree as it now stands.
 ///
 /// Dropping it stops all of it — the local watcher's thread and every poll
-/// running inside a distribution — which is the only thing replacing the set
+/// running on a remote machine — which is the only thing replacing the set
 /// has to do about the set it replaces.
 #[derive(Default)]
 struct Watching {
@@ -47,7 +48,7 @@ struct Watching {
     /// recognised before anything is torn down.
     paths: BTreeSet<PathBuf>,
     local: Option<Local>,
-    inside: Vec<wsl::Poll>,
+    inside: Vec<remote::Poll>,
 }
 
 #[derive(Default)]
@@ -104,23 +105,31 @@ pub fn watch_directories<R: Runtime>(
         ..Watching::default()
     };
 
-    let mut elsewhere: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+    // One group per machine. `Host` is not ordered, so the groups are keyed by
+    // the reach's key — which tells a distribution and an ssh host of the same
+    // name apart — and the host itself is kept beside its paths.
+    let mut elsewhere: BTreeMap<String, (Host, Vec<PathBuf>)> = BTreeMap::new();
     let mut here: Vec<PathBuf> = Vec::new();
     for path in &wanted {
-        match Host::of(path) {
-            Host::Local => here.push(path.clone()),
-            Host::Wsl(distro) => elsewhere.entry(distro).or_default().push(path.clone()),
+        let host = Host::of(path);
+        match host.reach() {
+            None => here.push(path.clone()),
+            Some(reach) => elsewhere
+                .entry(reach.key())
+                .or_insert_with(|| (host, Vec::new()))
+                .1
+                .push(path.clone()),
         }
     }
 
     if !here.is_empty() {
         held.local = Some(locally(&app, Arc::clone(&watched), &here)?);
     }
-    for (distro, paths) in elsewhere {
-        // A distribution that will not answer costs the folders inside it their
+    for (host, paths) in elsewhere.into_values() {
+        // A machine that will not answer costs the folders on it their
         // refreshes and nothing else. The rest of the tree is still watched,
         // which is what a tree spanning two machines has to be able to do.
-        if let Ok(poll) = inside(&app, Arc::clone(&watched), &distro, &paths) {
+        if let Ok(poll) = inside(&app, Arc::clone(&watched), &host, &paths) {
             held.inside.push(poll);
         }
     }
@@ -156,19 +165,19 @@ fn locally<R: Runtime>(
     Ok(debouncer)
 }
 
-/// The directories inside one distribution, watched from inside it.
+/// The directories on one remote machine, watched from inside it.
 fn inside<R: Runtime>(
     app: &AppHandle<R>,
     watched: Arc<BTreeSet<PathBuf>>,
-    distro: &str,
+    host: &Host,
     paths: &[PathBuf],
-) -> Result<wsl::Poll, String> {
-    let host = Host::Wsl(distro.to_string());
+) -> Result<remote::Poll, String> {
     let native: Vec<String> = paths.iter().map(|path| host.native(path)).collect();
     let handle = app.clone();
+    let spelling = host.clone();
 
-    wsl::watch(distro, false, &native, move |moved| {
-        let paths: Vec<PathBuf> = moved.iter().map(|path| host.canonical(path)).collect();
+    host.watch(false, &native, move |moved| {
+        let paths: Vec<PathBuf> = moved.iter().map(|path| spelling.canonical(path)).collect();
         let touched = directories(paths.iter(), &watched);
         if !touched.is_empty() {
             let _ = handle.emit(CHANGED_EVENT, touched);

@@ -26,11 +26,11 @@ pub fn say(dir: &Path, line: &str) -> Option<String> {
     let shell = crate::pty::shell();
 
     let argv: Vec<&str> = match &host {
-        // A distribution is asked in the shell every distribution has, and not
-        // in the one its owner uses: which that is cannot be known from out
-        // here, and `wsl.exe` is being handed a command rather than left to
-        // start a login shell of its own.
-        Host::Wsl(_) => vec!["sh", "-lc", line],
+        // A remote machine is asked in the shell every one of them has, and
+        // not in the one its owner uses: which that is cannot be known from out
+        // here, and `wsl.exe` or `ssh` is being handed a command rather than
+        // left to start a login shell of its own.
+        Host::Wsl(_) | Host::Ssh(_) => vec!["sh", "-lc", line],
         #[cfg(windows)]
         Host::Local => vec!["cmd", "/C", line],
         #[cfg(not(windows))]

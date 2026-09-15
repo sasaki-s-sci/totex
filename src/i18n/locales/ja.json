@@ -12,7 +12,7 @@
     "expandSidebar": "ルートフォルダー一覧を開く",
     "collapseSidebar": "ルートフォルダー一覧を閉じる",
     "add": "追加",
-    "pathHint": "パス（例: ~/repo）",
+    "pathHint": "パス（例: ~/repo、ssh://host/repo）",
     "noFolder": "そのフォルダはありません",
     "drop": "登録を外す",
     "settings": "設定",
@@ -22,7 +22,8 @@
     "graph": "グラフ",
     "door": "{{space}} のエージェントの報告",
     "move": "動かす",
-    "shell": "シェル"
+    "shell": "シェル",
+    "closeRepositories": "配下のリポジトリを閉じる"
   },
   "file": {
     "newFile": "新しいファイル",
@@ -84,6 +85,7 @@
     "open": "シェル",
     "end": "終了",
     "page": "このターミナルをキャンバスに出す",
+    "collapsePanel": "ターミナルパネルを閉じる",
     "dock": "{{name}}をパネルに戻す"
   },
   "tasks": {
@@ -128,40 +130,22 @@
     "now": "fetch",
     "fetching": "fetch 中…",
     "fetchFailed": "届きませんでした",
-    "mcp": "MCP",
-    "mcpServer": "サーバー",
-    "register": "エージェントの設定",
-    "saidFace": "行の書体",
+    "saidFace": "フォント",
     "saidSize": "行の大きさ",
     "saidFit": "行をキャンバスに合わせる",
     "saidLines": "行数",
     "saidWidth": "行の幅",
     "wheel": "ホイール"
   },
-  "mcp": {
-    "on": "ON",
-    "off": "OFF",
-    "checking": "確認中…",
-    "changing": "切替中…",
-    "failed": "切替失敗",
-    "register": "設定する",
-    "registering": "設定中…",
-    "registered": "設定済み",
-    "refused": "失敗しました"
-  },
   "update": {
     "title": "Updates",
     "version": "バージョン",
-    "app": "本体 {{version}}",
     "pin": "バージョンを固定",
-    "hint": "patch は uninterruptible。本体も端末もそのまま、画面だけ入れ替わります。minor は interruptible。本体を入れ替えるため再起動し、端末はすべて閉じられます。",
     "patch": "patch",
     "minor": "minor",
-    "uninterruptible": "uninterruptible",
-    "interruptible": "interruptible",
-    "take": "{{kind}} {{version}} · {{cost}}",
-    "kept": "{{kind}} 最新 · {{cost}}",
-    "none": "{{kind}} · {{cost}}",
+    "take": "{{kind}} {{version}}",
+    "kept": "{{kind}} 最新",
+    "none": "{{kind}}",
     "ready": "再起動中",
     "failed": "失敗、やり直す",
     "adjusting": "指定したバージョンに調整中…",
@@ -247,7 +231,7 @@
     "schemaDiscard": "編集を破棄"
   },
   "said": {
-    "terminal": "ターミナルの書体",
-    "window": "ウィンドウの書体"
+    "terminal": "ターミナルのフォント",
+    "window": "ウィンドウのフォント"
   }
 }

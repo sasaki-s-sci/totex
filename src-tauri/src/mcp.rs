@@ -8,7 +8,7 @@
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
 
-pub use totex_persistent::door::{Agent, Reported, Setup};
+pub use totex_persistent::door::Reported;
 
 /// Carries what a session says it is doing, and its going away again. Sent
 /// whether or not a terminal is being drawn for it: the panel is only one of the
@@ -41,20 +41,4 @@ pub fn mcp_reports<R: Runtime>(app: AppHandle<R>) -> Vec<Reported> {
     crate::persistent::link(&app)
         .asked("door_reports", json!({}))
         .unwrap_or_default()
-}
-
-/// What each agent would be set up with, in the words somebody could have typed
-/// themselves.
-#[tauri::command(async)]
-pub fn mcp_setups<R: Runtime>(app: AppHandle<R>) -> Vec<Setup> {
-    crate::persistent::link(&app)
-        .asked("door_setups", json!({}))
-        .unwrap_or_default()
-}
-
-/// Registers this server with one coding agent on this machine, once and for
-/// all its sessions.
-#[tauri::command(async)]
-pub fn mcp_install<R: Runtime>(app: AppHandle<R>, agent: Agent) -> Result<String, String> {
-    crate::persistent::link(&app).asked("door_install", json!({ "agent": agent }))
 }

@@ -55,10 +55,10 @@ pub fn locate(dir: &Path) -> Result<Located, String> {
     let bare = cmd::run(dir, &["rev-parse", "--is-bare-repository"])?
         .trim()
         .eq("true");
-    // git answers in the terms of the machine it ran on, so a repository inside
-    // a distribution says `/home/a/repo/.git`. Everything above compares that
-    // against paths the folder tree produced, which spell the same directory as
-    // the share — see `cmd::path_of`.
+    // git answers in the terms of the machine it ran on, so a repository on a
+    // remote machine says `/home/a/repo/.git`. Everything above compares that
+    // against paths the folder tree produced, which spell the same directory
+    // as the share or the url — see `cmd::path_of`.
     let common_dir = cmd::path_of(
         dir,
         &cmd::run(

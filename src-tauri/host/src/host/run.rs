@@ -3,7 +3,6 @@
 use std::path::Path;
 
 use super::{Host, Output};
-use crate::wsl;
 
 impl Host {
     /// Runs one program and waits for it.
@@ -15,9 +14,9 @@ impl Host {
     ) -> Result<Output, String> {
         match self {
             Self::Local => local_exec(cwd, env, argv),
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let cwd = cwd.map(|cwd| self.native(cwd));
-                let output = wsl::exec(distro, cwd.as_deref(), env, argv)?;
+                let output = self.remote_exec(cwd.as_deref(), env, argv)?;
                 Ok(Output {
                     code: output.code,
                     stdout: output.stdout,

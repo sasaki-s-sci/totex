@@ -32,7 +32,7 @@ pub fn read_directory(raw_path: &str, show_hidden: bool) -> Result<Listing, Stri
         parent: host
             .parent(&path)
             .map(|parent| parent.to_string_lossy().into_owned()),
-        distro: host.distro().map(str::to_string),
+        distro: host.remote_name().map(str::to_string),
         path: path.to_string_lossy().into_owned(),
         entries,
         truncated,

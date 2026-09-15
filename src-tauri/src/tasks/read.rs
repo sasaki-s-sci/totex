@@ -64,7 +64,7 @@ pub fn everything(dir: &Path) -> Vec<Task> {
     let host = Host::of(dir);
     // One reading of the directory, and every question about what is in it
     // answered out of that. Asked one name at a time this would be twenty
-    // crossings, and inside a distribution every one of them is a process.
+    // crossings, and on a remote machine every one of them is a process.
     let held = names(&host, dir);
 
     // The three that are asked in their own words are asked at once. Each is a

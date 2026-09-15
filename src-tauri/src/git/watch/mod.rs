@@ -6,11 +6,13 @@
 //! refs and its worktree registry, plus the shallow part of the scanned tree
 //! where a newly cloned repository would appear.
 //!
-//! A folder inside a WSL distribution is watched by asking the distribution.
-//! Windows publishes the share but not its notifications — nothing on this side
-//! is ever told that a file in there moved — so the same targets are polled
-//! from inside instead, and what comes back is the same thing: the paths that
-//! were written, which is what lets a refresh re-read one repository.
+//! A folder on a remote machine — a WSL distribution, or one reached over ssh
+//! — is watched by asking that machine. Nothing on this side is ever told that
+//! a file there moved: Windows publishes a distribution's share but not its
+//! notifications, and a machine across the network has no share at all. So the
+//! same targets are polled from inside instead, and what comes back is the same
+//! thing: the paths that were written, which is what lets a refresh re-read one
+//! repository.
 
 pub(crate) mod targets;
 
@@ -25,7 +27,7 @@ use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 
 use crate::host::Host;
-use crate::wsl;
+use crate::remote;
 
 /// How long to wait for a burst of writes to settle. A single `git commit`
 /// touches several files, and a fetch touches many more.
@@ -43,8 +45,8 @@ type Local = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, Recomm
 pub struct Watch {
     /// This machine's own change notifications.
     _here: Option<Local>,
-    /// A poll running inside a distribution — one per group of targets.
-    _inside: Vec<wsl::Poll>,
+    /// A poll running on a remote machine — one per group of targets.
+    _inside: Vec<remote::Poll>,
 }
 
 #[derive(Default)]
@@ -87,9 +89,10 @@ pub(super) fn start(
     let host = Host::of(Path::new(root));
     let targets = watch_targets(&host, root, git_dirs, repository_paths);
 
-    match &host {
-        Host::Local => here(targets, on_change),
-        Host::Wsl(distro) => inside(&host, distro, targets, on_change),
+    if host.is_remote() {
+        inside(&host, targets, on_change)
+    } else {
+        here(targets, on_change)
     }
 }
 
@@ -120,7 +123,7 @@ fn here(
     })
 }
 
-/// The same targets, polled from inside the distribution holding them.
+/// The same targets, polled from inside the machine holding them.
 ///
 /// Two polls rather than one: `find` takes a single depth for every start point
 /// it is given, and these targets do not all want the same one — a git
@@ -128,7 +131,6 @@ fn here(
 /// down.
 fn inside(
     host: &Host,
-    distro: &str,
     targets: Vec<Target>,
     on_change: impl Fn(Vec<PathBuf>) + Send + Sync + 'static,
 ) -> Result<Watch, String> {
@@ -146,9 +148,9 @@ fn inside(
         }
 
         let told = Arc::clone(&told);
-        let host = host.clone();
-        polls.push(wsl::watch(distro, recursive, &paths, move |moved| {
-            let paths: Vec<PathBuf> = moved.iter().map(|path| host.canonical(path)).collect();
+        let spelling = host.clone();
+        polls.push(host.watch(recursive, &paths, move |moved| {
+            let paths: Vec<PathBuf> = moved.iter().map(|path| spelling.canonical(path)).collect();
             let touched = relevant_paths(paths.iter());
             if !touched.is_empty() {
                 told(touched);

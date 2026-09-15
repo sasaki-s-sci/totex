@@ -2,14 +2,14 @@
 //!
 //! A repository is not always on the machine the window is running on: a folder
 //! under `\\wsl.localhost\<distro>` is a Linux checkout, and the git that has
-//! to read it is the distribution's own. Which one runs is decided here, from
+//! to read it is the distribution's own; one under `ssh://<host>/` is on another
+//! machine altogether, and so is its git. Which one runs is decided here, from
 //! the directory, so that nothing above this file has to know — see
 //! [`crate::host`].
 
 use std::path::{Path, PathBuf};
 
 use crate::host::{Host, Output};
-use crate::wsl;
 
 /// How every git this app runs is told to behave.
 ///
@@ -42,15 +42,17 @@ fn safe_directory(dir: &str) -> String {
 
 /// An argument that names a path, as the machine running git spells it.
 ///
-/// The app carries a WSL path in its Windows spelling, and every one of these
-/// arguments — a worktree to add, a directory to remove — was got from
-/// somewhere that spells it that way. Only the distribution git is about to run
-/// in is rewritten: an argument naming another one is not a path this git can
-/// reach, and passing it through unchanged is what says so.
+/// The app carries a remote path in the spelling that says which machine it is
+/// on, and every one of these arguments — a worktree to add, a directory to
+/// remove — was got from somewhere that spells it that way. Only the machine
+/// git is about to run on is rewritten: an argument naming another one is not
+/// a path this git can reach, and passing it through unchanged is what says so.
 fn native_argument(host: &Host, argument: &str) -> String {
-    match wsl::locate(argument) {
-        Some(found) if Some(found.distro.as_str()) == host.distro() => found.path,
-        _ => argument.to_string(),
+    let spelled = Host::of_str(argument);
+    if spelled == *host && host.is_remote() {
+        host.native(Path::new(argument))
+    } else {
+        argument.to_string()
     }
 }
 
@@ -78,8 +80,8 @@ pub fn run(dir: &Path, args: &[&str]) -> Result<String, String> {
     let output = exec(dir, args)?;
     if !output.ok() {
         // A shell that could not find git says so with the code a shell uses
-        // for it, which is how a distribution with no git installed reads the
-        // same as a machine with none.
+        // for it, which is how a remote machine with no git installed reads
+        // the same as this one with none.
         if output.code == 127 {
             return Err("git-missing".to_string());
         }
@@ -120,11 +122,11 @@ pub fn code(dir: &Path, args: &[&str]) -> Result<(i32, String), String> {
 
 /// A path git printed, in the spelling the rest of the app stores.
 ///
-/// git answers in the terms of the machine it ran on, so a repository inside a
-/// distribution says `/home/a/repo` — and everything above this compares those
-/// against paths that came from the folder tree, which spells them as the
-/// share. One or the other has to give, and it is this one: the UNC spelling is
-/// the one that says which distribution as well as where.
+/// git answers in the terms of the machine it ran on, so a repository on a
+/// remote machine says `/home/a/repo` — and everything above this compares
+/// those against paths that came from the folder tree, which spells them as
+/// the share or the url. One or the other has to give, and it is this one: the
+/// app's spelling is the one that says which machine as well as where.
 pub fn path_of(dir: &Path, printed: &str) -> PathBuf {
     Host::of(dir).canonical(printed.trim())
 }
@@ -140,8 +142,8 @@ fn missing(error: String) -> String {
 /// The git that would run for `dir`, and what it calls itself.
 ///
 /// Asked of a directory rather than of the machine, because those are two
-/// different gits: a Windows window that opens a Linux folder runs the
-/// distribution's git and never touches the one beside it — which may not be
+/// different gits: a Windows window that opens a remote folder runs that
+/// machine's git and never touches the one beside it — which may not be
 /// installed at all, and that is not a failure worth drawing.
 pub fn version(dir: Option<&Path>) -> Result<String, String> {
     let host = dir.map(Host::of).unwrap_or(Host::Local);

@@ -1,13 +1,7 @@
-import { useCallback, useRef, useState } from "react";
-import type { Folder } from "../../hooks/useWorkspace";
-import { isOpen } from "../../lib/graph/folders";
+import { useCallback, useState } from "react";
 
-export function useFolderView(folders: readonly Folder[]) {
+export function useFolderView() {
   const [opened, setOpened] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-
-  // Ref so that pressing a name does not rebuild every mark first.
-  const held = useRef(folders);
-  held.current = folders;
 
   const set = useCallback((repositories: readonly string[], open: boolean) => {
     setOpened((current) => {
@@ -21,19 +15,5 @@ export function useFolderView(folders: readonly Folder[]) {
   const openRepository = useCallback((repository: string) => set([repository], true), [set]);
   const foldRepository = useCallback((repository: string) => set([repository], false), [set]);
 
-  // Folding wins only when nothing is left to open.
-  const toggleFolder = useCallback((root: string) => {
-    const folder = held.current.find((candidate) => candidate.root === root);
-    if (!folder) return;
-
-    setOpened((current) => {
-      const count = folder.repositories.length;
-      const all = folder.repositories.every((id) => isOpen(current, id, count));
-      const next = new Map(current);
-      for (const id of folder.repositories) next.set(id, !all);
-      return next;
-    });
-  }, []);
-
-  return { opened, openRepository, foldRepository, toggleFolder };
+  return { opened, openRepository, foldRepository };
 }

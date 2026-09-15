@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type RootKind = "home" | "windows-drive" | "wsl-distro" | "unix-root" | "windows-mount";
+export type RootKind =
+  | "home"
+  | "windows-drive"
+  | "wsl-distro"
+  | "unix-root"
+  | "windows-mount"
+  | "ssh-host";
 
 export interface Root {
   kind: RootKind;
@@ -31,8 +37,8 @@ export interface Listing {
   name: string;
   parent: string | null;
   /**
-   * The WSL distribution the directory is inside, or null: the same path in two distributions is
-   * two places.
+   * The remote the directory is inside (a WSL distribution or an ssh host's alias), or null: the
+   * same path in two remotes is two places.
    */
   distro: string | null;
   entries: FsEntry[];

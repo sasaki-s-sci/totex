@@ -1,6 +1,7 @@
 //! Reading a share path apart, and putting it back together.
 
-use super::super::{clean, join, locate};
+use super::super::locate;
+use crate::remote::path::join;
 
 #[test]
 fn reads_a_distribution_out_of_the_share() {
@@ -50,11 +51,4 @@ fn walks_up_and_down_without_leaving_the_distribution() {
     assert_eq!(found.name(), "a");
     let root = found.at("/");
     assert_eq!(root.name(), "Ubuntu");
-}
-
-#[test]
-fn a_path_that_climbs_is_folded_before_it_is_asked_about() {
-    assert_eq!(clean("/a/./b/../c"), "/a/c");
-    assert_eq!(clean("/../.."), "/");
-    assert_eq!(clean("/home//a/"), "/home/a");
 }

@@ -11,18 +11,39 @@
 //! Everything here is one distribution and one Linux path — [`Location`] — got
 //! from the UNC spelling, which stays the canonical form the rest of the app
 //! passes around. Nothing else has to know a path is remote until it runs
-//! something. See [`channel`] for why that running goes down a held-open pipe.
+//! something, and the running is [`crate::remote`]'s: a distribution is one of
+//! the machines a shell is held open on there, beside the ones reached over
+//! ssh, and what is left here is the spelling and `wsl.exe` itself.
 
-pub mod channel;
 pub mod shell;
-mod watch;
 
 #[cfg(test)]
 mod tests;
 
-pub use channel::{exec, script};
 pub use shell::{distros, program};
-pub use watch::{Poll, watch};
+
+use crate::remote::{self, Output, Reach, path};
+
+/// Runs one command inside `distro` and waits for it. The reach spelled out,
+/// for the callers that already hold a distribution's name and nothing else.
+pub fn exec(
+    distro: &str,
+    cwd: Option<&str>,
+    env: &[(&str, &str)],
+    argv: &[&str],
+) -> Result<Output, String> {
+    remote::exec(&Reach::Wsl(distro.to_string()), cwd, env, argv)
+}
+
+/// Runs a shell script inside `distro`, with `args` as `$1` onwards.
+pub fn script(
+    distro: &str,
+    cwd: Option<&str>,
+    body: &str,
+    args: &[&str],
+) -> Result<Output, String> {
+    remote::script(&Reach::Wsl(distro.to_string()), cwd, body, args)
+}
 
 /// The prefix Windows publishes a distribution's filesystem under, and the one
 /// older builds published it under before that.
@@ -104,54 +125,14 @@ impl Location {
     /// The directory holding this one, or `None` at the root of the distribution
     /// — which is where a walk upwards has to stop.
     pub fn parent(&self) -> Option<Self> {
-        let cut = self.path.rfind('/')?;
-        if self.path == "/" {
-            return None;
-        }
-        Some(self.at(if cut == 0 { "/" } else { &self.path[..cut] }))
+        path::parent(&self.path).map(|parent| self.at(parent))
     }
 
     /// The last part of the path. The root has none, so it is called by the
     /// distribution it is the root of.
     pub fn name(&self) -> String {
-        match self.path.rsplit('/').next() {
-            Some(name) if !name.is_empty() => name.to_string(),
-            _ => self.distro.clone(),
-        }
-    }
-}
-
-/// Two Linux paths joined, without going through `Path` — see [`locate`].
-pub fn join(base: &str, name: &str) -> String {
-    if name.starts_with('/') {
-        return name.to_string();
-    }
-    if base.ends_with('/') {
-        format!("{base}{name}")
-    } else {
-        format!("{base}/{name}")
-    }
-}
-
-/// Folds `.` and `..` out of a Linux path, without asking the distribution.
-///
-/// Lexical because the alternative is a round trip per keystroke — and because a
-/// path that still says `..` in the middle will not compare equal to the same
-/// directory named plainly, which is what the panes key on.
-pub fn clean(path: &str) -> String {
-    let mut parts: Vec<&str> = Vec::new();
-    for part in path.split('/') {
-        match part {
-            "" | "." => {}
-            ".." => {
-                parts.pop();
-            }
-            name => parts.push(name),
-        }
-    }
-    if parts.is_empty() {
-        "/".to_string()
-    } else {
-        format!("/{}", parts.join("/"))
+        path::name(&self.path)
+            .map(str::to_string)
+            .unwrap_or_else(|| self.distro.clone())
     }
 }

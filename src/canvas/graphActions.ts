@@ -51,7 +51,7 @@ export type GraphActions = {
 
   foldRepository: (repository: string) => void;
 
-  toggleFolder: (root: string) => void;
+  closeFolder: (root: string) => void;
 
   toggleJunction: (junction: string) => void;
 
@@ -110,7 +110,7 @@ export const NO_ACTIONS: GraphActions = {
   closeRepository: () => {},
   openRepository: () => {},
   foldRepository: () => {},
-  toggleFolder: () => {},
+  closeFolder: () => {},
   toggleJunction: () => {},
   expand: () => {},
   fold: () => {},

@@ -5,8 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::parse::{local_child, local_stat, parse_children, parse_stat};
 use super::script::{LIST, LIST_MANY, STAT};
-use super::{Child, Host, Stat};
-use crate::wsl;
+use super::{Child, Host, Stat, said};
 
 /// How many directories one bulk listing asks about at a time. A command line is
 /// not unbounded and a walk can hold thousands of directories, so the question
@@ -18,10 +17,9 @@ impl Host {
     pub fn exists(&self, path: &Path) -> bool {
         match self {
             Self::Local => std::fs::symlink_metadata(path).is_ok(),
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 let native = self.native(path);
-                wsl::exec(
-                    distro,
+                self.remote_exec(
                     None,
                     &[],
                     &[
@@ -40,8 +38,8 @@ impl Host {
     pub fn stat(&self, path: &Path) -> Option<Stat> {
         match self {
             Self::Local => local_stat(path),
-            Self::Wsl(distro) => {
-                let output = wsl::script(distro, None, STAT, &[&self.native(path)]).ok()?;
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output = self.remote_script(STAT, &[&self.native(path)]).ok()?;
                 if !output.ok() {
                     return None;
                 }
@@ -65,10 +63,10 @@ impl Host {
                     .filter_map(|entry| local_child(&entry))
                     .collect())
             }
-            Self::Wsl(distro) => {
-                let output = wsl::script(distro, None, LIST, &[&self.native(path)])?;
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output = self.remote_script(LIST, &[&self.native(path)])?;
                 if !output.ok() && output.stdout.is_empty() {
-                    return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+                    return Err(said(&output));
                 }
                 Ok(parse_children(&output.stdout)
                     .into_iter()
@@ -82,8 +80,8 @@ impl Host {
     /// about the ones that would not open.
     ///
     /// One question rather than one per directory: a walk asks this of a whole
-    /// level of the tree, and inside a distribution each answer would otherwise
-    /// be its own round trip. The walk that uses it turns a folder into the
+    /// level of the tree, and on a far machine each answer would otherwise be
+    /// its own round trip. The walk that uses it turns a folder into the
     /// repositories on the canvas, so it is asked about thousands.
     pub fn children(&self, dirs: &[PathBuf]) -> (HashMap<PathBuf, Vec<Child>>, Vec<String>) {
         let mut found: HashMap<PathBuf, Vec<Child>> = HashMap::new();
@@ -100,9 +98,9 @@ impl Host {
                     }
                 }
             }
-            Self::Wsl(distro) => {
+            Self::Wsl(_) | Self::Ssh(_) => {
                 for batch in dirs.chunks(BATCH) {
-                    self.batch(distro, batch, &mut found, &mut warnings);
+                    self.batch(batch, &mut found, &mut warnings);
                 }
                 // A directory that answered nothing still answered, and the walk
                 // tells "empty" from "unreadable" by which map it is in.
@@ -115,17 +113,16 @@ impl Host {
         (found, warnings)
     }
 
-    /// One mouthful of directories, asked of the distribution in one go.
+    /// One mouthful of directories, asked of the far machine in one go.
     fn batch(
         &self,
-        distro: &str,
         batch: &[PathBuf],
         found: &mut HashMap<PathBuf, Vec<Child>>,
         warnings: &mut Vec<String>,
     ) {
         let native: Vec<String> = batch.iter().map(|dir| self.native(dir)).collect();
         let args: Vec<&str> = native.iter().map(String::as_str).collect();
-        let output = match wsl::script(distro, None, LIST_MANY, &args) {
+        let output = match self.remote_script(LIST_MANY, &args) {
             Ok(output) => output,
             Err(error) => {
                 warnings.push(error);

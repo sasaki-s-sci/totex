@@ -85,3 +85,40 @@ fn the_home_of_a_distribution_is_named_the_way_a_shell_names_it() {
     assert_eq!(home_tail("/home/a"), None);
     assert_eq!(home_tail("/"), None);
 }
+
+#[test]
+fn the_home_of_an_ssh_host_is_named_the_way_a_shell_names_it() {
+    // The rail's row for a machine across the network carries the same marker
+    // a distribution's does, read back the same way.
+    let offered = crate::ssh::url("box", "/~");
+    assert_eq!(offered, "ssh://box/~");
+    let found = crate::ssh::locate(&offered).expect("a machine");
+    assert_eq!(found.host, "box");
+    assert_eq!(home_tail(&found.path), Some(""));
+    assert_eq!(
+        home_tail(
+            &crate::ssh::locate("ssh://box/~/repo")
+                .expect("a machine")
+                .path
+        ),
+        Some("/repo")
+    );
+}
+
+/// A kept folder on a far machine is spelled out without the machine being
+/// asked, and its name is the folder's own.
+#[test]
+fn kept_folders_on_far_machines_are_spelled_out_without_reaching_them() {
+    let places = describe_folders(&[
+        "ssh://box/home/a/./repo/../repo".to_string(),
+        r"\\wsl.localhost\Ubuntu\home\a\repo".to_string(),
+        "ssh://box/".to_string(),
+    ]);
+    assert_eq!(places.len(), 3);
+    assert_eq!(places[0].path, "ssh://box/home/a/repo");
+    assert_eq!(places[0].label, "repo");
+    assert_eq!(places[0].display, "ssh://box/home/a/repo");
+    assert_eq!(places[1].label, "repo");
+    assert_eq!(places[2].path, "ssh://box/");
+    assert_eq!(places[2].label, "box", "the root is called by the machine");
+}

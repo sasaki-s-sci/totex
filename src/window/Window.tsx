@@ -45,7 +45,7 @@ export function Window() {
   const [destination, setDestination] = useState<FolderDestination | null>(null);
   const folders = useFolderRoots();
   const menus = useWindowMenus();
-  const mcp = useServing();
+  useServing();
   const canvasHost = useRef<HTMLElement>(null);
   const { marks, fail, hold, release } = useMarks();
 
@@ -69,7 +69,7 @@ export function Window() {
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
-  const { drawn, closeRepository } = useClosedRepositories(workspace);
+  const { drawn, closeRepository, closeFolder } = useClosedRepositories(workspace, graphed);
   useWindowBoot(workspace);
 
   const browseFolder = useCallback(
@@ -172,6 +172,7 @@ export function Window() {
             onBrowseWorktree={work.browseWorktree}
             onPickBranch={menus.setWorktree}
             onCloseRepository={closeRepository}
+            onCloseFolder={closeFolder}
             onMerge={work.merge}
             onSync={work.sync}
             onFetch={work.fetch}
@@ -185,7 +186,6 @@ export function Window() {
             onCloseFilePreview={files.closeFilePreview}
             onOpenPinned={files.openPinned}
             settingsRequest={menus.settingsRequest}
-            mcp={mcp}
             onCloseSettings={menus.closeSettings}
           />
         )}
@@ -198,6 +198,7 @@ export function Window() {
           paged={sessions.paged}
           run={run}
           doings={doings}
+          onHide={sessions.hide}
           onPage={onTab(sessions.page)}
           onEnded={onTab(sessions.end)}
         />

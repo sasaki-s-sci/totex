@@ -20,7 +20,7 @@ export async function smoke(browser, repository, step) {
     await browser.switchFrame(front);
     await click('[aria-label="Expand root folders"]');
     await click('#folder-sidebar [aria-label="Add"]');
-    const input = await browser.$('input[aria-label="Path, e.g. ~/repo"]');
+    const input = await browser.$('input[aria-label="Path, e.g. ~/repo or ssh://host/repo"]');
     await input.setValue(repository);
     await browser.keys("Enter");
     await browser.$('#folder-sidebar [aria-label="Graph"]').waitForDisplayed();

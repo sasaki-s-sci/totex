@@ -64,15 +64,19 @@ pub(super) fn token(keys: &RandomState, id: &str) -> String {
 /// The address a session working in `cwd` can reach this server at, or nothing
 /// where it cannot reach it at all.
 ///
-/// A session in a WSL distribution is the one case where loopback is not one
-/// place. Under the networking WSL starts with, a distribution's `127.0.0.1` is
-/// its own and the way across is refused by the firewall — so the honest answer
-/// there is that there is no address. Under mirrored networking the two
-/// loopbacks are one.
+/// A session in a WSL distribution is the one case where loopback may or may
+/// not be one place. Under the networking WSL starts with, a distribution's
+/// `127.0.0.1` is its own and the way across is refused by the firewall — so
+/// the honest answer there is that there is no address. Under mirrored
+/// networking the two loopbacks are one. A session on a machine reached over
+/// ssh is never in doubt: that machine's loopback is its own, and this server
+/// listens on nothing else.
 fn reachable(cwd: &str) -> Option<&'static str> {
     match Host::of_str(cwd) {
         Host::Local => Some(LOOPBACK),
         Host::Wsl(distro) => shares_loopback(&distro).then_some(LOOPBACK),
+        // Another machine cannot reach this server's loopback.
+        Host::Ssh(_) => None,
     }
 }
 

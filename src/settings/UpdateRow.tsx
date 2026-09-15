@@ -14,14 +14,13 @@ import { PageButton } from "./Row";
 import { VersionRow } from "./VersionRow";
 
 /**
- * One button per cost. A patch is uninterruptible: the pages are swapped under
- * the running app. A minor is interruptible: the app is installed and restarted,
- * and every terminal goes with it.
+ * One button per layer. A patch swaps the pages under the running app; a minor
+ * installs and restarts the app, and every terminal goes with it.
  */
 const BUTTONS = {
-  ephemeral: { kind: "update.patch", cost: "update.uninterruptible" },
-  persistent: { kind: "update.minor", cost: "update.interruptible" },
-} as const satisfies Record<Layer, unknown>;
+  ephemeral: "update.patch",
+  persistent: "update.minor",
+} as const satisfies Record<Layer, string>;
 
 export function UpdateRow() {
   const { t } = useTranslation();
@@ -36,7 +35,6 @@ export function UpdateRow() {
   );
   return (
     <VersionRow
-      at={at}
       read={read}
       disabled={busy}
       onChange={(version) => {
@@ -44,7 +42,6 @@ export function UpdateRow() {
       }}
     >
       {(["ephemeral", "persistent"] as Layer[]).map((layer) => {
-        const words = BUTTONS[layer];
         const target = layer === "ephemeral" ? read.patch : read.minor;
         const there = layer === "ephemeral" ? read.at : read.app;
         const press = at.presses[layer];
@@ -72,9 +69,8 @@ export function UpdateRow() {
                 : failed
                   ? t("update.failed")
                   : t(moves ? "update.take" : target ? "update.kept" : "update.none", {
-                      kind: t(words.kind),
+                      kind: t(BUTTONS[layer]),
                       version: target?.version,
-                      cost: t(words.cost),
                     })}
           </PageButton>
         );

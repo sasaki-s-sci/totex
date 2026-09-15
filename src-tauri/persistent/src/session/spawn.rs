@@ -7,7 +7,7 @@ use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 use totex_host::host::Host;
 use totex_host::sync::lock;
-use totex_host::wsl;
+use totex_host::{ssh, wsl};
 
 use super::backlog::Backlog;
 use super::{Event, Session, Sessions};
@@ -30,10 +30,15 @@ pub fn shell() -> String {
 
 /// The command a session runs.
 ///
-/// A folder inside a WSL distribution gets that distribution's own login shell,
-/// started inside it. Not the share: `cmd` refuses a UNC directory to run in,
+/// A folder on this machine gets the user's shell, started in it. A folder
+/// inside a WSL distribution gets that distribution's own login shell, started
+/// inside it. Not the share: `cmd` refuses a UNC directory to run in,
 /// PowerShell in one is a Windows shell looking at Linux files, and the tools
-/// somebody opens a terminal to reach are installed in the distribution.
+/// somebody opens a terminal to reach are installed in the distribution. A
+/// folder on a machine reached over ssh gets `ssh` itself, holding a terminal
+/// open to the login shell of whichever account it landed as, in that folder:
+/// the terminal is the one place a passphrase or a host-key question can be
+/// typed at, so nothing here tells `ssh` not to ask.
 fn session_command(cwd: &str, dressing: &[(String, String)]) -> CommandBuilder {
     match Host::of_str(cwd) {
         Host::Local => {
@@ -64,6 +69,27 @@ fn session_command(cwd: &str, dressing: &[(String, String)]) -> CommandBuilder {
             let mut crossing = vec!["TERM"];
             crossing.extend(dressing.iter().map(|(name, _)| name.as_str()));
             command.env("WSLENV", carried(&crossing));
+            command
+        }
+        Host::Ssh(host) => {
+            let far = Host::Ssh(host.clone());
+            let mut command = CommandBuilder::new(ssh::program());
+            // `-t` asks for a terminal at the far end, which is what the login
+            // shell there is being handed; `--` keeps a host whose name begins
+            // with a dash from being read as an option. Not `BatchMode`: a
+            // terminal is exactly where a passphrase or a host-key prompt
+            // belongs, and this is the one place `ssh` may ask.
+            command.arg("-t");
+            command.arg(&host);
+            command.arg("--");
+            command.arg(ssh::login_line(&far.native(Path::new(cwd))));
+            // `ssh` forwards the client's TERM, so this is what the far shell
+            // sees too.
+            command.env("TERM", "xterm-256color");
+            // The dressing is not handed over: it names this server's loopback,
+            // which another machine cannot reach — see `door::address` — and
+            // ssh carries no environment across anyway short of a `SendEnv` the
+            // far sshd would also have to accept.
             command
         }
     }
