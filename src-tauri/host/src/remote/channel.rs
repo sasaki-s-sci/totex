@@ -96,11 +96,21 @@ impl Channel {
     }
 
     fn request(&mut self, command: &str) -> Result<Output, String> {
+        let gone = self.gone;
         self.input
             .write_all(encode(command.as_bytes()).as_bytes())
             .and_then(|_| self.input.write_all(b"\n"))
             .and_then(|_| self.input.flush())
-            .map_err(|error| error.to_string())?;
+            // A pipe already closed is the far end gone before it read a
+            // word: the same bridge failure as an empty answer below, met a
+            // moment earlier.
+            .map_err(|error| {
+                if error.kind() == std::io::ErrorKind::BrokenPipe {
+                    gone.to_string()
+                } else {
+                    error.to_string()
+                }
+            })?;
 
         let mut header = String::new();
         self.output
