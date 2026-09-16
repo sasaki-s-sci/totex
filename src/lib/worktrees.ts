@@ -37,6 +37,20 @@ function inside(directory: string, path: string): boolean {
   return next === "/" || next === "\\";
 }
 
+/** The branch each standing worktree is on, by path; a detached one goes by the name git gave it. */
+export function worktreeBranches(workspace: Workspace | null): ReadonlyMap<string, string> {
+  const branches = new Map<string, string>();
+  if (!workspace) return branches;
+  for (const repository of workspace.repositories) {
+    for (const worktree of repository.worktrees) {
+      if (worktree.exists && !worktree.bare) {
+        branches.set(worktree.path, worktree.branch ?? worktree.name);
+      }
+    }
+  }
+  return branches;
+}
+
 export type Homes = ReadonlyMap<string, string>;
 
 /**

@@ -1,4 +1,5 @@
 import type { Repository } from "../../types/git";
+import type { GraphedKind } from "../graphed";
 import {
   CELL_STYLE,
   CHIP_STEP,
@@ -41,11 +42,13 @@ export function isOpen(
 export function folderRow(
   root: string,
   name: string,
+  kind: GraphedKind,
   open: boolean,
   at: { x: number; y: number },
   draw: Draw,
 ): FolderFlowNode {
   const data: FolderNodeData = {
+    kind,
     root,
     name,
     label: { x: FOLDER_MARK_X, y: 0, width: FOLDER_ROW_WIDTH, height: NAME_HEIGHT },
@@ -164,6 +167,7 @@ export function ringAround(count: number): Ring {
 
 function same(held: FolderNodeData, next: FolderNodeData): boolean {
   return (
+    held.kind === next.kind &&
     held.root === next.root &&
     held.name === next.name &&
     held.open === next.open &&

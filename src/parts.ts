@@ -1,3 +1,4 @@
+import { type PaneSeed, readSeeds } from "./lib/graphed";
 import { onDemand } from "./lib/onDemand";
 import type { Workspace } from "./types/git";
 
@@ -27,12 +28,10 @@ export const markdownPart = onDemand(() =>
 export const ROOTS_KEY = "totex.roots";
 export const EMPTY_WORKSPACE: Workspace = { root: "file-previews", repositories: [], warnings: [] };
 
-/** Where the panes were browsing; the graph itself starts empty. */
-export function storedRoots(): string[] {
+/** Where the panes stood; the graph itself starts empty. */
+export function storedRoots(): PaneSeed[] {
   try {
-    const stored: unknown = JSON.parse(localStorage.getItem(ROOTS_KEY) ?? "[]");
-    // Written by some earlier version: read as a claim, not a fact.
-    if (Array.isArray(stored)) return stored.filter((path) => typeof path === "string");
+    return readSeeds(JSON.parse(localStorage.getItem(ROOTS_KEY) ?? "[]"));
   } catch {}
   return [];
 }

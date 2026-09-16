@@ -3,8 +3,10 @@
 //! Watching the whole folder tree would burn one inotify watch per directory
 //! and fire on every build artefact, so this watches the few places git itself
 //! writes when the graph would change: each repository's git directory, its
-//! refs and its worktree registry, plus the shallow part of the scanned tree
-//! where a newly cloned repository would appear.
+//! refs and its worktree registry, plus — for a folder — the shallow part of
+//! the scanned tree where a newly cloned repository would appear. A root
+//! opened as one repository has no tree to watch for that: nothing that
+//! appears beside or inside it is drawn.
 //!
 //! A folder on a remote machine — a WSL distribution, or one reached over ssh
 //! — is watched by asking that machine. Nothing on this side is ever told that
@@ -28,6 +30,8 @@ use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, ne
 
 use crate::host::Host;
 use crate::remote;
+
+use super::scan::Scope;
 
 /// How long to wait for a burst of writes to settle. A single `git commit`
 /// touches several files, and a fetch touches many more.
@@ -84,10 +88,11 @@ pub(super) fn start(
     root: &str,
     git_dirs: &[String],
     repository_paths: &[String],
+    scope: Scope,
     on_change: impl Fn(Vec<PathBuf>) + Send + Sync + 'static,
 ) -> Result<Watch, String> {
     let host = Host::of(Path::new(root));
-    let targets = watch_targets(&host, root, git_dirs, repository_paths);
+    let targets = watch_targets(&host, root, git_dirs, repository_paths, scope);
 
     if host.is_remote() {
         inside(&host, targets, on_change)

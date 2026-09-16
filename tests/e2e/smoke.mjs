@@ -19,15 +19,17 @@ export async function smoke(browser, repository, step) {
     await front.waitForDisplayed({ timeout: 30000 });
     await browser.switchFrame(front);
     await click('[aria-label="Expand root folders"]');
-    await click('#folder-sidebar [aria-label="Add"]');
+    // A pane listing the repositories under the path, which is the repository itself: one row.
+    await click('#folder-sidebar [aria-label="Add a folder or repositories"]');
+    await click('[aria-label="Open as"] [value="repository"]');
     const input = await browser.$('input[aria-label="Path, e.g. ~/repo or ssh://host/repo"]');
     await input.setValue(repository);
     await browser.keys("Enter");
-    await browser.$('#folder-sidebar [aria-label="Graph"]').waitForDisplayed();
+    await browser.$('#folder-sidebar [aria-label="Put on the canvas"]').waitForDisplayed();
   });
 
   await step("実リポジトリのGitグラフを表示する", async () => {
-    await click('#folder-sidebar [aria-label="Graph"]');
+    await click('#folder-sidebar [aria-label="Put on the canvas"]');
     await browser.$('[data-branch="main"]').waitForDisplayed();
     assert.equal(git("log", "-1", "--format=%s"), "Initial E2E commit");
   });

@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use super::super::scan::Scope;
 use super::super::session::Session;
 use super::{TempDir, commit, find, git, git_available, two_repositories};
 
@@ -16,7 +17,7 @@ fn a_refresh_reports_only_what_moved() {
     let root = temp.path();
     two_repositories(root);
 
-    let mut session = Session::open(&root.to_string_lossy(), None).expect("open");
+    let mut session = Session::open(&root.to_string_lossy(), None, Scope::Folder).expect("open");
     let workspace = session.workspace();
     let alpha = find(&workspace.repositories, "alpha").clone();
     let beta = find(&workspace.repositories, "beta").clone();
@@ -74,7 +75,7 @@ fn a_refresh_re_reads_only_the_repository_a_change_pointed_at() {
     let root = temp.path();
     two_repositories(root);
 
-    let mut session = Session::open(&root.to_string_lossy(), None).expect("open");
+    let mut session = Session::open(&root.to_string_lossy(), None, Scope::Folder).expect("open");
     let beta = find(&session.workspace().repositories, "beta").clone();
 
     // A commit in alpha, reported as a change in beta: the refresh reads what
@@ -122,7 +123,7 @@ fn a_change_inside_a_nested_repository_belongs_to_the_nested_one() {
     git(&inner, &["init", "-b", "main"]);
     commit(&inner, "one.txt", "1");
 
-    let mut session = Session::open(&root.to_string_lossy(), None).expect("open");
+    let mut session = Session::open(&root.to_string_lossy(), None, Scope::Folder).expect("open");
     let inner_repo = find(&session.workspace().repositories, "inner").clone();
 
     commit(&inner, "two.txt", "2");
@@ -147,7 +148,7 @@ fn a_repository_that_appears_arrives_whole_and_one_that_leaves_is_named() {
     let root = temp.path();
     two_repositories(root);
 
-    let mut session = Session::open(&root.to_string_lossy(), None).expect("open");
+    let mut session = Session::open(&root.to_string_lossy(), None, Scope::Folder).expect("open");
 
     let gamma = root.join("gamma");
     std::fs::create_dir_all(&gamma).expect("create gamma");

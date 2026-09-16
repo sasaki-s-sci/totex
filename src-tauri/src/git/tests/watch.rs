@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use super::super::scan::Scope;
 use super::{TempDir, commit, find, git, git_available, scan};
 
 #[test]
@@ -26,6 +27,7 @@ fn the_watcher_reports_a_ref_change() {
         &workspace.root,
         std::slice::from_ref(&repository.git_dir),
         std::slice::from_ref(&repository.path),
+        Scope::Folder,
         move |touched| {
             let _ = sender.send(touched);
         },
@@ -96,6 +98,7 @@ fn the_watch_set_covers_refs_and_the_shallow_tree() {
         &root.to_string_lossy(),
         &[git_dir.to_string_lossy().into_owned()],
         &[root.join("zeta").to_string_lossy().into_owned()],
+        Scope::Folder,
     );
     let paths: Vec<&Path> = targets.iter().map(|target| target.path.as_path()).collect();
 
@@ -116,4 +119,42 @@ fn the_watch_set_covers_refs_and_the_shallow_tree() {
     );
     // `worktrees` does not exist here, so it must not have been registered.
     assert!(!paths.contains(&git_dir.join("worktrees").as_path()));
+}
+
+#[test]
+fn a_repository_opened_alone_is_not_watched_for_neighbours() {
+    let temp = TempDir::new("targets-alone");
+    let root = temp.path();
+    let repo = root.join("zeta");
+    let git_dir = repo.join(".git");
+    std::fs::create_dir_all(git_dir.join("refs")).expect("create refs");
+    std::fs::create_dir_all(repo.join("nested")).expect("create nested");
+    std::fs::create_dir_all(repo.join(".totex")).expect("create the repo's space");
+
+    let targets = super::super::watch::watch_targets(
+        &crate::host::Host::Local,
+        &repo.to_string_lossy(),
+        &[git_dir.to_string_lossy().into_owned()],
+        &[repo.to_string_lossy().into_owned()],
+        Scope::Repository,
+    );
+    let paths: Vec<&Path> = targets.iter().map(|target| target.path.as_path()).collect();
+
+    assert!(paths.contains(&git_dir.as_path()), "the git dir itself");
+    assert!(paths.contains(&git_dir.join("refs").as_path()), "its refs");
+    assert!(
+        paths.contains(&repo.join(".totex").as_path()),
+        "the repository's own space"
+    );
+    // Nothing beside or under it is drawn, so nothing there is watched: not
+    // the folder it sits in, and not the tree a neighbour could appear in.
+    assert!(
+        !paths.contains(&root),
+        "the folder a repository sits in is not its business"
+    );
+    assert!(
+        !paths.contains(&repo.as_path()),
+        "nor the shallow tree under it"
+    );
+    assert!(!paths.contains(&repo.join("nested").as_path()));
 }

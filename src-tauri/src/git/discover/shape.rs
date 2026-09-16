@@ -40,9 +40,9 @@ pub(super) fn is_skipped(name: &str) -> bool {
 /// outright, because following them can loop and a linked repository is
 /// reported through its real path anyway.
 ///
-/// Every walk over a tree goes through here. `discover` and `count_repositories`
-/// must agree about what is under a folder or the mark on a folder counts what
-/// the scan will never draw, and the watch must agree with both or it arms
+/// Every walk over a tree goes through here. `discover` and `list_repositories`
+/// must agree about what is under a folder or the pane lists a repository the
+/// scan will never draw, and the watch must agree with both or it arms
 /// directories the scan will never look at.
 pub(super) fn descendable(host: &Host, dir: &Path, children: &[Child]) -> Vec<PathBuf> {
     children

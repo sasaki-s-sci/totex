@@ -68,6 +68,16 @@ export function AddMark() {
   );
 }
 
+/** Two arcs chasing each other: the list is walked again. */
+export function RefreshMark() {
+  return (
+    <Frame>
+      <path d="M18.58 9.61 A7 7 0 0 0 5.42 9.61 M5.42 14.39 A7 7 0 0 0 18.58 14.39" />
+      <path d="M5.42 5.2 V9.61 H9.8 M18.58 18.8 V14.39 H14.2" />
+    </Frame>
+  );
+}
+
 export function JumpMark() {
   return (
     <Frame>

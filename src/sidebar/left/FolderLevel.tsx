@@ -7,7 +7,7 @@ import type { FsEntry, Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { isInside } from "../../folder/format";
 import { FILE_DRAG_TYPE } from "../../lib/filePreview";
-import { FolderMark, GraphMark, JumpMark, MarkButton } from "../../marks";
+import { FolderMark, GitMark, GraphFolderMark, JumpMark, MarkButton, SIZE } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
 import { NameField, type Naming } from "./NameField";
@@ -32,8 +32,12 @@ interface LevelProps {
   dropping: string | null;
   refused: string | null;
   onOpen: (entry: FsEntry) => void;
-  onNavigate: (path: string) => void;
-  onToggleGraph: (path: string) => void;
+  /** Absent under a repository's row: the files shown are read where they are, with no pane to move. */
+  onNavigate?: (path: string) => void;
+  /** Absent where a folder cannot go on the canvas; the row then has no mark for it. */
+  onToggleGraph?: (path: string) => void;
+  /** Starts a pane listing the repositories under the folder: the git way onto the canvas. */
+  onListRepositories?: (path: string) => void;
   onOpenFile?: (path: string) => void;
   /** The menu belongs to the column so one is open at a time; the pane says which pane. */
   onMenu: (target: Omit<FileMenuTarget, "pane">) => void;
@@ -56,6 +60,7 @@ export function Level({
   onOpen,
   onNavigate,
   onToggleGraph,
+  onListRepositories,
   onOpenFile,
   onMenu,
   naming,
@@ -71,7 +76,6 @@ export function Level({
     rows,
     rest,
     shown,
-    counts,
     changes,
     allIgnored,
     ignored,
@@ -201,29 +205,41 @@ export function Level({
                 }}
               />
               {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
-              {entry.isDir && (
+              {entry.isDir && (onNavigate || onToggleGraph || onListRepositories) && (
                 <Stack direction="row" sx={{ ml: "auto", flex: "none", gap: 0.25 }}>
-                  <MarkButton
-                    label={t("folder.enter")}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onNavigate(entry.path);
-                    }}
-                  >
-                    <JumpMark />
-                  </MarkButton>
-                  <MarkButton
-                    label={t("folder.graph")}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onToggleGraph(entry.path);
-                    }}
-                  >
-                    <GraphMark
-                      on={graphed.includes(entry.path)}
-                      count={counts.get(entry.path) ?? 0}
-                    />
-                  </MarkButton>
+                  {onNavigate && (
+                    <MarkButton
+                      label={t("folder.enter")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onNavigate(entry.path);
+                      }}
+                    >
+                      <JumpMark />
+                    </MarkButton>
+                  )}
+                  {onToggleGraph && (
+                    <MarkButton
+                      label={t("folder.graph")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onToggleGraph(entry.path);
+                      }}
+                    >
+                      <GraphFolderMark on={graphed.includes(entry.path)} />
+                    </MarkButton>
+                  )}
+                  {onListRepositories && (
+                    <MarkButton
+                      label={t("folder.listRepositories")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onListRepositories(entry.path);
+                      }}
+                    >
+                      <GitMark size={SIZE} />
+                    </MarkButton>
+                  )}
                 </Stack>
               )}
             </ListItemButton>
@@ -240,6 +256,7 @@ export function Level({
                 onOpen={onOpen}
                 onNavigate={onNavigate}
                 onToggleGraph={onToggleGraph}
+                onListRepositories={onListRepositories}
                 onOpenFile={onOpenFile}
                 onMenu={onMenu}
                 naming={naming}

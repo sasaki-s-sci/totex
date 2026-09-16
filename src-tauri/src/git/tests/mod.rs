@@ -14,11 +14,18 @@ use std::process::Command;
 
 use super::cmd;
 use super::model::{Repository, Workspace};
+use super::scan::Scope;
 use super::session::Session;
 
-/// The whole scan, as the window sees it on the first frame.
+/// The whole scan of a folder, as the window sees it on the first frame.
 pub(super) fn scan(root: String, commit_limit: Option<usize>) -> Result<Workspace, String> {
-    Session::open(&root, commit_limit).map(|session| session.workspace())
+    Session::open(&root, commit_limit, Scope::Folder).map(|session| session.workspace())
+}
+
+/// The scan of one repository, which is what a row of the repository pane
+/// puts on the canvas.
+pub(super) fn scan_repository(root: String) -> Result<Workspace, String> {
+    Session::open(&root, None, Scope::Repository).map(|session| session.workspace())
 }
 
 /// A temporary directory that removes itself, so a failing test cannot leave a

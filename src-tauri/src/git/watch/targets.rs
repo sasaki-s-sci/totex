@@ -9,6 +9,7 @@ use notify_debouncer_full::notify::RecursiveMode;
 use crate::host::Host;
 
 use super::super::discover;
+use super::super::scan::Scope;
 use super::NEW_REPOSITORY_DEPTH;
 
 /// The paths worth acting on, deduplicated: a burst names the same file many
@@ -33,11 +34,19 @@ pub(crate) struct Target {
     pub mode: RecursiveMode,
 }
 
+/// Where one open root is watched.
+///
+/// The git directories are watched whatever the root is. The tree around them
+/// — the parent a sibling repository would be cloned into, the shallow levels
+/// under the root — is only watched for a folder: a root opened as one
+/// repository draws nothing that appears beside it, so a watch there would
+/// only cost refreshes that find nothing.
 pub(crate) fn watch_targets(
     host: &Host,
     root: &str,
     git_dirs: &[String],
     repository_paths: &[String],
+    scope: Scope,
 ) -> Vec<Target> {
     let mut targets: Vec<Target> = Vec::new();
     let mut taken: HashSet<PathBuf> = HashSet::new();
@@ -64,12 +73,14 @@ pub(crate) fn watch_targets(
         push(host.join(&git_dir, "worktrees"), RecursiveMode::Recursive);
     }
 
-    // A repository cloned next to one we already know about.
     for path in repository_paths {
-        if let Some(parent) = host.parent(Path::new(path)) {
+        // A repository cloned next to one we already know about.
+        if scope == Scope::Folder
+            && let Some(parent) = host.parent(Path::new(path))
+        {
             push(parent, RecursiveMode::NonRecursive);
         }
-        // And what the repository itself says about how it is drawn, which is a
+        // What the repository itself says about how it is drawn, which is a
         // file somebody edits by hand rather than something git ever writes:
         // nothing else in here would fire for it. See `inspect::ignore`.
         push(
@@ -78,15 +89,18 @@ pub(crate) fn watch_targets(
         );
     }
 
-    // And the one the folder itself keeps, which covers every repository under
-    // it that has none of its own.
+    // And the one the root itself keeps, which covers every repository under
+    // it that has none of its own — and, for a repository opened through a
+    // linked worktree, the worktree's own rather than the main checkout's.
     push(
         host.join(Path::new(root), crate::space::DIR),
         RecursiveMode::NonRecursive,
     );
 
-    for path in discover::levels(host, Path::new(root), NEW_REPOSITORY_DEPTH) {
-        push(path, RecursiveMode::NonRecursive);
+    if scope == Scope::Folder {
+        for path in discover::levels(host, Path::new(root), NEW_REPOSITORY_DEPTH) {
+            push(path, RecursiveMode::NonRecursive);
+        }
     }
 
     targets

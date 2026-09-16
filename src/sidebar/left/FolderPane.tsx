@@ -6,8 +6,16 @@ import { useDirectoryChanges } from "../../folder/changes";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName } from "../../folder/format";
 import { useSpace } from "../../lib/space";
-import { CloseMark, GraphMark, MarkButton, McpMark, PaneFolderMark, UpMark } from "../../marks";
-import { useRepositoryCounts } from "./counts";
+import {
+  CloseMark,
+  GitMark,
+  GraphFolderMark,
+  MarkButton,
+  McpMark,
+  PaneFolderMark,
+  SIZE,
+  UpMark,
+} from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
@@ -25,8 +33,10 @@ export interface FolderPaneProps {
   refused: string | null;
   onNavigate: (path: string) => void;
   onToggleOpen: () => void;
-  /** The only way onto the graph. */
+  /** The only way onto the graph, and as a folder: nothing under it is scanned. */
   onToggleGraph: (path: string) => void;
+  /** The other way onto the canvas: a pane listing the repositories under the folder. */
+  onListRepositories: (path: string) => void;
   onOpenFile?: (path: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
@@ -50,6 +60,7 @@ export function FolderPane({
   onNavigate,
   onToggleOpen,
   onToggleGraph,
+  onListRepositories,
   onOpenFile,
   onMenu,
   naming,
@@ -60,7 +71,6 @@ export function FolderPane({
   const { t } = useTranslation();
   const [root, setRoot] = useState<Listing | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const repositories = useRepositoryCounts([path]).get(path) ?? 0;
   // The space this pane stands in, which is rarely this folder: a pane inside a checkout stands in
   // the space at its root.
   const { standing, tell } = useSpace(path);
@@ -157,7 +167,10 @@ export function FolderPane({
           </MarkButton>
         )}
         <MarkButton label={t("folder.graph")} onClick={() => onToggleGraph(path)}>
-          <GraphMark on={graphed.includes(path)} count={repositories} />
+          <GraphFolderMark on={graphed.includes(path)} />
+        </MarkButton>
+        <MarkButton label={t("folder.listRepositories")} onClick={() => onListRepositories(path)}>
+          <GitMark size={SIZE} />
         </MarkButton>
       </Stack>
 
@@ -173,6 +186,7 @@ export function FolderPane({
           onOpen={open}
           onNavigate={onNavigate}
           onToggleGraph={onToggleGraph}
+          onListRepositories={onListRepositories}
           onOpenFile={onOpenFile}
           // The levels below know nothing about which pane draws them.
           onMenu={(target) => onMenu({ ...target, pane: id })}

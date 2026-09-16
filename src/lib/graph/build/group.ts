@@ -78,7 +78,9 @@ export function folderGroup(
     height: LANE_HEIGHT,
   };
 
-  drawn.nodes.push(folderRow(folder.root, folder.name, shown.length === held.length, head, draw));
+  drawn.nodes.push(
+    folderRow(folder.root, folder.name, folder.kind, shown.length === held.length, head, draw),
+  );
 
   const from = inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2);
 

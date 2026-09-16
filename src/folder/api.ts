@@ -131,9 +131,44 @@ export function copyInto(paths: string[], into: string): Promise<string[]> {
   return invoke<string[]>("fs_copy_into", { paths, into });
 }
 
-/** Asked one listing at a time; only folders holding any are answered for. */
-export function repositoryCounts(paths: string[]): Promise<Record<string, number>> {
-  return invoke<Record<string, number>>("repository_counts", { paths });
+/** One repository the list found: a checkout of its own, or a bare one — never a linked worktree. */
+export interface FoundRepository {
+  path: string;
+  name: string;
+}
+
+export interface RepositoryList {
+  /** As the walk settled it: `~` and links resolved. */
+  root: string;
+  /** By name, then path. */
+  repositories: FoundRepository[];
+  /** The walk ran out of directories it may look at before it ran out of tree. */
+  truncated: boolean;
+  warnings: string[];
+}
+
+/** Carries one `FoundRepository` as the walk finds it, ahead of the whole list. */
+export const REPOSITORY_FOUND_EVENT = "repositories:found";
+
+export interface RepositoryFound {
+  /** The `token` the list was asked with: a pane ignores what an earlier walk of its root says. */
+  token: number;
+  path: string;
+  name: string;
+}
+
+/**
+ * Every repository under `root`: a `.git` directory or a bare repository, not descended into, so
+ * a project's submodules and the worktrees this window makes are not listed beside it. Answered
+ * off the UI thread, a repository at a time through `REPOSITORY_FOUND_EVENT` and then whole.
+ */
+export function listRepositories(root: string, token: number): Promise<RepositoryList> {
+  return invoke<RepositoryList>("list_repositories", { root, token });
+}
+
+/** A pane gone mid-walk: the walk stops where it is and its list is refused with `stopped`. */
+export function stopListing(token: number): Promise<void> {
+  return invoke<void>("stop_listing", { token });
 }
 
 export type Change = "added" | "modified" | "deleted";

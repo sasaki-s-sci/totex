@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
 import { baseName } from "../folder/format";
+import { type Graphed, type GraphedKind, graphedKey } from "../lib/graphed";
 import { applyWorkspaceDelta } from "../lib/workspaceDelta";
 import { readyAfter, retiring } from "../shell/bridge";
 import { useFrontState } from "../shell/state";
@@ -16,13 +17,19 @@ const SEPARATOR = "\u0000";
 
 type Open = Record<string, Workspace>;
 
+/** One group on the canvas: a folder as a folder holds no repository; a repository holds itself. */
 export type Folder = {
+  kind: GraphedKind;
   root: string;
   name: string;
   repositories: string[];
 };
 
-export function useWorkspaces(roots: string[]) {
+/**
+ * Only the repositories are scanned, each on its own: a folder graphed as a folder is drawn from
+ * its path alone.
+ */
+export function useWorkspaces(roots: readonly Graphed[]) {
   const [open, setOpen] = useFrontState<Open>("workspace.open", {});
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -34,7 +41,11 @@ export function useWorkspaces(roots: string[]) {
     current.current = open;
   }, [open]);
 
-  const key = roots.join(SEPARATOR);
+  const key = roots
+    .filter((graphed) => graphed.kind === "repository")
+    .map((graphed) => graphed.root)
+    .join(SEPARATOR);
+  const every = roots.map(graphedKey).join(SEPARATOR);
 
   useEffect(() => {
     const wanted = key ? key.split(SEPARATOR) : [];
@@ -59,7 +70,7 @@ export function useWorkspaces(roots: string[]) {
     void readyAfter(
       Promise.all(
         fresh.map((root) =>
-          invoke<Workspace>("scan_workspace", { root })
+          invoke<Workspace>("scan_workspace", { root, repository: true })
             .then((workspace) => {
               if (held.current.has(root))
                 setOpen((previous) => ({ ...previous, [root]: workspace }));
@@ -114,7 +125,8 @@ export function useWorkspaces(roots: string[]) {
   }, []);
 
   const workspace = useMemo(() => merge(key ? key.split(SEPARATOR) : [], open), [key, open]);
-  const folders = useMemo(() => group(key ? key.split(SEPARATOR) : [], open), [key, open]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `every` is `roots` by value
+  const folders = useMemo(() => group(roots, open), [every, open]);
 
   return { workspace, folders, loading, failed };
 }
@@ -139,13 +151,36 @@ function merge(roots: string[], open: Open): Workspace | null {
   };
 }
 
-function group(roots: string[], open: Open): Folder[] {
+/**
+ * In the order graphed. A repository waits for its scan; a folder is drawn at once. One directory
+ * graphed both ways is drawn once, as the repository: the folder row would stand under the same
+ * name at the same place.
+ */
+function group(roots: readonly Graphed[], open: Open): Folder[] {
   const seen = new Set<string>();
+  const scanned = new Set(
+    roots
+      .filter((graphed) => graphed.kind === "repository" && open[graphed.root])
+      .map((graphed) => graphed.root),
+  );
   const folders: Folder[] = [];
 
-  for (const root of roots) {
-    const workspace = open[root];
-    if (!workspace) continue;
+  for (const graphed of roots) {
+    if (graphed.kind === "folder") {
+      if (scanned.has(graphed.root) || seen.has(graphed.root)) continue;
+      seen.add(graphed.root);
+      folders.push({
+        kind: "folder",
+        root: graphed.root,
+        name: baseName(graphed.root),
+        repositories: [],
+      });
+      continue;
+    }
+
+    const workspace = open[graphed.root];
+    if (!workspace || seen.has(graphed.root)) continue;
+    seen.add(graphed.root);
 
     const repositories: string[] = [];
     for (const repository of workspace.repositories) {
@@ -153,7 +188,12 @@ function group(roots: string[], open: Open): Folder[] {
       seen.add(repository.id);
       repositories.push(repository.id);
     }
-    folders.push({ root: workspace.root, name: baseName(workspace.root), repositories });
+    folders.push({
+      kind: "repository",
+      root: workspace.root,
+      name: baseName(workspace.root),
+      repositories,
+    });
   }
 
   return folders;

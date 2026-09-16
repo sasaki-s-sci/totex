@@ -6,14 +6,16 @@ import { DROP_INTO, folderUnder } from "../folder/dropInto";
 import { baseName } from "../folder/format";
 import type { Drops } from "../hooks/useDrops";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import type { Graphed, PaneSeed } from "../lib/graphed";
 import type { Homes } from "../lib/worktrees";
 import { AddMark, Frame, MARK_BUTTON, MarkButton, SettingsMark } from "../marks";
 import { HEADER_INSET } from "../window/WindowControls";
 import { FileContextMenu, type FileMenuTarget } from "./left/FileContextMenu";
 import { FolderPane } from "./left/FolderPane";
 import type { Naming } from "./left/NameField";
+import { RepoPane } from "./left/RepoPane";
 import { RootsMenu } from "./left/RootsMenu";
-import { type FolderDestination, usePanes } from "./left/usePanes";
+import { type FolderDestination, shownPath, usePanes } from "./left/usePanes";
 import { Sidebar, type Sizing } from "./Sidebar";
 
 export type { FolderDestination, Pane } from "./left/usePanes";
@@ -23,36 +25,49 @@ const SIZING: Sizing = { min: 200, max: 560, initial: 288, storageKey: "totex.si
 export interface LeftSidebarProps {
   open: boolean;
   onClose: () => void;
-  initialFolders?: string[];
-  onExpandedChange?: (paths: string[]) => void;
-  onFoldersChange?: (paths: string[]) => void;
+  /** Where the panes stood last run. */
+  initialPanes?: readonly PaneSeed[];
+  /** What is on the canvas, by kind. */
+  onGraphedChange?: (graphed: Graphed[]) => void;
+  /** Where the panes stand, kept between runs. */
+  onPanesChange?: (panes: PaneSeed[]) => void;
+  /** The directories being read: they light the worktrees they stand in. */
+  onBrowsingChange?: (paths: string[]) => void;
   onOpenSettings?: () => void;
   onOpenFile?: (path: string) => void;
   drops: Drops;
   destination?: FolderDestination | null;
   homes?: Homes;
+  /** Worktree path to the branch it is on, for a repository row showing one. */
+  branches?: ReadonlyMap<string, string>;
 }
 
+const NO_BRANCHES: ReadonlyMap<string, string> = new Map();
+
 /**
- * Browsing costs one directory read; putting a folder on the canvas is asked for by its own mark.
+ * Browsing costs one directory read; putting a place on the canvas is asked for by its own mark,
+ * as the folder it is or as the one repository it is.
  */
 export function LeftSidebar({
   open,
   onClose,
-  initialFolders,
-  onExpandedChange,
-  onFoldersChange,
+  initialPanes,
+  onGraphedChange,
+  onPanesChange,
+  onBrowsingChange,
   onOpenSettings,
   onOpenFile,
   drops,
   destination,
   homes,
+  branches,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
   const panes = usePanes(
-    initialFolders ?? [],
-    onFoldersChange,
-    onExpandedChange,
+    initialPanes ?? [],
+    onGraphedChange,
+    onPanesChange,
+    onBrowsingChange,
     destination,
     homes,
   );
@@ -60,7 +75,9 @@ export function LeftSidebar({
   // Held by the column, not the level: the levels open their way down to the folder being named, so
   // the name has to outlast them.
   const [naming, setNaming] = useState<Naming | null>(null);
-  const under = panes.panes.at(-1) ?? null;
+  // A list's root has no level to type a name in, so only a folder pane answers for the blank.
+  const last = panes.panes.at(-1) ?? null;
+  const under = last?.kind === "folder" ? last : null;
 
   function startName(kind: Naming["kind"], target: FileMenuTarget) {
     setMenu(null);
@@ -71,6 +88,15 @@ export function LeftSidebar({
       path: kind === "rename" ? target.path : null,
       from: kind === "rename" ? target.name : "",
     });
+    const pane = panes.panes.find((held) => held.id === target.pane);
+    if (pane?.kind === "repository") {
+      // `root` is the row's shown path; the row is opened out so the levels can reach the folder.
+      const repository =
+        Object.keys(pane.shown).find((held) => shownPath(pane, held) === target.root) ??
+        target.root;
+      panes.expandRow(pane.id, repository);
+      return;
+    }
     panes.update(target.pane, { open: true });
   }
 
@@ -124,7 +150,8 @@ export function LeftSidebar({
               "& > *": { pointerEvents: "auto" },
             }}
           >
-            <MarkButton label={t("folder.add")} onClick={panes.openRootMenu}>
+            {/* One mark for both kinds of pane: the menu it opens has the choice. */}
+            <MarkButton label={t("folder.add")} onClick={(event) => panes.openRootMenu(event)}>
               <AddMark />
             </MarkButton>
             {onOpenSettings && (
@@ -162,29 +189,63 @@ export function LeftSidebar({
         {panes.panes.map((pane, index) => (
           <Box key={pane.id} data-folder-pane={pane.id}>
             {index > 0 && <Divider />}
-            <FolderPane
-              id={pane.id}
-              path={pane.path}
-              open={pane.open}
-              graphed={pane.graphed}
-              dropping={drops.into}
-              refused={drops.refused}
-              onNavigate={(path) => {
-                if (naming?.pane === pane.id) setNaming(null);
-                panes.update(pane.id, { path });
-              }}
-              onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
-              onToggleGraph={(path) => panes.toggleGraph(pane.id, path)}
-              onOpenFile={onOpenFile}
-              onMenu={setMenu}
-              naming={naming?.pane === pane.id ? naming : null}
-              onNameDone={takeName}
-              onNameCancel={() => setNaming(null)}
-              onClose={() => {
-                if (naming?.pane === pane.id) setNaming(null);
-                panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
-              }}
-            />
+            {pane.kind === "repository" ? (
+              <RepoPane
+                id={pane.id}
+                path={pane.path}
+                open={pane.open}
+                graphed={pane.graphed}
+                expanded={pane.expanded}
+                shown={pane.shown}
+                branches={branches ?? NO_BRANCHES}
+                dropping={drops.into}
+                refused={drops.refused}
+                onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
+                onToggleGraph={(repository) => panes.toggleGraph(pane.id, repository)}
+                onToggleExpanded={(repository) => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.toggleExpanded(pane.id, repository);
+                }}
+                onShowWorktree={(repository, path) => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.showWorktree(pane.id, repository, path);
+                }}
+                onOpenFile={onOpenFile}
+                onMenu={setMenu}
+                naming={naming?.pane === pane.id ? naming : null}
+                onNameDone={takeName}
+                onNameCancel={() => setNaming(null)}
+                onClose={() => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
+                }}
+              />
+            ) : (
+              <FolderPane
+                id={pane.id}
+                path={pane.path}
+                open={pane.open}
+                graphed={pane.graphed}
+                dropping={drops.into}
+                refused={drops.refused}
+                onNavigate={(path) => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.update(pane.id, { path });
+                }}
+                onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
+                onToggleGraph={(path) => panes.toggleGraph(pane.id, path)}
+                onListRepositories={(path) => panes.addPane(path, "repository")}
+                onOpenFile={onOpenFile}
+                onMenu={setMenu}
+                naming={naming?.pane === pane.id ? naming : null}
+                onNameDone={takeName}
+                onNameCancel={() => setNaming(null)}
+                onClose={() => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
+                }}
+              />
+            )}
           </Box>
         ))}
 

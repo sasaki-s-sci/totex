@@ -38,6 +38,12 @@
   color: var(--mui-palette-text-primary);
 }
 
+/* A name that is only a name: nothing to press, so nothing to invite. */
+.folder__name--still {
+  cursor: default;
+  pointer-events: none;
+}
+
 .folder__tools {
   position: absolute;
   top: 0;

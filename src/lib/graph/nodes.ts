@@ -1,4 +1,5 @@
 import type { Branch, Commit, Repository, Worktree } from "../../types/git";
+import type { GraphedKind } from "../graphed";
 
 export type CommitNodeData = {
   commit: Commit;
@@ -50,6 +51,8 @@ export type RepositoryNodeData = {
 };
 
 export type FolderNodeData = {
+  /** Drawn as the folder it is or as the one repository it is; the grip wears the difference. */
+  kind: GraphedKind;
   root: string;
   name: string;
   label: { x: number; y: number; width: number; height: number };

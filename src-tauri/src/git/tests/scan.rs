@@ -1,7 +1,7 @@
 //! The first frame: branches, worktrees and nested repositories, read whole.
 
 use super::super::model::BranchKind;
-use super::{TempDir, commit, find, git, git_available, scan};
+use super::{TempDir, commit, find, git, git_available, scan, scan_repository};
 
 #[test]
 fn scans_branches_worktrees_and_nested_repositories() {
@@ -171,6 +171,61 @@ fn reports_bare_repositories() {
     assert!(workspace.repositories[0].commits.is_empty());
 }
 
+/// A row of the repository pane puts one repository on the canvas: what is
+/// inside it stays inside it, and a folder is not a repository.
+#[test]
+fn a_repository_opened_alone_is_read_alone() {
+    if !git_available() {
+        eprintln!("skipping: git is not on PATH");
+        return;
+    }
+
+    let temp = TempDir::new("alone");
+    let root = temp.path();
+
+    let alpha = root.join("alpha");
+    std::fs::create_dir_all(&alpha).expect("create alpha");
+    git(&alpha, &["init", "-b", "main"]);
+    commit(&alpha, "one.txt", "1");
+
+    // A repository inside the one being opened: a folder scan would draw it,
+    // and the pane the row came from would have listed alpha alone.
+    let inner = alpha.join("vendor-fork");
+    std::fs::create_dir_all(&inner).expect("create inner");
+    git(&inner, &["init", "-b", "main"]);
+    commit(&inner, "one.txt", "1");
+
+    let workspace = scan_repository(alpha.to_string_lossy().into_owned()).expect("scan");
+    assert_eq!(
+        workspace
+            .repositories
+            .iter()
+            .map(|repository| repository.name.as_str())
+            .collect::<Vec<_>>(),
+        ["alpha"],
+        "the repository, and not the one inside it"
+    );
+    assert_eq!(workspace.root, alpha.to_string_lossy());
+    assert!(workspace.warnings.is_empty(), "{:?}", workspace.warnings);
+
+    // The same folder opened as a folder still draws both.
+    let folder = scan(alpha.to_string_lossy().into_owned(), None).expect("scan");
+    assert_eq!(folder.repositories.len(), 2);
+
+    // A plain folder cannot be opened as a repository: there is nothing to
+    // draw, and an empty graph would say the folder had no branches.
+    let plain = root.join("plain");
+    std::fs::create_dir_all(&plain).expect("create plain");
+    scan_repository(plain.to_string_lossy().into_owned())
+        .expect_err("a folder is not a repository");
+    assert!(
+        scan(plain.to_string_lossy().into_owned(), None)
+            .expect("a folder scan")
+            .repositories
+            .is_empty()
+    );
+}
+
 #[test]
 fn rejects_a_root_that_is_not_a_directory() {
     let error = scan("/definitely/not/here".into(), None).expect_err("must fail");
@@ -249,5 +304,34 @@ fn takes_the_list_from_the_space_a_repository_stands_in() {
     assert_eq!(
         find(&workspace.repositories, "alpha").graph_ignore,
         vec!["origin/*".to_string()]
+    );
+}
+
+#[test]
+fn lays_repositories_out_in_one_alphabet_whatever_the_case() {
+    if !git_available() {
+        eprintln!("skipping: git is not on PATH");
+        return;
+    }
+
+    let temp = TempDir::new("scan-order");
+    let root = temp.path();
+    for name in ["Zed", "abc", "notes", "Blender"] {
+        let repository = root.join(name);
+        std::fs::create_dir_all(&repository).expect("create repository");
+        git(&repository, &["init", "-b", "main"]);
+        commit(&repository, "readme.md", name);
+    }
+
+    let workspace = scan(root.to_string_lossy().into_owned(), None).expect("scan");
+    let names: Vec<&str> = workspace
+        .repositories
+        .iter()
+        .map(|repository| repository.name.as_str())
+        .collect();
+    assert_eq!(
+        names,
+        ["abc", "Blender", "notes", "Zed"],
+        "a capital does not put a repository ahead of the alphabet"
     );
 }

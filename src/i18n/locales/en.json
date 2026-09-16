@@ -11,7 +11,10 @@
   "folder": {
     "expandSidebar": "Expand root folders",
     "collapseSidebar": "Collapse root folders",
-    "add": "Add",
+    "add": "Add a folder or repositories",
+    "openAs": "Open as",
+    "asFolder": "Folder",
+    "asRepositories": "Repositories",
     "pathHint": "Path, e.g. ~/repo or ssh://host/repo",
     "noFolder": "No folder there",
     "drop": "Forget",
@@ -19,11 +22,11 @@
     "close": "Close",
     "up": "Up",
     "enter": "Go to",
-    "graph": "Graph",
+    "graph": "Open as a folder",
     "door": "Agents report from {{space}}",
     "move": "Move",
     "shell": "Shell",
-    "closeRepositories": "Close its repositories"
+    "listRepositories": "List the repositories in it"
   },
   "file": {
     "newFile": "New file",
@@ -43,7 +46,15 @@
     "failed": "Could not complete the operation"
   },
   "repository": {
-    "close": "Close"
+    "close": "Close",
+    "graph": "Put on the canvas",
+    "ungraph": "Take off the canvas",
+    "listing": "Looking for repositories",
+    "none": "No repositories here",
+    "cutShort": "Stopped looking part way: the folder is too deep",
+    "refresh": "Look again",
+    "home": "Back to its own folder",
+    "showing": "Showing {{branch}}"
   },
   "branch": {
     "head": "{{name}}",

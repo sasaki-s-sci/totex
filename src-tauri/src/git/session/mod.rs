@@ -16,6 +16,7 @@ pub use refresh::{report_all, repository_dir};
 
 use super::delta::WorkspaceDelta;
 use super::model::Workspace;
+use super::scan::Scope;
 use super::watch;
 
 pub(crate) use snapshot::Session;
@@ -55,14 +56,25 @@ fn key_of(root: &str) -> String {
 /// Opens `root`: scans it, keeps it as one of the snapshots to diff against,
 /// and starts the watch that drives its refreshes. A folder that is already
 /// open is simply scanned again.
+///
+/// `repository` opens `root` as one repository rather than as a folder of
+/// them: nothing under it is walked, and a root that is not a repository is an
+/// error rather than an empty graph. What a row of the repository pane asks
+/// for, the pane having already done the walking.
 #[tauri::command]
 pub async fn scan_workspace(
     app: AppHandle,
     root: String,
     commit_limit: Option<usize>,
+    repository: Option<bool>,
 ) -> Result<Workspace, String> {
+    let scope = if repository.unwrap_or(false) {
+        Scope::Repository
+    } else {
+        Scope::Folder
+    };
     off_thread!({
-        let session = Session::open(&root, commit_limit)?;
+        let session = Session::open(&root, commit_limit, scope)?;
         let workspace = session.workspace();
 
         let state = app.state::<SessionState>();

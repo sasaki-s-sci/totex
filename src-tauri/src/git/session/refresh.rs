@@ -67,6 +67,7 @@ pub(super) fn arm(app: &AppHandle, session: &Session) {
         &root,
         &session.git_dirs(),
         &session.paths(),
+        session.scope(),
         move |touched| on_change(&handle, &reporting, touched),
     );
 

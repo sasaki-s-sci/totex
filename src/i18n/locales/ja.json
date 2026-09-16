@@ -11,7 +11,10 @@
   "folder": {
     "expandSidebar": "ルートフォルダー一覧を開く",
     "collapseSidebar": "ルートフォルダー一覧を閉じる",
-    "add": "追加",
+    "add": "フォルダかリポジトリ一覧を追加",
+    "openAs": "開き方",
+    "asFolder": "フォルダ",
+    "asRepositories": "リポジトリ",
     "pathHint": "パス（例: ~/repo、ssh://host/repo）",
     "noFolder": "そのフォルダはありません",
     "drop": "登録を外す",
@@ -19,11 +22,11 @@
     "close": "閉じる",
     "up": "上へ",
     "enter": "移動",
-    "graph": "グラフ",
+    "graph": "フォルダとして開く",
     "door": "{{space}} のエージェントの報告",
     "move": "動かす",
     "shell": "シェル",
-    "closeRepositories": "配下のリポジトリを閉じる"
+    "listRepositories": "配下のリポジトリを一覧する"
   },
   "file": {
     "newFile": "新しいファイル",
@@ -43,7 +46,15 @@
     "failed": "操作を完了できませんでした"
   },
   "repository": {
-    "close": "閉じる"
+    "close": "閉じる",
+    "graph": "キャンバスに載せる",
+    "ungraph": "キャンバスから外す",
+    "listing": "リポジトリを探しています",
+    "none": "リポジトリはありません",
+    "cutShort": "途中で探索を打ち切りました（フォルダが深すぎます）",
+    "refresh": "探し直す",
+    "home": "元のフォルダに戻す",
+    "showing": "{{branch}} を表示中"
   },
   "branch": {
     "head": "{{name}}",

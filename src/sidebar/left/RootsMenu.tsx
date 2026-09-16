@@ -1,13 +1,25 @@
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
-import { Box, Divider, ListItemIcon, ListItemText, Menu, MenuItem, TextField } from "@mui/material";
+import {
+  Box,
+  Divider,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { displayPath } from "../../folder/format";
-import { CloseMark, MarkButton } from "../../marks";
+import { CloseMark, GitMark, MarkButton, PaneFolderMark, SIZE } from "../../marks";
 import { groupRoots, ROOT_ICONS } from "./roots";
 import type { usePanes } from "./usePanes";
 
 export function RootsMenu({
   anchor,
+  asking,
+  setAsking,
   roots,
   places,
   typed,
@@ -21,6 +33,8 @@ export function RootsMenu({
 }: Pick<
   ReturnType<typeof usePanes>,
   | "anchor"
+  | "asking"
+  | "setAsking"
   | "roots"
   | "places"
   | "typed"
@@ -42,6 +56,29 @@ export function RootsMenu({
       autoFocus={false}
       slotProps={{ list: { dense: true, sx: { minWidth: 240 } } }}
     >
+      {/* What a pick opens as: a pane browsing the folder, or one listing the repositories under it. */}
+      <Box key="kind" sx={{ px: 1.5, pt: 0.5, pb: 0.5 }}>
+        <ToggleButtonGroup
+          exclusive
+          fullWidth
+          size="small"
+          value={asking}
+          aria-label={t("folder.openAs")}
+          onChange={(_event, kind: "folder" | "repository" | null) => {
+            if (kind) setAsking(kind);
+          }}
+        >
+          <ToggleButton value="folder" sx={{ gap: 0.75, textTransform: "none" }}>
+            <PaneFolderMark size={SIZE} />
+            {t("folder.asFolder")}
+          </ToggleButton>
+          <ToggleButton value="repository" sx={{ gap: 0.75, textTransform: "none" }}>
+            <GitMark on size={SIZE} />
+            {t("folder.asRepositories")}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
       {/* Held here: a menu jumps to the row a keystroke begins with, and every letter of a path
           would be a jump. */}
       <Box

@@ -211,6 +211,31 @@ notch of the wheel scrolls a terminal or zooms the canvas, as a percentage),
 and the remaining `said` options. The
 repository-specific `.totex/settings.json` continues to control each space.
 
+## Folders and repositories on the canvas
+
+The sidebar starts two kinds of pane from the one mark over it: the menu it
+opens has a toggle for which kind a pick becomes. A **folder pane** browses a directory, and its open mark puts that directory on the canvas
+as a folder: a row to hang terminals off, with nothing under it scanned. A
+**repositories pane** is given a root and lists the git repositories under it
+— it looks for `.git` and nothing else, off the window's thread, a row arriving
+as each is found, never entering a repository once it has found one (so a
+project's submodules and the worktrees this window makes for its branches are
+not listed beside it) and never into `node_modules` and its kind. Each row
+names the repository (where it is, the pointer tells); its canvas mark, a
+framed ring, puts that one repository on the canvas as a repository, scanned
+alone, and fills once it is there. The rows are in one alphabet whatever their
+case, which is the order the canvas lays repositories out in too. The pane's
+bar is up while a walk the person asked for is under way and comes down when
+it ends; a change under the root walks it again behind the rows, one walk at a
+time. A folder pane carries the same way in: the git mark on its header and on
+every folder row starts a repositories pane at that folder.
+
+A row in the repositories pane is the repository's own folder, whatever it is
+showing. Browsing a worktree from the canvas opens the row on that worktree's
+files, and the row still stands for the repository: its mark on the canvas and
+its place in the list do not move, and going back to its own folder is one
+press. A worktree deleted under it puts the row back on its own folder.
+
 ## Folders on other machines
 
 The `+` over the folder sidebar lists everywhere a pane can start: the home
@@ -400,9 +425,9 @@ therefore draws a hundred rows, which is right for some of them and not for
 others.
 
 `.totex/.graphignore` is where that is narrowed. It is found the way `.git` is
-found — by walking up from the checkout — so one written at the folder you put
-on the graph covers every repository under it, and one written in a checkout
-covers that checkout:
+found — by walking up from the checkout — so one written in a folder above a
+checkout covers every repository under that folder, and one written in a
+checkout covers that checkout:
 
 ```gitignore
 # Everything a remote has, on this repository's own graph.

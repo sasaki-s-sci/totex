@@ -17,7 +17,7 @@ import { useWorkspaces } from "../hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import { type CliPlace, sameCliRun } from "../lib/graphNav";
 import { useEver } from "../lib/onDemand";
-import { worktreeHomes } from "../lib/worktrees";
+import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import {
   canvasPart,
@@ -66,6 +66,7 @@ export function Window() {
 
   const { workspace, folders: graphed } = useWorkspaces(folders.roots);
   const homes = useMemo(() => worktreeHomes(workspace), [workspace]);
+  const branches = useMemo(() => worktreeBranches(workspace), [workspace]);
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
@@ -122,14 +123,16 @@ export function Window() {
       <LeftSidebar
         open={leftOpen}
         onClose={() => setLeftOpen(false)}
-        initialFolders={folders.initial}
-        onExpandedChange={folders.setRoots}
-        onFoldersChange={folders.browse}
+        initialPanes={folders.initial}
+        onGraphedChange={folders.setRoots}
+        onPanesChange={folders.keep}
+        onBrowsingChange={folders.browse}
         onOpenSettings={menus.openSettings}
         onOpenFile={(path) => files.openFiles([path], null)}
         drops={drops}
         destination={destination}
         homes={homes}
+        branches={branches}
       />
 
       <Box

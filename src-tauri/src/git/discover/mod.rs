@@ -55,52 +55,97 @@ pub fn discover(root: &Path, max_depth: usize) -> Discovery {
     }
 }
 
-/// How many repositories `root` holds: itself, or anywhere under it.
+/// Every repository under `root`: itself, or anywhere under it.
 ///
-/// What the folder column puts on its mark. The same walk as `discover`, with
-/// two differences that make it a number somebody can read rather than a count
-/// of candidates:
+/// What the repository pane lists. The same walk as `discover`, with two
+/// differences that make it a list of projects rather than a list of
+/// candidates:
 ///
 /// * a checkout is not descended into. What is inside a repository belongs to
 ///   that repository — submodules included — and a folder of five projects
-///   should say five however they are built.
-/// * only a checkout of its own counts, so a repository and the worktrees this
-///   window made for its branches are one repository and not four.
+///   should list five however they are built.
+/// * only a checkout of its own is listed, so a repository and the worktrees
+///   this window made for its branches are one row and not four.
 ///
-/// So this can differ from the number of bands the graph draws, by a submodule
-/// or by a repository checked out inside another. It is the number of projects
-/// in the folder, which is the question being asked of it.
+/// So this can differ from the bands the graph draws for the same folder, by
+/// a submodule or by a repository checked out inside another. It is the list
+/// of projects in the folder, which is the question being asked of it.
+///
+/// `found` is told about each repository as the walk reaches it, which is what
+/// lets a pane fill in row by row while the rest of a slow tree is still being
+/// read. `go_on` is asked before every directory, and a `false` ends the walk
+/// where it is: the pane that asked has gone, and nothing is waiting on the
+/// rest.
 ///
 /// `budget` is directories visited, not depth: a walk that runs out of it
-/// answers with what it found. Nothing turns on the number — every folder can
-/// be put on the graph either way — so a low answer costs nothing but a mark
-/// that says less than it could.
-pub fn count_repositories(root: &Path, max_depth: usize, budget: usize) -> usize {
+/// answers with what it found and says so through `truncated`. Nothing turns
+/// on the list being complete — every folder can be put on the graph either
+/// way — so a short answer costs nothing but a pane that says less than it
+/// could.
+pub fn list_repositories(
+    root: &Path,
+    max_depth: usize,
+    budget: usize,
+    mut found: impl FnMut(&Path),
+    go_on: impl Fn() -> bool,
+) -> Listed {
     let host = Host::of(root);
-    let mut found = 0usize;
+    let mut repositories = Vec::new();
     let mut warnings = Vec::new();
 
-    walk(
+    let walked = walk(
         &host,
         root,
         max_depth,
         budget,
         &mut warnings,
-        |_, children| {
+        |dir, children| {
+            if !go_on() {
+                return Descend::Stop;
+            }
             if is_checkout(children) {
-                found += 1;
+                found(dir);
+                repositories.push(dir.to_path_buf());
                 return Descend::No;
             }
             Descend::Yes
         },
     );
 
-    found
+    Listed {
+        repositories,
+        truncated: matches!(walked, Walked::OutOfBudget),
+        stopped: matches!(walked, Walked::Stopped),
+        warnings,
+    }
+}
+
+/// What `list_repositories` found, and why it may not be everything.
+pub struct Listed {
+    pub repositories: Vec<PathBuf>,
+    /// The directory budget ran out before the walk did.
+    pub truncated: bool,
+    /// The walk was told to stop, so what is here is whatever came first.
+    pub stopped: bool,
+    pub warnings: Vec<String>,
 }
 
 enum Descend {
     Yes,
     No,
+    /// Not this directory, and none of the others either: the caller has
+    /// stopped wanting an answer.
+    Stop,
+}
+
+/// How a walk ended.
+enum Walked {
+    /// Every directory it was allowed to look at, it did.
+    Finished,
+    /// `visit` asked it to stop.
+    Stopped,
+    /// The directory budget ran out first.
+    OutOfBudget,
 }
 
 /// The walk both of the above are: one question per level, `visit` called for
@@ -108,7 +153,9 @@ enum Descend {
 ///
 /// The budget is directories visited rather than depth, and it is spent in
 /// level order — so a walk that runs out of it has looked at everything near
-/// the root, which is where the answer usually is.
+/// the root, which is where the answer usually is. Running out is reported
+/// both ways: as a warning, which is what the window shows, and as how the
+/// walk ended, which is what a caller decides by.
 fn walk(
     host: &Host,
     root: &Path,
@@ -116,13 +163,13 @@ fn walk(
     budget: usize,
     warnings: &mut Vec<String>,
     mut visit: impl FnMut(&Path, &[Child]) -> Descend,
-) {
+) -> Walked {
     let mut frontier = vec![root.to_path_buf()];
     let mut visited = 0usize;
 
     for depth in 0..=max_depth {
         if frontier.is_empty() {
-            return;
+            return Walked::Finished;
         }
         let (listing, said) = host.children(&frontier);
         warnings.extend(said);
@@ -132,18 +179,22 @@ fn walk(
             visited += 1;
             if visited > budget {
                 warnings.push("directory-budget".to_string());
-                return;
+                return Walked::OutOfBudget;
             }
             // Absent rather than empty: the directory would not open, which
             // `host` has already said whatever there was to say about.
             let Some(children) = listing.get(dir) else {
                 continue;
             };
-            let descend = visit(dir, children);
-            if depth < max_depth && matches!(descend, Descend::Yes) {
-                next.extend(descendable(host, dir, children));
+            match visit(dir, children) {
+                Descend::Yes if depth < max_depth => {
+                    next.extend(descendable(host, dir, children));
+                }
+                Descend::Yes | Descend::No => {}
+                Descend::Stop => return Walked::Stopped,
             }
         }
         frontier = next;
     }
+    Walked::Finished
 }

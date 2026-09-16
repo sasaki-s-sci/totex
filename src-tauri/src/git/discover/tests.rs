@@ -52,9 +52,14 @@ fn finds_a_repository_at_every_depth_it_is_allowed() {
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
+/// `list_repositories` with nothing stopping it, named the way `under` names.
+fn listed(root: &Path) -> Listed {
+    list_repositories(root, 12, 1_000, |_| {}, || true)
+}
+
 #[test]
-fn counts_projects_rather_than_checkouts_of_them() {
-    let dir = temp_dir("count");
+fn lists_projects_rather_than_checkouts_of_them() {
+    let dir = temp_dir("list");
     checkout(&dir.join("one"));
     // A linked worktree keeps a line of text where its `.git` would be.
     std::fs::create_dir_all(dir.join("one-topic")).expect("a worktree");
@@ -66,9 +71,89 @@ fn counts_projects_rather_than_checkouts_of_them() {
     // A submodule belongs to the project holding it.
     checkout(&dir.join("one/sub"));
 
-    assert_eq!(count_repositories(&dir, 12, 1_000), 1);
+    let found = listed(&dir);
+    assert_eq!(under(&dir, &found.repositories), ["one"]);
+    assert!(!found.truncated && !found.stopped);
     // The walk still offers all three to the scan, which resolves them.
     assert_eq!(discover(&dir, 12).candidates.len(), 3);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_root_that_is_a_repository_lists_itself_alone() {
+    let dir = temp_dir("self");
+    checkout(&dir);
+    checkout(&dir.join("sub"));
+
+    assert_eq!(listed(&dir).repositories, vec![dir.clone()]);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn tells_about_each_repository_as_it_is_reached() {
+    let dir = temp_dir("stream");
+    checkout(&dir.join("one"));
+    checkout(&dir.join("deep/two"));
+
+    let mut told = Vec::new();
+    let found = list_repositories(
+        &dir,
+        12,
+        1_000,
+        |path| told.push(path.to_path_buf()),
+        || true,
+    );
+    assert_eq!(under(&dir, &told), ["deep/two", "one"]);
+    assert_eq!(told.len(), found.repositories.len());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_walk_told_to_stop_ends_where_it_is() {
+    let dir = temp_dir("stop");
+    for index in 0..8 {
+        checkout(&dir.join(format!("repo-{index}")));
+    }
+
+    // Wanted for the root and its first two children, then not.
+    let asked = std::cell::Cell::new(0usize);
+    let found = list_repositories(
+        &dir,
+        12,
+        1_000,
+        |_| {},
+        || {
+            asked.set(asked.get() + 1);
+            asked.get() <= 3
+        },
+    );
+    assert!(found.stopped, "a walk that was stopped says so");
+    assert!(!found.truncated, "and not that it ran out of budget");
+    assert_eq!(
+        found.repositories.len(),
+        2,
+        "what came before the stop stays"
+    );
+    assert_eq!(
+        asked.get(),
+        4,
+        "asked once more, and not again after the no"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_listing_that_runs_out_of_budget_says_so() {
+    let dir = temp_dir("list-budget");
+    for index in 0..8 {
+        std::fs::create_dir_all(dir.join(format!("folder-{index}"))).expect("a folder");
+    }
+    checkout(&dir.join("folder-0/one"));
+
+    let found = list_repositories(&dir, 12, 3, |_| {}, || true);
+    assert!(found.truncated);
+    assert!(!found.stopped);
+    assert_eq!(found.warnings, vec!["directory-budget".to_string()]);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -81,7 +166,7 @@ fn a_bare_repository_is_one_too() {
     std::fs::write(bare.join("HEAD"), "ref: refs/heads/main\n").expect("a head");
 
     assert_eq!(discover(&dir, 12).candidates, vec![bare.clone()]);
-    assert_eq!(count_repositories(&dir, 12, 1_000), 1);
+    assert_eq!(listed(&dir).repositories, vec![bare.clone()]);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 
@@ -92,9 +177,10 @@ fn a_walk_that_runs_out_of_budget_says_so() {
         std::fs::create_dir_all(dir.join(format!("folder-{index}"))).expect("a folder");
     }
     let mut warnings = Vec::new();
-    walk(&Host::Local, &dir, 12, 3, &mut warnings, |_, _| {
+    let walked = walk(&Host::Local, &dir, 12, 3, &mut warnings, |_, _| {
         Descend::Yes
     });
+    assert!(matches!(walked, Walked::OutOfBudget));
     assert_eq!(warnings, vec!["directory-budget".to_string()]);
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -125,7 +211,10 @@ fn walks_a_folder_inside_a_distribution() {
 
     let found = discover(&root, 12);
     assert_eq!(under(&root, &found.candidates), ["deep/two", "one"]);
-    assert_eq!(count_repositories(&root, 12, 1_000), 2);
+    assert_eq!(
+        under(&root, &listed(&root).repositories),
+        ["deep/two", "one"]
+    );
     assert_eq!(
         levels(&host, &root, 1).len(),
         3,

@@ -182,6 +182,7 @@ pub fn run() {
         .manage(fs_watch::BrowseWatch::default())
         .manage(git::WatchState::default())
         .manage(git::SessionState::default())
+        .manage(git::ListState::default())
         .manage(ask::watch::AskState::default())
         // What the sessions say is read for the questions agents ask, and the
         // reading is registered here rather than built into the sessions
@@ -243,7 +244,8 @@ pub fn run() {
             fs_watch::watch_directories,
             git::git_version,
             git::identity::git_identity,
-            git::repository_counts,
+            git::list_repositories,
+            git::stop_listing,
             git::changes::directory_changes,
             git::patch::file_diff,
             git::message::commit_message,

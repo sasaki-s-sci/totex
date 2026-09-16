@@ -11,10 +11,14 @@ use std::path::{Path, PathBuf};
 use super::super::delta::{self, WorkspaceDelta};
 use super::super::inspect::{Located, id_of};
 use super::super::model::{Repository, Workspace};
+use super::super::scan::Scope;
 
 /// What the UI is showing, and everything needed to re-read it.
 pub(crate) struct Session {
     root: PathBuf,
+    /// What `root` was opened as, so a re-survey looks the same way the first
+    /// one did: a repository opened alone is not walked later either.
+    scope: Scope,
     commit_limit: usize,
     /// In display order, exactly as the UI has them.
     repositories: Vec<Repository>,
@@ -34,11 +38,11 @@ pub(crate) struct Session {
 
 impl Session {
     /// Scans `root` and becomes the snapshot every later refresh diffs against.
-    pub fn open(root: &str, commit_limit: Option<usize>) -> Result<Self, String> {
+    pub fn open(root: &str, commit_limit: Option<usize>, scope: Scope) -> Result<Self, String> {
         let root = super::super::scan::normalize_root(root)?;
         let commit_limit = super::super::scan::clamp_commit_limit(commit_limit);
 
-        let survey = super::super::scan::survey(&root, &HashMap::new());
+        let survey = super::super::scan::survey(&root, &HashMap::new(), scope)?;
         let located = index(&survey.repositories);
         let (mut repositories, failures) =
             super::super::scan::inspect_all(survey.repositories, commit_limit);
@@ -49,6 +53,7 @@ impl Session {
 
         Ok(Self {
             root,
+            scope,
             commit_limit,
             repositories,
             located,
@@ -60,6 +65,10 @@ impl Session {
 
     pub fn root(&self) -> String {
         self.root.to_string_lossy().into_owned()
+    }
+
+    pub fn scope(&self) -> Scope {
+        self.scope
     }
 
     /// The whole snapshot, for the window that is about to draw it for the
@@ -97,7 +106,7 @@ impl Session {
             if !crate::host::Host::of(&self.root).is_dir(&self.root) {
                 return Err("not-a-directory".to_string());
             }
-            let survey = super::super::scan::survey(&self.root, &self.candidates);
+            let survey = super::super::scan::survey(&self.root, &self.candidates, self.scope)?;
             located = index(&survey.repositories);
             survey_warnings = survey.warnings;
             self.candidates = survey.candidates;

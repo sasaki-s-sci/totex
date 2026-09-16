@@ -1,14 +1,13 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Listing, readDirectory } from "../../folder/api";
 import { refreshChanges, useDirectoryChanges } from "../../folder/changes";
-import { useRepositoryCounts } from "./counts";
 import { FIRST_ROWS, MORE_ROWS } from "./rows";
 import { watchDirectory } from "./watch";
 
 export function useLevel(
   path: string,
   depth: number,
-  onNavigate: (path: string) => void,
+  onNavigate: ((path: string) => void) | undefined,
   onListing: ((listing: Listing) => void) | undefined,
 ) {
   const [listing, setListing] = useState<Listing | null>(null);
@@ -18,11 +17,6 @@ export function useLevel(
 
   const rows = listing ? listing.entries.slice(0, shown) : [];
   const rest = listing ? listing.entries.length - rows.length : 0;
-
-  // Only the drawn folders are asked (a walk per folder), and never twice for one path: a re-read
-  // cannot have moved it.
-  const folders = rows.filter((entry) => entry.isDir).map((entry) => entry.path);
-  const counts = useRepositoryCounts(folders);
 
   const answer = useDirectoryChanges(path);
   // A Map, not the object: a file called `constructor` would otherwise find a non-colour.
@@ -55,8 +49,8 @@ export function useLevel(
           setFailed(false);
           report.current.onListing?.(next);
           // `~`, `..` and the legacy WSL share are folded by the backend; the pane moves to the
-          // path that answered.
-          if (depth === 0 && next.path !== path) report.current.onNavigate(next.path);
+          // path that answered. A level that cannot be moved stays where it was asked.
+          if (depth === 0 && next.path !== path) report.current.onNavigate?.(next.path);
         })
         .catch(() => {
           if (!cancelled) setFailed(true);
@@ -83,7 +77,6 @@ export function useLevel(
     rows,
     rest,
     shown,
-    counts,
     changes,
     allIgnored: answer.allIgnored,
     ignored,

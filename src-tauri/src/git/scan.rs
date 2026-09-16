@@ -7,6 +7,19 @@ use super::inspect::Located;
 use super::model::Repository;
 use super::{DEFAULT_COMMIT_LIMIT, MAX_COMMIT_LIMIT, SCAN_DEPTH, discover, inspect, parallel_map};
 
+/// What a root is opened as, which is what a survey of it looks for.
+///
+/// The window puts a root on the canvas either as a folder — everything under
+/// it is walked for repositories — or as one repository picked out of the
+/// repository pane, whose listing has already done the walking. A repository
+/// is scanned alone: what is inside it, submodules included, belongs to it,
+/// and the pane it was picked from lists the projects beside it separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Scope {
+    Folder,
+    Repository,
+}
+
 /// Where the repositories under a root are, without having read any of them.
 pub(super) struct Survey {
     /// One entry per repository, deduplicated by common git directory.
@@ -40,13 +53,29 @@ pub(super) fn clamp_commit_limit(limit: Option<usize>) -> usize {
         .clamp(1, MAX_COMMIT_LIMIT)
 }
 
-/// Walks `root` and resolves what it finds to repositories.
+/// Walks `root` — or, for a repository, takes it as it is — and resolves what
+/// it finds to repositories.
 ///
 /// `known` is the previous survey's `candidates`: `locate` costs two git
 /// subprocesses per directory, and a directory that was a repository a moment
 /// ago still is, so a re-survey only pays for what is new.
-pub(super) fn survey(root: &Path, known: &HashMap<PathBuf, Located>) -> Survey {
-    let found = discover::discover(root, SCAN_DEPTH);
+///
+/// A folder never fails: a directory that is not a repository is just not one.
+/// A repository that turns out not to be one is a failure, and the error is
+/// git's own — the root was opened as a repository, and there is nothing else
+/// to show for it.
+pub(super) fn survey(
+    root: &Path,
+    known: &HashMap<PathBuf, Located>,
+    scope: Scope,
+) -> Result<Survey, String> {
+    let found = match scope {
+        Scope::Folder => discover::discover(root, SCAN_DEPTH),
+        Scope::Repository => discover::Discovery {
+            candidates: vec![root.to_path_buf()],
+            warnings: Vec::new(),
+        },
+    };
     let mut warnings = found.warnings;
 
     let located = parallel_map(found.candidates, |candidate| match known.get(&candidate) {
@@ -56,6 +85,12 @@ pub(super) fn survey(root: &Path, known: &HashMap<PathBuf, Located>) -> Survey {
             Err(error) => Err((candidate, error)),
         },
     });
+
+    if scope == Scope::Repository
+        && let Some(Err((_, error))) = located.iter().find(|result| result.is_err())
+    {
+        return Err(error.clone());
+    }
 
     // Linked worktrees resolve to the same repository as their main worktree,
     // so a folder holding both must still produce a single node.
@@ -76,11 +111,11 @@ pub(super) fn survey(root: &Path, known: &HashMap<PathBuf, Located>) -> Survey {
         }
     }
 
-    Survey {
+    Ok(Survey {
         repositories,
         candidates,
         warnings,
-    }
+    })
 }
 
 /// Reads every repository in `located`, in parallel, and reports the ones that
@@ -107,7 +142,22 @@ pub(super) fn inspect_all(
 }
 
 /// The order the graph is laid out in, so a refresh that adds a repository
-/// still puts it where a full scan would have.
+/// still puts it where a full scan would have: one alphabet whatever the
+/// case, then the path, the same order the repository pane lists in.
 pub(super) fn sort_repositories(repositories: &mut [Repository]) {
-    repositories.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.path.cmp(&b.path)));
+    repositories.sort_by(|a, b| by_name(&a.name, &a.path, &b.name, &b.path));
+}
+
+/// One alphabet whatever the case (`Blender` stands between `abc` and
+/// `notes`), the path deciding between same-named repositories.
+pub(super) fn by_name(
+    a_name: &str,
+    a_path: &str,
+    b_name: &str,
+    b_path: &str,
+) -> std::cmp::Ordering {
+    a_name
+        .to_lowercase()
+        .cmp(&b_name.to_lowercase())
+        .then_with(|| a_path.cmp(b_path))
 }

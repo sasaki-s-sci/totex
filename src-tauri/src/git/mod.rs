@@ -38,10 +38,13 @@ pub mod workspace;
 pub mod session;
 pub mod watch;
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
 
 pub use session::SessionState;
 pub use watch::WatchState;
@@ -55,14 +58,19 @@ const SCAN_DEPTH: usize = 12;
 const DEFAULT_COMMIT_LIMIT: usize = 300;
 const MAX_COMMIT_LIMIT: usize = 5_000;
 
-/// How many directories one "is there anything in here?" question may look at
-/// before it gives up and says yes.
+/// How many directories one listing may look at before it stops and says so.
 ///
-/// The walk stops at the first repository, so this only bounds the folders that
-/// have none — and those are the ones nobody is waiting on. Small, because a
-/// listing asks about every folder in it at once and some of those folders are
-/// on a network share.
-const HOLD_BUDGET: usize = 200;
+/// A listing is asked for once per pane rather than once per row, so it may
+/// look at far more than a per-row question ever could — and a project folder
+/// of any size is well inside this. It still has to end: a root like a home
+/// directory on a network share goes on for longer than anybody will wait,
+/// and a pane that says "there may be more" is better than one that never
+/// fills in.
+const LIST_BUDGET: usize = 20_000;
+
+/// Carries a `RepositoryFound` to the window, one per repository, as the
+/// listing reaches it.
+pub const FOUND_EVENT: &str = "repositories:found";
 
 /// Reports the git that would read `path`, so the UI can explain the problem
 /// instead of failing every scan with the same error.
@@ -77,27 +85,146 @@ pub fn git_version(path: Option<String>) -> Result<String, String> {
     cmd::version(path.as_deref().map(Path::new))
 }
 
-/// How many repositories each of `paths` holds — itself, or somewhere
-/// underneath.
+/// The listings still wanted, by the token the window gave each one.
 ///
-/// What the folder column puts on its graph mark. Every folder can be put on
-/// the graph, repository or not — a folder is a place work happens — so this
-/// says what is in one rather than whether it is worth offering. Asked one
-/// listing at a time and walked in parallel, because the folders in a listing
-/// are independent and some of them are slow.
+/// A walk cannot be interrupted from outside — it is a thread reading
+/// directories — so it asks, before every directory, whether its token is
+/// still here. `stop_listing` takes the token away, and the walk ends at the
+/// next directory it would have read.
+#[derive(Default)]
+pub struct ListState {
+    wanted: Mutex<HashSet<u64>>,
+}
+
+impl ListState {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashSet<u64>> {
+        crate::sync::lock(&self.wanted)
+    }
+}
+
+/// One repository, as the pane lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundRepository {
+    /// The last component of `path`: what the row says.
+    pub name: String,
+    /// Spelled the way the walk spells it — the resolved root joined down —
+    /// which is the spelling a scan of the same directory settles on as its
+    /// root, and what the window matches a row to its workspace by.
+    pub path: String,
+}
+
+/// What the listing tells the window as it goes.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryFound {
+    pub token: u64,
+    pub path: String,
+    pub name: String,
+}
+
+/// What the listing answers with once the walk has ended.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepositoryList {
+    /// `root` as the walk settled on it — links followed, `~` expanded.
+    pub root: String,
+    /// By name, then path: the order the graph lays repositories out in.
+    pub repositories: Vec<FoundRepository>,
+    /// The walk ran out of its directory budget, so there may be more.
+    pub truncated: bool,
+    pub warnings: Vec<String>,
+}
+
+/// Every repository under `root`, for the repository pane.
 ///
-/// The depth is the scan's own, so the question and the answer agree: a folder
-/// this counts one in is a folder the scan would find something in. Only the
-/// folders that hold any are answered for, which is most of a listing left out.
-#[tauri::command(async)]
-pub fn repository_counts(paths: Vec<String>) -> HashMap<String, usize> {
-    parallel_map(paths, |path| {
-        let found = discover::count_repositories(Path::new(&path), SCAN_DEPTH, HOLD_BUDGET);
-        (path, found)
+/// Streamed and returned both: each repository is sent as `FOUND_EVENT` the
+/// moment the walk reaches it, so the pane fills in while a slow tree is
+/// still being read, and the whole list comes back at the end, sorted, for
+/// the pane to settle on. `token` is the window's name for this listing —
+/// what the events carry, and what `stop_listing` takes.
+///
+/// `Err("stopped")` when the listing was stopped before it ended: the pane
+/// that asked has gone, and whatever was found is not an answer to anything.
+#[tauri::command]
+pub async fn list_repositories(
+    app: AppHandle,
+    root: String,
+    token: u64,
+) -> Result<RepositoryList, String> {
+    // Registered before the walk is even scheduled, so a stop that arrives
+    // first still lands on this listing rather than on nothing.
+    app.state::<ListState>().lock().insert(token);
+
+    off_thread!({
+        let listed = list(&app, &root, token);
+        app.state::<ListState>().lock().remove(&token);
+        listed
     })
-    .into_iter()
-    .filter(|(_, found)| *found > 0)
-    .collect()
+}
+
+/// Forgets `token`, which ends its walk at the next directory. Nothing to say
+/// about a token that is not there: the listing has already ended.
+#[tauri::command]
+pub fn stop_listing(app: AppHandle, token: u64) {
+    app.state::<ListState>().lock().remove(&token);
+}
+
+fn list(app: &AppHandle, root: &str, token: u64) -> Result<RepositoryList, String> {
+    let root = scan::normalize_root(root)?;
+    let host = crate::host::Host::of(&root);
+    let describe = |path: &Path| FoundRepository {
+        name: name_of(&host, path),
+        path: path.to_string_lossy().into_owned(),
+    };
+
+    let listed = discover::list_repositories(
+        &root,
+        SCAN_DEPTH,
+        LIST_BUDGET,
+        |path| {
+            let found = describe(path);
+            let _ = app.emit(
+                FOUND_EVENT,
+                RepositoryFound {
+                    token,
+                    path: found.path,
+                    name: found.name,
+                },
+            );
+        },
+        || app.state::<ListState>().lock().contains(&token),
+    );
+    if listed.stopped {
+        return Err("stopped".to_string());
+    }
+
+    let mut repositories: Vec<FoundRepository> = listed
+        .repositories
+        .iter()
+        .map(|path| describe(path))
+        .collect();
+    // The order the graph lays repositories out in: the order the rows
+    // arrived in as the walk found them is not one anybody can read.
+    repositories.sort_by(|a, b| scan::by_name(&a.name, &a.path, &b.name, &b.path));
+
+    Ok(RepositoryList {
+        root: root.to_string_lossy().into_owned(),
+        repositories,
+        truncated: listed.truncated,
+        warnings: listed.warnings,
+    })
+}
+
+/// What a row calls a repository: its directory's name, or the whole path for
+/// one that has no name of its own — a drive, or a distribution's root.
+fn name_of(host: &crate::host::Host, path: &Path) -> String {
+    let name = host.name(path);
+    if name.is_empty() {
+        path.to_string_lossy().into_owned()
+    } else {
+        name
+    }
 }
 
 /// Runs `worker` over `items` on a small thread pool, preserving input order.
