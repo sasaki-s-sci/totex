@@ -75,9 +75,8 @@ export function LeftSidebar({
   // Held by the column, not the level: the levels open their way down to the folder being named, so
   // the name has to outlast them.
   const [naming, setNaming] = useState<Naming | null>(null);
-  // A list's root has no level to type a name in, so only a folder pane answers for the blank.
-  const last = panes.panes.at(-1) ?? null;
-  const under = last?.kind === "folder" ? last : null;
+  // A list's root has no level to type a name in, so the last folder pane answers for the blank.
+  const under = [...panes.panes].reverse().find((pane) => pane.kind === "folder") ?? null;
 
   function startName(kind: Naming["kind"], target: FileMenuTarget) {
     setMenu(null);
@@ -210,6 +209,7 @@ export function LeftSidebar({
                   if (naming?.pane === pane.id) setNaming(null);
                   panes.showWorktree(pane.id, repository, path);
                 }}
+                onListed={(repositories) => panes.settleList(pane.id, repositories)}
                 onOpenFile={onOpenFile}
                 onMenu={setMenu}
                 naming={naming?.pane === pane.id ? naming : null}

@@ -113,3 +113,28 @@ pub(super) fn two_repositories(root: &Path) {
     git(&beta, &["init", "-b", "main"]);
     commit(&beta, "one.txt", "1");
 }
+
+#[test]
+fn a_stop_that_lands_first_waits_for_its_listing() {
+    let state = super::ListState::default();
+
+    // The usual order: registered, walking, stopped, so no longer wanted.
+    assert!(state.start(1));
+    assert!(state.wanted(1));
+    state.stop(1);
+    assert!(!state.wanted(1), "a stop takes the token away");
+
+    // The other order: the stop arrives before the listing has registered.
+    state.stop(2);
+    assert!(
+        !state.start(2),
+        "the listing finds its stop waiting and does not walk"
+    );
+    assert!(!state.wanted(2));
+    assert!(
+        state.start(2),
+        "the stop was for one listing, not the next with that token"
+    );
+    state.end(2);
+    assert!(!state.wanted(2));
+}

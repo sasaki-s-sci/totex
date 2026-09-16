@@ -40,7 +40,22 @@ export function readSeeds(stored: unknown): PaneSeed[] {
   return seeds;
 }
 
-/** The same reading for what an earlier front had on the canvas. */
+/**
+ * The same reading for what is on the canvas: the live shape names its place `root`, an earlier
+ * front's stored shape named it `path` or was the path alone.
+ */
 export function readGraphed(stored: unknown): Graphed[] {
-  return readSeeds(stored).map(({ kind, path }) => ({ kind, root: path }));
+  if (!Array.isArray(stored)) return [];
+  const graphed: Graphed[] = [];
+  for (const entry of stored) {
+    if (typeof entry === "string") {
+      graphed.push({ kind: "folder", root: entry });
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const { kind, root, path } = entry as Partial<Graphed & PaneSeed>;
+    const at = typeof root === "string" ? root : path;
+    if (isGraphedKind(kind) && typeof at === "string") graphed.push({ kind, root: at });
+  }
+  return graphed;
 }

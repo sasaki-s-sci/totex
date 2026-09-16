@@ -91,14 +91,57 @@ pub fn git_version(path: Option<String>) -> Result<String, String> {
 /// directories — so it asks, before every directory, whether its token is
 /// still here. `stop_listing` takes the token away, and the walk ends at the
 /// next directory it would have read.
+///
+/// A stop can land before its listing: the listing is an async command,
+/// which runs on the runtime, and the stop a plain one, which runs on the
+/// thread the messages arrive on. Such a stop is kept as `stopped`, and the
+/// listing finds it there when it comes to register and does not walk.
 #[derive(Default)]
 pub struct ListState {
-    wanted: Mutex<HashSet<u64>>,
+    listings: Mutex<Listings>,
 }
 
+#[derive(Default)]
+struct Listings {
+    wanted: HashSet<u64>,
+    stopped: HashSet<u64>,
+}
+
+/// Stops nobody came to collect are forgotten past this many.
+const STOPS_KEPT: usize = 256;
+
 impl ListState {
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashSet<u64>> {
-        crate::sync::lock(&self.wanted)
+    fn lock(&self) -> std::sync::MutexGuard<'_, Listings> {
+        crate::sync::lock(&self.listings)
+    }
+
+    /// Registers `token` as walking; false when a stop already waited for it.
+    fn start(&self, token: u64) -> bool {
+        let mut listings = self.lock();
+        if listings.stopped.remove(&token) {
+            return false;
+        }
+        listings.wanted.insert(token);
+        true
+    }
+
+    fn stop(&self, token: u64) {
+        let mut listings = self.lock();
+        if listings.wanted.remove(&token) {
+            return;
+        }
+        if listings.stopped.len() >= STOPS_KEPT {
+            listings.stopped.clear();
+        }
+        listings.stopped.insert(token);
+    }
+
+    fn end(&self, token: u64) {
+        self.lock().wanted.remove(&token);
+    }
+
+    fn wanted(&self, token: u64) -> bool {
+        self.lock().wanted.contains(&token)
     }
 }
 
@@ -152,22 +195,23 @@ pub async fn list_repositories(
     root: String,
     token: u64,
 ) -> Result<RepositoryList, String> {
-    // Registered before the walk is even scheduled, so a stop that arrives
-    // first still lands on this listing rather than on nothing.
-    app.state::<ListState>().lock().insert(token);
+    // A stop that arrived first has been kept for this listing.
+    if !app.state::<ListState>().start(token) {
+        return Err("stopped".to_string());
+    }
 
     off_thread!({
         let listed = list(&app, &root, token);
-        app.state::<ListState>().lock().remove(&token);
+        app.state::<ListState>().end(token);
         listed
     })
 }
 
-/// Forgets `token`, which ends its walk at the next directory. Nothing to say
-/// about a token that is not there: the listing has already ended.
+/// Forgets `token`, which ends its walk at the next directory — or, for a
+/// listing not yet registered, waits for it to register and stops it there.
 #[tauri::command]
 pub fn stop_listing(app: AppHandle, token: u64) {
-    app.state::<ListState>().lock().remove(&token);
+    app.state::<ListState>().stop(token);
 }
 
 fn list(app: &AppHandle, root: &str, token: u64) -> Result<RepositoryList, String> {
@@ -193,7 +237,7 @@ fn list(app: &AppHandle, root: &str, token: u64) -> Result<RepositoryList, Strin
                 },
             );
         },
-        || app.state::<ListState>().lock().contains(&token),
+        || app.state::<ListState>().wanted(token),
     );
     if listed.stopped {
         return Err("stopped".to_string());

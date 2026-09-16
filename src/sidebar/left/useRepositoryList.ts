@@ -5,21 +5,41 @@ import {
   listRepositories,
   REPOSITORY_FOUND_EVENT,
   type RepositoryFound,
+  readDirectory,
   stopListing,
 } from "../../folder/api";
 import { byName, withFound } from "./repoOrder";
 import { watchDirectory } from "./watch";
 
-// One token per walk asked, for the window: an event is answered to the walk that found it.
-let nextToken = 0;
+// One token per walk asked: an event is answered to the walk that found it. Drawn at random
+// rather than counted, because the backend's listings outlive a front — a walk an earlier front
+// left running must not share a token with one this front asks for.
 const walking = new Map<number, (found: RepositoryFound) => void>();
 let listener: Promise<UnlistenFn> | null = null;
 
-function attach() {
-  if (listener) return;
-  listener = listen<RepositoryFound>(REPOSITORY_FOUND_EVENT, (event) => {
-    walking.get(event.payload.token)?.(event.payload);
-  });
+function draw(): number {
+  return Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+}
+
+/** The found-events listener, up before any walk starts: nothing sent before it is replayed. */
+function attach(): Promise<unknown> {
+  if (!listener) {
+    listener = listen<RepositoryFound>(REPOSITORY_FOUND_EVENT, (event) => {
+      walking.get(event.payload.token)?.(event.payload);
+    });
+  }
+  return listener.catch(() => undefined);
+}
+
+/** The root's own directories, as one string: what a change under the root is measured against. */
+function shapeOf(root: string): Promise<string> {
+  return readDirectory(root, true).then((listing) =>
+    listing.entries
+      .filter((entry) => entry.isDir)
+      .map((entry) => entry.name)
+      .sort()
+      .join("\u0000"),
+  );
 }
 
 /** A walk asked for: the count tells one asking from the next, `shown` whether the bar goes up. */
@@ -38,9 +58,11 @@ interface Walk {
  * once it has ended, rather than cutting it short — a root that keeps changing would otherwise
  * never be listed whole, and the bar would never come down. A walk the root's changes asked for
  * runs behind the rows already there without a bar; the bar is for a walk the person asked for,
- * and for the first walk of a root, where there are no rows yet to look at.
+ * and for the first walk of a root, where there are no rows yet to look at. A change under the
+ * root is worth a walk only when it changed which directories the root holds: a file written
+ * beside them is not.
  */
-export function useRepositoryList(root: string) {
+export function useRepositoryList(root: string, onListed?: (paths: string[]) => void) {
   const [rows, setRows] = useState<FoundRepository[]>([]);
   const [listing, setListing] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -50,6 +72,8 @@ export function useRepositoryList(root: string) {
   // The walk under way, and whether one more was asked for while it ran (and how).
   const busy = useRef(false);
   const again = useRef<boolean | null>(null);
+  // The root's directories as of the last look, so a change that left them alone is no walk.
+  const shape = useRef<string | null>(null);
 
   const ask = useCallback((shown: boolean) => {
     if (busy.current) {
@@ -60,22 +84,40 @@ export function useRepositoryList(root: string) {
     setWalk((last) => ({ count: last.count + 1, shown }));
   }, []);
   const refresh = useCallback(() => ask(true), [ask]);
-  const noticed = useCallback(() => ask(false), [ask]);
+  const noticed = useCallback(() => {
+    shapeOf(root)
+      .then((now) => {
+        if (shape.current === now) return;
+        shape.current = now;
+        ask(false);
+      })
+      .catch(() => ask(false));
+  }, [root, ask]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: walk is the request to list again; onListed is read when the list lands
   useEffect(() => {
-    attach();
-    const token = ++nextToken;
+    const token = draw();
     let stale = false;
     // A root not listed before starts empty; a walk of the same root keeps what the last one found.
     const first = listed.current !== root;
     if (first) {
       listed.current = root;
+      shape.current = null;
       setRows([]);
       setTruncated(false);
     }
-    if (first || walk.shown) setListing(true);
-    setFailed(false);
+    if (first || walk.shown) {
+      setListing(true);
+      setFailed(false);
+    }
     busy.current = true;
+    if (shape.current === null) {
+      void shapeOf(root)
+        .then((now) => {
+          if (!stale && shape.current === null) shape.current = now;
+        })
+        .catch(() => undefined);
+    }
 
     const settle = () => {
       busy.current = false;
@@ -87,13 +129,16 @@ export function useRepositoryList(root: string) {
     walking.set(token, (found) => {
       setRows((held) => withFound(held, { path: found.path, name: found.name }));
     });
-    listRepositories(root, token)
+    attach()
+      .then(() => (stale ? Promise.reject("stopped") : listRepositories(root, token)))
       .then((list) => {
         if (stale) return;
         // The whole list stands in for the rows: a repository gone since the last walk goes too.
         setRows([...list.repositories].sort(byName));
         setTruncated(list.truncated);
         setListing(false);
+        setFailed(false);
+        if (!list.truncated) onListed?.(list.repositories.map((row) => row.path));
       })
       .catch((error: unknown) => {
         if (stale) return;

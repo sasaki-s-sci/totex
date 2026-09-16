@@ -48,6 +48,18 @@ test("the canvas reads the same entries as roots", () => {
   ]);
 });
 
+test("what the sidebar puts on the canvas comes back as it was", () => {
+  const live = [
+    { kind: "repository", root: "/home/a/repo/x" },
+    { kind: "folder", root: "/home/a" },
+  ];
+  assert.deepEqual(readGraphed(live), live);
+  assert.deepEqual(
+    readGraphed([{ kind: "repository" }, { root: "/x" }, { kind: "folder", root: 1 }]),
+    [],
+  );
+});
+
 test("one directory graphed both ways has two keys", () => {
   const asFolder = graphedKey({ kind: "folder", root: "/home/a" });
   const asRepository = graphedKey({ kind: "repository", root: "/home/a" });

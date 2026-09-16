@@ -49,6 +49,8 @@ export interface RepoPaneProps {
   onToggleExpanded: (repository: string) => void;
   /** `null` puts the row back on the repository's own folder. */
   onShowWorktree: (repository: string, path: string | null) => void;
+  /** The whole list, once a walk has ended with nothing cut short: what the rows are now. */
+  onListed: (repositories: string[]) => void;
   onOpenFile?: (path: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
@@ -79,6 +81,7 @@ export function RepoPane({
   onToggleGraph,
   onToggleExpanded,
   onShowWorktree,
+  onListed,
   onOpenFile,
   onMenu,
   naming,
@@ -87,7 +90,7 @@ export function RepoPane({
   onClose,
 }: RepoPaneProps) {
   const { t } = useTranslation();
-  const { rows, listing, failed, truncated, refresh } = useRepositoryList(path);
+  const { rows, listing, failed, truncated, refresh } = useRepositoryList(path, onListed);
   const [selected, setSelected] = useState<string | null>(null);
   const name = baseName(path);
 

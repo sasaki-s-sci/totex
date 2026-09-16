@@ -222,6 +222,30 @@ export function usePanes(
     );
   }
 
+  /**
+   * The rows a repository pane has now: what it graphed, opened out or swapped for a worktree is
+   * kept only for repositories still listed, so one gone from the root leaves the canvas with it
+   * rather than staying with no row left to take it off.
+   */
+  function settleList(id: number, repositories: readonly string[]) {
+    setPanes((current) =>
+      current.map((pane) => {
+        if (pane.id !== id || pane.kind !== "repository") return pane;
+        const listed = new Set(repositories);
+        const graphed = pane.graphed.filter((root) => listed.has(root));
+        const expanded = pane.expanded.filter((root) => listed.has(root));
+        const shown = Object.fromEntries(
+          Object.entries(pane.shown).filter(([root]) => listed.has(root)),
+        );
+        const same =
+          graphed.length === pane.graphed.length &&
+          expanded.length === pane.expanded.length &&
+          Object.keys(shown).length === Object.keys(pane.shown).length;
+        return same ? pane : { ...pane, graphed, expanded, shown };
+      }),
+    );
+  }
+
   function toggleExpanded(id: number, repository: string) {
     setPanes((current) =>
       current.map((pane) =>
@@ -331,6 +355,7 @@ export function usePanes(
     setRefused,
     update,
     toggleGraph,
+    settleList,
     toggleExpanded,
     expandRow,
     showWorktree,

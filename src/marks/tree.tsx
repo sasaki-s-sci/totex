@@ -1,17 +1,8 @@
 import { Frame, ROW_SIZE, SIZE, struck } from ".";
 
-export function ExpandMark({ on }: { on: boolean }) {
-  return (
-    <Frame>
-      <path d="M3 17.5 H7.5 C13 17.5 12.5 7 17.5 7" />
-      <circle cx="19.5" cy="6.6" r="2.6" fill={on ? "currentColor" : "none"} />
-    </Frame>
-  );
-}
-
 const SHUT = "M2.5 18.5 V5.5 H8.5 L10.5 8 H21.5 V18.5 Z";
 
-// The shut folder with its top-right corner given up to the ring: the same ring `ExpandMark` fills.
+// The shut folder with its top-right corner given up to the ring the canvas draws a repository by.
 const SHUT_CUT = "M2.5 18.5 V5.5 H8.5 L10.5 8 H15.8 M21.5 10.5 V18.5 H2.5";
 
 /** The folder goes on the canvas as a folder: a row and the terminals round it, nothing scanned. */
