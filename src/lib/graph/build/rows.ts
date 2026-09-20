@@ -82,6 +82,7 @@ function bandRow(
   );
   drawn.nodes.push(...(proposed ? provisional(entry.nodes) : entry.nodes));
   drawn.nodes.push(...row.column.nodes);
+  drawn.offers.push(...row.column.offers);
   drawn.members.push(entry.repository.id);
 
   // Lines stay in band coordinates: moving a repository is a new transform on the same paths.

@@ -1,9 +1,10 @@
 import type { Session } from "../../session";
-import type { AppNode, Band, GraphLine, Hold, LineEnd } from "../model";
+import type { AppNode, Band, GraphLine, Hold, LineEnd, OfferFlowNode } from "../model";
 import { FOLDER_MARK, FOLDER_STROKE } from "../model";
 
 export type LaidGroup = {
   nodes: AppNode[];
+  offers: OfferFlowNode[];
   bands: Band[];
 
   links: GraphLine[];

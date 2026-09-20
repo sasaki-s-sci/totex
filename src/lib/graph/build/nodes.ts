@@ -8,11 +8,13 @@ import type {
   FolderFlowNode,
   GraphLine,
   GraphResult,
+  OfferData,
+  OfferFlowNode,
   RepoMarkFlowNode,
   RepositoryFlowNode,
   StrokeStyle,
 } from "../model";
-import { type Draw, STACK_STYLE } from "../model";
+import { CLI_STEP, type Draw, OFFER_STYLE, SESSION_WIDTH, STACK_STYLE } from "../model";
 import type { ReportFlowNode } from "../reporting";
 
 export function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
@@ -59,6 +61,44 @@ export function cliNode(
     position: { x, y },
     data,
     style: STACK_STYLE,
+    draggable: false,
+    selectable: false,
+  };
+}
+
+// Held still the same way: the offers are rebuilt with every graph and drawn on a key press.
+export function offerNode(
+  id: string,
+  data: OfferData,
+  band: string | null,
+  x: number,
+  y: number,
+  draw: Draw,
+): OfferFlowNode {
+  const held = draw.offered.get(id);
+  if (
+    held &&
+    held.data.kind === data.kind &&
+    held.data.repository === data.repository &&
+    (held.data.kind !== "open" ||
+      (data.kind === "open" && held.data.branch === data.branch && held.data.cwd === data.cwd)) &&
+    (held.parentId ?? null) === band &&
+    held.position.x === x &&
+    held.position.y === y
+  ) {
+    return held;
+  }
+
+  return {
+    id,
+    type: "offer",
+    ...(band === null ? null : { parentId: band }),
+    position: { x, y },
+    data,
+    // Given outright: an offer is not in the canvas's node state, so nothing would keep a measurement.
+    initialWidth: SESSION_WIDTH,
+    initialHeight: CLI_STEP,
+    style: OFFER_STYLE,
     draggable: false,
     selectable: false,
   };

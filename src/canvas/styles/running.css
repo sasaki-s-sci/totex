@@ -138,3 +138,51 @@
 .graph[data-said-face="window"] .cli__said {
   font-family: inherit;
 }
+
+/* A terminal not yet there: the stack mark's outline, dashed in, until it is stood on. */
+.offer__take {
+  display: flex;
+  padding: 0;
+  border: 1px dashed currentcolor;
+  border-radius: 4px;
+  background: var(--mui-palette-background-default);
+  color: var(--mui-palette-text-disabled);
+  cursor: pointer;
+  opacity: 0.7;
+  transition:
+    color var(--reveal),
+    opacity var(--reveal),
+    filter var(--reveal);
+}
+
+.offer__take:hover,
+.react-flow__node.is-picked .offer__take {
+  color: var(--mui-palette-primary-main);
+  opacity: 1;
+  filter: var(--lit);
+}
+
+/* Named only where stood: a band offers one per branch, and their names are already on the lines. */
+.offer__name {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  display: none;
+  /* Its box is the 16px mark: left to shrink to fit, a name would wrap to that. */
+  width: max-content;
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--mui-palette-primary-main);
+  font-size: 8px;
+  font-weight: 300;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.offer:hover .offer__name,
+.react-flow__node.is-picked .offer__name {
+  display: block;
+}

@@ -15,7 +15,6 @@ export const GraphLines = memo(function GraphLines({
   selected,
   picked,
   reading,
-  message,
   onCommit,
 }: {
   bands: readonly Band[];
@@ -31,7 +30,6 @@ export const GraphLines = memo(function GraphLines({
 
   reading: boolean;
 
-  message: string | null;
   onCommit: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 }) {
   const standing = useMemo(() => {
@@ -46,9 +44,7 @@ export const GraphLines = memo(function GraphLines({
       <svg className="graph__lines" width={extent.width} height={extent.height} aria-hidden="true">
         <Reach reach={reach} standing={standing} />
         <Bands bands={bands} standing={standing} />
-        {reading && (
-          <CommitMessages bands={bands} standing={standing} picked={picked} message={message} />
-        )}
+        {reading && <CommitMessages bands={bands} standing={standing} />}
         <CommitEmphasis
           bands={bands}
           standing={standing}

@@ -7,6 +7,7 @@ import type {
   CollapseNodeData,
   FilePreviewNodeData,
   JunctionNodeData,
+  OfferData,
   RepoMarkData,
 } from "./marks";
 import type { BranchHeadData, CommitNodeData, FolderNodeData, RepositoryNodeData } from "./nodes";
@@ -20,6 +21,7 @@ export type RepositoryFlowNode = Node<RepositoryNodeData, "repository">;
 export type FolderFlowNode = Node<FolderNodeData, "folder">;
 export type RepoMarkFlowNode = Node<RepoMarkData, "repo-mark">;
 export type CliFlowNode = Node<CliNodeData, "cli">;
+export type OfferFlowNode = Node<OfferData, "offer">;
 export type FilePreviewFlowNode = Node<FilePreviewNodeData, "file-preview">;
 export type CliPageFlowNode = Node<CliPageNodeData, "cli-page">;
 export type AppNode =
@@ -31,6 +33,7 @@ export type AppNode =
   | FolderFlowNode
   | RepoMarkFlowNode
   | CliFlowNode
+  | OfferFlowNode
   | AskFlowNode
   | ReportFlowNode
   | FilePreviewFlowNode

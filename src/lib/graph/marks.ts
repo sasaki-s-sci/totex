@@ -1,7 +1,7 @@
 import type { Repository } from "../../types/git";
 import type { FilePreviewView } from "../filePreview";
 import type { Session } from "../session";
-import type { AppNode } from "./flow";
+import type { AppNode, OfferFlowNode } from "./flow";
 import { CLI_STEP, SESSION_WIDTH } from "./stacks";
 
 export type RepoMarkData = {
@@ -31,15 +31,27 @@ export type CliNodeData = {
   group: string;
 };
 
+/**
+ * A terminal that does not exist yet, stood where it would: a branch or folder nothing runs in, or
+ * a workspace the repository has not been given. Drawn only while Ctrl+Shift is held.
+ */
+export type OfferData =
+  | { kind: "open"; repository: Repository | null; branch: string; cwd: string | null }
+  | { kind: "new"; repository: Repository };
+
 export const STACK_STYLE = {
   width: SESSION_WIDTH,
   height: CLI_STEP,
   pointerEvents: "none",
 } as const;
 
+/** A stack mark's box, but pressed: an offer is its own button. */
+export const OFFER_STYLE = { width: SESSION_WIDTH, height: CLI_STEP } as const;
+
 export type Draw = {
   /** The graph this one replaces, for reusing nodes that did not change. */
   before: ReadonlyMap<string, AppNode>;
+  offered: ReadonlyMap<string, OfferFlowNode>;
 };
 
 /** A terminal stood on the canvas as a page; its stack mark stays where it was. */

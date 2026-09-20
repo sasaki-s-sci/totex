@@ -8,19 +8,23 @@ import {
   CLI_MARK,
   CLI_STEP,
   CLI_STROKE,
+  COMMIT_STEP,
   type Draw,
   type GraphLine,
+  type OfferFlowNode,
   onHead,
   onStack,
   SESSION_WIDTH,
   stackReach,
 } from "../model";
 import { besideMark } from "./cards";
-import { cliNode } from "./nodes";
+import { cliNode, offerNode } from "./nodes";
 import { take } from "./parts";
 
 export type Column = {
   nodes: AppNode[];
+
+  offers: OfferFlowNode[];
 
   lines: GraphLine[];
 
@@ -28,6 +32,9 @@ export type Column = {
 
   right: number;
 };
+
+/** Below the band, in the air every band is given: no row's stack reaches past the band's own floor. */
+const NEW_DROP = (COMMIT_STEP.y - CLI_STEP) / 2;
 
 export function bandColumn(
   entry: PreparedRepository,
@@ -40,7 +47,7 @@ export function bandColumn(
   draw: Draw,
 ): Column {
   const band = entry.repository.id;
-  const drawn: Column = { nodes: [], lines: [], bottom: 0, right: 0 };
+  const drawn: Column = { nodes: [], offers: [], lines: [], bottom: 0, right: 0 };
 
   let floor = Number.NEGATIVE_INFINITY;
 
@@ -49,6 +56,20 @@ export function bandColumn(
 
     // A branch and its worktree, or two repositories, can share a directory; the first claim draws it.
     const standing = cwd ? take(open, claimed, [cwd]) : [];
+
+    // Nothing runs here. A directory whose terminals another row claimed is not empty.
+    if (!cwd || !open.has(cwd)) {
+      drawn.offers.push(
+        offerNode(
+          `offer${run.head}`,
+          { kind: "open", repository: entry.repository, branch: run.branch, cwd },
+          band,
+          run.x,
+          run.y,
+          draw,
+        ),
+      );
+    }
 
     // Centred on the branch line; the layout made room either side.
     const head = run.y - stackReach(standing.length);
@@ -99,6 +120,18 @@ export function bandColumn(
       drawn.right = Math.max(drawn.right, x + beside.width);
     }
   }
+
+  const column = entry.runs[0]?.x ?? entry.style.width - SESSION_WIDTH;
+  drawn.offers.push(
+    offerNode(
+      `offer${band}new`,
+      { kind: "new", repository: entry.repository },
+      band,
+      column,
+      entry.style.height + NEW_DROP,
+      draw,
+    ),
+  );
 
   return drawn;
 }

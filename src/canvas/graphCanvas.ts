@@ -8,6 +8,7 @@ import { CollapseNode } from "./nodes/CollapseNode";
 import { FilePreviewNode } from "./nodes/FilePreviewNode";
 import { FolderNode } from "./nodes/FolderNode";
 import { JunctionNode } from "./nodes/JunctionNode";
+import { OfferNode } from "./nodes/OfferNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
 import { ReportNode } from "./nodes/ReportNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
@@ -20,6 +21,7 @@ export const nodeTypes = {
   collapse: CollapseNode,
   junction: JunctionNode,
   cli: CliNode,
+  offer: OfferNode,
   ask: AskNode,
   report: ReportNode,
   "file-preview": FilePreviewNode,

@@ -100,6 +100,11 @@
     "collapsePanel": "Close the terminal panel",
     "dock": "Put {{name}} back in the panel"
   },
+  "offer": {
+    "new": "New workspace",
+    "newIn": "New workspace in {{name}}",
+    "open": "Open a shell on {{name}}"
+  },
   "tasks": {
     "find": "What to run",
     "empty": "Nothing here says what it can run"

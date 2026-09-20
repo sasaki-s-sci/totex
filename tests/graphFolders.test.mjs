@@ -157,3 +157,49 @@ test("one directory graphed both ways is drawn both ways, each moved on its own"
   assert.equal(byRow.parentId ?? null, null);
   assert.equal(byBranch.parentId, "repo");
 });
+
+test("a branch and a folder nothing runs in are offered a terminal, and a repository a workspace", () => {
+  const repo = repository("repo", "/home/a/repo");
+  const workspace = { root: "/home/a/repo", repositories: [repo], warnings: [] };
+  const folders = [
+    { kind: "folder", root: "/home/b", name: "b", repositories: [] },
+    { kind: "repository", root: "/home/a/repo", name: "repo", repositories: ["repo"] },
+  ];
+
+  const graph = build(workspace, folders);
+  assert.deepEqual(
+    graph.offers.map((offer) => [
+      offer.data.kind,
+      offer.data.branch ?? null,
+      offer.parentId ?? null,
+    ]),
+    [
+      ["open", "b", null],
+      ["open", "main", "repo"],
+      ["new", null, "repo"],
+    ],
+  );
+  // Never among the canvas's own nodes: they are drawn on a key press.
+  assert.equal(graph.nodes.filter((node) => node.type === "offer").length, 0);
+
+  // The new workspace stands under the band, clear of every row's stack.
+  const band = bandNodes(graph)[0];
+  const fresh = graph.offers.find((offer) => offer.data.kind === "new");
+  assert.ok(fresh.position.y >= Number(band.style.height));
+
+  // Unchanged offers come back as themselves, so holding the keys over a rescan redraws nothing.
+  const again = build(workspace, folders, graph);
+  assert.deepEqual(
+    again.offers.map((offer, at) => offer === graph.offers[at]),
+    [true, true, true],
+  );
+
+  // A terminal in the folder takes its offer away and leaves the others.
+  const running = build(workspace, folders, graph, [
+    { id: "/home/b cli 1", cwd: "/home/b", branch: "b", folder: true },
+  ]);
+  assert.deepEqual(
+    running.offers.map((offer) => offer.data.kind),
+    ["open", "new"],
+  );
+});

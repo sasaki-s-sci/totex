@@ -1,4 +1,4 @@
-import type { AppNode } from "./graph";
+import type { AppNode, OfferFlowNode } from "./graph";
 
 export type Pickable = {
   id: string;
@@ -123,8 +123,22 @@ export function cliRun(nodes: readonly AppNode[]): CliPlace[] {
   });
 }
 
-export function history(nodes: readonly AppNode[]): Pickable[] {
-  return pickables(nodes.filter((node) => node.type === "commit" || node.type === "repository"));
+/** Where each offer would stand; the bands are read for the ones standing in a band. */
+export function offered(nodes: readonly AppNode[], offers: readonly OfferFlowNode[]): Pickable[] {
+  return pickables([...nodes.filter((node) => node.type === "repository"), ...offers]);
+}
+
+export function nearest(from: Pickable, picks: readonly Pickable[]): Pickable | null {
+  let best: Pickable | null = null;
+  let score = Number.POSITIVE_INFINITY;
+  for (const pick of picks) {
+    const away = Math.hypot(pick.x - from.x, pick.y - from.y);
+    if (away < score) {
+      score = away;
+      best = pick;
+    }
+  }
+  return best;
 }
 
 /** The canvas re-reads the run per graph; an unchanged reading must not re-render the window. */
