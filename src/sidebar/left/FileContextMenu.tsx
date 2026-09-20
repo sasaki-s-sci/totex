@@ -23,6 +23,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { deleteFile, deleteFolder, downloadEntry, duplicateFile, readFile } from "../../folder/api";
 import { displayPath } from "../../folder/format";
+import { copyText } from "../../lib/clipboard";
 import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
@@ -238,23 +239,6 @@ async function copyContents(path: string) {
   const bytes = new Uint8Array(await readFile(path));
   const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   await copyText(text);
-}
-
-async function copyText(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return;
-  } catch {
-    const field = document.createElement("textarea");
-    field.value = text;
-    field.style.position = "fixed";
-    field.style.opacity = "0";
-    document.body.appendChild(field);
-    field.select();
-    const copied = document.execCommand("copy");
-    field.remove();
-    if (!copied) throw new Error("clipboard-unavailable");
-  }
 }
 
 export function relativePath(root: string, path: string): string {

@@ -7,6 +7,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { gridOf, subscribeGrid, tellGrid } from "../lib/cliGrid";
+import { copyText } from "../lib/clipboard";
 import {
   attachShell,
   DATA_EVENT,
@@ -230,7 +231,7 @@ export function CliView({
       ) {
         event.preventDefault();
         const selected = terminal.getSelection();
-        if (selected) void navigator.clipboard.writeText(selected).catch(() => undefined);
+        if (selected) void copyText(selected).catch(() => undefined);
         terminal.clearSelection();
         return false;
       }

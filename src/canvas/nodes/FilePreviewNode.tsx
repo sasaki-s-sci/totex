@@ -26,7 +26,7 @@ import { useDraft } from "./preview/draft";
 import { widthWithout } from "./preview/measure";
 import { useReading } from "./preview/reading";
 import type { SchemaHandle } from "./preview/SchemaReading";
-import { insertTab } from "./preview/text";
+import { insertTab, removeTab } from "./preview/text";
 import { FileTools } from "./preview/tools";
 
 export const MIN_WIDTH = FILE_LEAST.width;
@@ -56,7 +56,21 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
   const Settings = settingsPart.use(data.view === "settings");
   const { saveFilePreview, previewFilePreview, fitFilePreview } = useGraphActions();
   const view = useReading();
-  const { setBody, sheet, gutter, setPaper, across, down, move, home, onWheel, showCaret } = view;
+  const {
+    setBody,
+    sheet,
+    gutter,
+    setPaper,
+    across,
+    down,
+    move,
+    home,
+    onWheel,
+    showCaret,
+    railDown,
+    railMove,
+    railUp,
+  } = view;
   const {
     editable,
     reading,
@@ -244,16 +258,10 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
             {...typing}
             onInput={onInput}
             onKeyDown={(event) => {
-              if (
-                event.key !== "Tab" ||
-                event.shiftKey ||
-                event.ctrlKey ||
-                event.altKey ||
-                event.metaKey
-              )
-                return;
+              if (event.key !== "Tab" || event.ctrlKey || event.altKey || event.metaKey) return;
               event.preventDefault();
-              insertTab(event.currentTarget);
+              if (event.shiftKey) removeTab(event.currentTarget);
+              else insertTab(event.currentTarget);
             }}
             onKeyUp={showCaret}
             onBlur={() => {
@@ -362,8 +370,22 @@ export function FilePreviewCard({ data }: { data: FilePreviewNodeData }) {
         data.view !== "settings" &&
         data.view !== "schema" && (
           <>
-            <i className="file-preview__reach file-preview__reach--y" ref={down} />
-            <i className="file-preview__reach file-preview__reach--x" ref={across} />
+            <i
+              className="file-preview__reach file-preview__reach--y"
+              ref={down}
+              onPointerDown={railDown("y")}
+              onPointerMove={railMove}
+              onPointerUp={railUp}
+              onPointerCancel={railUp}
+            />
+            <i
+              className="file-preview__reach file-preview__reach--x"
+              ref={across}
+              onPointerDown={railDown("x")}
+              onPointerMove={railMove}
+              onPointerUp={railUp}
+              onPointerCancel={railUp}
+            />
           </>
         )}
     </Page>

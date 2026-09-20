@@ -19,6 +19,9 @@ export function useReading() {
   const wheel = useRef({ x: 0, y: 0 });
   const wheelFrame = useRef<number | null>(null);
   const caretFrame = useRef<number | null>(null);
+  const drag = useRef<{ pointerId: number; axis: "x" | "y"; from: number; factor: number } | null>(
+    null,
+  );
 
   const move = useCallback(
     (dx: number, dy: number) => {
@@ -41,6 +44,46 @@ export function useReading() {
     },
     [body],
   );
+
+  // Dragging the rail moves the reading by the track/thumb ratio, since the thumb travels a
+  // shorter distance than the content does.
+  const railDown = useCallback(
+    (axis: "x" | "y") => (event: React.PointerEvent<HTMLElement>) => {
+      const box = body;
+      const reading = sheet.current;
+      if (!box || !reading || event.button !== 0) return;
+      const boxSize = axis === "x" ? box.clientWidth : box.clientHeight;
+      const whole = axis === "x" ? reading.offsetWidth : reading.offsetHeight;
+      const room = Math.max(0, whole - boxSize);
+      const track = boxSize - Math.max(12, (boxSize / whole) * boxSize);
+      if (room <= 0 || track <= 0) return;
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      drag.current = {
+        pointerId: event.pointerId,
+        axis,
+        from: axis === "x" ? event.clientX : event.clientY,
+        factor: room / track,
+      };
+    },
+    [body],
+  );
+
+  const railMove = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      const held = drag.current;
+      if (!held || held.pointerId !== event.pointerId) return;
+      const now = held.axis === "x" ? event.clientX : event.clientY;
+      const delta = (now - held.from) * held.factor;
+      held.from = now;
+      move(held.axis === "x" ? delta : 0, held.axis === "x" ? 0 : delta);
+    },
+    [move],
+  );
+
+  const railUp = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+  }, []);
 
   const home = useCallback(() => {
     wheel.current = { x: 0, y: 0 };
@@ -123,5 +166,20 @@ export function useReading() {
     [],
   );
 
-  return { setBody, sheet, gutter, paper, setPaper, across, down, move, home, onWheel, showCaret };
+  return {
+    setBody,
+    sheet,
+    gutter,
+    paper,
+    setPaper,
+    across,
+    down,
+    move,
+    home,
+    onWheel,
+    showCaret,
+    railDown,
+    railMove,
+    railUp,
+  };
 }

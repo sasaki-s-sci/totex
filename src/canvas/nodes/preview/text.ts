@@ -28,6 +28,25 @@ export function insertTab(paper: HTMLElement): void {
   );
 }
 
+// The reverse of insertTab: found by where Selection.modify says the caret's own line
+// begins, since a tab is only ever leading and the caret can be sitting anywhere past it.
+export function removeTab(paper: HTMLElement): void {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  if (!paper.contains(selection.getRangeAt(0).commonAncestorContainer)) return;
+  if (!selection.isCollapsed) selection.collapseToStart();
+
+  selection.modify("extend", "backward", "lineboundary");
+  const column = selection.toString().length;
+  selection.collapseToStart();
+  selection.modify("extend", "forward", "character");
+
+  const removed = selection.toString() === "\t" && document.execCommand("delete");
+  if (!removed) selection.collapseToStart();
+  const back = removed ? Math.max(0, column - 1) : column;
+  for (let step = 0; step < back; step += 1) selection.modify("move", "forward", "character");
+}
+
 export function countLines(text: string): number {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   return body.split("\n").length;
