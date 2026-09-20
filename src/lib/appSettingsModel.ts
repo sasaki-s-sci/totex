@@ -3,6 +3,8 @@ export type AppSettings = {
   language: "system" | "en" | "ja";
   reveal: "never" | "edge" | "centre";
   follow: boolean;
+  /** Whether a worktree is kept checked out ahead of time for the next branch to take. */
+  spareWorktree: boolean;
   backgroundGrid: boolean;
   gridStep: number;
   gridSnap: boolean;
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "system",
   reveal: "edge",
   follow: false,
+  spareWorktree: true,
   backgroundGrid: false,
   gridStep: 24,
   gridSnap: false,
@@ -80,6 +83,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     language: pick("totex.language", ["system", "en", "ja"], "system"),
     reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
     follow: read("totex.follow") === "on",
+    spareWorktree: true,
     backgroundGrid: false,
     gridStep: 24,
     gridSnap: false,

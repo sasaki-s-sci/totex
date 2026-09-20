@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import type { Repository } from "../types/git";
+import { isKeepingSpare } from "./spare";
 
 export type Workspace = {
   repoId: string;
@@ -25,8 +26,14 @@ export function dirtyCount(status: WorktreeStatus): number {
   return status.added + status.deleted + status.modified;
 }
 
+/** Takes the repository's spare worktree when the setting keeps one; see `workspace/spare.rs`. */
 export function createWorkspace(repoId: string, branch: string, oid: string): Promise<Workspace> {
-  return invoke("create_workspace", { repoId, branch, oid });
+  return invoke("create_workspace", { repoId, branch, oid, spare: isKeepingSpare() });
+}
+
+/** Best effort either way: makes the spare each repository lacks, or removes the one it has. */
+export function tendSpares(repoIds: string[], wanted: boolean): Promise<void> {
+  return invoke("tend_spares", { repoIds, wanted });
 }
 
 export function openWorkspace(repoId: string, branch: string): Promise<Workspace> {

@@ -8,6 +8,7 @@ use crate::host::Host;
 
 use super::super::cmd;
 use super::super::model::{Branch, Worktree};
+use super::super::workspace::spare::is_a_place;
 
 pub(super) fn read_worktrees(dir: &Path, repo_id: &str, common_dir: &Path) -> Vec<Worktree> {
     let Some(output) = cmd::try_run(dir, &["worktree", "list", "--porcelain"]) else {
@@ -79,7 +80,11 @@ pub(super) fn read_worktrees(dir: &Path, repo_id: &str, common_dir: &Path) -> Ve
             }
         }
 
-        if let Some(worktree) = current {
+        // A spare, or a checkout `worktree add` has not finished: listed, but
+        // not yet anywhere a branch stands.
+        if let Some(worktree) = current
+            && is_a_place(worktree.lock_reason.as_deref())
+        {
             worktrees.push(worktree);
         }
     }

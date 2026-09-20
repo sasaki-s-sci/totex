@@ -7,16 +7,21 @@ use tauri::AppHandle;
 use super::Workspace;
 use super::place::{prepare_worktree_path, worktrees_root};
 use super::probe::{DIRTY, branch_tip, is_clean, resolve_commit, validate_branch, worktree_for};
+use super::spare::{replenish, take_spare};
 use crate::git::cmd;
 use crate::git::session::{report_all, repository_dir};
 
 /// Cuts `branch` at `oid` and gives it a worktree to work in.
+///
+/// With `spare`, the worktree is the one made ahead of time when there is one,
+/// and the next is started on the way out — see [`super::spare`].
 #[tauri::command]
 pub async fn create_workspace(
     app: AppHandle,
     repo_id: String,
     branch: String,
     oid: String,
+    spare: bool,
 ) -> Result<Workspace, String> {
     off_thread!({
         let repo = repository_dir(&app, &repo_id)?;
@@ -25,18 +30,26 @@ pub async fn create_workspace(
         let oid = resolve_commit(&repo, &oid)?;
 
         let path = prepare_worktree_path(&worktrees_root(&app, &repo)?, &repo, &branch)?;
-        // One call, so a failure leaves neither the branch nor the directory.
-        cmd::run(
-            &repo,
-            &[
-                "worktree",
-                "add",
-                "-b",
-                &branch,
-                &path.to_string_lossy(),
-                &oid,
-            ],
-        )?;
+        if !(spare && take_spare(&repo, &branch, &oid, &path)) {
+            // One call, so a failure leaves neither the branch nor the directory.
+            cmd::run(
+                &repo,
+                &[
+                    "worktree",
+                    "add",
+                    "-b",
+                    &branch,
+                    &path.to_string_lossy(),
+                    &oid,
+                ],
+            )?;
+        }
+        if spare {
+            // At the commit just cut from: the next branch is likelier to start
+            // near here than anywhere else, and the nearer it starts the less
+            // there is to write.
+            replenish(&app, repo.clone(), oid);
+        }
 
         report_all(&app)?;
         Ok(Workspace {

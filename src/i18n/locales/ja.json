@@ -139,6 +139,7 @@
     "reveal": "ズームアンカー",
     "historyLength": "表示するコミット数",
     "historyFollow": "コミットの更新時に長さへ追従",
+    "spareWorktree": "新しいブランチ用にワークツリーを先に用意",
     "follow": "リモートに追従",
     "fetch": "いま fetch する",
     "now": "fetch",

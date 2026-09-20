@@ -12,6 +12,7 @@ import { useReports } from "../hooks/useReports";
 import { useServing } from "../hooks/useServing";
 import { useSessionKeys } from "../hooks/useSessionKeys";
 import { useSessions } from "../hooks/useSessions";
+import { useSpares } from "../hooks/useSpares";
 import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
@@ -68,6 +69,7 @@ export function Window() {
   const homes = useMemo(() => worktreeHomes(workspace), [workspace]);
   const branches = useMemo(() => worktreeBranches(workspace), [workspace]);
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
+  useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
   const { drawn, closeRepository } = useClosedRepositories(workspace);

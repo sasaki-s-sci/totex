@@ -39,11 +39,25 @@ fn digest(value: &str) -> u64 {
 /// root may share a name, and the branch is hashed in beside its slug because
 /// two branch names can slug to the same thing.
 pub(super) fn worktree_path(host: &Host, root: &Path, repo_path: &str, branch: &str) -> PathBuf {
-    let owner = host.join(root, &format!("{:016x}", digest(repo_path)));
     host.join(
-        &owner,
+        &owner_dir(host, root, repo_path),
         &format!("{}-{:08x}", slug(branch), digest(branch) as u32),
     )
+}
+
+/// The directory one repository's worktrees share.
+fn owner_dir(host: &Host, root: &Path, repo_path: &str) -> PathBuf {
+    host.join(root, &format!("{:016x}", digest(repo_path)))
+}
+
+/// Where a repository's spare worktree waits. Beside the branches' own, so that
+/// handing it to one is a rename within a directory, and under a name no branch
+/// can land on: theirs all end in a digest.
+pub(super) fn prepare_spare_path(root: &Path, repo: &Path) -> Result<PathBuf, String> {
+    let host = Host::of(repo);
+    let owner = owner_dir(&host, root, &host.native(repo));
+    host.create_dir_all(&owner)?;
+    Ok(host.join(&owner, "spare"))
 }
 
 /// The worktree path, with its parent directory made. The repository is hashed

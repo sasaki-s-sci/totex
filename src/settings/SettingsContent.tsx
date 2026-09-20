@@ -9,6 +9,7 @@ import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
+import { SpareRow } from "./SpareRow";
 import { ThemeRow } from "./ThemeRow";
 import { UpdateRow } from "./UpdateRow";
 import { WheelRow } from "./WheelRow";
@@ -37,6 +38,7 @@ export function SettingsContent() {
           <RevealRow />
           <HistoryRows />
           <FollowRows />
+          <SpareRow />
         </Group>
       </Section>
       <Section name={t("settings.terminal")}>

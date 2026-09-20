@@ -255,6 +255,7 @@ pub fn run() {
             git::workspace::tree::open_workspace,
             git::workspace::tree::remove_workspace,
             git::workspace::tree::delete_branch,
+            git::workspace::spare::tend_spares,
             git::workspace::status::workspace_statuses,
             git::workspace::history::merge_branch,
             git::workspace::history::sync_branch,

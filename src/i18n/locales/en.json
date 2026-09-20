@@ -139,6 +139,7 @@
     "reveal": "Zoom anchor",
     "historyLength": "Commits shown",
     "historyFollow": "Keep to the length as commits arrive",
+    "spareWorktree": "Keep a spare worktree for new branches",
     "follow": "Follow remotes",
     "fetch": "Fetch now",
     "now": "Fetch",

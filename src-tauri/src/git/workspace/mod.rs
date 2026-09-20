@@ -16,6 +16,7 @@ pub mod follow;
 pub mod history;
 mod place;
 mod probe;
+pub mod spare;
 pub mod status;
 pub mod tree;
 

@@ -10,6 +10,7 @@ export const totexSchema: RJSFSchema = {
     language: { title: "Language", type: "string", enum: ["system", "en", "ja"] },
     reveal: { title: "Reveal", type: "string", enum: ["never", "edge", "centre"] },
     follow: { title: "Follow", type: "boolean" },
+    spareWorktree: { title: "Keep a spare worktree", type: "boolean" },
     backgroundGrid: { title: "Background grid", type: "boolean" },
     gridStep: { title: "Grid spacing (px)", type: "integer", minimum: 1, maximum: 100 },
     gridSnap: { title: "Hold file cards to the grid", type: "boolean" },

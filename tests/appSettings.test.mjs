@@ -26,6 +26,7 @@ test("migrates all existing user preferences, including line size one", () => {
       language: "ja",
       reveal: "centre",
       follow: true,
+      spareWorktree: true,
       backgroundGrid: false,
       gridStep: 24,
       gridSnap: false,

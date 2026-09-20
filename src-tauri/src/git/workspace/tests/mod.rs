@@ -6,6 +6,7 @@ mod branch;
 mod follow;
 mod history;
 mod place;
+mod spare;
 mod status;
 
 use std::path::{Path, PathBuf};
