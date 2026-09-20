@@ -33,8 +33,127 @@ env:
   CARGO_PROFILE_TEST_DEBUG: "0"
 
 jobs:
+  scope:
+    name: Scope
+    # Three platform bundles are most of what this workflow costs, and a change
+    # to the pages cannot break one: the pages are the same files on all three,
+    # and `vite build` is the whole of what turns them into a release. So what
+    # changed decides which of the jobs below run -- see scripts/ci-scope.py,
+    # which runs everything for any path nobody has said is safe to leave out.
+    #
+    # A tag always runs everything. Nothing is published that was not built and
+    # tested as the thing being published, whatever the change that led to it.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      front: ${{ steps.scope.outputs.front }}
+      rust: ${{ steps.scope.outputs.rust }}
+      native: ${{ steps.scope.outputs.native }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # A pull request is checked out as its merge into the base, and the
+          # first parent of that merge is the base.
+          fetch-depth: 2
+
+      - name: Read what changed
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base=""
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            base=$(git rev-parse HEAD^1)
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            # Not the commit before this push: a newer push cancels the build
+            # of an older one, and what that one changed would then never have
+            # been built. The base is the newest commit a whole Build passed
+            # on, which holds by induction -- each of those was compared with
+            # the one before it. A release's own build counts, or the version
+            # it wrote into the manifests would be a native change in every
+            # push that follows it.
+            base=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
+              -f status=success -f per_page=50 |
+              jq -r --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[] |
+                select(.head_repository.full_name == $repo) |
+                select(.event == "push" or .event == "workflow_dispatch") |
+                select(.head_branch == "main" or (.head_branch | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))][0].head_sha // ""') || base=""
+            if [ -n "$base" ]; then
+              git fetch --quiet --depth=1 origin "$base" || base=""
+            fi
+          fi
+          if [ -z "$base" ]; then
+            echo "Nothing to compare with, so everything runs." >>"$GITHUB_STEP_SUMMARY"
+            python3 -B scripts/ci-scope.py --all | tee -a "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only --no-renames -z "$base" HEAD >"$RUNNER_TEMP/changed"
+          python3 -B scripts/ci-scope.py <"$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT" "$RUNNER_TEMP/scope"
+          {
+            echo "Compared with \`$base\`:"
+            echo '```'
+            cat "$RUNNER_TEMP/scope"
+            echo
+            tr '\0' '\n' <"$RUNNER_TEMP/changed"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+  policy:
+    name: Policy
+    # What is cheap enough to run whatever changed, and is about files that
+    # none of the other jobs are started by.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Verify the installers carry the app's own key
+        # The three installers turn down a download that is not signed by the
+        # key written into them, and the app turns down an update that is not
+        # signed by the one in its config. It is the same key: an installer
+        # that would accept something the app would not is a way onto a machine
+        # that nobody checked. There is nowhere a shell script, a PowerShell
+        # script, a Rust program and a JSON config can all read one string
+        # from, so it is written four times, and this is what keeps the four
+        # the same string. setup/ is built by a workflow of its own, on a cycle
+        # of its own, and is checked here anyway: this is the job that runs on
+        # every push, so this is where the key cannot quietly drift apart.
+        shell: bash
+        run: |
+          declared=$(sed -n 's/.*"pubkey": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
+          if [ -z "$declared" ]; then
+            echo "::error file=src-tauri/tauri.conf.json::there is no updater key in here"
+            exit 1
+          fi
+          for carrier in scripts/install.sh scripts/install.ps1 setup/src/release/mod.rs; do
+            grep -qF "$declared" "$carrier" || {
+              echo "::error file=$carrier::this does not carry the key in src-tauri/tauri.conf.json"
+              exit 1
+            }
+          done
+          # Nothing else in the build runs either of them, so this is the only
+          # place a typo in one is found before somebody installs with it.
+          sh -n scripts/install.sh
+          pwsh -NoProfile -Command '
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref] $null, [ref] $errors) | Out-Null
+            if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }'
+
+      - name: Check release policy
+        run: |
+          python3 -B scripts/release.py verify
+          python3 -B -m unittest discover -s tests -p 'test_*.py'
+
   frontend:
     name: Frontend
+    needs: scope
+    if: needs.scope.outputs.front == 'true'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v7
@@ -47,19 +166,21 @@ jobs:
           pnpm exec biome lint .
           pnpm test
           pnpm exec tsc --noEmit
+      - name: Build the pages
+        # The platform jobs build these on the way to a bundle. When none of
+        # them runs, this is what says the pages still build at all.
+        if: needs.scope.outputs.native != 'true'
+        run: pnpm exec vite build
 
   check:
     name: Check
-    # Rust and release-policy checks run alongside the frontend checks.
+    # Rust checks run alongside the frontend checks.
+    needs: scope
+    if: needs.scope.outputs.rust == 'true'
     runs-on: ubuntu-22.04
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install Python for release policy tests
-        uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
 
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
@@ -98,11 +219,6 @@ jobs:
           key: check
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Check release policy
-        run: |
-          python3 -B scripts/release.py verify
-          python3 -B -m unittest discover -s tests -p 'test_*.py'
-
       - name: Check Rust
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
@@ -120,6 +236,8 @@ jobs:
   build:
     name: ${{ matrix.name }}
     # Start native work immediately; sharing dist delayed every platform in measurements.
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       # One platform breaking says nothing about the other two, and knowing
@@ -160,39 +278,6 @@ jobs:
             echo "::error file=mise.toml::mise.toml pins rust $pinned but this workflow uses $RUST_VERSION"
             exit 1
           fi
-
-      - name: Verify the installers carry the app's own key
-        # The three installers turn down a download that is not signed by the
-        # key written into them, and the app turns down an update that is not
-        # signed by the one in its config. It is the same key: an installer
-        # that would accept something the app would not is a way onto a machine
-        # that nobody checked. There is nowhere a shell script, a PowerShell
-        # script, a Rust program and a JSON config can all read one string
-        # from, so it is written four times, and this is what keeps the four
-        # the same string. setup/ is built by a workflow of its own, on a cycle
-        # of its own, and is checked here anyway: this is the job that runs on
-        # every push, so this is where the key cannot quietly drift apart.
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          declared=$(sed -n 's/.*"pubkey": *"\([^"]*\)".*/\1/p' src-tauri/tauri.conf.json)
-          if [ -z "$declared" ]; then
-            echo "::error file=src-tauri/tauri.conf.json::there is no updater key in here"
-            exit 1
-          fi
-          for carrier in scripts/install.sh scripts/install.ps1 setup/src/release/mod.rs; do
-            grep -qF "$declared" "$carrier" || {
-              echo "::error file=$carrier::this does not carry the key in src-tauri/tauri.conf.json"
-              exit 1
-            }
-          done
-          # Nothing else in the build runs either of them, so this is the only
-          # place a typo in one is found before somebody installs with it.
-          sh -n scripts/install.sh
-          pwsh -NoProfile -Command '
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref] $null, [ref] $errors) | Out-Null
-            if ($errors.Count) { $errors | ForEach-Object { $_.Message }; exit 1 }'
 
       - name: Verify the tag names the version being built
         # Nothing downloaded from a release carries the version in its name any
@@ -496,7 +581,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     # Nothing is published that the tests have not been run against: a release
     # is the one moment where finding out later is finding out too late.
-    needs: [frontend, check, build]
+    needs: [policy, frontend, check, build]
     runs-on: ubuntu-latest
     permissions:
       # The one job that writes anything back to the repository.
