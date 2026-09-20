@@ -30,7 +30,7 @@ export function useSessionKeys({ sessions, showing, open }: Options) {
       event.preventDefault();
       // Not on repeat.
       if (event.repeat) return;
-      open(shellSession(shown.cwd, shown.branch));
+      open(shellSession(shown.cwd, shown.branch, shown.folder));
     };
 
     window.addEventListener("keydown", onKeyDown);

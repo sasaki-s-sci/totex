@@ -48,16 +48,12 @@ export function folderGroup(
   const id = folderId(folder.root);
   const shown = held.filter((entry) => isOpen(opened, entry.repository.id, held.length));
 
-  // Only what no repository in the folder answers for: a folder opened on a repository is one directory, two rows.
-  const inside = new Set<string>();
-  for (const entry of held) {
-    inside.add(entry.repository.path);
-    for (const worktree of entry.repository.worktrees) inside.add(worktree.path);
-  }
-  const running = inside.has(folder.root) ? [] : take(open, claimed, [folder.root]);
+  // A repository stands as itself: no row above it, so nothing beside one either.
+  const rowed = folder.kind === "folder";
+  const running = rowed ? take(open, claimed, [folder.root]) : [];
 
   // A folder holding nothing sets its terminals round its row; with rows below, a ring would run through them.
-  const ring = held.length === 0 ? ringAround(running.length) : null;
+  const ring = rowed && held.length === 0 ? ringAround(running.length) : null;
 
   const inset = {
     x: ring ? Math.max(0, -ring.left) : 0,
@@ -73,16 +69,18 @@ export function folderGroup(
     holds: [],
     members: [],
     inset,
-    right: head.x + FOLDER_ROW_WIDTH,
-    bottom: head.y + LANE_HEIGHT,
-    height: LANE_HEIGHT,
+    right: rowed ? head.x + FOLDER_ROW_WIDTH : head.x,
+    bottom: rowed ? head.y + LANE_HEIGHT : head.y,
+    height: rowed ? LANE_HEIGHT : 0,
   };
 
-  drawn.nodes.push(
-    folderRow(folder.root, folder.name, folder.kind, shown.length === held.length, head, draw),
-  );
+  if (rowed) {
+    drawn.nodes.push(
+      folderRow(folder.root, folder.name, folder.kind, shown.length === held.length, head, draw),
+    );
+  }
 
-  const from = inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2);
+  const from = rowed ? inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2) : null;
 
   const rows: Row[] = held.map((entry) =>
     shown.includes(entry)
@@ -126,7 +124,7 @@ export function folderGroup(
   const place: Place = {
     id,
     from,
-    x: head.x + FOLDER_INSET,
+    x: rowed ? head.x + FOLDER_INSET : head.x,
     open,
     showing,
     asks,
@@ -136,8 +134,12 @@ export function folderGroup(
   };
 
   let down: Cursor = {
-    cursor: ring ? head.y + ring.bottom : head.y + LANE_HEIGHT / 2 + rowReach(running.length),
-    above: { line: head.y + LANE_HEIGHT / 2, marks: running.length },
+    cursor: !rowed
+      ? head.y
+      : ring
+        ? head.y + ring.bottom
+        : head.y + LANE_HEIGHT / 2 + rowReach(running.length),
+    above: rowed ? { line: head.y + LANE_HEIGHT / 2, marks: running.length } : null,
     floor,
     first: true,
   };

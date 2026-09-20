@@ -15,7 +15,7 @@ export function GraphFolderMark({ on }: { on: boolean }) {
   );
 }
 
-/** The ring the canvas draws a repository by: a row's grip on the canvas, and the figure inside `GraphRepoMark`. */
+/** The ring the canvas draws a repository by: a row's grip on the canvas. */
 export function RepoRingMark({ on, size = SIZE }: { on: boolean; size?: number }) {
   return (
     <Frame size={size}>
@@ -26,16 +26,21 @@ export function RepoRingMark({ on, size = SIZE }: { on: boolean; size?: number }
 }
 
 /**
- * The repository goes on the canvas as the one repository it is: the canvas, as a frame, with the
- * ring the canvas draws a repository by inside it. Off, the ring stands empty with a plus for what
- * pressing does; on, it is filled, the repository being there.
+ * The repository goes on the canvas as the one repository it is: an arrow pointing the way the
+ * canvas lies from the column. On, the arrow has landed on the ring the canvas draws a repository
+ * by, the repository being there.
  */
 export function GraphRepoMark({ on, size = SIZE }: { on: boolean; size?: number }) {
   return (
     <Frame size={size}>
-      <rect x="2.5" y="4" width="19" height="16" rx="2" />
-      <circle cx="12" cy="12" r="4.4" fill={on ? "currentColor" : "none"} />
-      {!on && <path d="M12 9.8 V14.2 M9.8 12 H14.2" />}
+      {on ? (
+        <>
+          <path d="M3 12 H12 M8 7.5 L12.5 12 L8 16.5" />
+          <circle cx="18" cy="12" r="3" fill="currentColor" />
+        </>
+      ) : (
+        <path d="M4 12 H20 M14 6 L20 12 L14 18" />
+      )}
     </Frame>
   );
 }

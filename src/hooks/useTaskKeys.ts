@@ -36,7 +36,7 @@ export function useTaskKeys({ sessions, showing, open }: Options) {
   const run = useCallback(
     (session: Session, line: string) => {
       close();
-      const next = shellSession(session.cwd, session.branch);
+      const next = shellSession(session.cwd, session.branch, session.folder);
       open(next);
       void startShell(next)
         .then(() => writeShell(next.id, `${line}\n`))

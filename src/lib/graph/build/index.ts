@@ -1,5 +1,6 @@
 import { groupBy } from "../../collections";
-import { folderId } from "../folders";
+import type { Session } from "../../session";
+import { folderId, groupKey } from "../folders";
 import { prepare } from "../layout";
 import {
   type AppNode,
@@ -34,8 +35,26 @@ export function buildCommitGraph(
   }: GraphInput,
   previous?: GraphResult,
 ): GraphResult {
+  // A directory can stand on the canvas twice, as a folder and as a repository's checkout. A
+  // terminal goes to the folder when its row opened it, or when no repository answers for where
+  // it runs; every other one is a branch's.
+  const rows = new Set(
+    folders.filter((folder) => folder.kind === "folder").map((folder) => folder.root),
+  );
+  const answered = new Set<string>();
+  for (const repository of workspace.repositories) {
+    answered.add(repository.path);
+    for (const worktree of repository.worktrees) answered.add(worktree.path);
+  }
+  const ofFolder = (session: Session) =>
+    !answered.has(session.cwd) || (session.folder === true && rows.has(session.cwd));
+
   // By directory, not branch: an agent renames its branch while running and the ordinal must survive it.
-  const open = groupBy(sessions, (session) => session.cwd);
+  const open = groupBy(
+    sessions.filter((session) => !ofFolder(session)),
+    (session) => session.cwd,
+  );
+  const beside = groupBy(sessions.filter(ofFolder), (session) => session.cwd);
 
   // Stack depths before layout: a stack is centred on its line and pushes the rows either side.
   const deep = new Map<string, number>();
@@ -85,9 +104,19 @@ export function buildCommitGraph(
       .filter((entry) => entry !== undefined);
 
     const at = { x: 0, y: flowed };
-    const moved = places.get(folder.root);
+    const key = groupKey(folder);
+    const moved = places.get(key);
     const group = folderGroup(
-      { folder, held, opened, open, showing, asks, reports, reaching },
+      {
+        folder,
+        held,
+        opened,
+        open: folder.kind === "folder" ? beside : open,
+        showing,
+        asks,
+        reports,
+        reaching,
+      },
       { x: at.x + (moved?.x ?? 0), y: at.y + (moved?.y ?? 0) },
       claimed,
       draw,
@@ -97,10 +126,17 @@ export function buildCommitGraph(
     bands.push(...group.bands);
     links.push(...group.links);
     holds.push(...group.holds);
-    groups.set(folder.root, {
-      node: folderId(folder.root),
+    // A repository has no row of its own above it: nothing drawn, nothing to move.
+    const handle = folder.kind === "folder" ? folderId(folder.root) : group.members[0];
+    if (handle === undefined) continue;
+    const stands = group.nodes.find((node) => node.id === handle)?.position;
+    groups.set(key, {
+      node: handle,
 
-      at: { x: at.x + group.inset.x, y: at.y + group.inset.y },
+      // Where the handle would stand unmoved: a drag is measured from there.
+      at: stands
+        ? { x: stands.x - (moved?.x ?? 0), y: stands.y - (moved?.y ?? 0) }
+        : { x: at.x + group.inset.x, y: at.y + group.inset.y },
       least: group.inset,
       members: group.members,
     });

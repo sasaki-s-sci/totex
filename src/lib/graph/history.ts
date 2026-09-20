@@ -31,17 +31,17 @@ export function commitNodeId(repository: Repository, sha: string): string {
 }
 
 /** Always enough to reach the tip of the branch the repository is on. */
-export function defaultShown(repository: Repository): number {
+export function defaultShown(repository: Repository, length = DEFAULT_VISIBLE_COMMITS): number {
   const trunk = trunkOf(repository)?.commit;
-  const count = Math.min(DEFAULT_VISIBLE_COMMITS, repository.commits.length);
+  const count = Math.min(Math.max(1, length), repository.commits.length);
   if (trunk === undefined) return count;
   const at = repository.commits.findIndex((commit) => commit.id === trunk);
   return at === -1 ? count : Math.max(count, at + 1);
 }
 
 // Settled here rather than in the layout, so the cache key is the depth actually drawn.
-export function depthOf(repository: Repository, want: number | undefined): number {
-  return Math.max(1, Math.min(repository.commits.length, want ?? defaultShown(repository)));
+export function depthOf(repository: Repository, want: number | undefined, length?: number): number {
+  return Math.max(1, Math.min(repository.commits.length, want ?? defaultShown(repository, length)));
 }
 
 export function trunkOf(repository: Repository): Branch | undefined {

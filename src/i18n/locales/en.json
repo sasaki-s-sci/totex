@@ -52,7 +52,6 @@
     "listing": "Looking for repositories",
     "none": "No repositories here",
     "cutShort": "Stopped looking part way: the folder is too deep",
-    "refresh": "Look again",
     "home": "Back to its own folder",
     "showing": "Showing {{branch}}"
   },
@@ -63,6 +62,8 @@
     "fetch": "Fetch {{branch}} from {{remote}}"
   },
   "graph": {
+    "length": "Commits shown",
+    "lengthFollow": "Keep to the length as commits arrive",
     "fold": "Fold",
     "expand": "Expand",
     "junction_one": "{{prefix}}/ — {{count}} branch",
@@ -136,6 +137,8 @@
     "language": "Language",
     "said": "Line explanation",
     "reveal": "Zoom anchor",
+    "historyLength": "Commits shown",
+    "historyFollow": "Keep to the length as commits arrive",
     "follow": "Follow remotes",
     "fetch": "Fetch now",
     "now": "Fetch",

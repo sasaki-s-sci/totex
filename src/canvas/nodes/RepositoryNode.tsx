@@ -3,8 +3,10 @@ import type { NodeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { RepositoryFlowNode } from "../../lib/graph";
-import { CloseMark, MARK_BUTTON } from "../../marks";
+import { GRIP } from "../../lib/graph/folders";
+import { CloseMark, MARK_BUTTON, RepoRingMark } from "../../marks";
 import { useGraphActions } from "../graphActions";
+import { HistoryLength } from "./HistoryLength";
 
 export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   const { t } = useTranslation();
@@ -26,6 +28,10 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
             } as CSSProperties
           }
         >
+          {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}
+          <div className={`${GRIP} band__grip nopan`} title={t("folder.move")}>
+            <RepoRingMark on size={15} />
+          </div>
           <button
             type="button"
             className="folder__name nopan"
@@ -41,6 +47,7 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
               {repository.name}
             </Typography>
           </button>
+          <HistoryLength repository={repository} />
           <button
             type="button"
             className="band__close nopan"

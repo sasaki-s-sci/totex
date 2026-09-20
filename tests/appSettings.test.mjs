@@ -29,6 +29,8 @@ test("migrates all existing user preferences, including line size one", () => {
       backgroundGrid: false,
       gridStep: 24,
       gridSnap: false,
+      historyLength: 3,
+      historyFollow: false,
       mcpServing: true,
       fileTitle: "name",
       readingSize: 14,

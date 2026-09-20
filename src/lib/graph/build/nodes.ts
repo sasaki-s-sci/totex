@@ -1,4 +1,5 @@
 import type { AskFlowNode } from "../asking";
+import { GRIP } from "../folders";
 import type { PreparedRepository } from "../layout";
 import type {
   AppNode,
@@ -68,10 +69,13 @@ export function repositoryNode(
   x: number,
   y: number,
   width: number,
+  /** Standing on its own, the band is what its group is moved by. */
+  grip: boolean,
   before: AppNode | undefined,
 ): RepositoryFlowNode {
   if (
     before?.type === "repository" &&
+    before.draggable === grip &&
     before.data === entry.data &&
     before.position.x === x &&
     before.position.y === y &&
@@ -85,7 +89,8 @@ export function repositoryNode(
     type: "repository",
     position: { x, y },
     data: entry.data,
-    draggable: false,
+    draggable: grip,
+    ...(grip ? { dragHandle: `.${GRIP}` } : null),
     selectable: false,
 
     // A band is a backdrop; taking the pointer would stop the canvas panning over history.

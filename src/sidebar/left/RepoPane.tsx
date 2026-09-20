@@ -7,20 +7,12 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { FsEntry } from "../../folder/api";
+import { type FsEntry, readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
-import {
-  CloseMark,
-  GitMark,
-  GraphRepoMark,
-  MarkButton,
-  PaneRepoMark,
-  RefreshMark,
-  UpMark,
-} from "../../marks";
+import { CloseMark, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
@@ -90,9 +82,12 @@ export function RepoPane({
   onClose,
 }: RepoPaneProps) {
   const { t } = useTranslation();
-  const { rows, listing, failed, truncated, refresh } = useRepositoryList(path, onListed);
+  const { rows, listing, failed, truncated } = useRepositoryList(path, onListed);
   const [selected, setSelected] = useState<string | null>(null);
   const name = baseName(path);
+  // A root that is a repository lists itself and nothing else: the row says all the header would,
+  // so it stands alone and takes the header's close.
+  const alone = rows.length === 1 && rows[0].path === path;
 
   function open(entry: FsEntry) {
     setSelected(entry.path);
@@ -100,51 +95,50 @@ export function RepoPane({
 
   return (
     <Box component="section" sx={{ pb: 0.5 }}>
-      <Stack
-        direction="row"
-        sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 2,
-          bgcolor: "background.paper",
-          alignItems: "center",
-          gap: 0.25,
-          pt: 0.5,
-          pl: 1,
-          pr: 0.5,
-        }}
-      >
-        <Box
-          component="button"
-          type="button"
-          onClick={onToggleOpen}
+      {!alone && (
+        <Stack
+          direction="row"
           sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            bgcolor: "background.paper",
             alignItems: "center",
-            gap: 0.75,
-            px: 0,
-            py: 0.5,
-            border: "none",
-            background: "none",
-            color: "text.primary",
-            cursor: "pointer",
-            textAlign: "left",
+            gap: 0.25,
+            pt: 0.5,
+            pl: 1,
+            pr: 0.5,
           }}
         >
-          <PaneRepoMark />
-          <Typography variant="body2" noWrap title={displayPath(path)}>
-            {name}
-          </Typography>
-        </Box>
-        <MarkButton label={t("folder.close")} onClick={onClose}>
-          <CloseMark />
-        </MarkButton>
-        <MarkButton label={t("repository.refresh")} onClick={refresh}>
-          <RefreshMark />
-        </MarkButton>
-      </Stack>
+          <Box
+            component="button"
+            type="button"
+            onClick={onToggleOpen}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.75,
+              px: 0,
+              py: 0.5,
+              border: "none",
+              background: "none",
+              color: "text.primary",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <PaneRepoMark />
+            <Typography variant="body2" noWrap title={displayPath(path)}>
+              {name}
+            </Typography>
+          </Box>
+          <MarkButton label={t("folder.close")} onClick={onClose}>
+            <CloseMark />
+          </MarkButton>
+        </Stack>
+      )}
 
       {/* Never a blank: the rows found so far are drawn under the bar while the walk goes on. */}
       {listing ? (
@@ -153,7 +147,7 @@ export function RepoPane({
         <Box sx={{ mx: 1, my: 0.5, height: 2, borderRadius: 1, bgcolor: "error.main" }} />
       ) : null}
 
-      {showing && (
+      {(showing || alone) && (
         <>
           {rows.map((repository) => {
             const opened = expanded.includes(repository.path);
@@ -161,13 +155,12 @@ export function RepoPane({
             const swapped = reading !== repository.path;
             const mark =
               reading === dropping ? TAKING_DROP : reading === refused ? REFUSED_DROP : null;
-            const branch = branches.get(reading) ?? baseName(reading);
             return (
               <Box key={repository.path}>
                 <ListItemButton
                   data-repo-row={`${id}:${repository.path}`}
                   {...{ [DROP_INTO]: reading }}
-                  sx={{ pl: ROW_INDENT, pr: 0.5, gap: 0.5, ...mark }}
+                  sx={{ pl: alone ? 1 : ROW_INDENT, pr: 0.5, gap: 0.5, ...mark }}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -189,12 +182,21 @@ export function RepoPane({
                   {/* The name alone: where under the root it is, the pointer tells. */}
                   <ListItemText
                     primary={repository.name}
+                    secondary={
+                      <BranchCaption
+                        path={reading}
+                        known={branches.get(reading)}
+                        swapped={swapped}
+                      />
+                    }
+                    sx={{ my: 0, minWidth: 0 }}
                     slotProps={{
                       primary: {
                         variant: "body2",
                         noWrap: true,
                         title: displayPath(repository.path),
                       },
+                      secondary: { component: "div" },
                     }}
                   />
                   <Stack
@@ -202,25 +204,15 @@ export function RepoPane({
                     sx={{ ml: "auto", flex: "none", alignItems: "center", gap: 0.25 }}
                   >
                     {swapped && (
-                      <>
-                        <Typography
-                          variant="caption"
-                          noWrap
-                          title={t("repository.showing", { branch })}
-                          sx={{ color: "text.secondary", maxWidth: 96 }}
-                        >
-                          {branch}
-                        </Typography>
-                        <MarkButton
-                          label={t("repository.home")}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onShowWorktree(repository.path, null);
-                          }}
-                        >
-                          <UpMark />
-                        </MarkButton>
-                      </>
+                      <MarkButton
+                        label={t("repository.home")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onShowWorktree(repository.path, null);
+                        }}
+                      >
+                        <UpMark />
+                      </MarkButton>
                     )}
                     <MarkButton
                       label={t(
@@ -235,6 +227,17 @@ export function RepoPane({
                     >
                       <GraphRepoMark on={graphed.includes(repository.path)} />
                     </MarkButton>
+                    {alone && (
+                      <MarkButton
+                        label={t("folder.close")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onClose();
+                        }}
+                      >
+                        <CloseMark />
+                      </MarkButton>
+                    )}
                   </Stack>
                 </ListItemButton>
 
@@ -279,5 +282,56 @@ export function RepoPane({
         </>
       )}
     </Box>
+  );
+}
+
+/** `ref: refs/heads/<branch>`, as a checkout's own `.git/HEAD` spells the branch it is on. */
+const HEAD_REF = /^ref: refs\/heads\/(.+)$/m;
+
+/**
+ * The branch checked out at `path`, small under the row's name. The window knows it for a
+ * repository on the canvas; for the rest the checkout's `HEAD` is read, which costs no git. A
+ * detached or unreadable `HEAD` leaves the caption out, unless the row shows a worktree: that one
+ * goes by its folder.
+ */
+function BranchCaption({
+  path,
+  known,
+  swapped,
+}: {
+  path: string;
+  known: string | undefined;
+  swapped: boolean;
+}) {
+  const { t } = useTranslation();
+  const [read, setRead] = useState<{ path: string; branch: string } | null>(null);
+
+  useEffect(() => {
+    if (known !== undefined) return;
+    let stale = false;
+    const separator = path.includes("\\") && !path.includes("/") ? "\\" : "/";
+    readFileHead(`${path.replace(/[\\/]+$/, "")}${separator}.git${separator}HEAD`)
+      .then((head) => {
+        const branch = head.text?.match(HEAD_REF)?.[1]?.trim();
+        if (!stale && branch) setRead({ path, branch });
+      })
+      .catch(() => undefined);
+    return () => {
+      stale = true;
+    };
+  }, [path, known]);
+
+  const branch =
+    known ?? (read?.path === path ? read.branch : undefined) ?? (swapped ? baseName(path) : null);
+  if (!branch) return null;
+  return (
+    <Typography
+      variant="caption"
+      noWrap
+      title={swapped ? t("repository.showing", { branch }) : branch}
+      sx={{ display: "block", color: "text.secondary", fontSize: "0.68rem", lineHeight: 1.2 }}
+    >
+      {branch}
+    </Typography>
   );
 }

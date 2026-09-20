@@ -30,6 +30,14 @@ export function folderId(root: string): string {
   return `folder${root}`;
 }
 
+/**
+ * What a group is moved and kept by. One directory can stand twice, as a folder and as a
+ * repository, and each is dragged on its own.
+ */
+export function groupKey({ kind, root }: { kind: GraphedKind; root: string }): string {
+  return kind === "folder" ? root : `repository ${root}`;
+}
+
 /** A folder holding one repository opens it by default; several start folded. */
 export function isOpen(
   opened: ReadonlyMap<string, boolean>,
@@ -87,12 +95,15 @@ export function repoMark(
   band: string,
   repository: Repository,
   at: { x: number; y: number },
+  /** Standing on its own, the mark is what its group is moved by. */
+  grip: boolean,
   draw: Draw,
 ): RepoMarkFlowNode {
   const id = markId(band, repository);
   const held = draw.before.get(id);
   if (
     held?.type === "repo-mark" &&
+    held.draggable === grip &&
     held.data.repository === repository &&
     held.position.x === at.x &&
     held.position.y === at.y
@@ -106,7 +117,8 @@ export function repoMark(
     position: { x: at.x, y: at.y },
     data: { repository },
     style: { ...CELL_STYLE, width: REPO_MARK_WIDTH },
-    draggable: false,
+    draggable: grip,
+    ...(grip ? { dragHandle: `.${GRIP}` } : null),
     selectable: false,
   };
 }

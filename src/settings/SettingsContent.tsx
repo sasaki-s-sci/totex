@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
 import { GridRows } from "./GridRows";
+import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
@@ -34,6 +35,7 @@ export function SettingsContent() {
         </Group>
         <Group name={t("settings.graph")}>
           <RevealRow />
+          <HistoryRows />
           <FollowRows />
         </Group>
       </Section>

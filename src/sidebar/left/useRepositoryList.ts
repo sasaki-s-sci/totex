@@ -45,7 +45,7 @@ function shapeOf(root: string): Promise<string> {
 /** A walk asked for: the count tells one asking from the next, `shown` whether the bar goes up. */
 interface Walk {
   count: number;
-  /** Asked by the person (or the first of a root): the bar says the rows are still coming. */
+  /** The first walk of a root: the bar says the rows are still coming. */
   shown: boolean;
 }
 
@@ -57,8 +57,8 @@ interface Walk {
  * Walks are taken one at a time: a change that lands while a walk is under way asks for one more
  * once it has ended, rather than cutting it short — a root that keeps changing would otherwise
  * never be listed whole, and the bar would never come down. A walk the root's changes asked for
- * runs behind the rows already there without a bar; the bar is for a walk the person asked for,
- * and for the first walk of a root, where there are no rows yet to look at. A change under the
+ * runs behind the rows already there without a bar; the bar is for
+ * the first walk of a root, where there are no rows yet to look at. A change under the
  * root is worth a walk only when it changed which directories the root holds: a file written
  * beside them is not.
  */
@@ -77,13 +77,12 @@ export function useRepositoryList(root: string, onListed?: (paths: string[]) => 
 
   const ask = useCallback((shown: boolean) => {
     if (busy.current) {
-      // The louder asking wins: a person's refresh is not made quiet by a change beside it.
+      // The louder asking wins: a walk with a bar is not made quiet by a change beside it.
       again.current = (again.current ?? false) || shown;
       return;
     }
     setWalk((last) => ({ count: last.count + 1, shown }));
   }, []);
-  const refresh = useCallback(() => ask(true), [ask]);
   const noticed = useCallback(() => {
     shapeOf(root)
       .then((now) => {
@@ -165,5 +164,5 @@ export function useRepositoryList(root: string, onListed?: (paths: string[]) => 
   // are the rows' to notice.
   useEffect(() => watchDirectory(root, noticed), [root, noticed]);
 
-  return { rows, listing, failed, truncated, refresh };
+  return { rows, listing, failed, truncated };
 }

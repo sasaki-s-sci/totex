@@ -145,6 +145,19 @@ impl Screen {
         }
     }
 
+    /// Puts back how the terminal had been taken over, for a screen rebuilt
+    /// from a backlog whose head — where that was said — has been cut off.
+    pub fn retake(&mut self, watched: bool, alt: bool) {
+        self.watched = watched;
+        self.alt = alt;
+    }
+
+    /// The two ways of taking the terminal over, apart: being told when the
+    /// window is looked at, and the alternate screen.
+    pub fn taking(&self) -> (bool, bool) {
+        (self.watched, self.alt)
+    }
+
     /// Every row, with the trailing blanks taken off.
     pub fn lines(&self) -> Vec<String> {
         (0..self.rows)

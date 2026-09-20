@@ -52,6 +52,18 @@ export function AgentMark({ size, working }: { size?: number; working?: boolean 
   );
 }
 
+/** A run of commits, for how many of them a band shows. */
+export function LengthMark() {
+  return (
+    <Frame>
+      <path d="M3.5 12 H5.2 M9.2 12 H10 M14 12 H14.8 M18.8 12 H20.5" />
+      <circle cx="7.2" cy="12" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="16.8" cy="12" r="2" />
+    </Frame>
+  );
+}
+
 export function CloseMark() {
   return (
     <Frame>
@@ -64,16 +76,6 @@ export function AddMark() {
   return (
     <Frame>
       <path d="M12 5 V19 M5 12 H19" />
-    </Frame>
-  );
-}
-
-/** Two arcs chasing each other: the list is walked again. */
-export function RefreshMark() {
-  return (
-    <Frame>
-      <path d="M18.58 9.61 A7 7 0 0 0 5.42 9.61 M5.42 14.39 A7 7 0 0 0 18.58 14.39" />
-      <path d="M5.42 5.2 V9.61 H9.8 M18.58 18.8 V14.39 H14.2" />
     </Frame>
   );
 }

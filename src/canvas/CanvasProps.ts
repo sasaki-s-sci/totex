@@ -64,8 +64,6 @@ export type CanvasProps = {
 
   onCloseRepository: (repository: Repository) => void;
 
-  /** Closes every repository the folder holds. */
-  onCloseFolder: (root: string) => void;
   onMerge: (request: MergeRequest) => void;
 
   onSync: (request: SyncRequest) => void;

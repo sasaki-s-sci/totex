@@ -6,6 +6,10 @@ export type AppSettings = {
   backgroundGrid: boolean;
   gridStep: number;
   gridSnap: boolean;
+  /** Commits a band shows from its tip; at `HISTORY_ALL` or past it, every one read. */
+  historyLength: number;
+  /** Whether a band is cut back to that length as commits arrive, rather than growing with them. */
+  historyFollow: boolean;
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
@@ -28,6 +32,9 @@ export type SettingsPatch = Omit<Partial<AppSettings>, "said"> & {
   said?: Partial<AppSettings["said"]>;
 };
 
+/** What the backend reads of a repository unless told otherwise, so as many as there are to show. */
+export const HISTORY_ALL = 300;
+
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
   language: "system",
@@ -36,6 +43,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backgroundGrid: false,
   gridStep: 24,
   gridSnap: false,
+  historyLength: 3,
+  historyFollow: false,
   mcpServing: false,
   fileTitle: "name",
   readingSize: 11,
@@ -74,6 +83,8 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     backgroundGrid: false,
     gridStep: 24,
     gridSnap: false,
+    historyLength: 3,
+    historyFollow: false,
     mcpServing: read("totex.mcp.serving") === "yes",
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),

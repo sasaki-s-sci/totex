@@ -45,7 +45,8 @@ export function useCanvasWork({
           : Promise.reject(new Error("nowhere to open"));
 
       start
-        .then((path) => openSession(shellSession(path, branch)))
+        // No repository asked: the press was on a folder's row.
+        .then((path) => openSession(shellSession(path, branch, repository === null)))
         .catch(() => repository && fail(branchMark(repository.id, branch)));
     },
     [openSession, fail],

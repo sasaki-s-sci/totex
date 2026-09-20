@@ -52,7 +52,6 @@
     "listing": "リポジトリを探しています",
     "none": "リポジトリはありません",
     "cutShort": "途中で探索を打ち切りました（フォルダが深すぎます）",
-    "refresh": "探し直す",
     "home": "元のフォルダに戻す",
     "showing": "{{branch}} を表示中"
   },
@@ -63,6 +62,8 @@
     "fetch": "{{remote}} から {{branch}} を取得"
   },
   "graph": {
+    "length": "表示するコミット数",
+    "lengthFollow": "コミットの更新時に長さへ追従",
     "fold": "折り畳む",
     "expand": "展開",
     "junction_one": "{{prefix}}/ — {{count}} 本",
@@ -136,6 +137,8 @@
     "language": "言語",
     "said": "行の説明",
     "reveal": "ズームアンカー",
+    "historyLength": "表示するコミット数",
+    "historyFollow": "コミットの更新時に長さへ追従",
     "follow": "リモートに追従",
     "fetch": "いま fetch する",
     "now": "fetch",

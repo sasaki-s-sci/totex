@@ -14,6 +14,7 @@
 
 pub mod adjust;
 pub mod answer;
+mod taken;
 mod typing;
 mod watcher;
 
@@ -151,13 +152,21 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
                 // Both readings are taken in the one hold of the map — they are
                 // off the same screen, and taking them separately would be
                 // holding it twice for one run of output.
-                let (asked, turned) = {
+                let (asked, turned, retaken) = {
                     let mut watching = state.lock();
-                    match watching.get_mut(id) {
-                        None => (None, None),
-                        Some(watcher) => (watcher.keep(at, data), watcher.turned()),
-                    }
+                    let (asked, turned, retaken) = match watching.get_mut(id) {
+                        None => (None, None, false),
+                        Some(watcher) => {
+                            (watcher.keep(at, data), watcher.turned(), watcher.retaken())
+                        }
+                    };
+                    (asked, turned, retaken.then(|| taken::standing(&watching)))
                 };
+                // Kept before anything is told: it is the one reading here that
+                // cannot be taken again, and it changes a few times a session.
+                if let Some(standing) = retaken {
+                    taken::keep(&handle, standing);
+                }
                 if let Some(ask) = asked {
                     let _ = handle.emit(
                         ASK_EVENT,
@@ -183,7 +192,16 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
                 }
             }
             Event::Ended => {
-                state.lock().remove(id);
+                let left = {
+                    let mut watching = state.lock();
+                    let ended = watching.remove(id);
+                    ended
+                        .is_some_and(|watcher| watcher.taken().is_some())
+                        .then(|| taken::standing(&watching))
+                };
+                if let Some(standing) = left {
+                    taken::keep(&handle, standing);
+                }
             }
         }
     }));
@@ -195,19 +213,37 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
 /// and a question is named by what it says, so a card the window drew before
 /// this ran is still answerable after it. The map is held for the whole of it,
 /// so a run arriving meanwhile waits rather than landing on a half-built screen.
+///
+/// One thing is not in the backlogs, for a session that has said more than its
+/// backlog holds: how its terminal was taken over. That is asked for back from
+/// where it was kept — see `taken` — and kept again as it stands afterwards, so
+/// that what is kept is never older than the screens it was read off.
 pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
     let running = pty::running(app);
+    let kept = taken::kept(app);
     let state = app.state::<AskState>();
-    let mut watching = state.lock();
-    watching.clear();
-    for session in running {
-        // Gone between being listed and being read: nothing to read.
-        let Some(held) = pty::pty_attach(app.clone(), session.id.clone()) else {
-            continue;
-        };
-        let mut watcher = Watcher::new(session.rows, session.cols);
-        watcher.replay(&held.text, held.upto);
-        watching.insert(session.id, watcher);
+    let standing = {
+        let mut watching = state.lock();
+        watching.clear();
+        for session in running {
+            // Gone between being listed and being read: nothing to read.
+            let Some(held) = pty::pty_attach(app.clone(), session.id.clone()) else {
+                continue;
+            };
+            let mut watcher = Watcher::new(session.rows, session.cols);
+            // A backlog that reaches back to the start says all of it itself.
+            if held.upto > held.text.len()
+                && let Some(taken) = kept.get(&session.id)
+            {
+                watcher.resume(taken);
+            }
+            watcher.replay(&held.text, held.upto);
+            watching.insert(session.id, watcher);
+        }
+        taken::standing(&watching)
+    };
+    if standing != kept {
+        taken::keep(app, standing);
     }
 }
 

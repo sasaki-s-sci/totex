@@ -153,22 +153,18 @@ function merge(roots: string[], open: Open): Workspace | null {
 
 /**
  * In the order graphed. A repository waits for its scan; a folder is drawn at once. One directory
- * graphed both ways is drawn once, as the repository: the folder row would stand under the same
- * name at the same place.
+ * graphed both ways is drawn both ways: the folder's row with its terminals, and the repository
+ * beside it.
  */
 function group(roots: readonly Graphed[], open: Open): Folder[] {
   const seen = new Set<string>();
-  const scanned = new Set(
-    roots
-      .filter((graphed) => graphed.kind === "repository" && open[graphed.root])
-      .map((graphed) => graphed.root),
-  );
+  const rows = new Set<string>();
   const folders: Folder[] = [];
 
   for (const graphed of roots) {
     if (graphed.kind === "folder") {
-      if (scanned.has(graphed.root) || seen.has(graphed.root)) continue;
-      seen.add(graphed.root);
+      if (rows.has(graphed.root)) continue;
+      rows.add(graphed.root);
       folders.push({
         kind: "folder",
         root: graphed.root,

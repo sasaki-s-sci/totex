@@ -106,15 +106,16 @@ export function useCanvasDrag({
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const takeGroup: OnNodeDrag<AppNode> = useCallback(
     (_event, node) => {
-      if (node.type !== "folder") return;
-      const group = graph.groups.get(node.data.root);
-      if (!group) return;
+      // A folder's row, or a repository standing on its own: whichever node its group is moved by.
+      const found = [...graph.groups].find(([, group]) => group.node === node.id);
+      if (!found) return;
+      const [root, group] = found;
       const wanted = new Set(group.members);
       const members = new Map<string, XYPosition>();
       for (const held of standing.current) {
         if (wanted.has(held.id)) members.set(held.id, held.position);
       }
-      carried.current = { root: node.data.root, from: node.position, members };
+      carried.current = { root, from: node.position, members };
     },
     [graph.groups],
   );
@@ -122,7 +123,7 @@ export function useCanvasDrag({
   const carryGroup: OnNodeDrag<AppNode> = useCallback(
     (_event, node) => {
       const held = carried.current;
-      if (!held || node.type !== "folder") return;
+      if (!held) return;
       const dx = node.position.x - held.from.x;
       const dy = node.position.y - held.from.y;
       setNodes((current) =>
@@ -140,7 +141,7 @@ export function useCanvasDrag({
     (_event, node) => {
       const held = carried.current;
       carried.current = null;
-      if (!held || node.type !== "folder") return;
+      if (!held) return;
       const group = graph.groups.get(held.root);
       if (!group) return;
 

@@ -41,7 +41,8 @@ export type Cursor = {
 export type Place = {
   id: string;
 
-  from: LineEnd;
+  /** The row the group hangs from; `null` for a repository standing on its own, which hangs from nothing. */
+  from: LineEnd | null;
 
   x: number;
   open: ReadonlyMap<string, Session[]>;
@@ -53,13 +54,13 @@ export type Place = {
 };
 
 // Marks run as a list; a band stands clear so two histories are told apart.
-function airAbove(row: Row, at: Cursor): number {
-  if (at.first) return FOLDER_GAP_Y;
+function airAbove(row: Row, at: Cursor, hung: boolean): number {
+  if (at.first) return hung ? FOLDER_GAP_Y : 0;
   return "column" in row || at.above === null ? REPO_GAP_Y : 0;
 }
 
 export function placeRow(row: Row, place: Place, drawn: LaidGroup, at: Cursor): Cursor {
-  const air = airAbove(row, at);
+  const air = airAbove(row, at, place.from !== null);
   const next =
     "column" in row ? bandRow(row, place, drawn, at, air) : markRow(row, place, drawn, at, air);
   return { ...next, first: false };
@@ -76,7 +77,9 @@ function bandRow(
   const top = at.cursor + air;
   const width = entry.style.width;
   const proposed = entry.repository.id === reaching;
-  drawn.nodes.push(repositoryNode(entry, x, top, width, draw.before.get(entry.repository.id)));
+  drawn.nodes.push(
+    repositoryNode(entry, x, top, width, from === null, draw.before.get(entry.repository.id)),
+  );
   drawn.nodes.push(...(proposed ? provisional(entry.nodes) : entry.nodes));
   drawn.nodes.push(...row.column.nodes);
   drawn.members.push(entry.repository.id);
@@ -93,15 +96,17 @@ function bandRow(
     provisional: proposed,
   });
 
-  const link = holds(id, from, entry.repository.id, {
-    node: entry.repository.id,
-    dx: entry.data.label.x,
-    dy: entry.trunk,
-  });
-  drawn.links.push(link);
+  if (from) {
+    const link = holds(id, from, entry.repository.id, {
+      node: entry.repository.id,
+      dx: entry.data.label.x,
+      dy: entry.trunk,
+    });
+    drawn.links.push(link);
 
-  // The one line that can be folded at; a line into a mark offers nothing.
-  drawn.holds.push({ line: link, repository: entry.repository.id });
+    // The one line that can be folded at; a line into a mark offers nothing.
+    drawn.holds.push({ line: link, repository: entry.repository.id });
+  }
 
   drawn.right = Math.max(drawn.right, x + Math.max(width, row.column.right));
   drawn.bottom = Math.max(drawn.bottom, top + Math.max(entry.style.height, row.column.bottom));
@@ -126,11 +131,13 @@ function markRow(
   const top = line - LANE_HEIGHT / 2;
 
   const mark = markId(id, entry.repository);
-  drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, draw));
+  drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, from === null, draw));
   drawn.members.push(mark);
-  drawn.links.push(
-    holds(id, from, entry.repository.id, { node: mark, dx: 0, dy: LANE_HEIGHT / 2 }),
-  );
+  if (from) {
+    drawn.links.push(
+      holds(id, from, entry.repository.id, { node: mark, dx: 0, dy: LANE_HEIGHT / 2 }),
+    );
+  }
 
   const stack = rowStack(
     row.standing,

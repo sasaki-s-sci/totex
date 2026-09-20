@@ -8,6 +8,11 @@ export type Session = {
   id: string;
   cwd: string;
   branch: string;
+  /**
+   * Opened from a folder's row rather than a branch: the directory may be a repository's too, and
+   * the terminal stands by the row that opened it.
+   */
+  folder?: boolean;
 };
 
 let started = 0;
@@ -15,10 +20,14 @@ let started = 0;
 /** Opaque to the side that holds it, so a field can be added without changing anything there. */
 type Kept = {
   branch: string;
+  folder?: boolean;
 };
 
 export function sessionMeta(session: Session): string {
-  return JSON.stringify({ branch: session.branch } satisfies Kept);
+  return JSON.stringify({
+    branch: session.branch,
+    ...(session.folder ? { folder: true } : null),
+  } satisfies Kept);
 }
 
 const ORDINAL = / cli (\d+)$/;
@@ -36,16 +45,17 @@ export function reserveSessionIds(sessions: readonly { id: string }[]): void {
 export function restored(running: readonly Running[]): Session[] {
   reserveSessionIds(running);
   return running.map((shell) => {
-    return { id: shell.id, cwd: shell.cwd, branch: branchOf(shell.meta) };
+    return { id: shell.id, cwd: shell.cwd, ...kept(shell.meta) };
   });
 }
 
-function branchOf(meta: string | null): string {
-  if (!meta) return "";
+function kept(meta: string | null): Pick<Session, "branch" | "folder"> {
+  if (!meta) return { branch: "" };
   try {
-    return (JSON.parse(meta) as Partial<Kept>).branch ?? "";
+    const { branch, folder } = JSON.parse(meta) as Partial<Kept>;
+    return { branch: branch ?? "", ...(folder === true ? { folder: true } : null) };
   } catch {
-    return "";
+    return { branch: "" };
   }
 }
 
@@ -55,8 +65,8 @@ export function sessionId(cwd: string): string {
   return `${cwd} cli ${started}`;
 }
 
-export function shellSession(cwd: string, branch: string): Session {
-  return { id: sessionId(cwd), cwd, branch };
+export function shellSession(cwd: string, branch: string, folder = false): Session {
+  return { id: sessionId(cwd), cwd, branch, ...(folder ? { folder: true } : null) };
 }
 
 /** By directory, not branch name: a branch can rename itself under a running session. */

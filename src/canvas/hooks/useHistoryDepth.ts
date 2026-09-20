@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { depthOf } from "../../lib/graph/history";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAppSettings } from "../../lib/appSettings";
+import { type Drawn, settleDepths } from "../../lib/graph/depths";
 import { useFrontState } from "../../shell/state";
 import type { Repository } from "../../types/git";
 
@@ -8,50 +9,45 @@ type Ask = { shown: number };
 
 type Reaching = { repository: string; shown: number };
 
-type Drawn = {
-  ask: Ask | Reaching | undefined;
-
-  oldest: string;
-};
-
 export function useHistoryDepth(repositories: readonly Repository[]) {
+  const { historyLength, historyFollow } = useAppSettings();
   const [settled, setSettled] = useFrontState<ReadonlyMap<string, Ask>>(
     "canvas.history",
     () => new Map(),
+  );
+  // The repositories that keep their place in history while the rest follow the length.
+  const [free, setFree] = useFrontState<ReadonlySet<string>>(
+    "canvas.history.free",
+    () => new Set(),
   );
   const [reaching, setReaching] = useState<Reaching | null>(null);
 
   // keep runs in the event after the pull's last frame, before that frame's state has rendered.
   const held = useRef<Reaching | null>(null);
 
-  const drawn = useRef<ReadonlyMap<string, Drawn>>(new Map());
+  const drawn = useRef<ReadonlyMap<string, Drawn<Ask | Reaching>>>(new Map());
+
+  // A new length is for every repository: the ones given a length of their own give it up.
+  const given = useRef(historyLength);
+  useEffect(() => {
+    if (given.current === historyLength) return;
+    given.current = historyLength;
+    setSettled((current) => (current.size === 0 ? current : new Map()));
+  }, [historyLength]);
 
   const visible = useMemo(() => {
-    const shown = new Map<string, number>();
-    const now = new Map<string, Drawn>();
-
-    for (const repository of repositories) {
-      const proposed = reaching?.repository === repository.id;
-      const ask = proposed ? reaching : settled.get(repository.id);
-      const before = drawn.current.get(repository.id);
-
-      const kept =
-        before && before.ask === ask
-          ? repository.commits.findIndex((commit) => commit.id === before.oldest) + 1
-          : 0;
-
-      // A fold is a place in history, not a distance from the tip: new commits lengthen the band without moving it.
-      const depth = Math.max(depthOf(repository, ask?.shown), kept);
-      shown.set(repository.id, depth);
-
-      const oldest = repository.commits[depth - 1];
-      const entry = proposed ? before : oldest && { ask, oldest: oldest.id };
-      if (entry) now.set(repository.id, entry);
-    }
-
+    const { shown, drawn: now } = settleDepths(
+      repositories,
+      (repository) => {
+        const proposed = reaching?.repository === repository;
+        return { ask: proposed ? reaching : settled.get(repository), proposed };
+      },
+      drawn.current,
+      { length: historyLength, follow: historyFollow, free },
+    );
     drawn.current = now;
     return shown;
-  }, [repositories, settled, reaching]);
+  }, [repositories, settled, reaching, historyLength, historyFollow, free]);
 
   const fold = useCallback((repository: string, shown: number) => {
     setSettled((current) => new Map(current).set(repository, { shown }));
@@ -61,6 +57,16 @@ export function useHistoryDepth(repositories: readonly Repository[]) {
     (repository: string) => fold(repository, Number.POSITIVE_INFINITY),
     [fold],
   );
+
+  const follow = useCallback((repository: string, following: boolean) => {
+    setFree((current) => {
+      if (current.has(repository) !== following) return current;
+      const next = new Set(current);
+      if (following) next.delete(repository);
+      else next.add(repository);
+      return next;
+    });
+  }, []);
 
   const reach = useCallback((repository: string, shown: number | null) => {
     if (shown === null) {
@@ -91,10 +97,12 @@ export function useHistoryDepth(repositories: readonly Repository[]) {
 
   return {
     visible,
+    free,
 
     reaching: reaching?.repository ?? null,
     expand,
     fold,
+    follow,
     reach,
     keep,
   };

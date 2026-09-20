@@ -1,6 +1,23 @@
 //! One session's screen, and the question standing on it.
 
+use serde::{Deserialize, Serialize};
+
 use super::super::{Ask, Doing, Reading, Screen, doing, read, typed};
+
+/// What a session whose terminal has been taken over cannot be asked twice.
+///
+/// Both halves are said once, as the program starts: the line that started it
+/// scrolls away, and the mode that says the terminal is taken is never set
+/// again. A backlog keeps only the tail of what a session said, so a screen
+/// rebuilt from one that has been cut reads an agent as a command that never
+/// ends. This is kept outside the window for that rebuild — see `taken`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Taken {
+    started: Option<String>,
+    watched: bool,
+    alt: bool,
+}
 
 /// Fed everything the session says whether or not a terminal is being drawn for
 /// it — a session nobody has opened is exactly the one whose question the graph
@@ -45,6 +62,9 @@ pub struct Watcher {
     /// Whether that has changed since anybody was told, which is what keeps a
     /// session drawing its own output from saying `running` a thousand times.
     turned: bool,
+    /// How the terminal stood taken when that was last kept, so that it is
+    /// kept again only when it changes.
+    noted: Option<Taken>,
     /// How far into everything the session has said this screen has been fed.
     ///
     /// For the moment this is rebuilt: the screen is taken from the backlog in
@@ -66,8 +86,17 @@ impl Watcher {
             // can type at, which is what starting up is.
             doing: Doing::Running,
             turned: false,
+            noted: None,
             fed: 0,
         }
+    }
+
+    /// Stands the screen as taken the way it was, before a backlog that no
+    /// longer says so is replayed onto it. What the backlog does still say —
+    /// the program going, another starting — is read over this as it comes.
+    pub(super) fn resume(&mut self, taken: &Taken) {
+        self.started = taken.started.clone();
+        self.screen.retake(taken.watched, taken.alt);
     }
 
     /// Follows a run of output, and says what is being asked when that changed.
@@ -95,6 +124,7 @@ impl Watcher {
         // Nothing was told, so nothing is owed: a window that has just come up
         // asks for the lot of these through `pty_doing`.
         self.turned = false;
+        self.noted = self.taken();
         self.fed = upto;
     }
 
@@ -174,6 +204,26 @@ impl Watcher {
     /// for — which is what is worth crossing to the window.
     pub fn turned(&mut self) -> Option<Doing> {
         std::mem::take(&mut self.turned).then_some(self.doing)
+    }
+
+    /// How the terminal stands taken, or nothing while it is the shell's.
+    pub fn taken(&self) -> Option<Taken> {
+        let (watched, alt) = self.screen.taking();
+        (watched || alt).then(|| Taken {
+            started: self.started.clone(),
+            watched,
+            alt,
+        })
+    }
+
+    /// Whether that has changed since it was last kept.
+    pub fn retaken(&mut self) -> bool {
+        let taken = self.taken();
+        if taken == self.noted {
+            return false;
+        }
+        self.noted = taken;
+        true
     }
 
     /// How far into everything the session has said this screen has been fed,

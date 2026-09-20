@@ -60,12 +60,18 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 8px 0 6px;
+  padding: 0 26px 0 6px;
   border: none;
   background: none;
   color: var(--mui-palette-text-secondary);
   cursor: pointer;
   pointer-events: all;
+}
+
+/* The ring sits where the row ends, over the button's own padding. */
+.repo-mark__grip {
+  right: 3px;
+  z-index: 1;
 }
 
 .repo-mark__name {

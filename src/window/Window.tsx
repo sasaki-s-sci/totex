@@ -70,7 +70,7 @@ export function Window() {
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
-  const { drawn, closeRepository, closeFolder } = useClosedRepositories(workspace, graphed);
+  const { drawn, closeRepository } = useClosedRepositories(workspace);
   useWindowBoot(workspace);
 
   const browseFolder = useCallback(
@@ -175,7 +175,6 @@ export function Window() {
             onBrowseWorktree={work.browseWorktree}
             onPickBranch={menus.setWorktree}
             onCloseRepository={closeRepository}
-            onCloseFolder={closeFolder}
             onMerge={work.merge}
             onSync={work.sync}
             onFetch={work.fetch}

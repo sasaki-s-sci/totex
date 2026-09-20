@@ -42,6 +42,13 @@
   align-items: center;
 }
 
+/* In the heading's flow, ahead of the name, rather than hung on a row's edge. */
+.band__grip {
+  position: static;
+  flex: none;
+  transform: none;
+}
+
 .band__heading .folder__name {
   margin-left: auto;
 }
@@ -62,6 +69,11 @@
   cursor: pointer;
   pointer-events: all;
   transition: color var(--reveal);
+}
+
+/* Ahead of the close mark, which keeps the slack to the right of both. */
+.band__length {
+  margin-right: 0;
 }
 
 .band__name:hover .band__close,
