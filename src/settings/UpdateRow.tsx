@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  askStanding,
+  askChoices,
   declare,
   type Layer,
   reading,
@@ -25,8 +25,10 @@ const BUTTONS = {
 export function UpdateRow() {
   const { t } = useTranslation();
   const at = useUpdate();
+  // Opening the page is looking for a release, so the list is asked for again rather than
+  // left at whatever the last round of the poll found.
   useEffect(() => {
-    void askStanding();
+    void askChoices();
   }, []);
   const read = reading(at);
   if (!read) return null;

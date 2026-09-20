@@ -73,32 +73,53 @@ export function askStanding(again = false): Promise<Rung[]> {
 }
 
 const EVERY = 30 * 60_000;
+// A window that is clicked back into every few seconds is not one that asks every few seconds.
+const SETTLED = 5 * 60_000;
 
-// Polled from window open so the pull-down is full when opened. Nothing is asked where
-// nothing could be taken, and a failed ask keeps the list it had.
+let choosing: Promise<void> | null = null;
+let chosen = 0;
+
+/**
+ * Asks which releases there are. Nothing is asked where nothing could be taken, and a
+ * failed ask keeps the list it had. `within` leaves an answer that recent alone.
+ */
+export function askChoices(within = 0): Promise<void> {
+  if (choosing) return choosing;
+  if (within > 0 && Date.now() - chosen < within) return Promise.resolve();
+  choosing = askStanding()
+    .then(async (rungs) => {
+      if (!rungs.some((rung) => rung.can)) return;
+      const choices = await invoke<UpdateChoice[]>("update_choices");
+      chosen = Date.now();
+      const versions = choices.map((choice) => choice.version);
+      settle({ choices, versions: versions.length > 0 ? versions : state.versions });
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      choosing = null;
+    });
+  return choosing;
+}
+
+// Polled from window open so the pull-down is full when opened, and asked again when the
+// window is come back to: a release is usually looked for by the person who just made it.
 export function watchUpdateChoices(): () => void {
   let alive = true;
   let again: ReturnType<typeof setTimeout> | undefined;
 
   const round = () => {
-    invoke<UpdateChoice[]>("update_choices")
-      .then((choices) => {
-        if (!alive) return;
-        const versions = choices.map((choice) => choice.version);
-        settle({ choices, versions: versions.length > 0 ? versions : state.versions });
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (alive) again = setTimeout(round, EVERY);
-      });
+    void askChoices().finally(() => {
+      if (alive) again = setTimeout(round, EVERY);
+    });
   };
+  const back = () => void askChoices(SETTLED);
 
-  void askStanding().then((rungs) => {
-    if (alive && rungs.some((rung) => rung.can)) round();
-  });
+  round();
+  window.addEventListener("focus", back);
 
   return () => {
     alive = false;
     clearTimeout(again);
+    window.removeEventListener("focus", back);
   };
 }
