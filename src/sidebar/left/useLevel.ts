@@ -1,6 +1,7 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type Listing, readDirectory } from "../../folder/api";
 import { refreshChanges, useDirectoryChanges } from "../../folder/changes";
+import { useHolding } from "./holding";
 import { FIRST_ROWS, MORE_ROWS } from "./rows";
 import { watchDirectory } from "./watch";
 
@@ -9,14 +10,23 @@ export function useLevel(
   depth: number,
   onNavigate: ((path: string) => void) | undefined,
   onListing: ((listing: Listing) => void) | undefined,
+  /** Whether the rows offer the repository list: where they do not, nothing is walked for it. */
+  listsRepositories: boolean,
 ) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [failed, setFailed] = useState(false);
   const [expanded, setExpanded] = useState<readonly string[]>([]);
   const [shown, setShown] = useState(FIRST_ROWS);
+  const [reads, setReads] = useState(0);
 
   const rows = listing ? listing.entries.slice(0, shown) : [];
   const rest = listing ? listing.entries.length - rows.length : 0;
+  // The rows drawn, not the whole listing: a folder far down a long level is asked about when it
+  // is reached.
+  const holding = useHolding(
+    listsRepositories ? rows.filter((entry) => entry.isDir).map((entry) => entry.path) : [],
+    reads,
+  );
 
   const answer = useDirectoryChanges(path);
   // A Map, not the object: a file called `constructor` would otherwise find a non-colour.
@@ -47,6 +57,7 @@ export function useLevel(
           if (cancelled) return;
           setListing(next);
           setFailed(false);
+          setReads((count) => count + 1);
           report.current.onListing?.(next);
           // `~`, `..` and the legacy WSL share are folded by the backend; the pane moves to the
           // path that answered. A level that cannot be moved stays where it was asked.
@@ -80,6 +91,7 @@ export function useLevel(
     changes,
     allIgnored: answer.allIgnored,
     ignored,
+    holding,
     drawMore,
   };
 }

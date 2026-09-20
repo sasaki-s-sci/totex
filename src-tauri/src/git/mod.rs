@@ -68,6 +68,13 @@ const MAX_COMMIT_LIMIT: usize = 5_000;
 /// fills in.
 const LIST_BUDGET: usize = 20_000;
 
+/// How many directories one asking of `folders_holding_repositories` may look
+/// at, across every folder asked about.
+///
+/// Asked per level of a pane rather than per pane, so it is kept well under a
+/// listing's: a folder it runs out on is offered the list anyway.
+const HOLDING_BUDGET: usize = 5_000;
+
 /// Carries a `RepositoryFound` to the window, one per repository, as the
 /// listing reaches it.
 pub const FOUND_EVENT: &str = "repositories:found";
@@ -204,6 +211,19 @@ pub async fn list_repositories(
         let listed = list(&app, &root, token);
         app.state::<ListState>().end(token);
         listed
+    })
+}
+
+/// The ones of `paths` that are a repository or have one under them: the
+/// folders whose rows offer the repository list. Spelled as they were asked.
+#[tauri::command]
+pub async fn folders_holding_repositories(paths: Vec<String>) -> Result<Vec<String>, String> {
+    off_thread!({
+        let roots: Vec<std::path::PathBuf> = paths.iter().map(Into::into).collect();
+        Ok(discover::holding(&roots, SCAN_DEPTH, HOLDING_BUDGET)
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect())
     })
 }
 

@@ -36,7 +36,10 @@ interface LevelProps {
   onNavigate?: (path: string) => void;
   /** Absent where a folder cannot go on the canvas; the row then has no mark for it. */
   onToggleGraph?: (path: string) => void;
-  /** Starts a pane listing the repositories under the folder: the git way onto the canvas. */
+  /**
+   * Starts a pane listing the repositories under the folder: the git way onto the canvas. Offered
+   * only by a folder that holds a repository; any folder goes on as a folder.
+   */
   onListRepositories?: (path: string) => void;
   onOpenFile?: (path: string) => void;
   /** The menu belongs to the column so one is open at a time; the pane says which pane. */
@@ -79,8 +82,9 @@ export function Level({
     changes,
     allIgnored,
     ignored,
+    holding,
     drawMore,
-  } = useLevel(path, depth, onNavigate, onListing);
+  } = useLevel(path, depth, onNavigate, onListing, onListRepositories !== undefined);
 
   function toggle(folder: string) {
     setExpanded((held) =>
@@ -207,6 +211,17 @@ export function Level({
               {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
               {entry.isDir && (onNavigate || onToggleGraph || onListRepositories) && (
                 <Stack direction="row" sx={{ ml: "auto", flex: "none", gap: 0.25 }}>
+                  {onListRepositories && holding.has(entry.path) && (
+                    <MarkButton
+                      label={t("folder.listRepositories")}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onListRepositories(entry.path);
+                      }}
+                    >
+                      <GitMark size={SIZE} />
+                    </MarkButton>
+                  )}
                   {onNavigate && (
                     <MarkButton
                       label={t("folder.enter")}
@@ -227,17 +242,6 @@ export function Level({
                       }}
                     >
                       <GraphFolderMark on={graphed.includes(entry.path)} />
-                    </MarkButton>
-                  )}
-                  {onListRepositories && (
-                    <MarkButton
-                      label={t("folder.listRepositories")}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onListRepositories(entry.path);
-                      }}
-                    >
-                      <GitMark size={SIZE} />
                     </MarkButton>
                   )}
                 </Stack>

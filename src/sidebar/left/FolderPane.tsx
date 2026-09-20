@@ -18,6 +18,7 @@ import {
 } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
+import { useHolding } from "./holding";
 import type { Naming } from "./NameField";
 import { CHANGE_COLOUR, REFUSED_DROP, TAKING_DROP } from "./rows";
 
@@ -87,6 +88,9 @@ export function FolderPane({
     undefined,
   );
   const colour = change ? CHANGE_COLOUR[change] : "text.primary";
+  // The list is offered where it would have a row. A checkout says so by its own listing; any
+  // other folder is walked for one.
+  const holds = useHolding([path], root?.entries.length).has(path) || isRepository;
 
   function open(entry: FsEntry) {
     setSelected(entry.path);
@@ -153,11 +157,6 @@ export function FolderPane({
         <MarkButton label={t("folder.close")} onClick={onClose}>
           <CloseMark />
         </MarkButton>
-        {showing && parent && (
-          <MarkButton label={t("folder.up")} onClick={() => onNavigate(parent)}>
-            <UpMark />
-          </MarkButton>
-        )}
         {standing && (
           <MarkButton
             label={t("folder.door", { space: baseName(standing.space) })}
@@ -166,11 +165,18 @@ export function FolderPane({
             <McpMark on={standing.settings.mcp} />
           </MarkButton>
         )}
+        {holds && (
+          <MarkButton label={t("folder.listRepositories")} onClick={() => onListRepositories(path)}>
+            <GitMark size={SIZE} />
+          </MarkButton>
+        )}
+        {showing && parent && (
+          <MarkButton label={t("folder.up")} onClick={() => onNavigate(parent)}>
+            <UpMark />
+          </MarkButton>
+        )}
         <MarkButton label={t("folder.graph")} onClick={() => onToggleGraph(path)}>
           <GraphFolderMark on={graphed.includes(path)} />
-        </MarkButton>
-        <MarkButton label={t("folder.listRepositories")} onClick={() => onListRepositories(path)}>
-          <GitMark size={SIZE} />
         </MarkButton>
       </Stack>
 

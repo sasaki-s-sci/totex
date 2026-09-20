@@ -166,6 +166,15 @@ export function listRepositories(root: string, token: number): Promise<Repositor
   return invoke<RepositoryList>("list_repositories", { root, token });
 }
 
+/**
+ * The ones of `paths` that are a repository or have one somewhere under them, by the same walk
+ * `listRepositories` makes: where the list would have a row. Walked together, and no further under
+ * a folder than its first repository.
+ */
+export function foldersHoldingRepositories(paths: string[]): Promise<string[]> {
+  return invoke<string[]>("folders_holding_repositories", { paths });
+}
+
 /** A pane gone mid-walk: the walk stops where it is and its list is refused with `stopped`. */
 export function stopListing(token: number): Promise<void> {
   return invoke<void>("stop_listing", { token });

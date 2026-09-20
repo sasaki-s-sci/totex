@@ -183,6 +183,8 @@ export function LeftSidebar({
           display: "flex",
           flexDirection: "column",
           overflowY: "auto",
+          // The rail's width is held from the start, so a row's buttons stay put when it appears.
+          scrollbarGutter: "stable",
         }}
       >
         {panes.panes.map((pane, index) => (

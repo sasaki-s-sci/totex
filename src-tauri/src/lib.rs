@@ -245,6 +245,7 @@ pub fn run() {
             git::git_version,
             git::identity::git_identity,
             git::list_repositories,
+            git::folders_holding_repositories,
             git::stop_listing,
             git::changes::directory_changes,
             git::patch::file_diff,

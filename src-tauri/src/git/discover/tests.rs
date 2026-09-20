@@ -221,3 +221,40 @@ fn walks_a_folder_inside_a_distribution() {
         "the root and the two folders under it that are not noise"
     );
 }
+
+#[test]
+fn a_folder_holds_a_repository_at_any_depth_and_a_bare_folder_does_not() {
+    let dir = temp_dir("holding");
+    checkout(&dir.join("own"));
+    checkout(&dir.join("deep/down/there"));
+    std::fs::create_dir_all(dir.join("none/at/all")).expect("no repository");
+    std::fs::create_dir_all(dir.join("noise/node_modules/pkg/.git")).expect("noise");
+    // A linked worktree is a row of its repository's, not a repository listed.
+    std::fs::create_dir_all(dir.join("linked")).expect("linked");
+    std::fs::write(dir.join("linked/.git"), "gitdir: elsewhere").expect("a link");
+
+    let roots: Vec<PathBuf> = ["own", "deep", "none", "noise", "linked", "missing"]
+        .iter()
+        .map(|name| dir.join(name))
+        .collect();
+    assert_eq!(under(&dir, &holding(&roots, 12, 1_000)), ["deep", "own"]);
+    assert_eq!(
+        under(&dir, &holding(&roots, 1, 1_000)),
+        ["own"],
+        "no deeper than allowed"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_folder_the_budget_ran_out_on_is_said_to_hold_one() {
+    let dir = temp_dir("holding-budget");
+    checkout(&dir.join("own"));
+    std::fs::create_dir_all(dir.join("wide/a/b")).expect("wide");
+    std::fs::create_dir_all(dir.join("flat")).expect("flat");
+
+    let roots = [dir.join("own"), dir.join("wide"), dir.join("flat")];
+    // Three roots and one more directory: `flat` has ended, `wide` has not.
+    assert_eq!(under(&dir, &holding(&roots, 12, 4)), ["own", "wide"]);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

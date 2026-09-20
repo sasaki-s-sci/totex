@@ -120,6 +120,77 @@ pub fn list_repositories(
     }
 }
 
+/// Which of `roots` hold a repository: are one, or have one anywhere under
+/// them. What a folder's row asks before it offers to list repositories.
+///
+/// The same descent as `list_repositories`, so a row offers the list exactly
+/// where the list would have a row. All the roots are walked as one, a level
+/// of every root per question, because a pane asks this of every folder it
+/// draws and a walk per folder would be a round trip per folder per level. A
+/// root is dropped from the walk the moment a repository turns up under it:
+/// nothing past the first one changes the answer, so a checkout answers at its
+/// own level and only a folder with no repository in it is read to the bottom.
+///
+/// A root the budget ran out on is said to hold one. It could not be ruled
+/// out, and a list offered that comes back empty costs less than a list
+/// withheld from a folder that has one.
+///
+/// Roots are taken to be on one host, the first one's: they are the rows of
+/// one directory.
+pub fn holding(roots: &[PathBuf], max_depth: usize, budget: usize) -> Vec<PathBuf> {
+    let Some(first) = roots.first() else {
+        return Vec::new();
+    };
+    let host = Host::of(first);
+    let mut holds = vec![false; roots.len()];
+    // Each directory with the root it was reached from.
+    let mut frontier: Vec<(usize, PathBuf)> = roots.iter().cloned().enumerate().collect();
+    let mut visited = 0usize;
+
+    'levels: for depth in 0..=max_depth {
+        if frontier.is_empty() {
+            break;
+        }
+        let dirs: Vec<PathBuf> = frontier.iter().map(|(_, dir)| dir.clone()).collect();
+        let (listing, _) = host.children(&dirs);
+
+        let mut next = Vec::new();
+        for (root, dir) in &frontier {
+            if holds[*root] {
+                continue;
+            }
+            visited += 1;
+            if visited > budget {
+                for (undecided, _) in frontier.iter().chain(&next) {
+                    holds[*undecided] = true;
+                }
+                break 'levels;
+            }
+            let Some(children) = listing.get(dir) else {
+                continue;
+            };
+            if is_checkout(children) {
+                holds[*root] = true;
+            } else if depth < max_depth {
+                next.extend(
+                    descendable(&host, dir, children)
+                        .into_iter()
+                        .map(|child| (*root, child)),
+                );
+            }
+        }
+        next.retain(|(root, _)| !holds[*root]);
+        frontier = next;
+    }
+
+    roots
+        .iter()
+        .zip(holds)
+        .filter(|(_, held)| *held)
+        .map(|(root, _)| root.clone())
+        .collect()
+}
+
 /// What `list_repositories` found, and why it may not be everything.
 pub struct Listed {
     pub repositories: Vec<PathBuf>,
