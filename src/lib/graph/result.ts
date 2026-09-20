@@ -1,4 +1,4 @@
-import type { AppNode, CommitFlowNode } from "./flow";
+import type { AppNode, CommitFlowNode, OfferFlowNode } from "./flow";
 import type { GraphLine, StrokeStyle } from "./stroke";
 
 export type FoldTarget = {
@@ -26,6 +26,8 @@ export type Hold = {
 
 export type GraphResult = {
   nodes: AppNode[];
+  /** Kept out of `nodes`: they are on the canvas only while Ctrl+Shift is held. */
+  offers: OfferFlowNode[];
   bands: Band[];
   /** Lines between canvas-level things: folder reach and folder-row terminals. */
   reach: { key: string; stroke: StrokeStyle; parts: GraphLine[] }[];

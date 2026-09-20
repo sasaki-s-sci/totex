@@ -57,7 +57,7 @@ export type CanvasProps = {
 
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
 
-  onCutBranch: (node: CommitFlowNode) => void;
+  onNewWork: (repository: Repository) => void;
   onOpenWork: (request: WorkRequest) => void;
   onBrowseWorktree: (request: WorktreeBrowseRequest) => void;
   onPickBranch: (pick: BranchPick) => void;

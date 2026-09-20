@@ -6,6 +6,7 @@ import type { MergeRequest, SyncRequest } from "../canvas/CanvasProps";
 import type { FetchRequest, WorkRequest } from "../canvas/graphActions";
 import { branchMark } from "../canvas/graphMarks";
 import type { CommitFlowNode } from "../lib/graph";
+import { trunkOf } from "../lib/graph/history";
 import { shellSession } from "../lib/session";
 import {
   createWorkspace,
@@ -81,10 +82,15 @@ export function useCanvasWork({
     [setCommitMenu],
   );
 
-  const cutBranch = useCallback(
-    (node: CommitFlowNode) => {
-      const { repository, commit } = node.data;
-      createWorkspace(repository.id, draftBranchName(), commit.id)
+  // Cut where the repository's own work starts from; a bare history with neither has nothing to cut.
+  const newWork = useCallback(
+    (repository: Repository) => {
+      const from =
+        repository.branches.find((branch) => branch.refName === repository.defaultBranch) ??
+        trunkOf(repository);
+      const oid = from?.commit ?? repository.commits[0]?.id;
+      if (!oid) return;
+      createWorkspace(repository.id, draftBranchName(), oid)
         .then((workspace) => openSession(shellSession(workspace.path, workspace.branch)))
         .catch(() => undefined);
     },
@@ -139,5 +145,5 @@ export function useCanvasWork({
     [fail, hold, release],
   );
 
-  return { openWork, browseWorktree, pickCommit, cutBranch, merge, sync, fetch };
+  return { openWork, browseWorktree, pickCommit, newWork, merge, sync, fetch };
 }

@@ -172,7 +172,7 @@ export function Window() {
             onTake={asks.take}
             marks={marks}
             onSelect={work.pickCommit}
-            onCutBranch={work.cutBranch}
+            onNewWork={work.newWork}
             onOpenWork={work.openWork}
             onBrowseWorktree={work.browseWorktree}
             onPickBranch={menus.setWorktree}

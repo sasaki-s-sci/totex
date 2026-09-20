@@ -71,16 +71,3 @@
   stroke-width: 2.2;
   stroke-linejoin: round;
 }
-
-.commit-reading__ground {
-  fill: var(--mui-palette-background-default);
-  stroke: color-mix(in srgb, var(--mui-palette-primary-main) 45%, transparent);
-  stroke-width: 0.5;
-}
-
-.commit-reading__said {
-  fill: var(--mark);
-  font-size: 6px;
-  font-weight: 300;
-  letter-spacing: 0.015em;
-}

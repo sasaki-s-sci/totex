@@ -37,6 +37,9 @@ export type BranchPick = {
 export type GraphActions = {
   openWork: (request: WorkRequest) => void;
 
+  /** A branch cut off the repository's main line, a worktree for it, and a terminal in that. */
+  newWork: (repository: Repository) => void;
+
   browseWorktree: (request: WorktreeBrowseRequest) => void;
 
   pickBranch: (pick: BranchPick) => void;
@@ -101,6 +104,7 @@ export type GraphActions = {
 
 export const NO_ACTIONS: GraphActions = {
   openWork: () => {},
+  newWork: () => {},
   browseWorktree: () => {},
   pickBranch: () => {},
   dragBranch: () => {},

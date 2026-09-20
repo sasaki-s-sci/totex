@@ -12,6 +12,7 @@
   contain: layout;
 }
 
-.graph .react-flow__node-cli {
+.graph .react-flow__node-cli,
+.graph .react-flow__node-offer {
   contain: layout;
 }

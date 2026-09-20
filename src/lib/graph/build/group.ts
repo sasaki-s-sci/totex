@@ -13,6 +13,7 @@ import {
 import type { PreparedRepository } from "../layout";
 import {
   CHIP_STEP,
+  CLI_STEP,
   type Draw,
   FOLDER_INSET,
   FOLDER_MARK,
@@ -22,6 +23,7 @@ import {
   SESSION_WIDTH,
 } from "../model";
 import { bandColumn } from "./column";
+import { offerNode } from "./nodes";
 import { type LaidGroup, REACH_TRIM, take } from "./parts";
 import { rowRing } from "./ring";
 import { type Cursor, type Place, placeRow, type Row } from "./rows";
@@ -64,6 +66,7 @@ export function folderGroup(
 
   const drawn: LaidGroup = {
     nodes: [],
+    offers: [],
     bands: [],
     links: [],
     holds: [],
@@ -120,6 +123,20 @@ export function folderGroup(
       );
   merge(beside, drawn);
   floor = beside.floor;
+
+  // An empty row offers its first terminal where a stack of one would stand.
+  if (rowed && !open.has(folder.root)) {
+    drawn.offers.push(
+      offerNode(
+        `offer${id}`,
+        { kind: "open", repository: null, branch: folder.name, cwd: folder.root },
+        null,
+        head.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2,
+        head.y + LANE_HEIGHT / 2 - CLI_STEP / 2,
+        draw,
+      ),
+    );
+  }
 
   const place: Place = {
     id,

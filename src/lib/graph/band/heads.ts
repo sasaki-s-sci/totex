@@ -73,6 +73,7 @@ export function drawHeads(frame: Frame, refs: readonly PlacedRef[]) {
     if (ref.data.kind !== "remote") {
       runs.push({
         head: ref.id,
+        branch: ref.data.name,
         cwd: ref.data.cwd,
         at,
         x: working - SESSION_WIDTH / 2,

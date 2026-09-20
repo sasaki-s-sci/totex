@@ -1,13 +1,13 @@
 import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type AppNode, commitNodeId } from "../../lib/graph";
+import type { AppNode, OfferFlowNode } from "../../lib/graph";
 import {
   first,
-  history,
   jumpable,
+  nearest,
   neighbour,
+  offered,
   type Pickable,
-  pickables,
   step,
 } from "../../lib/graphNav";
 import { terminal, typing } from "../../lib/keys";
@@ -28,6 +28,9 @@ const RUN_MS = 700;
 
 type Options = {
   nodes: readonly AppNode[];
+
+  /** What Ctrl+Shift stands on the canvas; see `OfferData`. */
+  offers: readonly OfferFlowNode[];
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
   host: RefObject<HTMLDivElement | null>;
 
@@ -37,70 +40,44 @@ type Options = {
 
   end: (node: AppNode) => void;
 
-  branch: (node: AppNode) => void;
-
-  land: (node: AppNode | null) => void;
-
-  selected: string | null;
+  take: (offer: OfferFlowNode) => void;
 };
 
 // Held, not toggled: the pick leaves with Ctrl. It is written onto the node element rather than through the graph, which would rebuild every node.
+// Ctrl walks the terminals that exist; Ctrl+Shift walks the ones that could, and Enter starts the one stood on.
 export function useGraphKeys({
   nodes,
+  offers,
   instance,
   host,
   activate,
   jump,
   end,
-  branch,
-  land,
-  selected,
+  take,
 }: Options) {
   const [picked, setPicked] = useState<string | null>(null);
 
   const [holding, setHolding] = useState(false);
 
-  const [reading, setReading] = useState(false);
+  const [offering, setOffering] = useState(false);
 
   const shown = useMemo(
     () => nodes.find((node) => node.type === "cli" && node.data.showing)?.id ?? null,
     [nodes],
   );
 
-  const shownCommit = useMemo(() => {
-    const cli = nodes.find((node) => node.type === "cli" && node.data.showing);
-    if (cli?.type !== "cli" || !cli.parentId) return null;
-    const { parentId } = cli;
-    const cwd = cli.data.session.cwd;
-    const head = nodes.find(
-      (node) => node.type === "head" && node.parentId === parentId && node.data.cwd === cwd,
-    );
-    if (head?.type !== "head") return null;
-    const target =
-      head.data.kind === "worktree"
-        ? head.data.repository.worktrees.find((worktree) => worktree.path === cwd)?.head
-        : head.data.repository.branches.find(
-            (branch) => branch.kind === head.data.kind && branch.name === head.data.name,
-          )?.commit;
-    return target ? commitNodeId(head.data.repository, target) : null;
-  }, [nodes]);
-
   // Listeners are registered once and read everything through this.
-  const latest = useRef({ nodes, activate, jump, end, branch, land, selected, shown, shownCommit });
-  latest.current = { nodes, activate, jump, end, branch, land, selected, shown, shownCommit };
+  const latest = useRef({ nodes, offers, activate, jump, end, take, shown });
+  latest.current = { nodes, offers, activate, jump, end, take, shown };
 
   // Rebuilt with the graph only: key repeat outpaces canvas changes.
-  const picks = useMemo(() => pickables(nodes), [nodes]);
-  const index = useRef(picks);
-  index.current = picks;
-
   const stacks = useMemo(() => jumpable(nodes), [nodes]);
   const places = useRef(stacks);
   places.current = stacks;
 
-  const trail = useMemo(() => history(nodes), [nodes]);
-  const along = useRef(trail);
-  along.current = trail;
+  const open = useMemo(() => offered(nodes, offers), [nodes, offers]);
+  const along = useRef(open);
+  along.current = open;
   const numbers = useMemo(
     () => new Map(stacks.map((stack, place) => [stack.id, place + 1])),
     [stacks],
@@ -140,7 +117,7 @@ export function useGraphKeys({
       typed.current = null;
       setPicked(null);
       setHolding(false);
-      setReading(false);
+      setOffering(false);
     };
 
     const stand = (pick: Pickable): AppNode | null => {
@@ -149,19 +126,31 @@ export function useGraphKeys({
       typed.current = null;
       setPicked(pick.id);
       reveal(pick);
-      const node = latest.current.nodes.find((candidate) => candidate.id === pick.id) ?? null;
-      latest.current.land(node);
-      return node;
+      return latest.current.nodes.find((candidate) => candidate.id === pick.id) ?? null;
     };
 
+    const offerAt = (id: string | null): OfferFlowNode | null =>
+      (id ? latest.current.offers.find((offer) => offer.id === id) : null) ?? null;
+
+    // The offer nearest the terminal looked at: the walk starts from where the eyes are.
     const origin = (): Pickable | null => {
       const among = along.current;
-      const { selected, shownCommit } = latest.current;
-      return (
-        (selected ? among.find((pick) => pick.id === selected) : null) ??
-        (shownCommit ? among.find((pick) => pick.id === shownCommit) : null) ??
-        first(among)
-      );
+      const from = places.current.find((stack) => stack.id === latest.current.shown);
+      return from ? nearest(from, among) : first(among);
+    };
+
+    // Standing on nothing once taken: the offer is gone as soon as its terminal stands.
+    const takeOffer = (offer: OfferFlowNode) => {
+      at.current = null;
+      setPicked(null);
+      latest.current.take(offer);
+    };
+
+    const leaveOffers = () => {
+      setOffering(false);
+      if (!offerAt(at.current)) return;
+      at.current = null;
+      setPicked(null);
     };
 
     const jumpTo = (digit: number) => {
@@ -192,16 +181,11 @@ export function useGraphKeys({
       if (node) latest.current.jump(node);
     };
 
-    const walkHistory = (direction: { x: number; y: number }) => {
+    const walkOffers = (direction: { x: number; y: number }) => {
       const among = along.current;
-
-      const beginning = at.current ? null : origin();
-
-      const standing = at.current ?? latest.current.selected;
-      const from = index.current.find((pick) => pick.id === standing);
-      const next = beginning ?? (from ? step(from, among, direction) : first(among));
-      if (!next) return;
-      stand(next);
+      const from = among.find((pick) => pick.id === at.current);
+      const next = from ? step(from, among, direction) : origin();
+      if (next) stand(next);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -214,8 +198,8 @@ export function useGraphKeys({
       const writing = typing(event.target) && !terminal(event.target);
 
       if (event.shiftKey && !writing) {
-        setReading(true);
-        if (!at.current) {
+        setOffering(true);
+        if (!offerAt(at.current)) {
           const start = origin();
           if (start) stand(start);
         }
@@ -229,14 +213,19 @@ export function useGraphKeys({
         return;
       }
 
-      if (event.shiftKey && !writing && event.key.toLowerCase() === "a" && at.current) {
-        const node = latest.current.nodes.find((candidate) => candidate.id === at.current);
-
-        if (node?.type !== "commit") return;
+      // A new workspace without walking to its offer: in the repository stood in, else the one looked at.
+      if (event.shiftKey && !writing && event.key.toLowerCase() === "a") {
+        const { offers, nodes, shown } = latest.current;
+        const standing = offerAt(at.current)?.data.repository?.id;
+        const looking = nodes.find((candidate) => candidate.id === shown)?.parentId;
+        const fresh = offers.filter((offer) => offer.data.kind === "new");
+        const offer =
+          fresh.find((candidate) => candidate.data.repository?.id === (standing ?? looking)) ??
+          (fresh.length === 1 ? fresh[0] : null);
+        if (!offer) return;
         event.preventDefault();
 
-        if (event.repeat) return;
-        latest.current.branch(node);
+        if (!event.repeat) takeOffer(offer);
         return;
       }
 
@@ -264,8 +253,16 @@ export function useGraphKeys({
       if (direction) {
         if (writing) return;
         event.preventDefault();
-        if (event.shiftKey) walkHistory(direction);
+        if (event.shiftKey) walkOffers(direction);
         else walkTerminals(direction);
+        return;
+      }
+
+      // Taken from inside a terminal too, which is where the hands usually are.
+      const offer = event.shiftKey && !writing ? offerAt(at.current) : null;
+      if (event.key === "Enter" && offer) {
+        event.preventDefault();
+        if (!event.repeat) takeOffer(offer);
         return;
       }
 
@@ -281,7 +278,7 @@ export function useGraphKeys({
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Control") drop();
 
-      if (event.key === "Shift") setReading(false);
+      if (event.key === "Shift") leaveOffers();
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -312,12 +309,17 @@ export function useGraphKeys({
         ?.classList.add("is-picked");
     mark();
 
+    // An offer is handed to React Flow in this same render and is on the canvas a frame later.
+    const frame = requestAnimationFrame(mark);
     const timer = setTimeout(mark, PAN_MS + 80);
-    return () => clearTimeout(timer);
-  }, [picked, nodes, host]);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [picked, nodes, host, offering]);
 
   const jumps: CliJumps = holding ? numbers : null;
-  return { picked, jumps, reading };
+  return { picked, jumps, offering };
 }
 
 function numeric(event: KeyboardEvent): boolean {

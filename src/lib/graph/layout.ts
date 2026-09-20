@@ -43,6 +43,7 @@ export type PreparedRepository = {
 /** Where one branch's stack of terminals stands; `build` fills it. */
 export type BranchRun = {
   head: string;
+  branch: string;
   cwd: string | null;
   /** Band-relative middle of the head node, where a line into this branch lands. */
   at: Point;

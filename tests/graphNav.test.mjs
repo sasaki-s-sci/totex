@@ -11,7 +11,8 @@ const server = await createServer({
   cacheDir,
   server: { watch: null },
 });
-const { jumpable, neighbour } = await server.ssrLoadModule("/src/lib/graphNav.ts");
+const { jumpable, nearest, neighbour, offered } =
+  await server.ssrLoadModule("/src/lib/graphNav.ts");
 await server.close();
 await rm(cacheDir, { recursive: true, force: true });
 
@@ -52,4 +53,24 @@ test("a walk standing on no terminal starts at either end", () => {
 
 test("no terminals means nowhere to go", () => {
   assert.equal(neighbour(null, [], 1), null);
+});
+
+test("an offer in a band stands where its band does", () => {
+  const band = { id: "repo", type: "repository", position: { x: 100, y: 50 }, data: {} };
+  const inBand = { ...cli("in", 10, 20), type: "offer", parentId: "repo" };
+  const loose = { ...cli("loose", 10, 20), type: "offer" };
+  const picks = offered([band, cli("running", 0, 0)], [inBand, loose]);
+  assert.deepEqual(picks, [
+    { id: "in", x: 160, y: 90 },
+    { id: "loose", x: 60, y: 40 },
+  ]);
+});
+
+test("the walk over offers starts at the one nearest the terminal looked at", () => {
+  const picks = [
+    { id: "far", x: 900, y: 0 },
+    { id: "near", x: 40, y: 30 },
+  ];
+  assert.equal(nearest({ id: "shown", x: 0, y: 0 }, picks).id, "near");
+  assert.equal(nearest({ id: "shown", x: 0, y: 0 }, []), null);
 });

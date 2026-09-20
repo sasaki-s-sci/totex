@@ -1,8 +1,8 @@
 import type { Edge, NodeMouseHandler, ReactFlowInstance } from "@xyflow/react";
 import { type RefObject, useCallback, useState } from "react";
-import type { AppNode, CommitFlowNode, GraphResult } from "../../lib/graph";
-import { centreOf } from "../../lib/graphNav";
+import type { AppNode, CommitFlowNode, GraphResult, OfferFlowNode } from "../../lib/graph";
 import type { Session } from "../../lib/session";
+import type { Repository } from "../../types/git";
 import type { WorkRequest } from "../graphActions";
 import { useGraphKeys } from "./useGraphKeys";
 import { useReadingKeys } from "./useReadingSize";
@@ -11,9 +11,8 @@ export type KeysCanvas = {
   graph: GraphResult;
   host: RefObject<HTMLDivElement | null>;
   instance: RefObject<ReactFlowInstance<AppNode, Edge> | null>;
-  expand: (repository: string) => void;
   onSelect: (node: CommitFlowNode, at: { x: number; y: number }) => void;
-  onCutBranch: (node: CommitFlowNode) => void;
+  onNewWork: (repository: Repository) => void;
   onOpenWork: (request: WorkRequest) => void;
   onShowSession: (session: Session) => void;
   onJumpSession: (session: Session) => void;
@@ -24,9 +23,8 @@ export function useCanvasKeys({
   graph,
   host,
   instance,
-  expand,
   onSelect,
-  onCutBranch,
+  onNewWork,
   onOpenWork,
   onShowSession,
   onJumpSession,
@@ -44,41 +42,13 @@ export function useCanvasKeys({
 
   const handleNodeClick: NodeMouseHandler<AppNode> = () => setSelectedCommit(null);
 
-  const land = useCallback((node: AppNode | null) => {
-    setSelectedCommit(node?.type === "commit" ? node.id : null);
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
+  // The keys stand on terminals only; an offer is taken, not activated.
   const activate = useCallback(
     (node: AppNode) => {
-      switch (node.type) {
-        case "cli":
-          if (node.data.session) onShowSession(node.data.session);
-          return;
-        case "ask":
-          onShowSession(node.data.session);
-          return;
-        case "head":
-          if (node.data.kind === "remote") return;
-          onOpenWork({
-            repository: node.data.repository,
-            branch: node.data.name,
-            cwd: node.data.cwd,
-          });
-          return;
-        case "collapse":
-          expand(node.data.repository.id);
-          return;
-        case "commit": {
-          const at = instance.current?.flowToScreenPosition(centreOf(graph.nodes, node.id));
-          if (at) onSelect(node, at);
-          return;
-        }
-      }
+      if (node.type === "cli") onShowSession(node.data.session);
     },
-    [expand, graph.nodes, onOpenWork, onSelect, onShowSession],
+    [onShowSession],
   );
-
   // Not a toggle like activate: a number names a terminal and must land on it even if the panel already holds it.
   const jump = useCallback(
     (node: AppNode) => {
@@ -94,23 +64,23 @@ export function useCanvasKeys({
     [onEndSession],
   );
 
-  const cut = useCallback(
-    (node: AppNode) => {
-      if (node.type === "commit") onCutBranch(node);
+  const take = useCallback(
+    ({ data }: OfferFlowNode) => {
+      if (data.kind === "new") onNewWork(data.repository);
+      else onOpenWork({ repository: data.repository, branch: data.branch, cwd: data.cwd });
     },
-    [onCutBranch],
+    [onNewWork, onOpenWork],
   );
 
-  const { picked, jumps, reading } = useGraphKeys({
+  const { picked, jumps, offering } = useGraphKeys({
     nodes: graph.nodes,
+    offers: graph.offers,
     instance,
     host,
     activate,
     jump,
     end: finish,
-    branch: cut,
-    land,
-    selected: selectedCommit,
+    take,
   });
 
   useReadingKeys();
@@ -118,7 +88,7 @@ export function useCanvasKeys({
   return {
     picked,
     jumps,
-    reading,
+    offering,
     selectedCommit,
     setSelectedCommit,
     handleCommitClick,

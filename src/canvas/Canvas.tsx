@@ -39,7 +39,6 @@ import { useCanvasKeys } from "./hooks/useCanvasKeys";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { useCliPages } from "./hooks/useCliPages";
 import { useCliTyped } from "./hooks/useCliTyped";
-import { useCommitMessage } from "./hooks/useCommitMessage";
 import { useFilePreviews } from "./hooks/useFilePreviews";
 import { useFolderPlaces } from "./hooks/useFolderPlaces";
 import { useFolderView } from "./hooks/useFolderView";
@@ -75,7 +74,7 @@ export function Canvas({
   onTake,
   marks,
   onSelect,
-  onCutBranch,
+  onNewWork,
   onOpenWork,
   onBrowseWorktree,
   onPickBranch,
@@ -273,8 +272,6 @@ export function Canvas({
     [fitSaid],
   );
 
-  const shown = useMemo(() => nodes.filter((node) => node.type !== "commit"), [nodes]);
-
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
       keepFrontValue("canvas.viewport", viewport);
@@ -286,7 +283,7 @@ export function Canvas({
   const {
     picked,
     jumps,
-    reading,
+    offering,
     selectedCommit,
     setSelectedCommit,
     handleCommitClick,
@@ -295,21 +292,19 @@ export function Canvas({
     graph,
     host,
     instance,
-    expand,
     onSelect,
-    onCutBranch,
+    onNewWork,
     onOpenWork,
     onShowSession,
     onJumpSession,
     onEndSession,
   });
 
-  const readingCommit = useMemo(() => {
-    if (!reading || !picked) return null;
-    const node = graph.nodes.find((candidate) => candidate.id === picked);
-    return node?.type === "commit" ? node : null;
-  }, [reading, picked, graph.nodes]);
-  const message = useCommitMessage(readingCommit);
+  // Offers ride on top of the canvas's own nodes and only while asked for: they are never in its state.
+  const shown = useMemo(() => {
+    const drawn = nodes.filter((node) => node.type !== "commit");
+    return offering ? [...drawn, ...graph.offers] : drawn;
+  }, [nodes, offering, graph.offers]);
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
   useEffect(() => onCliRun(run), [run, onCliRun]);
@@ -339,6 +334,7 @@ export function Canvas({
 
   const actions = useCanvasActions({
     onOpenWork,
+    onNewWork,
     onBrowseWorktree,
     onPickBranch,
     dragBranch,
@@ -423,8 +419,7 @@ export function Canvas({
                             nodes={lineNodes}
                             selected={selectedCommit}
                             picked={picked}
-                            reading={reading && !coarse}
-                            message={message}
+                            reading={offering && !coarse}
                             onCommit={handleCommitClick}
                           />
                         </ReactFlow>

@@ -51,6 +51,8 @@ export {
   LANE_HEIGHT,
   LINE_COLOR,
   type LineEnd,
+  type OfferData,
+  type OfferFlowNode,
   type Origin,
   onCell,
   REMOTE_HEAD_SIZE,

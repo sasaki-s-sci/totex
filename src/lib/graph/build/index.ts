@@ -10,6 +10,7 @@ import {
   type GraphResult,
   type Group,
   type Hold,
+  type OfferFlowNode,
   REPO_GAP_Y,
   STEP,
 } from "../model";
@@ -83,12 +84,14 @@ export function buildCommitGraph(
   }
 
   const nodes: AppNode[] = [];
+  const offers: OfferFlowNode[] = [];
   const bands: Band[] = [];
 
   const links: GraphLine[] = [];
   const holds: Hold[] = [];
   const groups = new Map<string, Group>();
-  const draw: Draw = { before };
+  const offered = new Map((previous?.offers ?? []).map((offer) => [offer.id, offer]));
+  const draw: Draw = { before, offered };
 
   const claimed = new Set<string>();
 
@@ -123,6 +126,7 @@ export function buildCommitGraph(
     );
 
     nodes.push(...group.nodes);
+    offers.push(...group.offers);
     bands.push(...group.bands);
     links.push(...group.links);
     holds.push(...group.holds);
@@ -148,6 +152,7 @@ export function buildCommitGraph(
 
   return {
     nodes,
+    offers,
     bands,
     groups,
     reach: batched(links),

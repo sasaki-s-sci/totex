@@ -258,6 +258,16 @@ export function CliView({
         return false;
       }
 
+      // Ctrl+Shift+Enter takes the offer stood on and Ctrl+Shift+A a new workspace.
+      if (
+        plain &&
+        event.ctrlKey &&
+        event.shiftKey &&
+        (event.key === "Enter" || event.key.toLowerCase() === "a")
+      ) {
+        return false;
+      }
+
       return true;
     });
 
