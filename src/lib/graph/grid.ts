@@ -50,8 +50,8 @@ export const NAME_HEIGHT = LANE_HEIGHT / 2;
 export const REPO_GAP_Y = COMMIT_STEP.y * 2;
 export const FOLDER_INSET = COLUMN_WIDTH;
 export const FOLDER_MARK = 22;
-export const REPO_MARK_WIDTH = COLUMN_WIDTH;
-export const REPO_MARK_RING = 14;
+export const REPO_MARK_RING = 12;
+export const REPO_MARK_TRIM = REPO_MARK_RING / 2 + RING_EDGE_GAP;
 export const FOLDER_GAP_Y = COMMIT_STEP.y;
 export const DEFAULT_VISIBLE_COMMITS = 3;
 

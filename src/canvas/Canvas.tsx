@@ -220,7 +220,7 @@ export function Canvas({
 
   const fitSaid = useSaidStyle(host);
 
-  const { expand, fold, reachFold, keepFold } = useCanvasFold({
+  const { expand, fold, setLength, reachFold, keepFold } = useCanvasFold({
     workspace,
     graph,
     applied,
@@ -345,6 +345,7 @@ export function Canvas({
     toggleJunction,
     expand,
     fold,
+    setLength,
     reachFold,
     keepFold,
     onShowSession,
@@ -419,6 +420,7 @@ export function Canvas({
                             nodes={lineNodes}
                             selected={selectedCommit}
                             picked={picked}
+                            offering={offering}
                             reading={offering && !coarse}
                             onCommit={handleCommitClick}
                           />

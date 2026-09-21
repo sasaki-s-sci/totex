@@ -32,25 +32,38 @@
   overflow: hidden;
 }
 
-.folder .band__name {
-  padding-left: 6px;
-}
-
+/* Two lines over three columns: the mark, the name with its rail right under it, and what closes. */
 .band__heading {
-  display: flex;
+  display: grid;
   width: max-content;
+  grid-template-columns: auto minmax(96px, 1fr) var(--square);
   align-items: center;
+  column-gap: 4px;
 }
 
-/* In the heading's flow, ahead of the name, rather than hung on a row's edge. */
-.band__grip {
+/* In the heading's flow, ahead of the name, rather than hung on a row's edge, and no taller than the name. */
+.band__heading .band__grip {
   position: static;
-  flex: none;
+  height: auto;
   transform: none;
 }
 
 .band__heading .folder__name {
-  margin-left: auto;
+  justify-self: start;
+  max-width: 100%;
+}
+
+.band__follow {
+  display: flex;
+  justify-content: center;
+  pointer-events: all;
+}
+
+.band__shown {
+  color: var(--mui-palette-text-secondary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
 }
 
 .band__close {
@@ -58,7 +71,6 @@
   flex: none;
   width: var(--square);
   height: var(--square);
-  margin-right: auto;
   margin-block: calc(var(--square) / -2);
   align-items: center;
   justify-content: center;
@@ -69,11 +81,6 @@
   cursor: pointer;
   pointer-events: all;
   transition: color var(--reveal);
-}
-
-/* Ahead of the close mark, which keeps the slack to the right of both. */
-.band__length {
-  margin-right: 0;
 }
 
 .band__name:hover .band__close,

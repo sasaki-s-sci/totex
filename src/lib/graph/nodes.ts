@@ -60,5 +60,4 @@ export type FolderNodeData = {
   open: boolean;
   /** Band-relative left edge of the folder's own mark, which the group is dragged by. */
   mark: number;
-  tools: number;
 };

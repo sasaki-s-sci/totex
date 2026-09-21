@@ -6,6 +6,8 @@ import { CLI_STEP, SESSION_WIDTH } from "./stacks";
 
 export type RepoMarkData = {
   repository: Repository;
+  /** The branch a terminal opened from the mark stands in. */
+  work: { branch: string; cwd: string | null };
 };
 
 export type CollapseNodeData = {

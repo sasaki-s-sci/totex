@@ -2,17 +2,9 @@ import type { Folder } from "../../../hooks/useWorkspace";
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
-import {
-  FOLDER_MARK_X,
-  FOLDER_ROW_WIDTH,
-  folderId,
-  folderRow,
-  isOpen,
-  ringAround,
-} from "../folders";
+import { FOLDER_ROW_WIDTH, folderId, folderRow, isOpen, ROW_SOCKET, ROW_STACK_X } from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
-  CHIP_STEP,
   CLI_STEP,
   type Draw,
   FOLDER_INSET,
@@ -20,12 +12,10 @@ import {
   inBand,
   LANE_HEIGHT,
   rowReach,
-  SESSION_WIDTH,
 } from "../model";
 import { bandColumn } from "./column";
 import { offerNode } from "./nodes";
-import { type LaidGroup, REACH_TRIM, take } from "./parts";
-import { rowRing } from "./ring";
+import { type LaidGroup, take } from "./parts";
 import { type Cursor, type Place, placeRow, type Row } from "./rows";
 import { merge, rowStack } from "./stack";
 
@@ -54,13 +44,8 @@ export function folderGroup(
   const rowed = folder.kind === "folder";
   const running = rowed ? take(open, claimed, [folder.root]) : [];
 
-  // A folder holding nothing sets its terminals round its row; with rows below, a ring would run through them.
-  const ring = rowed && held.length === 0 ? ringAround(running.length) : null;
-
-  const inset = {
-    x: ring ? Math.max(0, -ring.left) : 0,
-    y: ring ? Math.max(0, -ring.top) : 0,
-  };
+  // The stack opens out either side of the row's line, so a tall one reaches above the row.
+  const inset = { x: 0, y: Math.max(0, rowReach(running.length) - LANE_HEIGHT / 2) };
 
   const head = { x: at.x + inset.x, y: at.y + inset.y };
 
@@ -83,7 +68,7 @@ export function folderGroup(
     );
   }
 
-  const from = rowed ? inBand(id, FOLDER_MARK_X + FOLDER_MARK / 2, LANE_HEIGHT / 2) : null;
+  const from = rowed ? inBand(id, ROW_SOCKET.x, ROW_SOCKET.y) : null;
 
   const rows: Row[] = held.map((entry) =>
     shown.includes(entry)
@@ -99,28 +84,22 @@ export function folderGroup(
 
   let floor = Number.NEGATIVE_INFINITY;
 
-  const beside = ring
-    ? rowRing(running, { open, node: id, ring, at: head, showing, asks, reports, floor }, draw)
-    : rowStack(
-        running,
-        {
-          open,
-
-          socket: inBand(id, FOLDER_ROW_WIDTH, LANE_HEIGHT / 2),
-
-          group: id,
-          lead: REACH_TRIM,
-          at: {
-            x: head.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2,
-            y: head.y + LANE_HEIGHT / 2,
-          },
-          showing,
-          asks,
-          reports,
-          floor,
-        },
-        draw,
-      );
+  // Off the mark, as a branch's terminals stand off its ring.
+  const beside = rowStack(
+    running,
+    {
+      open,
+      socket: inBand(id, ROW_SOCKET.x, ROW_SOCKET.y),
+      group: id,
+      lead: FOLDER_MARK / 2,
+      at: { x: head.x + ROW_STACK_X, y: head.y + ROW_SOCKET.y },
+      showing,
+      asks,
+      reports,
+      floor,
+    },
+    draw,
+  );
   merge(beside, drawn);
   floor = beside.floor;
 
@@ -131,8 +110,8 @@ export function folderGroup(
         `offer${id}`,
         { kind: "open", repository: null, branch: folder.name, cwd: folder.root },
         null,
-        head.x + FOLDER_ROW_WIDTH + CHIP_STEP - SESSION_WIDTH / 2,
-        head.y + LANE_HEIGHT / 2 - CLI_STEP / 2,
+        head.x + ROW_STACK_X,
+        head.y + ROW_SOCKET.y - CLI_STEP / 2,
         draw,
       ),
     );
@@ -151,11 +130,7 @@ export function folderGroup(
   };
 
   let down: Cursor = {
-    cursor: !rowed
-      ? head.y
-      : ring
-        ? head.y + ring.bottom
-        : head.y + LANE_HEIGHT / 2 + rowReach(running.length),
+    cursor: rowed ? head.y + LANE_HEIGHT / 2 + rowReach(running.length) : head.y,
     above: rowed ? { line: head.y + LANE_HEIGHT / 2, marks: running.length } : null,
     floor,
     first: true,

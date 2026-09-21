@@ -42,7 +42,7 @@ export type Group = {
   node: string;
   /** Where the group is laid out before being moved by hand. */
   at: { x: number; y: number };
-  /** Nearest the folder node may go to the canvas corner without ring marks leaving the line box. */
+  /** Nearest the folder node may go to the canvas corner without its stack leaving the line box. */
   least: { x: number; y: number };
   /** Canvas-level members only; a band carries its own commits. */
   members: readonly string[];
@@ -58,6 +58,8 @@ export type Band = {
   lines: BandLines;
   /** Branch-to-terminal lines, apart from `lines` since terminals change without the layout. */
   runs: BandLines["strokes"];
+  /** Lines to the offers, drawn with them: only while Ctrl+Shift is held. */
+  offers: BandLines["strokes"];
   /** A pull reaching past what is shown: drawn dashed by one class on the band group. */
   provisional?: boolean;
 };

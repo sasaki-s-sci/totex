@@ -13,7 +13,7 @@ export type LaidGroup = {
 
   members: string[];
 
-  /** How far the ring reaches past the row; lines are drawn in one box from the canvas corner. */
+  /** How far the row's stack reaches above it; lines are drawn in one box from the canvas corner. */
   inset: { x: number; y: number };
 
   right: number;

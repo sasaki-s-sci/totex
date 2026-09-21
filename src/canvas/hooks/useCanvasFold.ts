@@ -164,5 +164,5 @@ export function useCanvasFold({
     glide(from, graph.nodes);
   }, [graph, setNodes, glide, reaching, standBack]);
 
-  return { expand, fold, reachFold, keepFold, standBack };
+  return { expand, fold, setLength: foldDepth, reachFold, keepFold, standBack };
 }

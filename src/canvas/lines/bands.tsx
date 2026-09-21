@@ -1,5 +1,5 @@
 import type { XYPosition } from "@xyflow/react";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import {
   type Band,
   COMMIT_STEP,
@@ -37,20 +37,30 @@ export const Reach = memo(function Reach({
 export const Bands = memo(function Bands({
   bands,
   standing,
+  offering,
 }: {
   bands: readonly Band[];
   standing: ReadonlyMap<string, XYPosition>;
+  offering: boolean;
 }) {
   return (
     <>
       {bands.map((band) => (
-        <BandGroup key={band.id} band={band} standing={standing} />
+        <BandGroup key={band.id} band={band} standing={standing} offering={offering} />
       ))}
     </>
   );
 });
 
-function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<string, XYPosition> }) {
+function BandGroup({
+  band,
+  standing,
+  offering,
+}: {
+  band: Band;
+  standing: ReadonlyMap<string, XYPosition>;
+  offering: boolean;
+}) {
   const at = standing.get(band.id);
   return (
     <g
@@ -65,6 +75,7 @@ function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<strin
       {band.runs.map((batch) => (
         <path key={batch.key} d={pathOf(batch.parts, standing)} {...stroke(batch.stroke)} />
       ))}
+      {offering && <OfferLines band={band} standing={standing} />}
       {band.lines.named.map((line) => (
         <g key={line.id}>
           <path id={line.id} d={pathOf([line], standing)} {...stroke(line.stroke)} />
@@ -96,6 +107,25 @@ function BandGroup({ band, standing }: { band: Band; standing: ReadonlyMap<strin
       ))}
       <CommitDots dots={band.lines.dots} standing={standing} />
     </g>
+  );
+}
+
+const ORIGIN = { x: 0, y: 0 };
+
+/** Mounted only while Ctrl+Shift is held. An offer is no node of the canvas's, so its end is a point in the band, which here is the origin. */
+function OfferLines({ band, standing }: { band: Band; standing: ReadonlyMap<string, XYPosition> }) {
+  const within = useMemo(() => new Map(standing).set(band.id, ORIGIN), [standing, band.id]);
+  return (
+    <>
+      {band.offers.map((batch) => (
+        <path
+          key={batch.key}
+          className="offer-line"
+          d={pathOf(batch.parts, within)}
+          {...stroke(batch.stroke)}
+        />
+      ))}
+    </>
   );
 }
 

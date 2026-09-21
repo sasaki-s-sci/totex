@@ -1,24 +1,21 @@
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
-import { markId, repoMark } from "../folders";
+import { FOLDER_ROW_WIDTH, markId, ROW_SOCKET, ROW_STACK_X, repoMark } from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
-  CHIP_STEP,
+  CLI_STEP,
   type Draw,
   FOLDER_GAP_Y,
   LANE_HEIGHT,
   type LineEnd,
   REPO_GAP_Y,
-  REPO_MARK_RING,
-  REPO_MARK_WIDTH,
-  RING_TRIM,
+  REPO_MARK_TRIM,
   rowPitch,
   rowReach,
-  SESSION_WIDTH,
 } from "../model";
 import type { Column } from "./column";
-import { batched, provisional, repositoryNode } from "./nodes";
+import { batched, offerNode, provisional, repositoryNode } from "./nodes";
 import { holds, type LaidGroup } from "./parts";
 import { merge, rowStack } from "./stack";
 
@@ -94,6 +91,7 @@ function bandRow(
     height: entry.style.height,
     lines: entry.lines,
     runs: batched(row.column.lines),
+    offers: batched(row.column.offerLines),
     provisional: proposed,
   });
 
@@ -132,7 +130,8 @@ function markRow(
   const top = line - LANE_HEIGHT / 2;
 
   const mark = markId(id, entry.repository);
-  drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, from === null, draw));
+  const work = workOf(entry);
+  drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, work, from === null, draw));
   drawn.members.push(mark);
   if (from) {
     drawn.links.push(
@@ -144,14 +143,11 @@ function markRow(
     row.standing,
     {
       open,
-      socket: { node: mark, dx: REPO_MARK_WIDTH - REPO_MARK_RING, dy: LANE_HEIGHT / 2 },
+      socket: { node: mark, dx: ROW_SOCKET.x, dy: ROW_SOCKET.y },
 
       group: mark,
-      lead: RING_TRIM,
-      at: {
-        x: x + REPO_MARK_WIDTH - REPO_MARK_RING + CHIP_STEP - SESSION_WIDTH / 2,
-        y: line,
-      },
+      lead: REPO_MARK_TRIM,
+      at: { x: x + ROW_STACK_X, y: line },
       showing,
       asks,
       reports,
@@ -161,6 +157,32 @@ function markRow(
   );
   merge(stack, drawn);
 
-  drawn.right = Math.max(drawn.right, x + REPO_MARK_WIDTH, stack.right);
+  // A mark with nothing beside it offers its first terminal where a stack of one would stand.
+  if (marks === 0) {
+    drawn.offers.push(
+      offerNode(
+        `offer${mark}`,
+        { kind: "open", repository: entry.repository, ...work },
+        null,
+        x + ROW_STACK_X,
+        line - CLI_STEP / 2,
+        draw,
+      ),
+    );
+  }
+
+  drawn.right = Math.max(drawn.right, x + FOLDER_ROW_WIDTH, stack.right);
   return { ...at, cursor: line + rowReach(marks), above: { line, marks }, floor: stack.floor };
+}
+
+// The default branch where it is drawn, else whichever branch has a worktree to stand in.
+function workOf(entry: PreparedRepository): { branch: string; cwd: string | null } {
+  const main = entry.repository.defaultBranch?.replace(/^refs\/heads\//, "");
+  const run =
+    entry.runs.find((candidate) => candidate.branch === main) ??
+    entry.runs.find((candidate) => candidate.cwd !== null) ??
+    entry.runs[0];
+  return run
+    ? { branch: run.branch, cwd: run.cwd }
+    : { branch: main ?? entry.repository.name, cwd: entry.repository.path };
 }

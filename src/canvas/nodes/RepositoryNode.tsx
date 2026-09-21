@@ -4,9 +4,12 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { RepositoryFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
-import { CloseMark, MARK_BUTTON, RepoRingMark } from "../../marks";
+import { CloseMark, GitMark, MARK_BUTTON } from "../../marks";
 import { useGraphActions } from "../graphActions";
 import { HistoryLength } from "./HistoryLength";
+
+// The name's own font size, so git's figure stands as tall as the letters beside it.
+const NAME_FONT = 13;
 
 export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   const { t } = useTranslation();
@@ -30,7 +33,7 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
         >
           {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}
           <div className={`${GRIP} band__grip nopan`} title={t("folder.move")}>
-            <RepoRingMark on size={15} />
+            <GitMark on size={NAME_FONT} />
           </div>
           <button
             type="button"
@@ -47,7 +50,6 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
               {repository.name}
             </Typography>
           </button>
-          <HistoryLength repository={repository} />
           <button
             type="button"
             className="band__close nopan"
@@ -60,6 +62,8 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
           >
             <CloseMark />
           </button>
+          {/* The second line: the rail lies right under the name, in the name's own column. */}
+          <HistoryLength repository={repository} />
         </div>
       </div>
     </div>

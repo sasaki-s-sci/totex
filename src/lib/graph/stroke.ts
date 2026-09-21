@@ -68,6 +68,9 @@ export const CLI_STROKE: StrokeStyle = {
   opacity: 0.7,
 };
 
+/** A line to a terminal that is not there yet: the terminal's own stroke, dashed as its mark is. */
+export const OFFER_STROKE: StrokeStyle = { ...CLI_STROKE, dash: "3 4" };
+
 export const FOLDER_STROKE: StrokeStyle = {
   colour: LINE_COLOR,
   width: 1.0,

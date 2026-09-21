@@ -1,80 +1,65 @@
-import { Checkbox, Popover, Slider, Stack, Typography } from "@mui/material";
-import { useState } from "react";
+import { Checkbox, Slider, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../../lib/appSettings";
-import { LengthMark } from "../../marks";
 import type { Repository } from "../../types/git";
 import { useGraphActions } from "../graphActions";
 import { useHistoryLength } from "../historyLength";
 
-const TICK_SX = { p: 0.25 } as const;
+const TICK_SX = { p: 0, "& .MuiSvgIcon-root": { fontSize: 14 } } as const;
 
-/** How many commits one band shows, and whether it keeps to the length every band is given. */
+// The rail's own height and no more: the touch padding MUI adds would take the name's line.
+const RAIL_SX = {
+  py: "5px",
+  pointerEvents: "all",
+  "@media (pointer: coarse)": { py: "5px" },
+} as const;
+
+/**
+ * How many commits one band shows, and whether it keeps to the length every band is given. Always
+ * on the heading, under the name, and there for a repository with no commit at all.
+ */
 export function HistoryLength({ repository }: { repository: Repository }) {
   const { t } = useTranslation();
   const { historyFollow } = useAppSettings();
   const { visible, free, follow } = useHistoryLength();
-  const { fold } = useGraphActions();
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const { setLength } = useGraphActions();
 
   const most = repository.commits.length;
   const shown = visible.get(repository.id) ?? most;
 
   return (
     <>
-      <button
-        type="button"
-        className="band__close band__length nopan"
-        aria-label={t("graph.length")}
-        aria-haspopup="dialog"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          setAnchor(event.currentTarget);
-        }}
-      >
-        <LengthMark />
-      </button>
-      <Popover
-        open={anchor !== null}
-        anchorEl={anchor}
-        onClose={() => setAnchor(null)}
-        // Above the heading: the band it is changing lies under it.
-        anchorOrigin={{ vertical: "top", horizontal: "left" }}
-        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
-        slotProps={{ paper: { className: "nopan nowheel nodrag" } }}
-      >
-        <Stack direction="row" sx={{ alignItems: "center", gap: 1.5, px: 1.5, py: 0.5 }}>
-          {historyFollow && (
-            <Checkbox
-              size="small"
-              sx={TICK_SX}
-              checked={!free.has(repository.id)}
-              onChange={(event) => follow(repository.id, event.target.checked)}
-              title={t("graph.lengthFollow")}
-              slotProps={{ input: { "aria-label": t("graph.lengthFollow") } }}
-            />
-          )}
-          <Slider
+      <span className="band__follow nopan nodrag">
+        {historyFollow && (
+          <Checkbox
             size="small"
-            aria-label={t("graph.length")}
-            sx={{ width: 160 }}
-            value={shown}
-            min={1}
-            max={Math.max(most, 1)}
-            disabled={most <= 1}
-            onChange={(_, next) => {
-              if (typeof next === "number" && next !== shown) fold(repository.id, next);
-            }}
+            sx={TICK_SX}
+            checked={!free.has(repository.id)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onChange={(event) => follow(repository.id, event.target.checked)}
+            title={t("graph.lengthFollow")}
+            slotProps={{ input: { "aria-label": t("graph.lengthFollow") } }}
           />
-          <Typography
-            variant="body2"
-            sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
-          >
-            {shown}
-          </Typography>
-        </Stack>
-      </Popover>
+        )}
+      </span>
+      <Slider
+        className="band__rail nopan nodrag nowheel"
+        size="small"
+        aria-label={t("graph.length")}
+        sx={RAIL_SX}
+        value={Math.min(shown, most)}
+        // An empty history is a rail with nowhere to go, not a rail taken away.
+        min={Math.min(1, most)}
+        max={Math.max(most, 1)}
+        disabled={most <= 1}
+        onPointerDown={(event) => event.stopPropagation()}
+        onChange={(_, next) => {
+          if (typeof next === "number" && next !== shown) setLength(repository.id, next);
+        }}
+      />
+      <Typography className="band__shown" variant="caption">
+        {Math.min(shown, most)}
+      </Typography>
     </>
   );
 }

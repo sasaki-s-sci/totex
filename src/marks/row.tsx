@@ -52,18 +52,6 @@ export function AgentMark({ size, working }: { size?: number; working?: boolean 
   );
 }
 
-/** A run of commits, for how many of them a band shows. */
-export function LengthMark() {
-  return (
-    <Frame>
-      <path d="M3.5 12 H5.2 M9.2 12 H10 M14 12 H14.8 M18.8 12 H20.5" />
-      <circle cx="7.2" cy="12" r="2" />
-      <circle cx="12" cy="12" r="2" />
-      <circle cx="16.8" cy="12" r="2" />
-    </Frame>
-  );
-}
-
 export function CloseMark() {
   return (
     <Frame>

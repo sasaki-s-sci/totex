@@ -60,6 +60,9 @@ export type GraphActions = {
 
   fold: (repository: string, shown: number) => void;
 
+  /** As `fold`, but the canvas stays where it is: the rail asking stands on the heading, which must not leave the pointer. */
+  setLength: (repository: string, shown: number) => void;
+
   reachFold: (repository: string, shown: number | null) => void;
 
   keepFold: (repository: string) => void;
@@ -115,6 +118,7 @@ export const NO_ACTIONS: GraphActions = {
   toggleJunction: () => {},
   expand: () => {},
   fold: () => {},
+  setLength: () => {},
   reachFold: () => {},
   keepFold: () => {},
   showSession: () => {},

@@ -14,6 +14,7 @@ export function useCanvasActions({
   toggleJunction,
   expand,
   fold,
+  setLength,
   reachFold,
   keepFold,
   onShowSession,
@@ -46,6 +47,7 @@ export function useCanvasActions({
   toggleJunction: GraphActions["toggleJunction"];
   expand: GraphActions["expand"];
   fold: GraphActions["fold"];
+  setLength: GraphActions["setLength"];
   reachFold: GraphActions["reachFold"];
   keepFold: GraphActions["keepFold"];
   onShowSession: GraphActions["showSession"];
@@ -81,6 +83,7 @@ export function useCanvasActions({
       toggleJunction,
       expand,
       fold,
+      setLength,
       reachFold,
       keepFold,
       showSession: onShowSession,
@@ -114,6 +117,7 @@ export function useCanvasActions({
       toggleJunction,
       expand,
       fold,
+      setLength,
       reachFold,
       keepFold,
       onShowSession,

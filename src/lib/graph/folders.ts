@@ -1,25 +1,26 @@
 import type { Repository } from "../../types/git";
 import type { GraphedKind } from "../graphed";
 import {
-  CELL_STYLE,
   CHIP_STEP,
-  CLI_STEP,
   type Draw,
   FOLDER_INSET,
+  FOLDER_MARK,
   type FolderFlowNode,
   type FolderNodeData,
   LANE_HEIGHT,
   NAME_HEIGHT,
-  REPO_MARK_WIDTH,
+  type RepoMarkData,
   type RepoMarkFlowNode,
   SESSION_WIDTH,
 } from "./model";
 
-const TOOLS_WIDTH = 40;
-
 export const FOLDER_MARK_X = 0;
-const TOOLS_X = FOLDER_INSET;
-export const FOLDER_ROW_WIDTH = TOOLS_X + TOOLS_WIDTH;
+export const FOLDER_ROW_WIDTH = FOLDER_INSET + 40;
+
+/** Row-relative middle of the mark: where a row's lines leave, as a branch's leave its ring. */
+export const ROW_SOCKET = { x: FOLDER_MARK_X + FOLDER_MARK / 2, y: LANE_HEIGHT / 2 };
+/** Row-relative left edge of a row's stack, as far from the mark as a branch's is from its ring. */
+export const ROW_STACK_X = ROW_SOCKET.x + CHIP_STEP - SESSION_WIDTH / 2;
 
 /** The drag handle class React Flow is pointed at; the row must draw it. */
 export const GRIP = "folder__grip";
@@ -62,7 +63,6 @@ export function folderRow(
     label: { x: FOLDER_MARK_X, y: 0, width: FOLDER_ROW_WIDTH, height: NAME_HEIGHT },
     open,
     mark: FOLDER_MARK_X,
-    tools: TOOLS_X,
   };
 
   const id = folderId(root);
@@ -95,6 +95,8 @@ export function repoMark(
   band: string,
   repository: Repository,
   at: { x: number; y: number },
+  /** Where the mark's own terminal opens. */
+  work: RepoMarkData["work"],
   /** Standing on its own, the mark is what its group is moved by. */
   grip: boolean,
   draw: Draw,
@@ -105,6 +107,8 @@ export function repoMark(
     held?.type === "repo-mark" &&
     held.draggable === grip &&
     held.data.repository === repository &&
+    held.data.work.branch === work.branch &&
+    held.data.work.cwd === work.cwd &&
     held.position.x === at.x &&
     held.position.y === at.y
   ) {
@@ -115,8 +119,8 @@ export function repoMark(
     id,
     type: "repo-mark",
     position: { x: at.x, y: at.y },
-    data: { repository },
-    style: { ...CELL_STYLE, width: REPO_MARK_WIDTH },
+    data: { repository, work },
+    style: { width: FOLDER_ROW_WIDTH, height: LANE_HEIGHT, pointerEvents: "none" },
     draggable: grip,
     ...(grip ? { dragHandle: `.${GRIP}` } : null),
     selectable: false,
@@ -127,62 +131,11 @@ export function markId(band: string, repository: Repository): string {
   return `${band}mark${repository.id}`;
 }
 
-export type RingSpot = {
-  x: number;
-  y: number;
-  /** Where on the row's edge the line to this spot leaves. */
-  socket: { x: number; y: number };
-};
-
-export type Ring = {
-  spots: readonly RingSpot[];
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-};
-
-const RING_SLOTS = 8;
-const RING_STEP = CHIP_STEP;
-
-// Terminals of a folder with no repository sit on an ellipse round the row,
-// eight per turn at fixed angles so an arrival never moves the others.
-export function ringAround(count: number): Ring {
-  const cx = FOLDER_ROW_WIDTH / 2;
-  const cy = LANE_HEIGHT / 2;
-
-  const spots: RingSpot[] = [];
-  const box = { left: 0, top: 0, right: FOLDER_ROW_WIDTH, bottom: LANE_HEIGHT };
-
-  for (let slot = 0; slot < count; slot++) {
-    const turn = Math.floor(slot / RING_SLOTS) + 1;
-    const angle = ((slot % RING_SLOTS) * 2 * Math.PI) / RING_SLOTS;
-    const along = Math.cos(angle);
-    const down = Math.sin(angle);
-
-    const x = Math.round(cx + (cx + RING_STEP * turn) * along - SESSION_WIDTH / 2);
-    const y = Math.round(cy + (cy + RING_STEP * turn) * down - CLI_STEP / 2);
-
-    // The line starts where the ray crosses the row's edge, not at its middle.
-    const edge = Math.min(Math.abs(cx / along), Math.abs(cy / down));
-
-    spots.push({ x, y, socket: { x: cx + edge * along, y: cy + edge * down } });
-
-    box.left = Math.min(box.left, x);
-    box.top = Math.min(box.top, y);
-    box.right = Math.max(box.right, x + SESSION_WIDTH);
-    box.bottom = Math.max(box.bottom, y + CLI_STEP);
-  }
-
-  return { spots, ...box };
-}
-
 function same(held: FolderNodeData, next: FolderNodeData): boolean {
   return (
     held.kind === next.kind &&
     held.root === next.root &&
     held.name === next.name &&
-    held.open === next.open &&
-    held.tools === next.tools
+    held.open === next.open
   );
 }

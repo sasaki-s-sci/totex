@@ -191,7 +191,8 @@ function layout(
       label: {
         x: 0,
         y: top + historyTop - NAME_HEIGHT,
-        width: working - SESSION_WIDTH / 2,
+        // Never narrower than the rail under the name, which an empty history still shows whole.
+        width: Math.max(MIN_BAND_WIDTH, working - SESSION_WIDTH / 2),
         height: NAME_HEIGHT,
         column: COMMIT_STEP.x,
       },

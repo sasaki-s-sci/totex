@@ -11,6 +11,8 @@ import {
   COMMIT_STEP,
   type Draw,
   type GraphLine,
+  inBand,
+  OFFER_STROKE,
   type OfferFlowNode,
   onHead,
   onStack,
@@ -28,13 +30,16 @@ export type Column = {
 
   lines: GraphLine[];
 
+  /** Lines into `offers`, kept apart from `lines`: they are drawn only while the offers are. */
+  offerLines: GraphLine[];
+
   bottom: number;
 
   right: number;
 };
 
-/** Below the band, in the air every band is given: no row's stack reaches past the band's own floor. */
-const NEW_DROP = (COMMIT_STEP.y - CLI_STEP) / 2;
+/** The air between the topmost stack and the new workspace over it. */
+const NEW_RISE = (COMMIT_STEP.y - CLI_STEP) / 2;
 
 export function bandColumn(
   entry: PreparedRepository,
@@ -47,9 +52,12 @@ export function bandColumn(
   draw: Draw,
 ): Column {
   const band = entry.repository.id;
-  const drawn: Column = { nodes: [], offers: [], lines: [], bottom: 0, right: 0 };
+  const drawn: Column = { nodes: [], offers: [], lines: [], offerLines: [], bottom: 0, right: 0 };
 
   let floor = Number.NEGATIVE_INFINITY;
+
+  // Where the topmost stack begins; a band with no branch has only its own top.
+  let ceiling = entry.runs.length === 0 ? 0 : Number.POSITIVE_INFINITY;
 
   for (const run of entry.runs) {
     const cwd = run.cwd;
@@ -73,6 +81,8 @@ export function bandColumn(
 
     // Centred on the branch line; the layout made room either side.
     const head = run.y - stackReach(standing.length);
+    // An empty row still holds the box its offer stands in.
+    ceiling = Math.min(ceiling, Math.min(head, run.y));
 
     for (const [slot, session] of standing.entries()) {
       const id = `session${session.id}`;
@@ -121,17 +131,34 @@ export function bandColumn(
     }
   }
 
+  // The new workspace heads the column, over every branch there is, and leaves the default
+  // branch's ring, which stands on its latest commit: the corridor beside the rings is the lines'.
   const column = entry.runs[0]?.x ?? entry.style.width - SESSION_WIDTH;
+  const rise = ceiling - NEW_RISE - CLI_STEP;
   drawn.offers.push(
     offerNode(
       `offer${band}new`,
       { kind: "new", repository: entry.repository },
       band,
       column,
-      entry.style.height + NEW_DROP,
+      rise,
       draw,
     ),
   );
+
+  const main = entry.repository.defaultBranch?.replace(/^refs\/heads\//, "");
+  const from = entry.runs.find((run) => run.branch === main) ?? entry.runs[0];
+  if (from) {
+    drawn.offerLines.push({
+      id: `offer${band}newline`,
+      from: onHead(from.head),
+      to: inBand(band, column + SESSION_WIDTH / 2, rise + CLI_STEP / 2),
+      shape: "curve",
+      trim: CLI_MARK / 2,
+      lead: from.lead,
+      stroke: OFFER_STROKE,
+    });
+  }
 
   return drawn;
 }

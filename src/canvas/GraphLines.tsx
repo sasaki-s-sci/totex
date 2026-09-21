@@ -14,6 +14,7 @@ export const GraphLines = memo(function GraphLines({
   nodes,
   selected,
   picked,
+  offering,
   reading,
   onCommit,
 }: {
@@ -27,6 +28,9 @@ export const GraphLines = memo(function GraphLines({
   nodes: readonly AppNode[];
   selected: string | null;
   picked: string | null;
+
+  /** Ctrl+Shift is held: the lines into the offers are drawn with them. */
+  offering: boolean;
 
   reading: boolean;
 
@@ -43,7 +47,7 @@ export const GraphLines = memo(function GraphLines({
       {/* An SVG root clips to its own box whatever overflow says, so it is sized to the extent. */}
       <svg className="graph__lines" width={extent.width} height={extent.height} aria-hidden="true">
         <Reach reach={reach} standing={standing} />
-        <Bands bands={bands} standing={standing} />
+        <Bands bands={bands} standing={standing} offering={offering} />
         {reading && <CommitMessages bands={bands} standing={standing} />}
         <CommitEmphasis
           bands={bands}

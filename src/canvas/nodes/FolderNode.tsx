@@ -8,20 +8,12 @@ import { useGraphActions } from "../graphActions";
 
 export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   const { t } = useTranslation();
-  const { root, name, label, open, mark, tools } = data;
+  const { root, name, label, open, mark } = data;
   const { openWork } = useGraphActions();
 
   return (
     <div className="band folder">
-      {/* The mark is the drag handle and deliberately not a button: a button would fire on every drag that came to nothing. */}
-      <div className={`${GRIP} nopan`} style={{ left: mark }} title={t("folder.move")}>
-        <FolderMark on={open} size={15} />
-      </div>
-
-      <div
-        className="band__name"
-        style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
-      >
+      <div className="row__name" style={{ left: label.x, width: label.width }}>
         {/* Only a name: a folder holds nothing to fold or take off, and the sidebar is where it leaves. */}
         <Typography
           className="folder__name folder__name--still"
@@ -33,19 +25,24 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
         </Typography>
       </div>
 
-      <div className="folder__tools nopan" style={{ left: tools }}>
-        <button
-          type="button"
-          className="tools__button"
-          aria-label={t("folder.shell")}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            openWork({ repository: null, branch: name, cwd: root });
-          }}
-        >
-          <CliMark size={CLI_GLYPH} />
-        </button>
+      {/* Over the mark, as a branch's is over its ring. */}
+      <button
+        type="button"
+        className="row__cli tools__button nopan"
+        style={{ left: mark }}
+        aria-label={t("folder.shell")}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          openWork({ repository: null, branch: name, cwd: root });
+        }}
+      >
+        <CliMark size={CLI_GLYPH} />
+      </button>
+
+      {/* The mark is the drag handle and deliberately not a button: a button would fire on every drag that came to nothing. */}
+      <div className={`${GRIP} nopan`} style={{ left: mark }} title={t("folder.move")}>
+        <FolderMark on={open} size={15} />
       </div>
     </div>
   );

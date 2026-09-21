@@ -182,10 +182,22 @@ test("a branch and a folder nothing runs in are offered a terminal, and a reposi
   // Never among the canvas's own nodes: they are drawn on a key press.
   assert.equal(graph.nodes.filter((node) => node.type === "offer").length, 0);
 
-  // The new workspace stands under the band, clear of every row's stack.
-  const band = bandNodes(graph)[0];
+  // The new workspace heads the column: over every branch's offer, and in line with them.
   const fresh = graph.offers.find((offer) => offer.data.kind === "new");
-  assert.ok(fresh.position.y >= Number(band.style.height));
+  const branches = graph.offers.filter((offer) => offer.parentId === "repo" && offer !== fresh);
+  for (const offer of branches) {
+    assert.ok(fresh.position.y + Number(fresh.style.height) <= offer.position.y);
+    assert.equal(fresh.position.x, offer.position.x);
+  }
+
+  // Its line leaves the default branch's ring and is kept apart from the lines always drawn.
+  const drawn = graph.bands.find((candidate) => candidate.id === "repo");
+  const lines = drawn.offers.flatMap((batch) => batch.parts);
+  assert.deepEqual(
+    lines.map((line) => [line.from.node, line.to.node]),
+    [[graph.nodes.find((node) => node.type === "head" && node.data.name === "main").id, "repo"]],
+  );
+  assert.ok(!drawn.runs.some((batch) => batch.parts.some((line) => line.id === lines[0].id)));
 
   // Unchanged offers come back as themselves, so holding the keys over a rescan redraws nothing.
   const again = build(workspace, folders, graph);
