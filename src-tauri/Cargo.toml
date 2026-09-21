@@ -10,7 +10,7 @@ default-members = [".", "persistent"]
 
 [package]
 name = "totex"
-version = "0.19.0"
+version = "0.19.1"
 edition = "2024"
 rust-version = "1.95"
 # `tauri dev` runs a bare `cargo run`, and with the persistent half among the
