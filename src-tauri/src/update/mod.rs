@@ -3,12 +3,13 @@
 //!
 //! What a persistent install costs depends on the line -- see
 //! [`totex_persistent::LINE`]. A patch stays on the line, so the service
-//! holding the terminals is shared rather than replaced and a window that
-//! comes up beside one finds the shells where they were. A minor turns the
-//! line over, and that is the release that puts another service in place and
-//! closes them. A whole-runtime install asks for the replacement outright --
-//! see [`totex_persistent::RESTART_RUNTIME`] and [`update_restart`] -- because
-//! what it installed is the program that is to hold them from here.
+//! holding the terminals is shared rather than replaced: the program is
+//! installed, the window reopened, and the window that comes up finds the
+//! shells where they were. A minor turns the line over, and that is the
+//! release that puts another service in place and closes them -- the one
+//! install that asks for the replacement outright, see
+//! [`totex_persistent::RESTART_RUNTIME`] and [`update_restart`], because what
+//! it installed is the program that is to hold them from here.
 
 mod kept;
 mod program;
@@ -166,13 +167,23 @@ pub fn update_pick<R: Runtime>(app: AppHandle<R>, version: Option<String>) {
 }
 
 /// Install the persistent bundle after this process exits, then relaunch totex.
-/// The next run explicitly replaces the CLI service and opens its bundled views.
+///
+/// The next run opens the views bundled with it. Whether it goes on with the
+/// CLI service already running or replaces it is the line's to say: a release
+/// on the running line is a patch, and a patch never ends a terminal, so the
+/// window reopens over the service it left. A release on another line cannot
+/// speak to that service, and asks for the replacement outright.
 #[tauri::command(async)]
 pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
-    let install = app
+    let (version, install) = app
         .state::<std::sync::Arc<Ready>>()
         .take()
         .ok_or_else(|| "no release has come down".to_string())?;
+    let args = if totex_persistent::line_of(&version) == Some(totex_persistent::LINE) {
+        Vec::new()
+    } else {
+        vec![totex_persistent::RESTART_RUNTIME.to_string()]
+    };
     let program = match install.kind {
         // What the runtime mounted is what is started again, not the program
         // inside the mount that is about to go away.
@@ -182,11 +193,7 @@ pub fn update_restart<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
             install.target.clone()
         }
     };
-    crate::persistent::link(&app).relaunch(
-        &program,
-        &[totex_persistent::RESTART_RUNTIME.to_string()],
-        Some(&install),
-    )?;
+    crate::persistent::link(&app).relaunch(&program, &args, Some(&install))?;
     // The new runtime starts with the views shipped with it. The pin stays: a
     // row pointed at the release just installed is pointed at what is drawn.
     app.state::<std::sync::Arc<Serving>>().drop_front();

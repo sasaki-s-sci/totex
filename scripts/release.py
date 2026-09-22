@@ -1,12 +1,20 @@
 """Plan app releases from Git snapshots; write version files only on request.
 
-The version number follows the shell contract. A minor release is exactly a
-release that changes the contract hash `shellContract()` computes in
-`scripts/ephemeral-build.mjs`, so it needs an installation and a restart that
-closes every terminal; a patch release leaves the contract intact and is applied
-live in the running shell. Both sides read the same file list from
-`scripts/shell-contract.json` and normalise release numbers the same way, so a
-planned patch can never carry a contract change.
+The version number says what a release costs the terminals. A minor release is
+exactly a release that changes the line: the CLI service (`src-tauri/persistent`)
+and the host crate compiled into it, with the dependencies they lock. Taking it
+replaces the service and closes every terminal. A patch release leaves the line
+alone, and is one of two things: pages alone, applied live in the running shell,
+or a program change -- anything else the shell contract hashes, `src-tauri/src`
+included -- which is installed and the window reopened over the service that is
+already running, terminals kept. Which of the two a patch is, the running app
+reads off the contract hash `shellContract()` computes in
+`scripts/ephemeral-build.mjs`, so it is not written into the number.
+
+`LINE_DIRECTORIES` and `LINE_FILES` say what is on the line; the shell contract
+list is read from `scripts/shell-contract.json`, the same file the hash reads,
+and both sides normalise release numbers the same way, so a planned patch can
+never carry a line change.
 
 Python 3.11+ and Git are the only dependencies. Planning never changes the tree.
 """
@@ -35,6 +43,13 @@ CONFIGURATION = "src-tauri/tauri.conf.json"
 CONTRACT = json.loads((Path(__file__).parent / "shell-contract.json").read_text())
 CONTRACT_DIRECTORIES = tuple(d.rstrip("/") + "/" for d in CONTRACT["directories"])
 CONTRACT_FILES = frozenset(CONTRACT["files"])
+# What is compiled into the CLI service, which only a minor replaces. The host
+# crate is here whole: the service links all of it, and a list of the modules it
+# happens to use would be wrong the day one more is used.
+LINE_DIRECTORIES = (PERSISTENT + "src/", HOST + "src/")
+LINE_FILES = frozenset((PERSISTENT + "Cargo.toml", HOST + "Cargo.toml"))
+# The lock packages the service is built from, read off the lock itself.
+LINE_CRATES = ("totex-persistent", "totex-host")
 # pnpm records the resolved version of the shell's IPC dependency as a key.
 LOCKED_API = re.compile(r"'@tauri-apps/api@([^'\s:]+)'")
 
@@ -75,6 +90,64 @@ def version_of(read):
         if found != [versions[0]]:
             raise ValueError(f"{LOCK}: {name} does not carry {versions[0]}")
     return versions[0]
+
+
+def lined(path):
+    """True when the file is compiled into the CLI service."""
+    if path in LINE_FILES:
+        return True
+    return path.startswith(LINE_DIRECTORIES) and not (
+        "/tests/" in path or path.endswith("/tests.rs")
+    )
+
+
+def locked(text):
+    """Every package in a Cargo lock, as `name version` -> its dependencies.
+
+    The two local packages carry the release number, which is not a change --
+    the same erasure `hashed_text` makes.
+    """
+    packages = {}
+    for package in tomllib.loads(text).get("package", []) if text else []:
+        version = package["version"]
+        if package["name"] in ("totex", "totex-persistent") and "source" not in package:
+            version = "release"
+        packages[(package["name"], version)] = package.get("dependencies", [])
+    return packages
+
+
+def service_closure(packages):
+    """The lock packages the CLI service is built from, transitively.
+
+    A dependency is written as a name, or a name and version where two versions
+    of one crate are locked; a name alone means the only version there is.
+    """
+    by_name = {}
+    for name, version in packages:
+        by_name.setdefault(name, []).append(version)
+    closure = set()
+    pending = [key for key in packages if key[0] in LINE_CRATES]
+    while pending:
+        key = pending.pop()
+        if key in closure:
+            continue
+        closure.add(key)
+        for dependency in packages.get(key, []):
+            parts = dependency.split(" ")
+            name = parts[0]
+            versions = [parts[1]] if len(parts) > 1 else by_name.get(name, [])
+            pending.extend((name, version) for version in versions)
+    return closure
+
+
+def lock_changes(old, new):
+    """Which lock changes reach the service: (line changed, anything else changed)."""
+    before, after = locked(old), locked(new)
+    changed = set(before) ^ set(after)
+    if not changed:
+        return False, False
+    reaching = service_closure(before) | service_closure(after)
+    return bool(changed & reaching), bool(changed - reaching)
 
 
 def hashed(path):
@@ -161,14 +234,15 @@ def test_or_doc(path):
 
 
 def classify(before, after):
-    """Split shipped changes into contract changes (minor) and the rest (patch).
+    """Split shipped changes three ways: line (minor), program and pages (patch).
 
-    Everything the shell-contract hash reads is compared through the hash's own
-    normalisation, so a planned patch can never move the contract. The extra
-    persistent entries below never reach the hash but still rebuild the installed
-    binaries, which only a fresh installation can carry.
+    The line is what the CLI service is built from, compared through the hash's
+    normalisation so a release-number bump alone is not a change. The program is
+    everything else the shell contract hashes, and what rebuilds the installed
+    binaries without reaching the service: it is installed, and the window
+    reopened over the running service. The pages are what is applied live.
     """
-    persistent, ephemeral = [], []
+    line, program, pages = [], [], []
     paths = git(
         after.root, "diff", "--name-only", "--no-renames", "-z", before.ref, after.ref
     ).split("\0")
@@ -176,43 +250,54 @@ def classify(before, after):
         if test_or_doc(path):
             continue
         old, new = before.text(path), after.text(path)
-        if hashed(path):
+        if path == LOCK:
+            # Only the packages the service is built from turn the line; the
+            # rest is the program's, and a local release number is neither.
+            reaching, elsewhere = lock_changes(old, new)
+            if reaching:
+                line.append(path)
+            elif elsewhere:
+                program.append(path)
+        elif lined(path):
+            if hashed_text(path, old) != hashed_text(path, new):
+                line.append(path)
+        elif path.startswith((PERSISTENT, HOST)):
+            line.append(path)
+        elif hashed(path):
             # A release-number bump alone leaves the contract exactly where it was.
             if hashed_text(path, old) != hashed_text(path, new):
-                persistent.append(path)
+                program.append(path)
         elif path == CONFIGURATION:
             if configuration(old) != configuration(new):
-                persistent.append(path)
+                program.append(path)
         elif path == "package.json":
             shell, frontend = package(old)
             next_shell, next_frontend = package(new)
             if shell != next_shell:
-                persistent.append(path)
+                program.append(path)
             elif frontend != next_frontend:
-                ephemeral.append(path)
+                pages.append(path)
         elif path == "pnpm-lock.yaml":
             if set(LOCKED_API.findall(old)) != set(LOCKED_API.findall(new)):
-                persistent.append(path)
+                program.append(path)
             else:
-                ephemeral.append(path)
-        elif path.startswith((PERSISTENT, HOST)):
-            persistent.append(path)
+                pages.append(path)
         elif path.startswith((".cargo/", "src-tauri/.cargo/")) or path in (
             "rust-toolchain",
             "rust-toolchain.toml",
             "scripts/persistent-sidecar.mjs",
             ".github/workflows/build.yml",
         ):
-            persistent.append(path)
+            program.append(path)
         elif path == "mise.toml":
             left, right = (
                 tomllib.loads(old).get("tools", {}),
                 tomllib.loads(new).get("tools", {}),
             )
             if left.get("rust") != right.get("rust"):
-                persistent.append(path)
+                program.append(path)
             elif any(left.get(key) != right.get(key) for key in ("node", "pnpm")):
-                ephemeral.append(path)
+                pages.append(path)
         elif path.startswith(("src/", "src-tauri/", "assets/", "public/")) or path in (
             "front.html",
             "tsconfig.json",
@@ -220,8 +305,8 @@ def classify(before, after):
             "scripts/install.ps1",
             "scripts/update-manifest.mjs",
         ):
-            ephemeral.append(path)
-    return persistent, ephemeral
+            pages.append(path)
+    return line, program, pages
 
 
 def plan(root, published, mode="auto"):
@@ -264,17 +349,17 @@ def plan(root, published, mode="auto"):
                 "tag": previous,
                 "reason": "resume unpublished tag",
             }
-        persistent, ephemeral = classify(Tree(root, previous), head)
+        line, program, pages = classify(Tree(root, previous), head)
     else:
         # An existing codebase adopting automation starts on a fresh line.
-        persistent, ephemeral = ["first app release"], []
+        line, program, pages = ["first app release"], [], []
     part = (
         "major"
         if mode == "major"
         else "minor"
-        if persistent
+        if line
         else "patch"
-        if ephemeral
+        if program or pages
         else ""
     )
     if not part:
@@ -294,7 +379,7 @@ def plan(root, published, mode="auto"):
         "part": part,
         "to": next_version,
         "tag": tag,
-        "reason": ", ".join(persistent or ephemeral)
+        "reason": ", ".join(line or program + pages)
         if mode == "auto"
         else "developer milestone",
     }

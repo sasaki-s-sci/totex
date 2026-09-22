@@ -273,7 +273,7 @@ Settings exposes two update boundaries:
 
 | Layer | Owns | Applying an update |
 | --- | --- | --- |
-| **persistent** | Thin browser shell, native window host and CLI service | Installs the complete bundle and restarts totex. CLI sessions end. |
+| **persistent** | Thin browser shell, native window host and CLI service | Installs the complete bundle and restarts totex. On the running line the CLI service and its sessions stay; on another line the service is replaced and CLI sessions end. |
 | **ephemeral** | Frontend code, React, hooks, rendering and styles | Prepares a new frontend in a child frame, transfers state and switches it into view. The native window and CLI processes stay alive. |
 
 The outer shell document stays open throughout a frontend update. The old front
@@ -297,17 +297,22 @@ in the signed artifact's `ephemeral.json`. It covers shell and native code,
 native dependencies, native configuration and the shell's Tauri API dependency.
 A separate `viewsContract` covers stateful frontend code and chooses whether a
 frame replacement is needed. Frontend-only changes do not change shell identity.
-The version number says which is which: a patch shares the running shell
-identity, a minor carries a new one (see [Releasing from main](#releasing-from-main)).
+The version number says what a release costs the terminals: a patch stays on
+the running line and keeps every terminal, whether it shares the running shell
+identity (drawn in place) or carries a new one (installed, window reopened); a
+minor is another line, and closes them (see
+[Releasing from main](#releasing-from-main)).
 
 **One persistent identity can support many ephemeral releases.** Settings has one
 version pull-down and two buttons. The pull-down lists every published release,
 newest first, and one this copy cannot bring is disabled. `latest` follows what
 is published. The **patch** button takes the newest release on the running
-line, or the one pinned there, and swaps the pages under the running app
-without interrupting it. The **minor** button takes the newest line beyond the
-running one, or the one pinned there, and installs and restarts the app,
-closing every terminal.
+line, or the one pinned there. Where it shares the running shell identity it
+swaps the pages under the running app without interrupting it; where it does
+not, it installs the program and reopens the window over the running CLI
+service, and the button says so. Either way every terminal stays. The
+**minor** button takes the newest line beyond the running one, or the one
+pinned there, and installs and restarts the app, closing every terminal.
 A line behind the running one is offered only by name.
 The listing currently covers the latest 30 published releases.
 
@@ -319,8 +324,12 @@ Old host assets remain available across successive swaps. `TOTEX_BUILT_IN_FRONT=
 still provides recovery to the bundled views.
 
 A persistent update clears the old ephemeral pin and overlay, installs the whole
-bundle, then restarts totex. The new run uses the views and CLI service from that
-bundle, including when updating within the same protocol line. A `.deb` or `.rpm`
+bundle, then restarts totex. The new run uses the views from that bundle. Within
+the same protocol line it goes on with the CLI service already running, whatever
+patch started it, and the service from the bundle is only started where none is
+running; on another line the bundle's service replaces the running one. A pinned
+version behaves the same way: it names the program to start, never a running one
+to stop. A `.deb` or `.rpm`
 leaves persistent installation to its package manager but can apply compatible
 ephemeral releases in place.
 
@@ -343,16 +352,19 @@ changes when they arrive together.
 | Change | Release |
 | --- | --- |
 | Anything shipped that leaves the shell contract alone: frontend, app assets, installers, frontend dependencies | Patch: `1.2.3` → `1.2.4` — applied live, uninterruptible |
-| Anything the shell contract hashes: `src-tauri/src`, `src-tauri/host/src`, `src-tauri/persistent/src`, `src/shell`, `index.html`, `vite.config.ts`, the Cargo manifests and lock, `scripts/ephemeral-build.mjs`, `scripts/shell-contract.json` itself; also `tauri.conf.json`, the shell's own entries in `package.json` and the Tauri API in `pnpm-lock.yaml` | Minor: `1.2.3` → `1.3.0` — installed and restarted, interruptible |
+| Anything else the shell contract hashes: `src-tauri/src`, `src/shell`, `index.html`, `vite.config.ts`, the app's Cargo manifest and its own locked dependencies, `scripts/ephemeral-build.mjs`, `scripts/shell-contract.json` itself; also `tauri.conf.json`, the shell's own entries in `package.json`, the Tauri API in `pnpm-lock.yaml`, the Rust toolchain and the build workflow | Patch: `1.2.3` → `1.2.4` — the program is installed and the window reopened over the running CLI service; terminals stay |
+| The line: `src-tauri/persistent/src`, `src-tauri/host/src`, their Cargo manifests, and any locked dependency the CLI service is built from | Minor: `1.2.3` → `1.3.0` — installed and restarted with a new CLI service, terminals closed |
 | Developer milestone, requested with **Release → Run workflow → major** on main | Major: `1.2.3` → `2.0.0` |
 | Documentation, standalone tests, release automation or the separate `setup/` installer | No app release |
 
-The bump is derived from `scripts/shell-contract.json`, the same file list
-`shellContract()` in `scripts/ephemeral-build.mjs` hashes into the published
-shell identity, compared through the same normalisation, so a patch can never
-carry a shell change and a minor is exactly a shell change. Everything under
-`src-tauri/persistent/src` is on that list, the socket client included. Changes
-inside a hashed Rust source file count even if they only edit an inline test.
+The minor is derived from the line list in `scripts/release.py`: the CLI service
+and what it is compiled from, the socket client included, with the lock walked
+from `totex-persistent` and `totex-host` to find the dependencies that reach it.
+Whether a patch is drawn live or installed is read by the running app off the
+shell identity, `shellContract()` in `scripts/ephemeral-build.mjs` hashing
+`scripts/shell-contract.json`; the planner reads the same list through the same
+normalisation, so a patch can never carry a line change. Changes inside a hashed
+Rust source file count even if they only edit an inline test.
 The policy lives in `scripts/release.py`. Markdown shipped under source or asset
 directories is app content, not excluded documentation.
 The policy is covered by temporary-repository tests in

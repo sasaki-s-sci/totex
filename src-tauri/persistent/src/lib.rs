@@ -96,7 +96,10 @@ impl Persistent {
     }
 }
 
-/// A whole-runtime installation must start the bundled session service even on the same protocol line.
+/// Passed to the window a whole-runtime installation relaunches into when the
+/// release is on another line: the bundled session service is started in place
+/// of the running one. On the same line nothing is passed, and the window goes
+/// on with the service it left -- a patch never ends a terminal.
 pub const RESTART_RUNTIME: &str = "--totex-update-runtime";
 
 #[cfg(test)]

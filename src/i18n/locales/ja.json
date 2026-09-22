@@ -173,6 +173,7 @@
     "patch": "patch",
     "minor": "minor",
     "take": "{{kind}} {{version}}",
+    "reopen": "{{kind}} {{version}}（ウィンドウを開き直す）",
     "kept": "{{kind}} 最新",
     "none": "{{kind}}",
     "ready": "再起動中",

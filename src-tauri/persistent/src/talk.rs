@@ -177,27 +177,16 @@ impl Link {
     /// Finds the program, or starts `program` and finds that.
     ///
     /// A program already running on this line is kept, whatever its patch
-    /// number: within a line the two speak the same wire, so a window of one
-    /// patch goes on with the program another patch started rather than taking
-    /// its terminals down. Only a program on another line is replaced.
+    /// number and whatever `program` is: within a line the two speak the same
+    /// wire, so a window of one patch goes on with the program another patch
+    /// started rather than taking its terminals down -- and so does a window
+    /// pinned to a third, since a pin is a patch and a patch never ends a
+    /// terminal. Only a program on another line is replaced here; replacing
+    /// one on purpose is [`Self::restart`].
     pub fn reach(home: &Path, program: &Path) -> Result<Self, String> {
-        Self::reach_version(home, program, None)
-    }
-
-    /// The same, with a version asked for by name.
-    ///
-    /// `None` is "anything on this line will do", which is what a window that
-    /// brought its own program asks for. `Some(version)` is a version pinned on
-    /// the window's settings page: that one exactly, and anything else running
-    /// is stopped -- terminals and all -- to make room for it.
-    pub fn reach_version(
-        home: &Path,
-        program: &Path,
-        version: Option<&str>,
-    ) -> Result<Self, String> {
         match Self::connect(home) {
             Ok(link) => {
-                if keeps(link.line, &link.version, version) {
+                if keeps(link.line) {
                     return Ok(link);
                 }
                 link.stop();
@@ -212,11 +201,10 @@ impl Link {
     /// its place.
     ///
     /// The one way the program is replaced on purpose while a window is open,
-    /// and the one press on the settings page that ends every terminal: the
-    /// shells go with the program that held them, and the window that asked
-    /// for this is the window that said so first. Used after a whole runtime
-    /// has been installed -- see [`crate::RESTART_RUNTIME`] -- which is the
-    /// other thing that replaces the program, and never a patch.
+    /// and the one thing that ends every terminal: the shells go with the
+    /// program that held them. Asked for by a window that has installed a
+    /// release from another line -- see [`crate::RESTART_RUNTIME`] -- and
+    /// never by a patch.
     pub fn restart(home: &Path, program: &Path) -> Result<Self, String> {
         if let Ok(link) = Self::connect(home) {
             link.stop();
@@ -378,13 +366,13 @@ impl Link {
 
 /// Whether a program that is already running is one to go on with.
 ///
-/// It has to be on this window's line -- see [`crate::LINE`] -- and, where a
-/// version was asked for by name, be that version. Nothing else is compared:
-/// a patch release shares the line, the wire and the program, so a window at
-/// 0.10.6 goes on with the 0.10.4 program it found rather than ending every
-/// terminal it holds.
-fn keeps(line: u32, version: &str, wanted: Option<&str>) -> bool {
-    line == crate::LINE && wanted.is_none_or(|wanted| wanted == version)
+/// It has to be on this window's line -- see [`crate::LINE`] -- and nothing
+/// else is compared: a patch release shares the line, the wire and the
+/// program, so a window at 0.10.6 goes on with the 0.10.4 program it found
+/// rather than ending every terminal it holds, and so does a window pinned to
+/// 0.10.5.
+fn keeps(line: u32) -> bool {
+    line == crate::LINE
 }
 
 /// Reads until there is no more, handing answers to whoever asked and events to
@@ -557,15 +545,9 @@ mod kept {
     use super::*;
 
     #[test]
-    fn a_program_on_this_line_is_kept_unless_another_version_was_asked_for() {
-        let other = "0.0.0";
-        // Nothing pinned: any patch on this line will do, and nothing off it.
-        assert!(keeps(crate::LINE, crate::VERSION, None));
-        assert!(keeps(crate::LINE, other, None));
-        assert!(!keeps(crate::LINE + 1, crate::VERSION, None));
-        // Pinned: that version exactly, and still only on this line.
-        assert!(keeps(crate::LINE, other, Some(other)));
-        assert!(!keeps(crate::LINE, crate::VERSION, Some(other)));
-        assert!(!keeps(crate::LINE + 1, other, Some(other)));
+    fn a_program_on_this_line_is_kept_and_one_off_it_is_not() {
+        assert!(keeps(crate::LINE));
+        assert!(!keeps(crate::LINE + 1));
+        assert!(!keeps(crate::LINE - 1));
     }
 }

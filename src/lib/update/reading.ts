@@ -1,6 +1,8 @@
 // One row for both layers. A release is a patch or a minor by its number alone:
-// a patch shares the running program's shell contract and is drawn in place, a
-// minor carries another contract and is installed and restarted into.
+// a patch is on the running line and never ends a terminal, a minor is on
+// another line and is installed and restarted into. A patch is one of two
+// things, which the shell contract says: pages drawn in place, or a program
+// installed with the window reopened over the running service.
 import type { Layer, UpdateChoice, UpdateState } from "./model";
 
 export const LATEST = "latest";
@@ -18,8 +20,10 @@ export type Reading = {
   choices: UpdateChoice[];
   /** Releases shown but not offered: the wrong program, or no program for this copy. */
   blocked: UpdateChoice[];
-  /** What the patch button takes: drawn in place, nothing stopped. */
+  /** What the patch button takes: on the running line, terminals kept. */
   patch: UpdateChoice | null;
+  /** Whether the patch installs the program and reopens the window, rather than drawing in place. */
+  reopens: boolean;
   /** What the minor button takes: installed and restarted into, terminals closed. */
   minor: UpdateChoice | null;
   can: boolean;
@@ -43,6 +47,11 @@ export function newer(one: string | null, other: string | null): string | null {
   return ahead(other, one) ? other : one;
 }
 
+/** The line a version is on: `major.minor`, which is what the service speaks. */
+export function lineOf(version: string): string {
+  return version.split(".").slice(0, 2).join(".");
+}
+
 /** Which layer a release is taken by: the pages alone, or the whole program. */
 export function layerOf(at: UpdateState, choice: UpdateChoice): Layer | null {
   const persistent = at.rungs?.find((rung) => rung.layer === "persistent");
@@ -60,20 +69,26 @@ export function reading(at: UpdateState): Reading | null {
   const choices = at.choices.filter((choice) => layerOf(at, choice) !== null);
   const blocked = at.choices.filter((choice) => !choices.includes(choice));
   const picked = ephemeral.picked ?? persistent.picked ?? LATEST;
+  const line = lineOf(persistent.at);
   let patch: UpdateChoice | null = null;
   let minor: UpdateChoice | null = null;
   if (picked === LATEST) {
     // Newest on the running line, and the newest line beyond it. A line behind
     // the running one is a downgrade, which nobody takes without naming it.
-    patch = choices.find((choice) => layerOf(at, choice) === "ephemeral") ?? null;
+    patch =
+      choices.find(
+        (choice) =>
+          lineOf(choice.version) === line &&
+          (layerOf(at, choice) === "ephemeral" || ahead(choice.version, persistent.at)),
+      ) ?? null;
     minor =
       choices.find(
-        (choice) => layerOf(at, choice) === "persistent" && ahead(choice.version, persistent.at),
+        (choice) => lineOf(choice.version) !== line && ahead(choice.version, persistent.at),
       ) ?? null;
   } else {
     const named = choices.find((choice) => choice.version === picked) ?? null;
-    if (named && layerOf(at, named) === "ephemeral") patch = named;
-    if (named && layerOf(at, named) === "persistent") minor = named;
+    if (named && lineOf(named.version) === line) patch = named;
+    if (named && lineOf(named.version) !== line) minor = named;
   }
   return {
     at: ephemeral.at,
@@ -83,16 +98,22 @@ export function reading(at: UpdateState): Reading | null {
     choices,
     blocked,
     patch,
+    reopens: patch !== null && layerOf(at, patch) === "persistent",
     minor,
     can: ephemeral.can || persistent.can,
   };
 }
 
-/** What a press on one layer takes: the row's pin, or the newest it could take. */
+/** What a press through one layer takes: the row's pin, or the newest it could take. */
 export function wanted(at: UpdateState, layer: Layer): string | null {
   const read = reading(at);
   if (!read) return null;
-  const target = layer === "ephemeral" ? read.patch : read.minor;
+  const target =
+    read.patch && layerOf(at, read.patch) === layer
+      ? read.patch
+      : layer === "persistent"
+        ? read.minor
+        : null;
   if (target) return target.version;
   // Nothing to move to: a press is for keeping up with what is in place.
   return layer === "ephemeral" ? read.at : read.app;

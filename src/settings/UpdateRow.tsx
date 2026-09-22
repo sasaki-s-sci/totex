@@ -4,6 +4,7 @@ import {
   askChoices,
   declare,
   type Layer,
+  layerOf,
   reading,
   take,
   type UpdateStage,
@@ -14,13 +15,16 @@ import { PageButton } from "./Row";
 import { VersionRow } from "./VersionRow";
 
 /**
- * One button per layer. A patch swaps the pages under the running app; a minor
- * installs and restarts the app, and every terminal goes with it.
+ * One button per cost. A patch stays on the running line and keeps every
+ * terminal: the pages are swapped under the running app, or the program is
+ * installed and the window reopened. A minor installs and restarts the app,
+ * and every terminal goes with it.
  */
-const BUTTONS = {
-  ephemeral: "update.patch",
-  persistent: "update.minor",
-} as const satisfies Record<Layer, string>;
+type Cost = "patch" | "minor";
+const BUTTONS = { patch: "update.patch", minor: "update.minor" } as const satisfies Record<
+  Cost,
+  string
+>;
 
 export function UpdateRow() {
   const { t } = useTranslation();
@@ -43,9 +47,12 @@ export function UpdateRow() {
         void declare(version);
       }}
     >
-      {(["ephemeral", "persistent"] as Layer[]).map((layer) => {
-        const target = layer === "ephemeral" ? read.patch : read.minor;
-        const there = layer === "ephemeral" ? read.at : read.app;
+      {(["patch", "minor"] as Cost[]).map((cost) => {
+        const target = cost === "patch" ? read.patch : read.minor;
+        const there = cost === "patch" ? read.at : read.app;
+        // Which layer brings it is the release's to say; a patch is taken by either.
+        const layer: Layer =
+          (target && layerOf(at, target)) ?? (cost === "patch" ? "ephemeral" : "persistent");
         const press = at.presses[layer];
         const failed = press.stage === "failed";
         const stage: UpdateStage = ["taking", "ready", "failed", "held"].includes(press.stage)
@@ -56,8 +63,8 @@ export function UpdateRow() {
         const moves = Boolean(target) && target?.version !== there;
         return (
           <PageButton
-            key={layer}
-            danger={failed || (layer === "persistent" && moves)}
+            key={cost}
+            danger={failed || (cost === "minor" && moves)}
             disabled={busy || !target || (!moves && !failed)}
             icon={<UpdateMark stage={stage} progress={press.progress} />}
             onClick={() => {
@@ -70,10 +77,16 @@ export function UpdateRow() {
                 ? t("update.ready")
                 : failed
                   ? t("update.failed")
-                  : t(moves ? "update.take" : target ? "update.kept" : "update.none", {
-                      kind: t(BUTTONS[layer]),
-                      version: target?.version,
-                    })}
+                  : t(
+                      moves
+                        ? cost === "patch" && read.reopens
+                          ? "update.reopen"
+                          : "update.take"
+                        : target
+                          ? "update.kept"
+                          : "update.none",
+                      { kind: t(BUTTONS[cost]), version: target?.version },
+                    )}
           </PageButton>
         );
       })}

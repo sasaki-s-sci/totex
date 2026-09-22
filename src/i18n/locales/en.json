@@ -173,6 +173,7 @@
     "patch": "patch",
     "minor": "minor",
     "take": "{{kind}} {{version}}",
+    "reopen": "{{kind}} {{version}}, reopens the window",
     "kept": "{{kind}} up to date",
     "none": "{{kind}}",
     "ready": "Restarting",

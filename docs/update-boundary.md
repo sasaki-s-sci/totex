@@ -16,14 +16,20 @@ A signed schema-2 `ephemeral.json` declares two identities:
   existing rendering-slot update, preserving React and terminal DOM instances.
 
 The native download path verifies the artifact signature and shell identity.
-The version number follows the contract. A minor release is exactly a release
-whose `contract` changed: it requires an installation and an application restart,
-which closes every terminal. A patch release leaves `contract` untouched and is
-always applied live in the running shell. `scripts/release.py` derives that bump
-from `scripts/shell-contract.json`, the same file list `shellContract()` in
-`scripts/ephemeral-build.mjs` hashes, and normalises release numbers the same
-way, so a patch can never carry a shell change. The first migration from the
-previous schema-1 architecture also requires this installation.
+The version number says what a release costs the terminals. A minor release is
+exactly a release that changes the line: the CLI service under
+`src-tauri/persistent`, the host crate compiled into it, and the dependencies
+they lock. Taking one installs the bundle and restarts with the service it
+carries, which closes every terminal. A patch release leaves the line alone and
+never closes a terminal. It is one of two things, which `contract` says: pages
+alone, applied live in the running shell, or a program change (`src-tauri/src`,
+`src/shell`, the window configuration and the rest of what `contract` hashes),
+which is installed and the window reopened over the service already running.
+`scripts/release.py` derives the bump from its own line list and from
+`scripts/shell-contract.json`, the same file list `shellContract()` in
+`scripts/ephemeral-build.mjs` hashes, normalising release numbers the same way,
+so a patch can never carry a line change. The first migration from the previous
+schema-1 architecture also requires an installation.
 
 ## Full frontend replacement
 

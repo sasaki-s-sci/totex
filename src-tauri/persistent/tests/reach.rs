@@ -237,7 +237,8 @@ fn later_patch() -> String {
 
 /// What a patch release costs: nothing. A window that finds a program of
 /// another patch on its own line asks that one, terminals and all, rather than
-/// starting the program it brought.
+/// starting the program it brought -- and so does a window pinned to a third
+/// patch, since `program` is only what is started where nothing is running.
 #[test]
 fn a_program_of_another_patch_on_this_line_is_the_one_gone_on_with() {
     let temp = TempDir::new("patch");
@@ -259,33 +260,5 @@ fn a_program_of_another_patch_on_this_line_is_the_one_gone_on_with() {
         Address::read(home).expect("the address").pid,
         std::process::id(),
         "a second program was started beside the one running"
-    );
-}
-
-/// The one thing that still replaces a program on this line: a version the
-/// persistent row was left pointed at by name.
-#[test]
-fn a_version_asked_for_by_name_replaces_a_program_of_another_patch() {
-    let temp = TempDir::new("pinned");
-    let home = &temp.0;
-    let stopped = standing_as(home, &later_patch());
-
-    let link = Link::reach_version(home, &program(), Some(totex_persistent::VERSION))
-        .expect("the version asked for starts");
-    assert!(
-        stopped.load(Ordering::Relaxed),
-        "the program that was running was left there"
-    );
-    assert_eq!(link.version(), totex_persistent::VERSION);
-    assert_ne!(
-        Address::read(home).expect("the address").pid,
-        std::process::id(),
-        "nothing of its own was started"
-    );
-
-    link.stop();
-    assert!(
-        link.wait_gone(Duration::from_secs(5)),
-        "stop did not end it"
     );
 }

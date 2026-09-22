@@ -1,7 +1,9 @@
 //! The CLI service belongs to the persistent runtime, together with the native
 //! window host and stateful frontend code. Ephemeral updates never enter here.
-//! Installing another persistent release restarts totex with the CLI service
-//! and rendering expressions shipped in that same bundle.
+//! Installing another persistent release restarts totex with the rendering
+//! expressions shipped in that bundle; the CLI service shipped with it is only
+//! started where the release is on another line, since within a line the
+//! service already running is the one every window goes on with.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -75,38 +77,38 @@ impl Reached {
 /// terminals with it.
 ///
 /// `pinned` is the version the persistent row was left pointed at, if any: a
-/// program under that version this machine holds is the one started, in place
-/// of the one beside this window, and anything else running is stopped to make
-/// room for it. A version this machine does not hold, or on another line, is a
-/// row pointed at nothing and is read as `latest`.
+/// program under that version this machine holds is the one started when none
+/// is running, in place of the one beside this window. One already running on
+/// the line is gone on with whatever its version -- a pin is a patch, and a
+/// patch never ends a terminal. A version this machine does not hold, or on
+/// another line, is a row pointed at nothing and is read as `latest`.
 ///
 /// A machine with nowhere to keep things is a machine this window cannot open
 /// a terminal on: the program writes where it is into that directory, and
 /// without it there is nowhere for a window to look.
 pub fn reach(identifier: &str, pinned: Option<&str>) -> Result<Arc<Reached>, String> {
     let home = home(identifier).ok_or_else(|| "this machine has no data directory".to_string())?;
-    let (program, version) = chosen(&home, pinned)?;
+    let program = chosen(&home, pinned)?;
     let link = if std::env::args().any(|arg| arg == totex_persistent::RESTART_RUNTIME) {
         Link::restart(&home, &program)?
     } else {
-        Link::reach_version(&home, &program, version.as_deref())?
+        Link::reach(&home, &program)?
     };
     Ok(Reached::holding(Arc::new(link)))
 }
 
-/// The program to start, and the version to insist on.
+/// The program to start where none is running.
 ///
-/// The one pinned, where this machine holds it, and that version by name:
-/// nothing else will do for a row pointed at it. Otherwise the one this window
-/// brought and no version at all, so that a program of another patch already
-/// running on this line is gone on with rather than replaced.
-fn chosen(home: &Path, pinned: Option<&str>) -> Result<(PathBuf, Option<String>), String> {
+/// The one pinned, where this machine holds it; otherwise the one this window
+/// brought. Either way a program already running on this line is gone on with
+/// rather than replaced -- see `Link::reach`.
+fn chosen(home: &Path, pinned: Option<&str>) -> Result<PathBuf, String> {
     if let Some(version) = pinned
         && let Some(program) = held_at(home, version)
     {
-        return Ok((program, Some(version.to_string())));
+        return Ok(program);
     }
-    Ok((placed(home)?, None))
+    placed(home)
 }
 
 /// The program this window brought, copied out under its version and ready

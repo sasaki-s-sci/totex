@@ -211,12 +211,14 @@ export function prepareViews(root) {
  * Every file whose bytes decide shell compatibility, sorted, without test sources.
  *
  * `scripts/shell-contract.json` is the single list behind both this hash and the
- * release planner: `scripts/release.py` reads the same JSON to decide whether a
- * release is a minor one (contract changed, install and restart) or a patch
- * (contract intact, applied live). JSON carries no comments, so the meaning of
- * its two keys lives here: `directories` are hashed whole, minus the Rust test
- * sources the contract deliberately ignores, and `files` are named one by one.
- * The list names itself, so widening or narrowing the contract changes it.
+ * release planner: `scripts/release.py` reads the same JSON to tell a patch that
+ * is applied live (contract intact) from one that installs the program and
+ * reopens the window (contract changed). Which patches are minors instead is the
+ * planner's own line list, the CLI service and what it is built from. JSON
+ * carries no comments, so the meaning of its two keys lives here: `directories`
+ * are hashed whole, minus the Rust test sources the contract deliberately
+ * ignores, and `files` are named one by one. The list names itself, so widening
+ * or narrowing the contract changes it.
  */
 export function shellContractFiles(root) {
   const { directories, files } = JSON.parse(

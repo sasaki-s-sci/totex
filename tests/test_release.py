@@ -186,75 +186,93 @@ version = "1.0.0"
         self.commit()
         self.assertEqual(self.plan()["part"], "patch")
 
-    def test_shared_host_is_persistent(self):
+    def test_shared_host_is_on_the_line(self):
+        # The service links the whole host crate, so all of it turns the line.
         self.write("src-tauri/host/src/host/file.rs", "updated\n")
         self.commit()
         self.assertEqual(self.plan()["part"], "minor")
 
-    def test_window_client_is_persistent(self):
-        # The contract hashes every Rust source, the window client included.
+    def test_window_client_is_on_the_line(self):
+        # The socket client is the service's own source, whichever side runs it.
         self.write("src-tauri/persistent/src/talk.rs", "updated\n")
         self.commit()
         self.assertEqual(self.plan()["part"], "minor")
 
-    def test_native_shell_source_is_persistent(self):
+    def test_native_shell_source_is_a_program_patch(self):
+        # The window's own program is installed and reopened over the running
+        # service: a patch, and one the pages alone cannot bring.
         self.write("src-tauri/src/lib.rs", "updated\n")
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes(), ([], ["src-tauri/src/lib.rs"], []))
 
-    def test_shell_bridge_source_is_persistent(self):
+    def test_shell_bridge_source_is_a_program_patch(self):
         self.write("src/shell/main.ts", "updated\n")
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes()[1], ["src/shell/main.ts"])
 
-    def test_shell_document_and_bundler_configuration_are_persistent(self):
+    def test_shell_document_and_bundler_configuration_are_program_patches(self):
         for path in ("index.html", "vite.config.ts"):
             with self.subTest(path=path):
                 self.write(path, "updated\n")
                 self.commit()
-                self.assertEqual(self.plan()["part"], "minor")
+                self.assertEqual(self.plan()["part"], "patch")
+                self.assertIn(path, self.changes()[1])
 
-    def test_window_configuration_is_persistent(self):
+    def test_window_configuration_is_a_program_patch(self):
         self.write(
             "src-tauri/tauri.conf.json",
             '{\n  "version": "1.2.3",\n  "app": {"withGlobalTauri": true}\n}\n',
         )
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes()[1], ["src-tauri/tauri.conf.json"])
 
-    def test_frontend_manifest_is_patch_unless_it_carries_the_contract(self):
+    def test_a_program_change_beside_pages_is_still_a_patch(self):
+        self.write("src/App.tsx", "updated\n")
+        self.write("src-tauri/src/lib.rs", "updated\n")
+        self.commit()
+        result = self.plan()
+        self.assertEqual((result["part"], result["to"]), ("patch", "1.2.4"))
+        self.assertEqual(self.changes(), ([], ["src-tauri/src/lib.rs"], ["src/App.tsx"]))
+
+    def test_frontend_manifest_is_pages_unless_it_carries_the_contract(self):
         original = json.loads((self.root / "package.json").read_text())
         value = dict(original, scripts={"dev": "vite"})
         self.write("package.json", json.dumps(value, indent=2) + "\n")
         self.commit()
-        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes(), ([], [], ["package.json"]))
         value = dict(value, frontContract=original["frontContract"] + 1)
         self.write("package.json", json.dumps(value, indent=2) + "\n")
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.changes(), ([], ["package.json"], []))
+        self.assertEqual(self.plan()["part"], "patch")
 
     def test_shell_dependency_decides_the_frontend_lock(self):
         original = (self.root / "pnpm-lock.yaml").read_text()
         self.write("pnpm-lock.yaml", original.replace("19.2.8", "19.3.0"))
         self.commit()
-        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes(), ([], [], ["pnpm-lock.yaml"]))
         self.write(
             "pnpm-lock.yaml",
             original.replace("19.2.8", "19.3.0").replace("2.11.1", "2.12.0"),
         )
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.changes(), ([], ["pnpm-lock.yaml"], []))
 
-    def test_editing_the_contract_list_is_persistent(self):
+    def test_editing_the_contract_list_is_a_program_patch(self):
         # The list decides which files the hash reads, so it hashes itself.
         self.write("scripts/shell-contract.json", '{"directories": [], "files": []}\n')
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes()[1], ["scripts/shell-contract.json"])
 
-    def test_shared_build_configuration_is_persistent(self):
+    def test_shared_build_configuration_is_a_program_patch(self):
         self.write(".github/workflows/build.yml", "updated build\n")
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes()[1], [".github/workflows/build.yml"])
 
     def test_shipped_markdown_is_app_content(self):
         self.write("public/help.md", "Updated help shown in the app\n")
@@ -324,7 +342,7 @@ version = "1.0.0"
             release.Tree(self.root, "v1.2.3"),
             release.Tree(self.root, "HEAD"),
         )
-        self.assertEqual(release.classify(before, after), ([], []))
+        self.assertEqual(release.classify(before, after), ([], [], []))
 
     def test_mismatched_versions_fail_before_writing(self):
         path = "package.json"
@@ -355,9 +373,16 @@ version = "1.0.0"
         self.git("tag", "-d", "v1.2.3")
         self.assertEqual(self.plan()["to"], "1.3.0")
 
-    def test_every_locked_dependency_is_part_of_the_contract(self):
+    def test_locked_dependencies_turn_the_line_only_where_the_service_uses_them(self):
         original = (self.root / release.LOCK).read_text()
-        for name in ("leaf", "shared", "window", "testing"):
+        # `leaf` under `runtime` under the service, `shared` under the host, and
+        # `testing` under both packages; `window` is the app's alone.
+        for name, part in (
+            ("leaf", "minor"),
+            ("shared", "minor"),
+            ("testing", "minor"),
+            ("window", "patch"),
+        ):
             with self.subTest(package=name):
                 updated = original.replace(
                     f'name = "{name}"\nversion = "1.0.0"',
@@ -365,23 +390,27 @@ version = "1.0.0"
                 )
                 self.write(release.LOCK, updated)
                 self.commit()
-                self.assertEqual(self.plan()["part"], "minor")
+                self.assertEqual(self.plan()["part"], part)
 
     def test_local_release_numbers_in_the_lock_are_not_a_release(self):
         original = (self.root / release.LOCK).read_text()
         self.write(release.LOCK, original.replace('"1.2.3"', '"1.2.4"'))
         self.commit()
-        self.assertEqual(self.changes(), ([], []))
+        self.assertEqual(self.changes(), ([], [], []))
 
-    def test_manifest_declarations_are_minor(self):
-        for path in ("src-tauri/Cargo.toml", "src-tauri/persistent/Cargo.toml"):
+    def test_manifest_declarations_follow_their_crate(self):
+        for path, part in (
+            ("src-tauri/Cargo.toml", "patch"),
+            ("src-tauri/persistent/Cargo.toml", "minor"),
+            ("src-tauri/host/Cargo.toml", "minor"),
+        ):
             with self.subTest(path=path):
                 original = (self.root / path).read_text()
                 self.write(
                     path, original.replace("[dependencies]", '[dependencies]\nextra = "1"')
                 )
                 self.commit()
-                self.assertEqual(self.plan()["part"], "minor")
+                self.assertEqual(self.plan()["part"], part)
                 self.write(path, original)
                 self.commit()
 
@@ -390,19 +419,20 @@ version = "1.0.0"
         original = (self.root / path).read_text()
         self.write(path, original.replace('version = "1.2.3"', 'version = "1.2.4"'))
         self.commit()
-        self.assertEqual(self.changes(), ([], []))
+        self.assertEqual(self.changes(), ([], [], []))
 
-    def test_rust_toolchain_is_minor_and_node_toolchain_is_patch(self):
+    def test_toolchains_are_patches_and_rust_rebuilds_the_program(self):
         self.write(
             "mise.toml", '[tools]\nrust = { version = "1.95.0" }\nnode = "25.0.0"\n'
         )
         self.commit()
-        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes(), ([], [], ["mise.toml"]))
         self.write(
             "mise.toml", '[tools]\nrust = { version = "1.96.0" }\nnode = "25.0.0"\n'
         )
         self.commit()
-        self.assertEqual(self.plan()["part"], "minor")
+        self.assertEqual(self.changes(), ([], ["mise.toml"], []))
+        self.assertEqual(self.plan()["part"], "patch")
 
     def test_cli_plan_is_read_only_and_writes_workflow_outputs(self):
         published = self.root / "published.json"

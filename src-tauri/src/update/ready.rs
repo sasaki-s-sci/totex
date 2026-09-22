@@ -52,13 +52,14 @@ impl Ready {
         *held = None;
     }
 
-    /// What is waiting to go in, taken out for the restart that puts it in.
-    pub fn take(&self) -> Option<Install> {
+    /// What is waiting to go in, taken out for the restart that puts it in,
+    /// with the version it is -- which says whether the service is kept.
+    pub fn take(&self) -> Option<(String, Install)> {
         self.held
             .lock()
             .ok()
             .and_then(|mut held| held.take())
-            .map(|held| held.install)
+            .map(|held| (held.version, held.install))
     }
 
     /// Whether a release is waiting, and which.

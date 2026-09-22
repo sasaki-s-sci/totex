@@ -42,7 +42,8 @@ fn moving_the_row_lets_go_of_a_release_it_no_longer_names() {
 #[test]
 fn the_restart_takes_the_release_with_it() {
     let ready = came_down("0.2.0");
-    let install = ready.take().expect("a release is waiting");
+    let (version, install) = ready.take().expect("a release is waiting");
+    assert_eq!(version, "0.2.0");
     assert_eq!(install.kind, Kind::AppImage);
     assert!(ready.take().is_none());
 }
