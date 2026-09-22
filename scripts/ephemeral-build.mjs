@@ -227,9 +227,21 @@ export function shellContractFiles(root) {
     // The bridge, handoff hooks and focus helpers run in the replaceable frontend.
     ...files.map((path) => resolve(root, path)),
   ];
+  return contractOrder(root, paths);
+}
+
+/**
+ * Names relative to the root, `/`-separated, and only then sorted.
+ *
+ * Sorted as absolute paths they came out in another order on Windows, where a
+ * walked directory is already `D:/…` and a file named one by one is still
+ * `D:\…`: every walked file went ahead of every named one, the hash moved with
+ * the order, and a Windows program answered to a contract no release declared.
+ */
+export function contractOrder(root, paths, path = { relative }) {
   return paths
+    .map((file) => path.relative(root, file).replaceAll("\\", "/"))
     .sort()
-    .map((path) => relative(root, path).replaceAll("\\", "/"))
     .filter((name) => !name.includes("/tests/") && !name.endsWith("/tests.rs"));
 }
 

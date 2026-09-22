@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve, win32 } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { shellContract, shellContractFiles } from "../scripts/ephemeral-build.mjs";
+import { contractOrder, shellContract, shellContractFiles } from "../scripts/ephemeral-build.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const list = JSON.parse(readFileSync(join(root, "scripts/shell-contract.json"), "utf8"));
@@ -79,4 +79,21 @@ test("only a listed file moves the contract, and never a release number", () => 
   assert.notEqual(third, second, "the frontend contract moves it");
   put("scripts/shell-contract.json", JSON.stringify({ directories: [], files: ["index.html"] }));
   assert.notEqual(shellContract(base), third, "editing the list moves it");
+});
+
+test("the order is the same wherever it is built", () => {
+  const names = ["index.html", "src-tauri/Cargo.lock", "src-tauri/src/lib.rs", "src/shell/main.ts"];
+  // As windows-latest hands them over: a walked directory with `/`, a named file with `\`.
+  const windows = names.map((name) =>
+    name.startsWith("src-tauri/src/") ? `D:/r/${name}` : `D:\\r\\${name.replaceAll("/", "\\")}`,
+  );
+  assert.deepEqual(contractOrder("D:\\r", windows, win32), names);
+  assert.deepEqual(
+    contractOrder(
+      "/r",
+      names.map((name) => `/r/${name}`),
+      posix,
+    ),
+    names,
+  );
 });
