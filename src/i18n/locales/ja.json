@@ -1,4 +1,11 @@
 {
+  "page": {
+    "hideSidebar": "ページのサイドバーを隠す",
+    "openSidebar": "ページのサイドバーを開く",
+    "select": "ページを選択",
+    "toSidebar": "{{name}}をサイドバーに移す",
+    "toCanvas": "{{name}}をキャンバスに移す"
+  },
   "window": {
     "minimise": "最小化",
     "maximise": "最大化",

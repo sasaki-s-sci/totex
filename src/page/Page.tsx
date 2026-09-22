@@ -1,4 +1,3 @@
-import { NodeResizeControl, NodeResizer, ResizeControlVariant } from "@xyflow/react";
 import type {
   CSSProperties,
   KeyboardEventHandler,
@@ -7,14 +6,20 @@ import type {
   Ref,
   WheelEventHandler,
 } from "react";
+import { PageName } from "./PageName";
+import "./page.css";
 
 export type PageKind = "file-preview" | "settings-page" | "cli-page";
 
-type PageProps = {
+export type PageProps = {
+  placement?: "canvas" | "sidebar";
+  pageId?: string;
+  keepMounted?: boolean;
   kind: PageKind;
   name: string;
   title?: string;
   tools?: ReactNode;
+  status?: ReactNode;
   footnote?: ReactNode;
   collapsed?: boolean;
   pinned?: boolean;
@@ -28,10 +33,14 @@ type PageProps = {
 };
 
 export function Page({
+  placement = "canvas",
+  pageId,
+  keepMounted = false,
   kind,
   name,
   title,
   tools,
+  status,
   footnote,
   collapsed = false,
   pinned = false,
@@ -45,20 +54,27 @@ export function Page({
 }: PageProps) {
   return (
     <article
-      className={`page ${kind}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}`}
+      className={`page page--${placement} ${kind}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}`}
       tabIndex={-1}
       style={style}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
     >
       <header className="page__header" title={title} ref={headerRef}>
-        <span className="page__name">{name}</span>
+        {placement === "sidebar" && <span className="page__window-drag" data-tauri-drag-region />}
+        <PageName id={pageId} name={name} placement={placement} />
         {tools}
+        {status && <div className="page__status">{status}</div>}
       </header>
 
-      {/* Folded, the body is unmounted rather than hidden: a page put away costs what a row costs. */}
-      {!collapsed && (
-        <div className="page__body nodrag nowheel" ref={bodyRef} onWheel={onBodyWheel}>
+      {/* Stateful runtimes such as xterm stay mounted even while folded. */}
+      {(!collapsed || keepMounted) && (
+        <div
+          className="page__body nodrag nowheel"
+          hidden={collapsed}
+          ref={bodyRef}
+          onWheel={onBodyWheel}
+        >
           {children}
         </div>
       )}
@@ -69,7 +85,7 @@ export function Page({
 
 export function PageTool({
   label,
-  on = false,
+  on,
   onClick,
   children,
 }: {
@@ -83,6 +99,8 @@ export function PageTool({
       type="button"
       className={`page__tool nodrag${on ? " is-on" : ""}`}
       aria-label={label}
+      title={label}
+      aria-pressed={on}
       onClick={(event) => {
         // The bar around the mark is the drag handle, so the press stops here.
         event.stopPropagation();
@@ -91,45 +109,5 @@ export function PageTool({
     >
       {children}
     </button>
-  );
-}
-
-/** A folded page is as tall as its bar, so only the side edges are left to drag. */
-export function PageFrame({
-  minWidth,
-  minHeight,
-  widthOnly = false,
-}: {
-  minWidth: number;
-  minHeight: number;
-  widthOnly?: boolean;
-}) {
-  if (widthOnly) {
-    return (
-      <>
-        <NodeResizeControl
-          className="page__edge"
-          variant={ResizeControlVariant.Line}
-          position="left"
-          resizeDirection="horizontal"
-          minWidth={minWidth}
-        />
-        <NodeResizeControl
-          className="page__edge"
-          variant={ResizeControlVariant.Line}
-          position="right"
-          resizeDirection="horizontal"
-          minWidth={minWidth}
-        />
-      </>
-    );
-  }
-  return (
-    <NodeResizer
-      minWidth={minWidth}
-      minHeight={minHeight}
-      lineClassName="page__edge"
-      handleClassName="page__corner"
-    />
   );
 }

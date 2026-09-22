@@ -8,8 +8,7 @@ resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 export function useSessions() {
   const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
   const [showing, setShowing] = useFrontState<string | null>("sessions.showing", null);
-  // A terminal is drawn in one place only: a pty attached twice is a shell typed at from two
-  // places.
+  // A terminal has one view; this records which host owns it.
   const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", []);
 
   // Sessions outlive the window: pick up shells still running from before a reload.
@@ -44,11 +43,13 @@ export function useSessions() {
   }, []);
 
   const show = useCallback((next: Session) => {
+    setPaged((current) => current.filter((id) => id !== next.id));
     setShowing((current) => (current === next.id ? null : next.id));
   }, []);
 
   // Not the toggle: a jump names its terminal and must never close the panel.
   const jump = useCallback((next: Session) => {
+    setPaged((current) => current.filter((id) => id !== next.id));
     setShowing(next.id);
   }, []);
 

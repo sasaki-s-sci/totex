@@ -1,4 +1,11 @@
 {
+  "page": {
+    "hideSidebar": "Hide page sidebar",
+    "openSidebar": "Show page sidebar",
+    "select": "Select page",
+    "toSidebar": "Move {{name}} to the sidebar",
+    "toCanvas": "Move {{name}} to the canvas"
+  },
   "window": {
     "minimise": "Minimise",
     "maximise": "Maximise",

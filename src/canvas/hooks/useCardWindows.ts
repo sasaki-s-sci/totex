@@ -22,9 +22,8 @@ import {
 import type { AppNode, FilePreviewFlowNode } from "../../lib/graph";
 import { mover } from "../../lib/moveWindow";
 import { readFrontValue } from "../../shell/state";
-import { MIN_WIDTH } from "../nodes/FilePreviewNode";
 import { draftKey } from "../nodes/preview/draft";
-import { fileSize } from "./filePreviewBox";
+import { FILE_LEAST, fileSize } from "./filePreviewBox";
 import { heldInPane, type Tearing } from "./usePinDrag";
 
 type Carried = {
@@ -90,7 +89,7 @@ export function useCardWindows({
           y: start.y,
           width: drawn.width,
           height: drawn.height,
-          minWidth: MIN_WIDTH * scale,
+          minWidth: FILE_LEAST.width * scale,
           decorations: false,
           transparent: true,
           shadow: false,

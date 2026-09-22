@@ -4,7 +4,6 @@ import type { CardSeed } from "../lib/cardWindow";
 import type { Doing } from "../lib/doing";
 import type { FilePreviewRequest } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
-import type { CliPlace } from "../lib/graphNav";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
@@ -73,10 +72,6 @@ export type CanvasProps = {
 
   onJumpSession: (session: Session) => void;
   onEndSession: (session: Session) => void;
-
-  onDockSession: (session: Session) => void;
-
-  onCliRun: (run: readonly CliPlace[]) => void;
 
   filePreviews: readonly FilePreviewRequest[];
 

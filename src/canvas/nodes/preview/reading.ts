@@ -27,7 +27,7 @@ export function useReading() {
     (dx: number, dy: number) => {
       const box = body;
       const reading = sheet.current;
-      if (!box || !reading) return;
+      if (!box || !reading || box.clientWidth === 0 || box.clientHeight === 0) return;
       const room = {
         x: Math.max(0, reading.offsetWidth - box.clientWidth),
         y: Math.max(0, reading.offsetHeight - box.clientHeight),

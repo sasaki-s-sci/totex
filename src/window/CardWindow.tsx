@@ -14,9 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { type GraphActions, GraphActionsProvider, NO_ACTIONS } from "../canvas/graphActions";
 import { readFilePreview } from "../canvas/hooks/useFilePreviewPlacing";
-import { FilePreviewCard } from "../canvas/nodes/FilePreviewNode";
 import { draftKey } from "../canvas/nodes/preview/draft";
 import { writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
@@ -39,6 +37,8 @@ import {
 import type { FilePreviewNodeData } from "../lib/graph";
 import { mover } from "../lib/moveWindow";
 import { windowLabel } from "../lib/thisWindow";
+import type { FilePageActions } from "../page/actions";
+import { FilePage } from "../page/FilePage";
 import { keepFrontValue, readFrontValue } from "../shell/state";
 import "../canvas/styles/index.css";
 import "../canvas/styles/torn.css";
@@ -181,9 +181,9 @@ export function CardWindow() {
     [label, seedNow],
   );
 
-  const actions = useMemo<GraphActions>(
+  const actions = useMemo<FilePageActions>(
     () => ({
-      ...NO_ACTIONS,
+      previewFilePreview: () => {},
       closeFilePreview: () => void here.close().catch(() => undefined),
       saveFilePreview: async (_requestId, text, expected) => {
         if (!data || data.size === null || data.truncated) return false;
@@ -260,22 +260,20 @@ export function CardWindow() {
 
   if (!data) return null;
   return (
-    <GraphActionsProvider value={actions}>
-      <div
-        ref={card}
-        className="card-window"
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        style={{
-          width: data.box.width,
-          height: data.collapsed ? undefined : data.box.height,
-          transform: `scale(${scale})`,
-        }}
-      >
-        <FilePreviewCard data={data} />
-      </div>
-    </GraphActionsProvider>
+    <div
+      ref={card}
+      className="card-window"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      style={{
+        width: data.box.width,
+        height: data.collapsed ? undefined : data.box.height,
+        transform: `scale(${scale})`,
+      }}
+    >
+      <FilePage data={data} actions={actions} />
+    </div>
   );
 }
