@@ -52,6 +52,27 @@ type Props = {
   autoFocus?: boolean;
 };
 
+// The selection leaves through the browser's own copy command while the key is still down: it
+// asks no permission, and xterm's copy listener supplies the selected text. The field is filled
+// first because the command is refused over an empty one. The clipboard helper is the fallback.
+function copySelection(terminal: Terminal): void {
+  const selected = terminal.getSelection();
+  if (!selected) return;
+  const field = terminal.textarea;
+  let copied = false;
+  if (field) {
+    field.value = selected;
+    field.select();
+    try {
+      copied = document.execCommand("copy");
+    } catch {
+      copied = false;
+    }
+    field.value = "";
+  }
+  if (!copied) void copyText(selected).catch(() => undefined);
+}
+
 function faceFor(
   grid: { rows: number; cols: number },
   cell: { w: number; h: number },
@@ -222,7 +243,8 @@ export function CliView({
         return false;
       }
 
-      // Ctrl+C copies over a selection and interrupts otherwise; the selection is cleared so the next press interrupts.
+      // Ctrl+C copies over a selection and interrupts otherwise; the selection is cleared so the
+      // next press interrupts.
       if (
         plain &&
         event.ctrlKey &&
@@ -230,8 +252,7 @@ export function CliView({
         (event.shiftKey || terminal.hasSelection())
       ) {
         event.preventDefault();
-        const selected = terminal.getSelection();
-        if (selected) void copyText(selected).catch(() => undefined);
+        copySelection(terminal);
         terminal.clearSelection();
         return false;
       }
