@@ -17,7 +17,10 @@ import {
 } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
 import { gridNow, heldToGrid } from "../lib/grid";
+import { usePageWorkspace } from "../page/PageWorkspace";
+import { filePageId, terminalPageId } from "../page/placement";
 import { frontValue, keepFrontValue, readOnSnapshot } from "../shell/state";
+import { TabStrip } from "../tab/TabStrip";
 import { BrowsingProvider } from "./browsing";
 import { CanvasBackground } from "./CanvasBackground";
 import type { CanvasProps } from "./CanvasProps";
@@ -48,6 +51,7 @@ import { useNodeGlide } from "./hooks/useNodeGlide";
 import { useSaidStyle } from "./hooks/useSaidStyle";
 import { useSettingsPage } from "./hooks/useSettingsPage";
 import { useWorktreeStatus } from "./hooks/useWorktreeStatus";
+import { Pages } from "./Pages";
 import { PinnedCards } from "./PinnedCards";
 
 export type { CanvasProps, MergeRequest, SyncRequest } from "./CanvasProps";
@@ -85,8 +89,6 @@ export function Canvas({
   onShowSession,
   onJumpSession,
   onEndSession,
-  onDockSession,
-  onCliRun,
   filePreviews,
   onPreviewFile,
   onCloseFilePreview,
@@ -94,6 +96,22 @@ export function Canvas({
   settingsRequest,
   onCloseSettings,
 }: CanvasProps) {
+  const pages = usePageWorkspace();
+  const placement = pages?.placement;
+  const forgetPage = pages?.forget;
+  const showPage = pages?.show;
+  const lastSettings = useRef(settingsRequest);
+  useEffect(() => {
+    const id = filePageId(SETTINGS_REQUEST_ID);
+    if (
+      settingsRequest !== lastSettings.current &&
+      settingsRequest &&
+      placement?.(id) === "sidebar"
+    ) {
+      showPage?.(id);
+    }
+    lastSettings.current = settingsRequest;
+  }, [settingsRequest, placement, showPage]);
   const applied = useRef<GraphResult | null>(null);
   const depth = useHistoryDepth(workspace.repositories);
   const { visible, reaching } = depth;
@@ -302,12 +320,21 @@ export function Canvas({
 
   // Offers ride on top of the canvas's own nodes and only while asked for: they are never in its state.
   const shown = useMemo(() => {
-    const drawn = nodes.filter((node) => node.type !== "commit");
+    const drawn = nodes
+      .filter((node) => node.type !== "commit")
+      .map((node) => {
+        const id =
+          node.type === "file-preview"
+            ? filePageId(node.data.requestId)
+            : node.type === "cli-page"
+              ? terminalPageId(node.data.session.id)
+              : null;
+        return id && placement?.(id) === "sidebar" ? { ...node, hidden: true } : node;
+      });
     return offering ? [...drawn, ...graph.offers] : drawn;
-  }, [nodes, offering, graph.offers]);
+  }, [nodes, offering, graph.offers, placement]);
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
-  useEffect(() => onCliRun(run), [run, onCliRun]);
 
   const cliPlaces = useMemo(() => new Map(run.map((place) => [place.group, place.name])), [run]);
 
@@ -326,10 +353,11 @@ export function Canvas({
 
   const closePage = useCallback(
     (id: number) => {
+      forgetPage?.(filePageId(id));
       if (id === SETTINGS_REQUEST_ID) onCloseSettings();
       else onCloseFilePreview(id);
     },
-    [onCloseSettings, onCloseFilePreview],
+    [onCloseSettings, onCloseFilePreview, forgetPage],
   );
 
   const actions = useCanvasActions({
@@ -350,7 +378,6 @@ export function Canvas({
     keepFold,
     onShowSession,
     onEndSession,
-    onDockSession,
     collapseCliPage,
     fitCliPage,
     onAnswer,
@@ -412,6 +439,15 @@ export function Canvas({
                           fitView={fitOnInit}
                         >
                           <CanvasBackground />
+                          <Pages
+                            nodes={nodes}
+                            sessions={sessions}
+                            status={
+                              run.length > 1 ? (
+                                <TabStrip run={run} showing={showing} doings={doings} />
+                              ) : undefined
+                            }
+                          />
                           <GraphLines
                             bands={graph.bands}
                             reach={graph.reach}
@@ -425,7 +461,12 @@ export function Canvas({
                             onCommit={handleCommitClick}
                           />
                         </ReactFlow>
-                        <PinnedCards pinnedFiles={pinnedFiles} pinDrag={pinDrag} />
+                        <PinnedCards
+                          pinnedFiles={pinnedFiles.filter(
+                            (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
+                          )}
+                          pinDrag={pinDrag}
+                        />
                       </div>
                     </CliTypedProvider>
                   </CliDoingProvider>

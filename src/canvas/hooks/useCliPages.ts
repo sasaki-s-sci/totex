@@ -25,9 +25,7 @@ export function useCliPages(
   useEffect(() => {
     if (!flowReady || !instance.current) return;
     const flow = instance.current;
-    const wanted = new Map(
-      sessions.filter((session) => paged.includes(session.id)).map((s) => [s.id, s] as const),
-    );
+    const wanted = new Map(sessions.map((s) => [s.id, s] as const));
     const bounds = host.current?.getBoundingClientRect();
     setNodes((current) => {
       let changed = false;
@@ -52,7 +50,9 @@ export function useCliPages(
           kept.push({ ...node, data: { ...node.data, showing: inHand } });
         }
       }
-      const fresh = [...wanted.values()].filter((session) => !standing.has(session.id));
+      const fresh = [...wanted.values()].filter(
+        (session) => paged.includes(session.id) && !standing.has(session.id),
+      );
       if (fresh.length === 0) return changed ? kept : current;
       const additions = fresh.map((session, at) => {
         const remembered = frontValue<CliPageFlowNode[]>("canvas.clis")?.find(

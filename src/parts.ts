@@ -10,7 +10,7 @@ export const cardPart = onDemand(() =>
 export const sidebarPart = onDemand(() =>
   import("./sidebar/RightSidebar").then((part) => part.RightSidebar),
 );
-/** Same chunk as the right sidebar, so a window with a terminal open has it already. */
+/** Loaded by the shared page view when a terminal exists. */
 export const terminalPart = onDemand(() => import("./tab/CliView").then((part) => part.CliView));
 export const commitPart = onDemand(() =>
   import("./menus/CommitMenu").then((part) => part.CommitMenu),

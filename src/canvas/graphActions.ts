@@ -1,9 +1,9 @@
 import { createContext, useContext } from "react";
-
 import type { Ask } from "../lib/ask";
 import type { Fetch, RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { WorktreeStatus } from "../lib/workspace";
+import type { FilePageActions } from "../page/actions";
 import type { Repository } from "../types/git";
 
 export type WorkRequest = {
@@ -34,7 +34,7 @@ export type BranchPick = {
 };
 
 /** Through context, not node data: React Flow redraws by comparing node data, and a rebuilt callback would make every node look changed. */
-export type GraphActions = {
+export type GraphActions = FilePageActions & {
   openWork: (request: WorkRequest) => void;
 
   /** A branch cut off the repository's main line, a worktree for it, and a terminal in that. */
@@ -71,8 +71,6 @@ export type GraphActions = {
 
   endSession: (session: Session) => void;
 
-  dockSession: (session: Session) => void;
-
   collapseCliPage: (sessionId: string) => void;
 
   fitCliPage: (sessionId: string, width: number, height: number) => void;
@@ -86,23 +84,6 @@ export type GraphActions = {
   pick: (session: Session, ask: Ask, key: string) => void;
 
   take: (session: Session, ask: Ask) => void;
-
-  closeFilePreview: (requestId: number) => void;
-
-  saveFilePreview: (requestId: number, text: string, expected?: string) => Promise<boolean>;
-
-  collapseFilePreview: (requestId: number) => void;
-
-  setFilePreviewView: (
-    requestId: number,
-    view: import("../lib/filePreview").FilePreviewView,
-  ) => void;
-
-  previewFilePreview: (requestId: number) => void;
-
-  fitFilePreview: (requestId: number, width: number, height?: number) => void;
-
-  pinFilePreview: (requestId: number) => void;
 };
 
 export const NO_ACTIONS: GraphActions = {
@@ -123,7 +104,6 @@ export const NO_ACTIONS: GraphActions = {
   keepFold: () => {},
   showSession: () => {},
   endSession: () => {},
-  dockSession: () => {},
   collapseCliPage: () => {},
   fitCliPage: () => {},
   answer: () => {},

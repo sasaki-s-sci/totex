@@ -41,23 +41,25 @@ export function Sidebar({ side, open, sizing, band, children, sx, ...box }: Prop
       }}
     >
       <ResizeGrip label={t("resize.width")} {...grip} />
-      <Box sx={{ position: "relative", flex: "none", height: HEADER_HEIGHT }}>
-        {/* A press inside a drag region is a press on the window, so the sheet sits behind the
+      {band != null && (
+        <Box sx={{ position: "relative", flex: "none", height: HEADER_HEIGHT }}>
+          {/* A press inside a drag region is a press on the window, so the sheet sits behind the
             marks, not around them. */}
-        <Box
-          data-tauri-drag-region
-          sx={{
-            position: "absolute",
-            inset: 0,
-            cursor: "grab",
-            opacity: 0,
-            bgcolor: "action.hover",
-            transition: "opacity 120ms ease-out",
-            "&:hover": { opacity: 1 },
-          }}
-        />
-        {band}
-      </Box>
+          <Box
+            data-tauri-drag-region
+            sx={{
+              position: "absolute",
+              inset: 0,
+              cursor: "grab",
+              opacity: 0,
+              bgcolor: "action.hover",
+              transition: "opacity 120ms ease-out",
+              "&:hover": { opacity: 1 },
+            }}
+          />
+          {band}
+        </Box>
+      )}
       {children}
     </Box>
   );

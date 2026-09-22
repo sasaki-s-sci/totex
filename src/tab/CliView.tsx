@@ -6,7 +6,6 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { gridOf, subscribeGrid, tellGrid } from "../lib/cliGrid";
 import { copyText } from "../lib/clipboard";
 import {
   attachShell,
@@ -37,7 +36,6 @@ const PAD = { x: 8, y: 4 };
 // Reserved beside the text as the overview ruler's width, which is what the fit addon takes
 // off whether or not a bar is drawn; the slider is dressed inside it by canvas/styles/terminal.css.
 const SCROLLBAR = 7;
-const LEAST_FONT = 5;
 // Ctrl+V on the wire, which agents read as a picture paste.
 const PASTE_KEY = "\x16";
 
@@ -47,9 +45,6 @@ type Props = {
   onEnded: () => void;
   /** Drawn this many times larger and scaled back, so a zoomed page does not stretch xterm's canvas. */
   scale?: number;
-  /** Draws the grid another view measured and never resizes the shell itself; see cliGrid. */
-  follow?: boolean;
-  autoFocus?: boolean;
 };
 
 // The selection leaves through the browser's own copy command while the key is still down: it
@@ -73,23 +68,7 @@ function copySelection(terminal: Terminal): void {
   if (!copied) void copyText(selected).catch(() => undefined);
 }
 
-function faceFor(
-  grid: { rows: number; cols: number },
-  cell: { w: number; h: number },
-  room: { w: number; h: number },
-): number {
-  const size = Math.min(FONT, room.w / (grid.cols * cell.w), room.h / (grid.rows * cell.h));
-  return Math.max(LEAST_FONT, Math.floor(size * 4) / 4);
-}
-
-export function CliView({
-  session,
-  shown,
-  onEnded,
-  scale = 1,
-  follow = false,
-  autoFocus = false,
-}: Props) {
+export function CliView({ session, shown, onEnded, scale = 1 }: Props) {
   // State, not a ref: a view update can swap the node, and the effect must re-attach.
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
@@ -113,7 +92,6 @@ export function CliView({
     ended.current = onEnded;
   }, [onEnded]);
   const drawnAt = useRef(scale);
-  const following = useRef(follow);
   const settle = useRef<(() => void) | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
@@ -157,37 +135,11 @@ export function CliView({
       accelerated = null;
     }
 
-    // The grid last told to the pty is read from cliGrid, not remembered here: while this view
-    // followed a page, the page told the pty a grid this view never sent, and a fit that lands
-    // back on this view's own old grid must still cross into Rust.
+    let lastGrid: { rows: number; cols: number } | null = null;
     const tell = (grid: { rows: number; cols: number }) => {
+      if (lastGrid?.rows === grid.rows && lastGrid.cols === grid.cols) return;
+      lastGrid = grid;
       void resizeShell(session.id, grid.rows, grid.cols).catch(() => undefined);
-      tellGrid(session.id, grid);
-    };
-
-    const shadow = () => {
-      const grid = gridOf(session.id);
-      if (!grid) {
-        fit.fit();
-        return;
-      }
-      if (terminal.rows !== grid.rows || terminal.cols !== grid.cols) {
-        terminal.resize(grid.cols, grid.rows);
-      }
-      const screen = element.querySelector<HTMLElement>(".xterm-screen");
-      const face = terminal.options.fontSize ?? FONT;
-      if (!screen || screen.clientWidth === 0 || screen.clientHeight === 0) return;
-      // Screen size over grid over face is what one point of face costs.
-      const cell = {
-        w: screen.clientWidth / terminal.cols / face,
-        h: screen.clientHeight / terminal.rows / face,
-      };
-      const room = {
-        w: element.clientWidth - PAD.x * 2 - SCROLLBAR,
-        h: element.clientHeight - PAD.y * 2,
-      };
-      const next = faceFor(grid, cell, room);
-      if (Math.abs(next - face) > 0.01) terminal.options.fontSize = next;
     };
 
     const measure = () => {
@@ -195,24 +147,14 @@ export function CliView({
       if (terminal.options.fontSize !== face) terminal.options.fontSize = face;
       fit.fit();
       const { rows, cols } = terminal;
-      // Only a changed grid crosses into Rust; the panel edge reports every frame.
-      const held = gridOf(session.id);
-      if (held && rows === held.rows && cols === held.cols) return;
       tell({ rows, cols });
     };
 
     settle.current = () => {
-      // Followed even while put away: the pty writes at the page's width, and a buffer kept at
-      // that width reflows rather than wraps when the tab is shown again.
-      if (following.current) {
-        shadow();
-        return;
-      }
       if (element.clientWidth === 0 || element.clientHeight === 0) return;
       measure();
     };
-    if (following.current) shadow();
-    else fit.fit();
+    if (element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
 
     let live = true;
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
@@ -349,26 +291,18 @@ export function CliView({
             );
         }
 
-        if (following.current) {
-          shadow();
-          return;
-        }
         tell({ rows: terminal.rows, cols: terminal.cols });
       })(),
     );
 
     const resize = new ResizeObserver(() => settle.current?.());
     resize.observe(element);
-    const heard = subscribeGrid(session.id, () => {
-      if (following.current) settle.current?.();
-    });
 
     return () => {
       live = false;
       drawn.current = null;
       settle.current = null;
       resize.disconnect();
-      heard();
       element.removeEventListener("paste", onPaste, true);
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
@@ -395,14 +329,7 @@ export function CliView({
     settle.current?.();
   }, [scale]);
   useEffect(() => {
-    following.current = follow;
-    settle.current?.();
-  }, [follow]);
-
-  const first = useRef(autoFocus);
-  useEffect(() => {
-    if ((shown || first.current) && host) drawn.current?.focus();
-    first.current = false;
+    if (shown && host) drawn.current?.focus();
   }, [shown, host]);
 
   return (

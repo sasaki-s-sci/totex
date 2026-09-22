@@ -19,7 +19,6 @@ export function useCanvasActions({
   keepFold,
   onShowSession,
   onEndSession,
-  onDockSession,
   collapseCliPage,
   fitCliPage,
   onAnswer,
@@ -52,7 +51,6 @@ export function useCanvasActions({
   keepFold: GraphActions["keepFold"];
   onShowSession: GraphActions["showSession"];
   onEndSession: GraphActions["endSession"];
-  onDockSession: GraphActions["dockSession"];
   collapseCliPage: GraphActions["collapseCliPage"];
   fitCliPage: GraphActions["fitCliPage"];
   onAnswer: GraphActions["answer"];
@@ -88,7 +86,6 @@ export function useCanvasActions({
       keepFold,
       showSession: onShowSession,
       endSession: onEndSession,
-      dockSession: onDockSession,
       collapseCliPage,
       fitCliPage,
       answer: onAnswer,
@@ -122,7 +119,6 @@ export function useCanvasActions({
       keepFold,
       onShowSession,
       onEndSession,
-      onDockSession,
       collapseCliPage,
       fitCliPage,
       onAnswer,

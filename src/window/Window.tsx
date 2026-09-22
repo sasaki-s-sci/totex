@@ -16,10 +16,10 @@ import { useSpares } from "../hooks/useSpares";
 import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
-import { type CliPlace, sameCliRun } from "../lib/graphNav";
 import { useEver } from "../lib/onDemand";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
+import { PageWorkspace } from "../page/PageWorkspace";
 import {
   canvasPart,
   commitPart,
@@ -30,7 +30,6 @@ import {
 } from "../parts";
 import { useFrontState } from "../shell/state";
 import { type FolderDestination, LeftSidebar } from "../sidebar/LeftSidebar";
-import { type Tab, terminalTabs } from "../tab/tab";
 import type { Repository } from "../types/git";
 import { useClosedRepositories } from "./useClosedRepositories";
 import { useFolderRoots } from "./useFolderRoots";
@@ -51,10 +50,6 @@ export function Window() {
   const { marks, fail, hold, release } = useMarks();
 
   const sessions = useSessions();
-  const [run, setRun] = useState<readonly CliPlace[]>([]);
-  const takeRun = useCallback((next: readonly CliPlace[]) => {
-    setRun((held) => (sameCliRun(held, next) ? held : next));
-  }, []);
   const asks = useAsks();
   const reports = useReports();
   const doings = useDoings();
@@ -93,135 +88,124 @@ export function Window() {
     onBrowseFolder: browseFolder,
   });
 
-  const tabs = useMemo(() => terminalTabs(sessions.sessions), [sessions.sessions]);
-  const onTab = (act: (session: (typeof sessions.sessions)[number]) => void) => (tab: Tab) => {
-    if (tab.kind === "terminal") act(tab.session);
-  };
-
   const Canvas = canvasPart.use();
-  const RightSidebar = sidebarPart.use(useEver(tabs.length > 0));
+  const RightSidebar = sidebarPart.use();
   const CommitMenu = commitPart.use(useEver(menus.commit !== null));
   const WorktreeMenu = worktreePart.use(useEver(menus.worktree !== null));
   const TaskMenu = tasksPart.use(useEver(tasks.asking !== null));
 
   return (
-    <Box
-      sx={{ position: "relative", display: "flex", height: "100vh", bgcolor: "background.default" }}
-    >
-      {!leftOpen && (
-        <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
-          <MarkButton
-            label={t("folder.expandSidebar")}
-            aria-expanded={leftOpen}
-            aria-controls="folder-sidebar"
-            onClick={() => setLeftOpen(true)}
-          >
-            <Frame>
-              <path d="M9 6 15 12 9 18" />
-            </Frame>
-          </MarkButton>
-        </Box>
-      )}
-      <LeftSidebar
-        open={leftOpen}
-        onClose={() => setLeftOpen(false)}
-        initialPanes={folders.initial}
-        onGraphedChange={folders.setRoots}
-        onPanesChange={folders.keep}
-        onBrowsingChange={folders.browse}
-        onOpenSettings={menus.openSettings}
-        onOpenFile={(path) => files.openFiles([path], null)}
-        drops={drops}
-        destination={destination}
-        homes={homes}
-        branches={branches}
-      />
-
+    <PageWorkspace sessions={sessions}>
       <Box
-        ref={canvasHost}
-        component="main"
-        onDragOver={(event) => {
-          if (!event.dataTransfer.types.includes(FILE_DRAG_TYPE)) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
+        sx={{
+          position: "relative",
+          display: "flex",
+          height: "100vh",
+          bgcolor: "background.default",
         }}
-        onDrop={(event) => {
-          const path = event.dataTransfer.getData(FILE_DRAG_TYPE);
-          if (!path) return;
-          event.preventDefault();
-          files.openFiles([path], { x: event.clientX, y: event.clientY });
-        }}
-        sx={{ position: "relative", flex: 1, minWidth: 0 }}
       >
-        <WindowBand />
-        {Canvas && (
-          <Canvas
-            workspace={drawn ?? EMPTY_WORKSPACE}
-            folders={graphed}
-            browsing={folders.browsing}
-            sessions={sessions.sessions}
-            showing={sessions.showing}
-            paged={sessions.paged}
-            asks={asks.asks}
-            reports={reports}
-            doings={doings}
-            onAnswer={asks.answer}
-            onReply={asks.reply}
-            onPoint={asks.point}
-            onPick={asks.pick}
-            onTake={asks.take}
-            marks={marks}
-            onSelect={work.pickCommit}
-            onNewWork={work.newWork}
-            onOpenWork={work.openWork}
-            onBrowseWorktree={work.browseWorktree}
-            onPickBranch={menus.setWorktree}
-            onCloseRepository={closeRepository}
-            onMerge={work.merge}
-            onSync={work.sync}
-            onFetch={work.fetch}
-            onShowSession={sessions.show}
-            onJumpSession={sessions.jump}
-            onEndSession={sessions.end}
-            onDockSession={sessions.dock}
-            onCliRun={takeRun}
-            filePreviews={files.filePreviews}
-            onPreviewFile={files.previewFile}
-            onCloseFilePreview={files.closeFilePreview}
-            onOpenPinned={files.openPinned}
-            settingsRequest={menus.settingsRequest}
-            onCloseSettings={menus.closeSettings}
+        {!leftOpen && (
+          <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
+            <MarkButton
+              label={t("folder.expandSidebar")}
+              aria-expanded={leftOpen}
+              aria-controls="folder-sidebar"
+              onClick={() => setLeftOpen(true)}
+            >
+              <Frame>
+                <path d="M9 6 15 12 9 18" />
+              </Frame>
+            </MarkButton>
+          </Box>
+        )}
+        <LeftSidebar
+          open={leftOpen}
+          onClose={() => setLeftOpen(false)}
+          initialPanes={folders.initial}
+          onGraphedChange={folders.setRoots}
+          onPanesChange={folders.keep}
+          onBrowsingChange={folders.browse}
+          onOpenSettings={menus.openSettings}
+          onOpenFile={(path) => files.openFiles([path], null)}
+          drops={drops}
+          destination={destination}
+          homes={homes}
+          branches={branches}
+        />
+
+        <Box
+          ref={canvasHost}
+          component="main"
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes(FILE_DRAG_TYPE)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={(event) => {
+            const path = event.dataTransfer.getData(FILE_DRAG_TYPE);
+            if (!path) return;
+            event.preventDefault();
+            files.openFiles([path], { x: event.clientX, y: event.clientY });
+          }}
+          sx={{ position: "relative", flex: 1, minWidth: 0 }}
+        >
+          <WindowBand />
+          {Canvas && (
+            <Canvas
+              workspace={drawn ?? EMPTY_WORKSPACE}
+              folders={graphed}
+              browsing={folders.browsing}
+              sessions={sessions.sessions}
+              showing={sessions.showing}
+              paged={sessions.paged}
+              asks={asks.asks}
+              reports={reports}
+              doings={doings}
+              onAnswer={asks.answer}
+              onReply={asks.reply}
+              onPoint={asks.point}
+              onPick={asks.pick}
+              onTake={asks.take}
+              marks={marks}
+              onSelect={work.pickCommit}
+              onNewWork={work.newWork}
+              onOpenWork={work.openWork}
+              onBrowseWorktree={work.browseWorktree}
+              onPickBranch={menus.setWorktree}
+              onCloseRepository={closeRepository}
+              onMerge={work.merge}
+              onSync={work.sync}
+              onFetch={work.fetch}
+              onShowSession={sessions.show}
+              onJumpSession={sessions.jump}
+              onEndSession={sessions.end}
+              filePreviews={files.filePreviews}
+              onPreviewFile={files.previewFile}
+              onCloseFilePreview={files.closeFilePreview}
+              onOpenPinned={files.openPinned}
+              settingsRequest={menus.settingsRequest}
+              onCloseSettings={menus.closeSettings}
+            />
+          )}
+        </Box>
+
+        {RightSidebar && <RightSidebar />}
+
+        <WindowControls />
+
+        {TaskMenu && <TaskMenu session={tasks.asking} onClose={tasks.close} onRun={tasks.run} />}
+        {CommitMenu && (
+          <CommitMenu target={menus.commit} onClose={menus.closeCommit} onOpen={sessions.open} />
+        )}
+        {WorktreeMenu && (
+          <WorktreeMenu
+            target={menus.worktree}
+            onClose={menus.closeWorktree}
+            onOpen={sessions.open}
+            onEndAttached={sessions.endIn}
           />
         )}
       </Box>
-
-      {RightSidebar && (
-        <RightSidebar
-          tabs={tabs}
-          showing={sessions.showing}
-          paged={sessions.paged}
-          run={run}
-          doings={doings}
-          onHide={sessions.hide}
-          onPage={onTab(sessions.page)}
-          onEnded={onTab(sessions.end)}
-        />
-      )}
-
-      <WindowControls />
-
-      {TaskMenu && <TaskMenu session={tasks.asking} onClose={tasks.close} onRun={tasks.run} />}
-      {CommitMenu && (
-        <CommitMenu target={menus.commit} onClose={menus.closeCommit} onOpen={sessions.open} />
-      )}
-      {WorktreeMenu && (
-        <WorktreeMenu
-          target={menus.worktree}
-          onClose={menus.closeWorktree}
-          onOpen={sessions.open}
-          onEndAttached={sessions.endIn}
-        />
-      )}
-    </Box>
+    </PageWorkspace>
   );
 }

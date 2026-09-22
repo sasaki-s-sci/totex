@@ -1,4 +1,4 @@
-import { type PointerEvent, type RefObject, useCallback, useRef } from "react";
+import { type RefObject, useCallback, useRef } from "react";
 import { corner, outsideWindow, type Point } from "../../lib/cardWindow";
 import { HEADER_HEIGHT } from "../../window/WindowControls";
 
@@ -56,7 +56,7 @@ export function usePinDrag(
   const held = useRef<Held | null>(null);
 
   const onPointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>, requestId: number) => {
+    (event: PointerEvent, requestId: number) => {
       if (event.button !== 0) return;
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
@@ -65,6 +65,7 @@ export function usePinDrag(
       if (target.closest(".page__tool, button, select, input, label")) return;
 
       const card = event.currentTarget;
+      if (!(card instanceof HTMLDivElement)) return;
       const box = pane.current?.getBoundingClientRect();
       if (!box) return;
 
@@ -91,7 +92,7 @@ export function usePinDrag(
   );
 
   const onPointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
+    (event: PointerEvent) => {
       const drag = held.current;
       if (!drag) return;
       const screen = { x: event.screenX, y: event.screenY };
@@ -122,7 +123,7 @@ export function usePinDrag(
   );
 
   const onPointerUp = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
+    (event: PointerEvent) => {
       const drag = held.current;
       if (!drag) return;
       held.current = null;

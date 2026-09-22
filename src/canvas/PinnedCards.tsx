@@ -1,7 +1,9 @@
+import { useEffect, useRef } from "react";
 import type { FilePreviewFlowNode } from "../lib/graph";
+import { PageSlot } from "../page/PageWorkspace";
+import { filePageId } from "../page/placement";
 import { fileSize } from "./hooks/useFilePreviews";
 import type { usePinDrag } from "./hooks/usePinDrag";
-import { FilePreviewCard } from "./nodes/FilePreviewNode";
 
 /** A layer over the whole pane that lets the pointer through; only the cards answer. */
 export function PinnedCards({
@@ -18,13 +20,11 @@ export function PinnedCards({
       {pinnedFiles.map((node) => {
         const box = fileSize(node);
         return (
-          <div
+          <PinnedCard
             key={node.id}
+            requestId={node.data.requestId}
+            pinDrag={pinDrag}
             className="graph__pin"
-            onPointerDown={(event) => pinDrag.onPointerDown(event, node.data.requestId)}
-            onPointerMove={pinDrag.onPointerMove}
-            onPointerUp={pinDrag.onPointerUp}
-            onPointerCancel={pinDrag.onPointerUp}
             style={{
               left: node.data.pinnedAt?.x,
               top: node.data.pinnedAt?.y,
@@ -35,10 +35,36 @@ export function PinnedCards({
               height: node.data.collapsed ? undefined : box.height,
             }}
           >
-            <FilePreviewCard data={node.data} />
-          </div>
+            <PageSlot id={filePageId(node.data.requestId)} place="pinned" />
+          </PinnedCard>
         );
       })}
     </div>
   );
+}
+
+function PinnedCard({
+  requestId,
+  pinDrag,
+  ...props
+}: React.ComponentProps<"div"> & { requestId: number; pinDrag: ReturnType<typeof usePinDrag> }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { onPointerDown, onPointerMove, onPointerUp } = pinDrag;
+  // Native bubbling follows the physical host, including a page rendered through a portal.
+  useEffect(() => {
+    const host = ref.current;
+    if (!host) return;
+    const down = (event: PointerEvent) => onPointerDown(event, requestId);
+    host.addEventListener("pointerdown", down);
+    host.addEventListener("pointermove", onPointerMove);
+    host.addEventListener("pointerup", onPointerUp);
+    host.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      host.removeEventListener("pointerdown", down);
+      host.removeEventListener("pointermove", onPointerMove);
+      host.removeEventListener("pointerup", onPointerUp);
+      host.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [requestId, onPointerDown, onPointerMove, onPointerUp]);
+  return <div {...props} ref={ref} />;
 }
