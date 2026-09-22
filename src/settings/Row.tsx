@@ -54,12 +54,14 @@ export function Group({ name, children }: { name: string; children: React.ReactN
 }
 
 export function PageButton({
+  title,
   danger,
   disabled,
   icon,
   onClick,
   children,
 }: {
+  title?: string;
   danger?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -68,6 +70,7 @@ export function PageButton({
 }) {
   return (
     <Button
+      title={title}
       size="small"
       variant="outlined"
       color={danger ? "error" : "inherit"}

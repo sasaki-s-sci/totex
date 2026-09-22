@@ -45,6 +45,7 @@ type Props = {
   onEnded: () => void;
   /** Drawn this many times larger and scaled back, so a zoomed page does not stretch xterm's canvas. */
   scale?: number;
+  background?: "paper" | "default";
 };
 
 // The selection leaves through the browser's own copy command while the key is still down: it
@@ -68,22 +69,23 @@ function copySelection(terminal: Terminal): void {
   if (!copied) void copyText(selected).catch(() => undefined);
 }
 
-export function CliView({ session, shown, onEnded, scale = 1 }: Props) {
+export function CliView({ session, shown, onEnded, scale = 1, background = "paper" }: Props) {
   // State, not a ref: a view update can swap the node, and the effect must re-attach.
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
   const palette = usePalette();
   const [failed, setFailed] = useState(false);
+  const surface = palette.background[background];
 
   const colours = useMemo(
     () => ({
-      background: palette.background.paper,
+      background: surface,
       foreground: palette.text.primary,
       cursor: palette.primary.main,
-      cursorAccent: palette.background.paper,
+      cursorAccent: surface,
       selectionBackground: palette.action.selected,
     }),
-    [palette.background.paper, palette.text.primary, palette.primary.main, palette.action.selected],
+    [surface, palette.text.primary, palette.primary.main, palette.action.selected],
   );
 
   // Refs, so a rebuilt callback never rebuilds the terminal and loses its scrollback.

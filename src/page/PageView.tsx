@@ -62,7 +62,13 @@ function TerminalPage({
     >
       <div className="cli-page__terminal nodrag nopan nowheel">
         {Terminal ? (
-          <Terminal session={session} shown={shown} scale={scale} onEnded={onEnded} />
+          <Terminal
+            session={session}
+            shown={shown}
+            scale={scale}
+            onEnded={onEnded}
+            background={placement === "sidebar" ? "default" : "paper"}
+          />
         ) : (
           <p className="file-preview__message">{t("filePreview.loading")}</p>
         )}

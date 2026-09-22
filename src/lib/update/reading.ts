@@ -66,7 +66,11 @@ export function reading(at: UpdateState): Reading | null {
   const persistent = at.rungs?.find((rung) => rung.layer === "persistent");
   const ephemeral = at.rungs?.find((rung) => rung.layer === "ephemeral");
   if (!persistent || !ephemeral) return null;
-  const choices = at.choices.filter((choice) => layerOf(at, choice) !== null);
+  const choices = at.choices
+    .filter((choice) => layerOf(at, choice) !== null)
+    .sort((one, other) =>
+      ahead(one.version, other.version) ? -1 : ahead(other.version, one.version) ? 1 : 0,
+    );
   const blocked = at.choices.filter((choice) => !choices.includes(choice));
   const picked = ephemeral.picked ?? persistent.picked ?? LATEST;
   const line = lineOf(persistent.at);
@@ -79,6 +83,7 @@ export function reading(at: UpdateState): Reading | null {
       choices.find(
         (choice) =>
           lineOf(choice.version) === line &&
+          !ahead(ephemeral.at, choice.version) &&
           (layerOf(at, choice) === "ephemeral" || ahead(choice.version, persistent.at)),
       ) ?? null;
     minor =

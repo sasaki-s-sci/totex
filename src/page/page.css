@@ -98,12 +98,14 @@
 }
 
 .page--sidebar {
+  --mui-palette-background-paper: var(--mui-palette-background-default);
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
 .page--sidebar .page__header {
+  background: transparent;
   min-height: var(--page-header-height, 34px);
   padding-right: 8px;
   cursor: default;

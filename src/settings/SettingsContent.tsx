@@ -52,9 +52,7 @@ export function SettingsContent() {
       <Section name={t("settings.other")}>
         <ThemeRow />
         <LanguageRow />
-        <Group name={t("update.title")}>
-          <UpdateRow />
-        </Group>
+        <UpdateRow />
       </Section>
     </Stack>
   );

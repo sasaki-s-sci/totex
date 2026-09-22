@@ -190,3 +190,37 @@ test("the line is the first two numbers", () => {
   assert.equal(lineOf("1.2.3"), "1.2");
   assert.equal(lineOf("10.0.7"), "10.0");
 });
+
+test("latest skips intermediate versions regardless of listing order", () => {
+  const at = standing();
+  at.choices = [
+    choice("1.2.4", "same"),
+    choice("1.3.0", "other"),
+    choice("1.2.9", "same"),
+    choice("1.10.4", "newest"),
+    choice("1.2.12", "other"),
+    choice("1.4.0", "other"),
+  ];
+  const read = reading(at);
+  assert.equal(read.patch.version, "1.2.12");
+  assert.equal(read.minor.version, "1.10.4");
+  assert.equal(read.latest, "1.10.4");
+  assert.equal(read.reopens, true);
+  assert.deepEqual(
+    read.choices.map((choice) => choice.version),
+    ["1.10.4", "1.4.0", "1.3.0", "1.2.12", "1.2.9", "1.2.4"],
+  );
+});
+
+test("latest skips unavailable releases and never downgrades the running views", () => {
+  const at = standing();
+  at.rungs[1].at = "1.2.8";
+  at.choices = [
+    choice("1.2.7", "same"),
+    choice("1.3.0", "other"),
+    choice("1.9.0", "missing", false),
+  ];
+  const read = reading(at);
+  assert.equal(read.patch, null);
+  assert.equal(read.minor.version, "1.3.0");
+});

@@ -1,12 +1,7 @@
 import { MenuItem, Select, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { LATEST, type Reading } from "../lib/update";
-import { PICK_SX, ROW_HEIGHT } from "./Row";
-
-const NAME = 96;
-
-/** The buttons start where the versions do: past the name column and the row gap. */
-const INDENT = `${NAME + 12}px`;
+import { PICK_SX, Row } from "./Row";
 
 function Latest({ version }: { version: string | null }) {
   return (
@@ -72,7 +67,7 @@ function VersionSelect({
   );
 }
 
-/** The one row: what is drawn, the pin, and the two buttons. */
+/** Update actions and the version selection share one settings row. */
 export function VersionRow({
   read,
   disabled,
@@ -86,29 +81,11 @@ export function VersionRow({
 }) {
   const { t } = useTranslation();
   return (
-    <Stack sx={{ gap: 0.5 }}>
-      <Stack
-        direction="row"
-        sx={{
-          alignItems: "center",
-          gap: 1.5,
-          rowGap: 0.5,
-          minHeight: ROW_HEIGHT,
-          flexWrap: "wrap",
-        }}
-      >
-        <Typography variant="body2" sx={{ width: NAME, flexShrink: 0, color: "text.secondary" }}>
-          {t("update.version")}
-        </Typography>
-        <Typography variant="body2" sx={{ flex: 1, minWidth: 0, whiteSpace: "nowrap" }}>
-          {read.at}
-        </Typography>
+    <Row label={t("update.version")}>
+      <Stack direction="row" sx={{ alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
+        {children}
         <VersionSelect read={read} disabled={disabled} onChange={onChange} />
       </Stack>
-      {/* A patch and a minor, side by side. */}
-      <Stack direction="row" sx={{ pl: INDENT, gap: 1.5, rowGap: 0.5, flexWrap: "wrap" }}>
-        {children}
-      </Stack>
-    </Stack>
+    </Row>
   );
 }

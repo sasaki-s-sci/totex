@@ -1,16 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  askChoices,
-  declare,
-  type Layer,
-  layerOf,
-  reading,
-  take,
-  type UpdateStage,
-  useUpdate,
-} from "../lib/update";
-import { UpdateMark } from "../marks";
+import { askChoices, declare, type Layer, layerOf, reading, take, useUpdate } from "../lib/update";
 import { PageButton } from "./Row";
 import { VersionRow } from "./VersionRow";
 
@@ -55,38 +45,37 @@ export function UpdateRow() {
           (target && layerOf(at, target)) ?? (cost === "patch" ? "ephemeral" : "persistent");
         const press = at.presses[layer];
         const failed = press.stage === "failed";
-        const stage: UpdateStage = ["taking", "ready", "failed", "held"].includes(press.stage)
-          ? press.stage
-          : target && target.version !== there
-            ? "rest"
-            : "current";
         const moves = Boolean(target) && target?.version !== there;
         return (
           <PageButton
             key={cost}
             danger={failed || (cost === "minor" && moves)}
             disabled={busy || !target || (!moves && !failed)}
-            icon={<UpdateMark stage={stage} progress={press.progress} />}
+            title={
+              press.stage === "taking"
+                ? t("update.adjusting")
+                : press.stage === "ready"
+                  ? t("update.ready")
+                  : failed
+                    ? t("update.failed")
+                    : t(
+                        moves
+                          ? cost === "patch" && read.reopens
+                            ? "update.reopen"
+                            : "update.take"
+                          : target
+                            ? "update.kept"
+                            : "update.none",
+                        { kind: t(BUTTONS[cost]), version: target?.version },
+                      )
+            }
             onClick={() => {
               if (target) void take(layer, target.version);
             }}
           >
-            {press.stage === "taking"
-              ? t("update.adjusting")
-              : press.stage === "ready"
-                ? t("update.ready")
-                : failed
-                  ? t("update.failed")
-                  : t(
-                      moves
-                        ? cost === "patch" && read.reopens
-                          ? "update.reopen"
-                          : "update.take"
-                        : target
-                          ? "update.kept"
-                          : "update.none",
-                      { kind: t(BUTTONS[cost]), version: target?.version },
-                    )}
+            {moves
+              ? t("update.take", { kind: t(BUTTONS[cost]), version: target?.version })
+              : t(BUTTONS[cost])}
           </PageButton>
         );
       })}
