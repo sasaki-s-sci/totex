@@ -13,11 +13,11 @@ import { MIN_HEIGHT, MIN_WIDTH } from "./nodes/CliPageNode";
 export function Pages({
   nodes,
   sessions,
-  status,
+  terminalList,
 }: {
   nodes: readonly AppNode[];
   sessions: readonly Session[];
-  status?: ReactNode;
+  terminalList?: ReactNode;
 }) {
   const workspace = usePageWorkspace();
   const actions = useGraphActions();
@@ -66,7 +66,7 @@ export function Pages({
           >
             <PageView
               kind="terminal"
-              status={status}
+              terminalList={terminalList}
               session={session}
               placement={placement}
               scale={placement === "canvas" ? scale : 1}

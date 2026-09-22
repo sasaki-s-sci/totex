@@ -9,7 +9,7 @@ import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
 import { Page } from "./Page";
 import { type PageControls, PageTools } from "./PageTools";
-import type { PagePlacement } from "./placement";
+import { type PagePlacement, terminalPageId } from "./placement";
 
 type Props = { placement: PagePlacement } & (
   | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions }
@@ -20,7 +20,7 @@ type Props = { placement: PagePlacement } & (
       scale: number;
       collapsed: boolean;
       controls: PageControls;
-      status?: ReactNode;
+      terminalList?: ReactNode;
       onEnded: () => void;
     }
 );
@@ -39,7 +39,7 @@ function TerminalPage({
   scale,
   collapsed,
   controls,
-  status,
+  terminalList,
   onEnded,
 }: Extract<Props, { kind: "terminal" }>) {
   const { t } = useTranslation();
@@ -48,13 +48,14 @@ function TerminalPage({
   const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
   return (
     <Page
+      pageId={terminalPageId(session.id)}
       placement={placement}
       kind="cli-page"
       name={name}
       title={displayPath(session.cwd)}
       collapsed={placement === "canvas" && collapsed}
       keepMounted
-      status={placement === "sidebar" ? status : undefined}
+      heading={placement === "sidebar" ? terminalList : undefined}
       tools={
         <PageTools name={name} placement={placement} collapsed={collapsed} controls={controls} />
       }

@@ -158,6 +158,7 @@ export function FilePage({
 
   return (
     <Page
+      pageId={pageId}
       placement={placement}
       kind={data.view === "settings" ? "settings-page" : "file-preview"}
       name={fileTitle === "path" ? displayPath(data.path) : data.name}

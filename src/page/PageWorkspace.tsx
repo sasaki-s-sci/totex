@@ -169,3 +169,19 @@ export function PagePortal({
   }, [container, target, focus]);
   return createPortal(children, container);
 }
+
+/** Window controls keep their state while following the visible sidebar header. */
+export function usePageHeaderHost() {
+  const workspace = usePageWorkspace();
+  const context = useContext(HostsContext);
+  return workspace?.showing ? context?.hosts.get(`header/${workspace.showing}`) : undefined;
+}
+
+export function PageHeaderSlot({ id }: { id: string }) {
+  const register = useContext(HostsContext)?.registerHost;
+  const ref = useCallback(
+    (host: HTMLDivElement | null) => register?.(`header/${id}`, host),
+    [register, id],
+  );
+  return <div ref={ref} className="page__window-controls" />;
+}

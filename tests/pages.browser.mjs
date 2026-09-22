@@ -78,9 +78,31 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     window.initialAttaches = window.pageCalls.filter((call) => call.cmd === "pty_attach").length;
   });
 
+  // Sidebar terminals use one header: move action, terminal list, page and window controls.
+  const terminalHeader = sidebar.locator(".cli-page .page__header");
+  await terminalHeader.locator(".page__window-controls button").first().waitFor();
+  assert.equal(await terminalHeader.locator(".page__name").count(), 0);
+  const headerLayout = await terminalHeader.evaluate((header) => {
+    const move = header.querySelector(".page__to-canvas").getBoundingClientRect();
+    const list = header.querySelector(".page__terminal-list").getBoundingClientRect();
+    const controls = header.querySelector(".page__window-controls").getBoundingClientRect();
+    return {
+      singleRow: header.getBoundingClientRect().height < 40,
+      order: move.right <= list.left && list.right <= controls.left,
+      listed: header.querySelector(".page__terminal-list").children.length > 0,
+      controls: header.querySelectorAll(".page__window-controls button").length,
+    };
+  });
+  assert.equal(headerLayout.singleRow, true);
+  assert.equal(headerLayout.order, true);
+  assert.equal(headerLayout.controls, 3);
+  assert.equal(headerLayout.listed, true);
+
   // Settings are an ordinary page and keep their form instance when docked.
   await page.getByRole("button", { name: "Move totex.json to the sidebar", exact: true }).click();
   await sidebar.locator(".settings-page").waitFor();
+  await sidebar.locator(".settings-page .page__window-controls button").first().waitFor();
+  assert.equal(await sidebar.locator(".settings-page .page__terminal-list").count(), 0);
   assert.equal(
     await sidebar
       .locator(".settings-page input")

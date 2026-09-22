@@ -447,10 +447,13 @@ export function Canvas({
                           <Pages
                             nodes={nodes}
                             sessions={sessions}
-                            status={
-                              run.length > 1 ? (
-                                <TabStrip run={run} showing={showing} doings={doings} />
-                              ) : undefined
+                            terminalList={
+                              <TabStrip
+                                run={run}
+                                sessions={sessions}
+                                showing={showing}
+                                doings={doings}
+                              />
                             }
                           />
                           <GraphLines

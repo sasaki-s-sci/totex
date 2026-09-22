@@ -39,7 +39,6 @@ export function RightSidebar() {
         band={null}
         sx={{
           "--page-header-height": `${HEADER_HEIGHT}px`,
-          "--page-header-marks": `${HEADER_MARKS}px`,
         }}
       >
         <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>

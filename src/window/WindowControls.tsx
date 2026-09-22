@@ -1,8 +1,10 @@
 import { Box, Stack } from "@mui/material";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { CloseMark, MARK_BUTTON, MarkButton, MaximiseMark, MinimiseMark } from "../marks";
+import { usePageHeaderHost } from "../page/PageWorkspace";
 import { useWindowFill } from "./useWindowFill";
 
 // The drag region is a sheet behind the marks: a press inside `data-tauri-drag-region` is a press
@@ -20,12 +22,19 @@ export const HEADER_MARKS = MARK_BUTTON * 3 + MARK_GAP * 2 + HEADER_INSET;
 
 export function WindowControls() {
   const { t } = useTranslation();
+  const header = usePageHeaderHost();
   const appWindow = useMemo(() => getCurrentWindow(), []);
   // Maximise cannot be taken at the system's word; see the hook.
   const { filling, toggle } = useWindowFill();
 
-  return (
-    <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_INSET, zIndex: 1200 }}>
+  const controls = (
+    <Box
+      sx={
+        header
+          ? { display: "flex" }
+          : { position: "absolute", top: HEADER_INSET, right: HEADER_INSET, zIndex: 1200 }
+      }
+    >
       <Box
         data-tauri-drag-region
         sx={{ position: "absolute", inset: -4, borderRadius: 1, zIndex: 0 }}
@@ -67,4 +76,5 @@ export function WindowControls() {
       </Stack>
     </Box>
   );
+  return header ? createPortal(controls, header) : controls;
 }

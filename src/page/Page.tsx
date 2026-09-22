@@ -6,18 +6,20 @@ import type {
   Ref,
   WheelEventHandler,
 } from "react";
+import { PageHeaderSlot } from "./PageWorkspace";
 import "./page.css";
 
 export type PageKind = "file-preview" | "settings-page" | "cli-page";
 
 export type PageProps = {
+  pageId?: string;
   placement?: "canvas" | "sidebar";
   keepMounted?: boolean;
   kind: PageKind;
   name: string;
   title?: string;
   tools?: ReactNode;
-  status?: ReactNode;
+  heading?: ReactNode;
   footnote?: ReactNode;
   collapsed?: boolean;
   pinned?: boolean;
@@ -31,13 +33,14 @@ export type PageProps = {
 };
 
 export function Page({
+  pageId,
   placement = "canvas",
   keepMounted = false,
   kind,
   name,
   title,
   tools,
-  status,
+  heading,
   footnote,
   collapsed = false,
   pinned = false,
@@ -59,9 +62,9 @@ export function Page({
     >
       <header className="page__header" title={title} ref={headerRef}>
         {placement === "sidebar" && <span className="page__window-drag" data-tauri-drag-region />}
-        <span className="page__name">{name}</span>
+        {heading ?? <span className="page__name">{name}</span>}
         {tools}
-        {status && <div className="page__status">{status}</div>}
+        {placement === "sidebar" && pageId && <PageHeaderSlot id={pageId} />}
       </header>
 
       {/* Stateful runtimes such as xterm stay mounted even while folded. */}

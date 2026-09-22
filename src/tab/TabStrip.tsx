@@ -1,6 +1,7 @@
 import { Box, Typography } from "@mui/material";
 import type { Doing } from "../lib/doing";
 import type { CliPlace } from "../lib/graphNav";
+import type { Session } from "../lib/session";
 import { CLI_GLYPH, CliGlyph } from "../marks";
 
 const GAP = 4;
@@ -10,6 +11,7 @@ const NAME_LINE = 12;
 
 type Props = {
   run: readonly CliPlace[];
+  sessions: readonly Session[];
   showing: string | null;
   doings: ReadonlyMap<string, Doing>;
 };
@@ -17,7 +19,7 @@ type Props = {
 type Party = {
   group: string;
   name: string;
-  run: { place: CliPlace; jump: number }[];
+  run: { place: CliPlace; jump: number | null }[];
   /** The first session: a row the run returns to further down is a second place. */
   key: string;
 };
@@ -38,22 +40,33 @@ function parties(run: readonly CliPlace[]): Party[] {
   return places;
 }
 
-export function TabStrip({ run, showing, doings }: Props) {
-  // One terminal draws nothing: there is no position to find among one.
-  if (run.length < 2) return null;
-
+export function TabStrip({ run, sessions, showing, doings }: Props) {
+  const groups = parties(run);
+  // Sessions outside the current graph still belong in the header, without a graph shortcut.
+  for (const session of sessions) {
+    if (run.some((place) => place.session === session.id)) continue;
+    const place = { session: session.id, group: session.cwd, name: session.branch };
+    groups.push({
+      group: place.group,
+      name: place.name,
+      key: session.id,
+      run: [{ place, jump: null }],
+    });
+  }
   return (
     <Box
+      className="page__terminal-list"
       aria-hidden="true"
       sx={{
         display: "flex",
         alignItems: "stretch",
         flex: 1,
         minWidth: 0,
-        pointerEvents: "none",
+        overflowX: "auto",
+        scrollbarWidth: "none",
       }}
     >
-      {parties(run).map((party, at) => (
+      {groups.map((party, at) => (
         <Box
           key={party.key}
           sx={{

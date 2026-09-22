@@ -105,9 +105,9 @@
 
 .page--sidebar .page__header {
   min-height: var(--page-header-height, 34px);
-  padding-right: var(--page-header-marks, 90px);
+  padding-right: 8px;
   cursor: default;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .page__header > * {
@@ -129,7 +129,7 @@
   z-index: 1;
 }
 
-.page__status {
-  flex-basis: 100%;
-  min-width: 0;
+.page__window-controls {
+  display: flex;
+  flex: none;
 }
