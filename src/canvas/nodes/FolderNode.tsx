@@ -13,8 +13,8 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
 
   return (
     <div className="band folder">
+      {/* Ahead of the mark on its line. Only a name: a folder holds nothing to fold or take off, and the sidebar is where it leaves. */}
       <div className="row__name" style={{ left: label.x, width: label.width }}>
-        {/* Only a name: a folder holds nothing to fold or take off, and the sidebar is where it leaves. */}
         <Typography
           className="folder__name folder__name--still"
           variant="body2"

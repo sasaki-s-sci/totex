@@ -149,6 +149,8 @@
     "language": "言語",
     "said": "行の説明",
     "reveal": "ズームアンカー",
+    "walkWrap": "Ctrl+矢印で端まで行ったら反対側へ戻る",
+    "groupGap": "リポジトリ・フォルダの間隔（格子の行数）",
     "historyLength": "表示するコミット数",
     "historyFollow": "コミットの更新時に長さへ追従",
     "spareWorktree": "新しいブランチ用にワークツリーを先に用意",

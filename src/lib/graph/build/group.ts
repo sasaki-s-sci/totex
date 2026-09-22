@@ -2,7 +2,15 @@ import type { Folder } from "../../../hooks/useWorkspace";
 import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
-import { FOLDER_ROW_WIDTH, folderId, folderRow, isOpen, ROW_SOCKET, ROW_STACK_X } from "../folders";
+import {
+  FOLDER_MARK_X,
+  FOLDER_ROW_WIDTH,
+  folderId,
+  folderRow,
+  isOpen,
+  ROW_SOCKET,
+  ROW_STACK_X,
+} from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
   CLI_STEP,
@@ -30,12 +38,14 @@ export function folderGroup(
     asks: ReadonlyMap<string, Ask>;
     reports: ReadonlyMap<string, Report>;
     reaching: string | null;
+    /** Air above each band after the first, the same as between groups. */
+    gap: number;
   },
   at: { x: number; y: number },
   claimed: Set<string>,
   draw: Draw,
 ): LaidGroup {
-  const { folder, held, opened, open, showing, asks, reports, reaching } = input;
+  const { folder, held, opened, open, showing, asks, reports, reaching, gap } = input;
 
   const id = folderId(folder.root);
   const shown = held.filter((entry) => isOpen(opened, entry.repository.id, held.length));
@@ -120,12 +130,14 @@ export function folderGroup(
   const place: Place = {
     id,
     from,
-    x: rowed ? head.x + FOLDER_INSET : head.x,
+    // Inset from the mark, which the name now stands ahead of.
+    x: rowed ? head.x + FOLDER_MARK_X + FOLDER_INSET : head.x,
     open,
     showing,
     asks,
     reports,
     reaching,
+    gap,
     draw,
   };
 

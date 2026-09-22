@@ -16,7 +16,7 @@ const RAIL_SX = {
 
 /**
  * How many commits one band shows, and whether it keeps to the length every band is given. Always
- * on the heading, under the name, and there for a repository with no commit at all.
+ * on the heading, over the name, and there for a repository with no commit at all.
  */
 export function HistoryLength({ repository }: { repository: Repository }) {
   const { t } = useTranslation();
@@ -29,9 +29,10 @@ export function HistoryLength({ repository }: { repository: Repository }) {
 
   return (
     <>
-      <span className="band__follow nopan nodrag">
+      <span className="band__length">
         {historyFollow && (
           <Checkbox
+            className="band__follow nopan nodrag"
             size="small"
             sx={TICK_SX}
             checked={!free.has(repository.id)}
@@ -41,22 +42,22 @@ export function HistoryLength({ repository }: { repository: Repository }) {
             slotProps={{ input: { "aria-label": t("graph.lengthFollow") } }}
           />
         )}
+        <Slider
+          className="band__rail nopan nodrag nowheel"
+          size="small"
+          aria-label={t("graph.length")}
+          sx={RAIL_SX}
+          value={Math.min(shown, most)}
+          // An empty history is a rail with nowhere to go, not a rail taken away.
+          min={Math.min(1, most)}
+          max={Math.max(most, 1)}
+          disabled={most <= 1}
+          onPointerDown={(event) => event.stopPropagation()}
+          onChange={(_, next) => {
+            if (typeof next === "number" && next !== shown) setLength(repository.id, next);
+          }}
+        />
       </span>
-      <Slider
-        className="band__rail nopan nodrag nowheel"
-        size="small"
-        aria-label={t("graph.length")}
-        sx={RAIL_SX}
-        value={Math.min(shown, most)}
-        // An empty history is a rail with nowhere to go, not a rail taken away.
-        min={Math.min(1, most)}
-        max={Math.max(most, 1)}
-        disabled={most <= 1}
-        onPointerDown={(event) => event.stopPropagation()}
-        onChange={(_, next) => {
-          if (typeof next === "number" && next !== shown) setLength(repository.id, next);
-        }}
-      />
       <Typography className="band__shown" variant="caption">
         {Math.min(shown, most)}
       </Typography>

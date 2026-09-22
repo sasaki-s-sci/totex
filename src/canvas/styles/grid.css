@@ -24,39 +24,67 @@
 
 .band__name {
   position: absolute;
-  display: flex;
   box-sizing: border-box;
-  align-items: flex-end;
-  justify-content: flex-start;
-  padding-bottom: 12px;
   overflow: hidden;
 }
 
-/* Two lines over three columns: the mark, the name with its rail right under it, and what closes. */
+/*
+ * Two lines over three columns. The lower line is the trunk's: the name, then the mark against
+ * the fold. The line above carries the rail with its count, and what closes over the mark.
+ */
 .band__heading {
   display: grid;
-  width: max-content;
-  grid-template-columns: auto minmax(96px, 1fr) var(--square);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  grid-template-areas:
+    "length shown close"
+    "name name grip";
+  grid-template-columns: minmax(0, 1fr) auto var(--square);
+  grid-template-rows: minmax(0, 1fr) var(--line);
   align-items: center;
+  padding-left: 6px;
   column-gap: 4px;
 }
 
-/* In the heading's flow, ahead of the name, rather than hung on a row's edge, and no taller than the name. */
+/* In the heading's flow, after the name, rather than hung on a row's edge, and no taller than the name. */
 .band__heading .band__grip {
   position: static;
   height: auto;
+  grid-area: grip;
   transform: none;
 }
 
+/* From the edge a folder's line arrives at; the mark stands in its own column, against the fold. */
 .band__heading .folder__name {
+  grid-area: name;
   justify-self: start;
   max-width: 100%;
 }
 
-.band__follow {
+.band__length {
   display: flex;
-  justify-content: center;
+  min-width: 0;
+  grid-area: length;
+  align-items: center;
+  column-gap: 4px;
+}
+
+.band__follow {
   pointer-events: all;
+}
+
+.band__rail {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.band__shown {
+  grid-area: shown;
+}
+
+.band__close {
+  grid-area: close;
 }
 
 .band__shown {

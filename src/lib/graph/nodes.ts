@@ -46,8 +46,11 @@ export type BranchHeadData = {
 
 export type RepositoryNodeData = {
   repository: Repository;
-  /** Band-relative; the name is centred in `column`, over the mark the band opens with. */
-  label: { x: number; y: number; width: number; height: number; column: number };
+  /**
+   * Band-relative box of the heading: the name and mark on the trunk line, ahead of the history,
+   * with the length rail on the line above them.
+   */
+  label: { x: number; y: number; width: number; height: number };
 };
 
 export type FolderNodeData = {

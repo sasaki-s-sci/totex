@@ -76,7 +76,12 @@ test("history lanes expand to both sides while the fold stays on the trunk", () 
     assert.ok(commits.some((n) => middle(n) < graph.trunk));
     assert.ok(commits.some((n) => middle(n) > graph.trunk));
     assert.ok(graph.data.label.y >= 0);
-    assert.ok(graph.data.label.y + graph.data.label.height <= Math.min(...commits.map(middle)));
+    // The heading ends ahead of the history and its lower line is the trunk's.
+    assert.ok(
+      graph.data.label.x + graph.data.label.width <= Math.min(...commits.map((n) => n.position.x)),
+    );
+    assert.ok(graph.data.label.y < graph.trunk);
+    assert.ok(graph.data.label.y + graph.data.label.height > graph.trunk);
     const fold = graph.nodes.find((n) => n.type === "collapse");
     if (fold) assert.equal(middle(fold), graph.trunk);
   }

@@ -44,16 +44,15 @@
   pointer-events: none;
 }
 
-/* One line up from where a band's name stands: the line over the mark is the terminal's. */
+/* On the mark's own line, from the edge the folder's line arrives at, as a band's name is. */
 .row__name {
   position: absolute;
   top: 0;
   left: 0;
   display: flex;
   box-sizing: border-box;
-  width: 100%;
-  height: calc(50% - 26px);
-  align-items: flex-end;
+  height: 100%;
+  align-items: center;
   padding-left: 6px;
   overflow: hidden;
 }

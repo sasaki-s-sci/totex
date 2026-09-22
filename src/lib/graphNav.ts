@@ -4,6 +4,8 @@ export type Pickable = {
   id: string;
   x: number;
   y: number;
+  /** The row a terminal hangs on, so that a walk can go by rows; see `CliNodeData.group`. */
+  group?: string;
 };
 
 // Sideways distance is penalised so Right walks along the row rather than to the nearest node.
@@ -26,6 +28,7 @@ export function pickables(nodes: readonly AppNode[]): Pickable[] {
       id: node.id,
       x: (band?.x ?? 0) + node.position.x + width / 2,
       y: (band?.y ?? 0) + node.position.y + height / 2,
+      ...(node.type === "cli" ? { group: node.data.group } : {}),
     });
   }
   return picks;
@@ -70,18 +73,47 @@ export function centreOf(nodes: readonly AppNode[], id: string): { x: number; y:
 }
 
 /**
- * Walks the numbers, not the geometry: every terminal is reachable in Ctrl+digit order, wrapping at
- * both ends.
+ * Walks the numbers, not the geometry: every terminal is reachable in Ctrl+digit order. At either
+ * end the walk comes round when `wrap` says so, and otherwise stays where it is.
  */
 export function neighbour(
   standing: string | null,
   stacks: readonly Pickable[],
   by: 1 | -1,
+  wrap = true,
 ): Pickable | null {
   if (stacks.length === 0) return null;
   const place = standing ? stacks.findIndex((stack) => stack.id === standing) : -1;
   if (place < 0) return by > 0 ? stacks[0] : stacks[stacks.length - 1];
-  return stacks[(place + by + stacks.length) % stacks.length];
+  const next = place + by;
+  if (next >= 0 && next < stacks.length) return stacks[next];
+  return wrap ? stacks[(next + stacks.length) % stacks.length] : null;
+}
+
+/**
+ * Walks the rows the terminals hang on, a repository or folder at a time, landing on the first
+ * terminal of each. The rows come in the order their first terminals do, so two rows whose
+ * terminals interleave down the canvas are still two stops.
+ */
+export function neighbourRow(
+  standing: string | null,
+  stacks: readonly Pickable[],
+  by: 1 | -1,
+  wrap = true,
+): Pickable | null {
+  const rows: Pickable[] = [];
+  const seen = new Set<string>();
+  for (const stack of stacks) {
+    const row = stack.group ?? stack.id;
+    if (seen.has(row)) continue;
+    seen.add(row);
+    rows.push(stack);
+  }
+  const from = standing ? stacks.find((stack) => stack.id === standing) : undefined;
+  const at = from
+    ? rows.findIndex((stack) => (stack.group ?? stack.id) === (from.group ?? from.id))
+    : -1;
+  return neighbour(at < 0 ? null : rows[at].id, rows, by, wrap);
 }
 
 export function first(picks: readonly Pickable[]): Pickable | null {

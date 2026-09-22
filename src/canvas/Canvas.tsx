@@ -7,6 +7,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useAppSettings } from "../lib/appSettings";
 import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
 import {
   type AppNode,
@@ -14,6 +15,7 @@ import {
   type CliPageFlowNode,
   type FilePreviewFlowNode,
   type GraphResult,
+  groupGapOf,
 } from "../lib/graph";
 import { cliRun } from "../lib/graphNav";
 import { gridNow, heldToGrid } from "../lib/grid";
@@ -128,6 +130,7 @@ export function Canvas({
   const { closed, toggleJunction } = useJunctionView();
 
   const { places, placeFolder } = useFolderPlaces();
+  const gap = groupGapOf(useAppSettings().groupGap);
   const graph = useMemo(
     () =>
       buildCommitGraph(
@@ -143,6 +146,7 @@ export function Canvas({
           reports,
           reaching,
           places,
+          gap,
         },
         applied.current ?? undefined,
       ),
@@ -158,6 +162,7 @@ export function Canvas({
       reports,
       reaching,
       places,
+      gap,
     ],
   );
 

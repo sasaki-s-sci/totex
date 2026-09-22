@@ -18,6 +18,7 @@ import {
   type CollapseFlowNode,
   type CommitFlowNode,
   gridRows,
+  HEADING_WIDTH,
   type JunctionFlowNode,
   MIN_BAND_WIDTH,
   NAME_HEIGHT,
@@ -135,7 +136,8 @@ function layout(
   const historyLine = (row: number) => top + laneOffset(row);
   for (let row = 0; row < rows; row++) branchLine[row] += top - centre;
 
-  const columnX = (column: number) => column * COMMIT_STEP.x;
+  // The heading takes the first columns: history starts past the name and mark.
+  const columnX = (column: number) => HEADING_WIDTH + column * COMMIT_STEP.x;
   // Terminals are measured from the ring itself, not its cell edge.
   const ring = columnX(history.width + bundle.width) + BRANCH_GAP;
   const heads = ring - COLUMN_WIDTH / 2;
@@ -188,13 +190,12 @@ function layout(
     repository,
     data: {
       repository,
+      // Down to the trunk cell's bottom edge, so the name's line is the trunk's.
       label: {
         x: 0,
-        y: top + historyTop - NAME_HEIGHT,
-        // Never narrower than the rail under the name, which an empty history still shows whole.
-        width: Math.max(MIN_BAND_WIDTH, working - SESSION_WIDTH / 2),
-        height: NAME_HEIGHT,
-        column: COMMIT_STEP.x,
+        y: top - NAME_HEIGHT,
+        width: HEADING_WIDTH,
+        height: NAME_HEIGHT + COMMIT_STEP.y / 2,
       },
     },
     trunk: top,

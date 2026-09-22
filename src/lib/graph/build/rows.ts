@@ -9,7 +9,6 @@ import {
   FOLDER_GAP_Y,
   LANE_HEIGHT,
   type LineEnd,
-  REPO_GAP_Y,
   REPO_MARK_TRIM,
   rowPitch,
   rowReach,
@@ -47,17 +46,19 @@ export type Place = {
   asks: ReadonlyMap<string, Ask>;
   reports: ReadonlyMap<string, Report>;
   reaching: string | null;
+  /** Air above a band, or above a mark under a band; see `airAbove`. */
+  gap: number;
   draw: Draw;
 };
 
 // Marks run as a list; a band stands clear so two histories are told apart.
-function airAbove(row: Row, at: Cursor, hung: boolean): number {
+function airAbove(row: Row, at: Cursor, hung: boolean, gap: number): number {
   if (at.first) return hung ? FOLDER_GAP_Y : 0;
-  return "column" in row || at.above === null ? REPO_GAP_Y : 0;
+  return "column" in row || at.above === null ? gap : 0;
 }
 
 export function placeRow(row: Row, place: Place, drawn: LaidGroup, at: Cursor): Cursor {
-  const air = airAbove(row, at, place.from !== null);
+  const air = airAbove(row, at, place.from !== null, place.gap);
   const next =
     "column" in row ? bandRow(row, place, drawn, at, air) : markRow(row, place, drawn, at, air);
   return { ...next, first: false };

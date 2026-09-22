@@ -149,6 +149,8 @@
     "language": "Language",
     "said": "Line explanation",
     "reveal": "Zoom anchor",
+    "walkWrap": "Ctrl+Arrow comes round at the ends",
+    "groupGap": "Rows between repositories and folders",
     "historyLength": "Commits shown",
     "historyFollow": "Keep to the length as commits arrive",
     "spareWorktree": "Keep a spare worktree for new branches",

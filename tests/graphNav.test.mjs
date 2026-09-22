@@ -11,14 +11,20 @@ const server = await createServer({
   cacheDir,
   server: { watch: null },
 });
-const { jumpable, nearest, neighbour, offered } =
+const { jumpable, nearest, neighbour, neighbourRow, offered } =
   await server.ssrLoadModule("/src/lib/graphNav.ts");
 await server.close();
 await rm(cacheDir, { recursive: true, force: true });
 
 /** A terminal card at a place on the canvas; the geometry is what the walk must ignore. */
-function cli(id, x, y) {
-  return { id, type: "cli", position: { x, y }, style: { width: 100, height: 40 }, data: {} };
+function cli(id, x, y, group = id) {
+  return {
+    id,
+    type: "cli",
+    position: { x, y },
+    style: { width: 100, height: 40 },
+    data: { group },
+  };
 }
 
 // Three terminals laid so that no geometric walk reaches them all: two level with
@@ -43,6 +49,43 @@ test("back walks the numbers the other way and wraps at the start", () => {
   assert.equal(neighbour("b", stacks, -1).id, "a");
   assert.equal(neighbour("a", stacks, -1).id, "c");
   assert.equal(neighbour("c", stacks, -1).id, "b");
+});
+
+test("told not to wrap, the walk stops at either end", () => {
+  assert.equal(neighbour("a", stacks, 1, false).id, "b");
+  assert.equal(neighbour("b", stacks, 1, false), null);
+  assert.equal(neighbour("c", stacks, -1, false), null);
+  assert.equal(neighbour(null, stacks, 1, false).id, "c");
+});
+
+// Two repositories side by side, their terminals interleaved down the canvas, and a folder below.
+const rows = jumpable([
+  cli("a1", 0, 0, "repo-a"),
+  cli("b1", 800, 10, "repo-b"),
+  cli("a2", 0, 40, "repo-a"),
+  cli("b2", 800, 50, "repo-b"),
+  cli("f1", 0, 400, "folder"),
+]);
+
+test("sideways goes a row at a time and lands on its first terminal", () => {
+  assert.equal(neighbourRow("a1", rows, 1).id, "b1");
+  assert.equal(neighbourRow("a2", rows, 1).id, "b1");
+  assert.equal(neighbourRow("b2", rows, 1).id, "f1");
+  assert.equal(neighbourRow("f1", rows, -1).id, "b1");
+  assert.equal(neighbourRow("b1", rows, -1).id, "a1");
+});
+
+test("the rows wrap unless told not to", () => {
+  assert.equal(neighbourRow("f1", rows, 1).id, "a1");
+  assert.equal(neighbourRow("a2", rows, -1).id, "f1");
+  assert.equal(neighbourRow("f1", rows, 1, false), null);
+  assert.equal(neighbourRow("a1", rows, -1, false), null);
+});
+
+test("a row walk standing on no terminal starts at either end", () => {
+  assert.equal(neighbourRow(null, rows, 1).id, "a1");
+  assert.equal(neighbourRow(null, rows, -1).id, "f1");
+  assert.equal(neighbourRow(null, [], 1), null);
 });
 
 test("a walk standing on no terminal starts at either end", () => {

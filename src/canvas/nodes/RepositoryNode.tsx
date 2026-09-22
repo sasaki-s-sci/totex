@@ -2,7 +2,7 @@ import { Typography } from "@mui/material";
 import type { NodeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import type { RepositoryFlowNode } from "../../lib/graph";
+import { COMMIT_STEP, type RepositoryFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
 import { CloseMark, GitMark, MARK_BUTTON } from "../../marks";
 import { useGraphActions } from "../graphActions";
@@ -22,19 +22,29 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
         className="band__name"
         style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
       >
+        {/* Two lines: the rail and what closes above, then the name with the mark against the fold on the trunk. */}
         <div
           className="band__heading"
           style={
             {
-              minWidth: label.column + MARK_BUTTON,
               "--square": `${MARK_BUTTON}px`,
+              "--line": `${COMMIT_STEP.y}px`,
             } as CSSProperties
           }
         >
-          {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}
-          <div className={`${GRIP} band__grip nopan`} title={t("folder.move")}>
-            <GitMark on size={NAME_FONT} />
-          </div>
+          <HistoryLength repository={repository} />
+          <button
+            type="button"
+            className="band__close nopan"
+            aria-label={t("repository.close")}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              closeRepository(repository);
+            }}
+          >
+            <CloseMark />
+          </button>
           <button
             type="button"
             className="folder__name nopan"
@@ -50,20 +60,10 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
               {repository.name}
             </Typography>
           </button>
-          <button
-            type="button"
-            className="band__close nopan"
-            aria-label={t("repository.close")}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              closeRepository(repository);
-            }}
-          >
-            <CloseMark />
-          </button>
-          {/* The second line: the rail lies right under the name, in the name's own column. */}
-          <HistoryLength repository={repository} />
+          {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}
+          <div className={`${GRIP} band__grip nopan`} title={t("folder.move")}>
+            <GitMark on size={NAME_FONT} />
+          </div>
         </div>
       </div>
     </div>

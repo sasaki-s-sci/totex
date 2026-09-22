@@ -2,6 +2,7 @@ import { Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
+import { GapRow } from "./GapRow";
 import { GridRows } from "./GridRows";
 import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
@@ -12,6 +13,7 @@ import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
 import { ThemeRow } from "./ThemeRow";
 import { UpdateRow } from "./UpdateRow";
+import { WalkRow } from "./WalkRow";
 import { WheelRow } from "./WheelRow";
 
 export function SettingsContent() {
@@ -35,7 +37,9 @@ export function SettingsContent() {
           <FileTitleRow />
         </Group>
         <Group name={t("settings.graph")}>
+          <GapRow />
           <RevealRow />
+          <WalkRow />
           <HistoryRows />
           <FollowRows />
           <SpareRow />

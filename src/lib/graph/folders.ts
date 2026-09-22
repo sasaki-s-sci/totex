@@ -3,19 +3,21 @@ import type { GraphedKind } from "../graphed";
 import {
   CHIP_STEP,
   type Draw,
-  FOLDER_INSET,
   FOLDER_MARK,
   type FolderFlowNode,
   type FolderNodeData,
+  HEADING_WIDTH,
   LANE_HEIGHT,
-  NAME_HEIGHT,
   type RepoMarkData,
   type RepoMarkFlowNode,
   SESSION_WIDTH,
 } from "./model";
 
-export const FOLDER_MARK_X = 0;
-export const FOLDER_ROW_WIDTH = FOLDER_INSET + 40;
+/** The name stands ahead of the mark on its line, in the same columns a band's heading takes. */
+export const FOLDER_MARK_X = HEADING_WIDTH;
+/** Row-relative box of the name, ending a little short of the mark. */
+export const ROW_NAME = { x: 0, width: FOLDER_MARK_X - 4 } as const;
+export const FOLDER_ROW_WIDTH = FOLDER_MARK_X + 40;
 
 /** Row-relative middle of the mark: where a row's lines leave, as a branch's leave its ring. */
 export const ROW_SOCKET = { x: FOLDER_MARK_X + FOLDER_MARK / 2, y: LANE_HEIGHT / 2 };
@@ -60,7 +62,7 @@ export function folderRow(
     kind,
     root,
     name,
-    label: { x: FOLDER_MARK_X, y: 0, width: FOLDER_ROW_WIDTH, height: NAME_HEIGHT },
+    label: { x: ROW_NAME.x, y: 0, width: ROW_NAME.width, height: LANE_HEIGHT },
     open,
     mark: FOLDER_MARK_X,
   };

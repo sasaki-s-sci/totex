@@ -33,6 +33,7 @@ export function buildCommitGraph(
     reports,
     reaching,
     places,
+    gap = REPO_GAP_Y,
   }: GraphInput,
   previous?: GraphResult,
 ): GraphResult {
@@ -119,6 +120,7 @@ export function buildCommitGraph(
         asks,
         reports,
         reaching,
+        gap,
       },
       { x: at.x + (moved?.x ?? 0), y: at.y + (moved?.y ?? 0) },
       claimed,
@@ -147,7 +149,7 @@ export function buildCommitGraph(
 
     right = Math.max(right, group.right);
     bottom = Math.max(bottom, group.bottom);
-    flowed += group.height + REPO_GAP_Y;
+    flowed += group.height + gap;
   }
 
   return {

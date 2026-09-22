@@ -194,6 +194,16 @@ file cards to them: a card opened, dragged, resized or fitted then stands on a
 line and is a whole number of squares wide and tall. Terminals and the graph
 itself are not held to it.
 
+**Rows between repositories and folders** is the air the canvas leaves
+between one repository or folder and the next, counted in grid rows from the
+lowest node of one to the top of the next. It applies between the repositories
+inside a folder as well.
+
+**Ctrl+Arrow comes round at the ends** decides what Ctrl+Down at the last
+terminal does: come round to the first, or stay. Ctrl+Up and Ctrl+Down walk the
+terminals one at a time in Ctrl+digit order; Ctrl+Left and Ctrl+Right walk a
+repository or folder at a time, landing on its first terminal.
+
 **File title** selects the file name or full path for every panel header. For
 example, this partial configuration selects full paths and the smallest line
 size:
@@ -206,7 +216,7 @@ size:
 ```
 
 Other preferences in this document include `theme`, `language`, `reveal`,
-`follow`, `mcpServing`, `readingSize`, `cliWheel`, `graphWheel` (how far one
+`walkWrap`, `groupGap`, `follow`, `mcpServing`, `readingSize`, `cliWheel`, `graphWheel` (how far one
 notch of the wheel scrolls a terminal or zooms the canvas, as a percentage),
 and the remaining `said` options. The
 repository-specific `.totex/settings.json` continues to control each space.

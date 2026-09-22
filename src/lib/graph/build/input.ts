@@ -31,4 +31,7 @@ export type GraphInput = {
 
   /** How far each folder was dragged from its laid-out slot, by root. */
   places: ReadonlyMap<string, { x: number; y: number }>;
+
+  /** Air between one repository or folder and the next, in layout units; `REPO_GAP_Y` unless said. */
+  gap?: number;
 };

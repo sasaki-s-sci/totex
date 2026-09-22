@@ -47,8 +47,16 @@ export const HEAD_CELL = COMMIT_CELL;
 export const MIN_BAND_WIDTH = 240;
 /** The line above a mark that its name is set on. */
 export const NAME_HEIGHT = LANE_HEIGHT / 2;
-export const REPO_GAP_Y = COMMIT_STEP.y * 2;
+/** Grid rows between one repository or folder and the next, as the settings let them be chosen. */
+export const GROUP_GAP = { least: 0, most: 10, start: 2 } as const;
+export const REPO_GAP_Y = COMMIT_STEP.y * GROUP_GAP.start;
+export function groupGapOf(rows: number): number {
+  const held = Number.isFinite(rows) ? Math.round(rows) : GROUP_GAP.start;
+  return Math.min(GROUP_GAP.most, Math.max(GROUP_GAP.least, held)) * COMMIT_STEP.y;
+}
 export const FOLDER_INSET = COLUMN_WIDTH;
+/** The columns a band opens with: its name and mark on the trunk line, ahead of the history. */
+export const HEADING_WIDTH = COLUMN_WIDTH + COLUMN_WIDTH / 2;
 export const FOLDER_MARK = 22;
 export const REPO_MARK_RING = 12;
 export const REPO_MARK_TRIM = REPO_MARK_RING / 2 + RING_EDGE_GAP;

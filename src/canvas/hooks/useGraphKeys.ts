@@ -6,12 +6,14 @@ import {
   jumpable,
   nearest,
   neighbour,
+  neighbourRow,
   offered,
   type Pickable,
   step,
 } from "../../lib/graphNav";
 import { terminal, typing } from "../../lib/keys";
 import { revealing } from "../../lib/reveal";
+import { isWrapping } from "../../lib/walk";
 import type { CliJumps } from "../cliJumps";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
@@ -169,11 +171,13 @@ export function useGraphKeys({
       if (node) latest.current.jump(node);
     };
 
+    // Up and Down go a terminal at a time; Left and Right go a repository or folder at a time.
     const walkTerminals = (direction: { x: number; y: number }) => {
       const by = direction.x + direction.y > 0 ? 1 : -1;
 
       const standing = at.current ?? latest.current.shown;
-      const next = neighbour(standing, places.current, by);
+      const walk = direction.x ? neighbourRow : neighbour;
+      const next = walk(standing, places.current, by, isWrapping());
       if (!next) return;
 
       const node = stand(next);
