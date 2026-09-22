@@ -46,6 +46,7 @@ export function PageTools({
       {children}
       {controls.move && (
         <PageTool
+          className={placement === "sidebar" ? "page__to-canvas" : undefined}
           label={t(placement === "canvas" ? "page.toSidebar" : "page.toCanvas", { name })}
           onClick={controls.move}
         >

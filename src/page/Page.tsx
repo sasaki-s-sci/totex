@@ -6,14 +6,12 @@ import type {
   Ref,
   WheelEventHandler,
 } from "react";
-import { PageName } from "./PageName";
 import "./page.css";
 
 export type PageKind = "file-preview" | "settings-page" | "cli-page";
 
 export type PageProps = {
   placement?: "canvas" | "sidebar";
-  pageId?: string;
   keepMounted?: boolean;
   kind: PageKind;
   name: string;
@@ -34,7 +32,6 @@ export type PageProps = {
 
 export function Page({
   placement = "canvas",
-  pageId,
   keepMounted = false,
   kind,
   name,
@@ -62,7 +59,7 @@ export function Page({
     >
       <header className="page__header" title={title} ref={headerRef}>
         {placement === "sidebar" && <span className="page__window-drag" data-tauri-drag-region />}
-        <PageName id={pageId} name={name} placement={placement} />
+        <span className="page__name">{name}</span>
         {tools}
         {status && <div className="page__status">{status}</div>}
       </header>
@@ -85,11 +82,13 @@ export function Page({
 
 export function PageTool({
   label,
+  className,
   on,
   onClick,
   children,
 }: {
   label: string;
+  className?: string;
   on?: boolean;
   onClick: () => void;
   children: ReactNode;
@@ -97,7 +96,7 @@ export function PageTool({
   return (
     <button
       type="button"
-      className={`page__tool nodrag${on ? " is-on" : ""}`}
+      className={`page__tool nodrag${on ? " is-on" : ""}${className ? ` ${className}` : ""}`}
       aria-label={label}
       title={label}
       aria-pressed={on}

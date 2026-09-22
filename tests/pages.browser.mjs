@@ -88,9 +88,9 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       .evaluate((element) => element === window.heldSettings),
     true,
   );
-  await sidebar
-    .getByRole("combobox", { name: "Select page" })
-    .selectOption("terminal:terminal-one");
+  assert.equal(await sidebar.getByRole("combobox", { name: "Select page" }).count(), 0);
+  await page.getByRole("button", { name: "Move totex.json to the canvas", exact: true }).click();
+  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Move main to the canvas", exact: true }).click();
   await page.locator('.react-flow__node-cli-page [data-terminal="terminal-one"]').waitFor();
   assert.equal(await terminal.evaluate((element) => element === window.heldTerminal), true);
@@ -117,6 +117,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     true,
   );
 
+  await page.getByRole("button", { name: "Move main to the canvas", exact: true }).click();
+
   // Failed writes leave the draft and its page in place.
   await note.fill("edited content");
   await page.evaluate(() => {
@@ -139,10 +141,10 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     0,
   );
 
-  // Hiding is not closing, and the selector can reach every docked kind.
+  // Hiding is not closing; reopening preserves the file draft.
   await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
-  await sidebar.getByRole("combobox", { name: "Select page" }).selectOption("file:1");
+  assert.equal(await sidebar.getByRole("combobox", { name: "Select page" }).count(), 0);
   assert.equal(await note.textContent(), "edited content");
   await page.getByRole("button", { name: "Move note.txt to the canvas", exact: true }).click();
   await page.getByRole("button", { name: "Pin note.txt", exact: true }).click();

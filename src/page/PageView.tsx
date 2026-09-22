@@ -9,7 +9,7 @@ import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
 import { Page } from "./Page";
 import { type PageControls, PageTools } from "./PageTools";
-import { type PagePlacement, terminalPageId } from "./placement";
+import type { PagePlacement } from "./placement";
 
 type Props = { placement: PagePlacement } & (
   | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions }
@@ -48,7 +48,6 @@ function TerminalPage({
   const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
   return (
     <Page
-      pageId={terminalPageId(session.id)}
       placement={placement}
       kind="cli-page"
       name={name}
