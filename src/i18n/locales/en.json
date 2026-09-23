@@ -1,4 +1,8 @@
 {
+  "terminal": {
+    "copyFailed": "Could not copy. Select the text and try again.",
+    "pasteFailed": "Could not paste. Copy the text or image and try again."
+  },
   "page": {
     "hideSidebar": "Hide page sidebar",
     "openSidebar": "Show page sidebar",

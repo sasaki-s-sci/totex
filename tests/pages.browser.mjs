@@ -10,6 +10,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     const callbacks = new Map();
     window.pageCalls = [];
     window.pageWriteRefused = false;
+    window.pageClipboard = "日本語\nsecond line";
     window.__TAURI_INTERNALS__ = {
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
       transformCallback(callback) {
@@ -21,6 +22,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       },
       async invoke(cmd, args) {
         window.pageCalls.push({ cmd, args });
+        if (cmd === "plugin:clipboard-manager|read_text") return window.pageClipboard;
         if (cmd === "plugin:event|listen") return ++serial;
         if (cmd === "pty_sessions")
           return [
@@ -31,6 +33,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
           [
             "pty_asking",
             "pty_doing",
+            "pty_typed",
             "mcp_reports",
             "list_roots",
             "describe_folders",
@@ -77,6 +80,67 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     window.heldNote = document.querySelector('[role="textbox"][aria-label="note.txt"]');
     window.initialAttaches = window.pageCalls.filter((call) => call.cmd === "pty_attach").length;
   });
+
+  // Ctrl is held only while pressed, even if a child consumes its release.
+  const typedReads = () =>
+    page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_typed").length);
+  const waitForHeld = async (before) => {
+    await page.waitForFunction(
+      (count) => window.pageCalls.filter((call) => call.cmd === "pty_typed").length > count,
+      before,
+    );
+  };
+  const verifyReleased = async (text) => {
+    await page.keyboard.type(text);
+    await page.waitForTimeout(250);
+    const count = await typedReads();
+    await page.waitForTimeout(250);
+    assert.equal(await typedReads(), count, "Ctrl release stops navigation-mode polling");
+    const written = await page.evaluate(() =>
+      window.pageCalls
+        .filter((call) => call.cmd === "pty_write")
+        .map((call) => call.args.data)
+        .join(""),
+    );
+    assert.ok(written.endsWith(text), "Terminal accepts input after Ctrl release");
+  };
+  await terminal.locator(".xterm-screen").click();
+  let readsBefore = await typedReads();
+  await page.keyboard.down("Control");
+  await waitForHeld(readsBefore);
+  await terminal.locator("textarea").evaluate((input) => {
+    input.addEventListener("keyup", (event) => event.stopPropagation(), { once: true });
+  });
+  await page.keyboard.up("Control");
+  await verifyReleased("released");
+
+  // A lost keyup must recover on an ordinary keydown, even when xterm consumes it.
+  readsBefore = await typedReads();
+  await terminal.locator("textarea").evaluate((input) => {
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Control", ctrlKey: true, bubbles: true }),
+    );
+  });
+  await waitForHeld(readsBefore);
+  await verifyReleased("recovered");
+
+  // Ctrl+V must work without a browser paste event, through xterm's paste API.
+  await page.keyboard.press("Control+v");
+  await page.waitForFunction(() =>
+    window.pageCalls.some(
+      (call) => call.cmd === "pty_write" && call.args.data === "日本語\rsecond line",
+    ),
+  );
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.pageCalls.filter(
+          (call) => call.cmd === "pty_write" && call.args.data === "日本語\rsecond line",
+        ).length,
+    ),
+    1,
+    "Clipboard text is pasted exactly once",
+  );
 
   // Sidebar terminals use one header: move action, terminal list, page and window controls.
   const terminalHeader = sidebar.locator(".cli-page .page__header");

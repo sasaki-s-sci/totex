@@ -2,7 +2,7 @@
   "name": "totex",
   "version": "0.21.3",
   "private": true,
-  "frontContract": 12,
+  "frontContract": 13,
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,6 +22,7 @@
     "@rjsf/utils": "^6.8.0",
     "@rjsf/validator-ajv8": "^6.8.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.3",
     "@tauri-apps/plugin-opener": "^2.5.5",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-image": "^0.9.0",

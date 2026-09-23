@@ -279,21 +279,30 @@ export function useGraphKeys({
       }
     };
 
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === "Control") drop();
-
-      if (event.key === "Shift") leaveOffers();
+    const syncModifiers = (event: KeyboardEvent) => {
+      if (!event.ctrlKey) drop();
+      else if (!event.shiftKey) leaveOffers();
     };
 
+    const onVisibilityChange = () => {
+      if (document.hidden) drop();
+    };
+
+    // Observe releases before an input can stop propagation. Also recover on the next
+    // key press if the WebView missed a release while focus was elsewhere.
+    window.addEventListener("keydown", syncModifiers, true);
+    window.addEventListener("keyup", syncModifiers, true);
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     // A window that loses focus never sees the key come back up.
     window.addEventListener("blur", drop);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", syncModifiers, true);
+      window.removeEventListener("keyup", syncModifiers, true);
       window.removeEventListener("blur", drop);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [reveal]);
 

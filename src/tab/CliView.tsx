@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Alert, Box } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
@@ -6,7 +6,8 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { copyText } from "../lib/clipboard";
+import { useTranslation } from "react-i18next";
+import { copyText, readClipboard } from "../lib/clipboard";
 import {
   attachShell,
   DATA_EVENT,
@@ -17,9 +18,10 @@ import {
   writeShell,
 } from "../lib/pty";
 import type { Session } from "../lib/session";
+import { registerTerminalClipboard } from "../lib/terminalClipboard";
 import { openTerminalLink } from "../lib/terminalLinks";
 import { useWheel, wheelFactor } from "../lib/wheel";
-import { readyAfter } from "../shell/bridge";
+import { frontInactive, readyAfter } from "../shell/bridge";
 import { frontValue, readOnSnapshot } from "../shell/state";
 import { usePalette } from "../theme";
 
@@ -48,32 +50,14 @@ type Props = {
   background?: "paper" | "default";
 };
 
-// The selection leaves through the browser's own copy command while the key is still down: it
-// asks no permission, and xterm's copy listener supplies the selected text. The field is filled
-// first because the command is refused over an empty one. The clipboard helper is the fallback.
-function copySelection(terminal: Terminal): void {
-  const selected = terminal.getSelection();
-  if (!selected) return;
-  const field = terminal.textarea;
-  let copied = false;
-  if (field) {
-    field.value = selected;
-    field.select();
-    try {
-      copied = document.execCommand("copy");
-    } catch {
-      copied = false;
-    }
-    field.value = "";
-  }
-  if (!copied) void copyText(selected).catch(() => undefined);
-}
-
 export function CliView({ session, shown, onEnded, scale = 1, background = "paper" }: Props) {
   // State, not a ref: a view update can swap the node, and the effect must re-attach.
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
   const palette = usePalette();
+  const { t } = useTranslation();
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [pasteFailed, setPasteFailed] = useState(false);
   const [failed, setFailed] = useState(false);
   const surface = palette.background[background];
 
@@ -101,6 +85,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     const element = host;
     if (!element) return;
     setFailed(false);
+    setCopyFailed(false);
+    setPasteFailed(false);
 
     const terminal = new Terminal({
       fontSize: FONT * drawnAt.current,
@@ -159,6 +145,21 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     if (element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
 
     let live = true;
+    let replaying = true;
+    const reportCopyFailure = (error: unknown) => {
+      console.error("Could not copy terminal text", error);
+      if (live) setCopyFailed(true);
+    };
+    const writeClipboard = async (text: string) => {
+      await copyText(text);
+      if (live) setCopyFailed(false);
+    };
+    const clipboard = registerTerminalClipboard(
+      terminal,
+      writeClipboard,
+      reportCopyFailure,
+      () => live && !replaying && !frontInactive(),
+    );
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
 
     // A picture-only paste has no way into xterm's field; ^V lets the agent read the clipboard itself.
@@ -196,13 +197,34 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
         (event.shiftKey || terminal.hasSelection())
       ) {
         event.preventDefault();
-        copySelection(terminal);
-        terminal.clearSelection();
+        const selected = terminal.getSelection();
+        if (selected) {
+          void writeClipboard(selected)
+            .then(() => {
+              if (live && terminal.getSelection() === selected) terminal.clearSelection();
+            })
+            .catch(reportCopyFailure);
+        }
         return false;
       }
 
-      // Refused without preventDefault: the window's own paste then reaches xterm's field, bracketed.
-      if (plain && event.ctrlKey && event.key.toLowerCase() === "v") return false;
+      // WebViews do not consistently dispatch native paste for Ctrl+V. Read on the
+      // host and let xterm normalize newlines and apply bracketed paste mode.
+      if (plain && event.ctrlKey && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        void readClipboard()
+          .then((text) => {
+            if (!live || frontInactive()) return;
+            setPasteFailed(false);
+            if (text !== null) terminal.paste(text);
+            else return writeShell(session.id, PASTE_KEY);
+          })
+          .catch((error) => {
+            console.error("Could not paste terminal clipboard", error);
+            if (live) setPasteFailed(true);
+          });
+        return false;
+      }
 
       // Ctrl+digit, Ctrl+arrow, Ctrl+A and Ctrl+Alt+A are the window's keys.
       const digit = event.key.length === 1 && event.key >= "0" && event.key <= "9";
@@ -275,6 +297,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
         await new Promise<void>((resolve) => terminal.write(held.text, resolve));
         if (!live) return;
+        replaying = false;
         reached = held.upto;
         for (const said of waiting) say(said);
         waiting.length = 0;
@@ -309,6 +332,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
       // The shell is left running; closing the session is what ends it.
+      clipboard.dispose();
       terminal.dispose();
       forget();
     };
@@ -353,6 +377,25 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
         // xterm paints its viewport black over the padding; cleared so the box shows through.
         "& .xterm-viewport": { background: "transparent" },
       }}
-    />
+    >
+      {pasteFailed && (
+        <Alert
+          severity="error"
+          onClose={() => setPasteFailed(false)}
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 1 }}
+        >
+          {t("terminal.pasteFailed")}
+        </Alert>
+      )}
+      {copyFailed && (
+        <Alert
+          severity="error"
+          onClose={() => setCopyFailed(false)}
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 1 }}
+        >
+          {t("terminal.copyFailed")}
+        </Alert>
+      )}
+    </Box>
   );
 }
