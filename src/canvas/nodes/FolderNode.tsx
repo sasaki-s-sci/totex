@@ -4,19 +4,22 @@ import { useTranslation } from "react-i18next";
 import type { FolderFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
 import { CLI_GLYPH, CliMark, FolderMark } from "../../marks";
+import { changeClass, useChanges } from "../changes";
 import { useGraphActions } from "../graphActions";
 
 export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   const { t } = useTranslation();
   const { root, name, label, open, mark } = data;
   const { openWork } = useGraphActions();
+  // The top of the climb: what every repository under the folder comes to.
+  const change = useChanges().folders.get(root);
 
   return (
     <div className="band folder">
       {/* Ahead of the mark on its line. Only a name: a folder holds nothing to fold or take off, and the sidebar is where it leaves. */}
       <div className="row__name" style={{ left: label.x, width: label.width }}>
         <Typography
-          className="folder__name folder__name--still"
+          className={`folder__name folder__name--still${changeClass(change)}`}
           variant="body2"
           sx={{ minWidth: 0, fontWeight: "normal" }}
           noWrap

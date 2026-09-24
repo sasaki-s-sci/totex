@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { HEAD_SIZE } from "../../lib/graph";
 import { dirtyCount, type WorktreeStatus } from "../../lib/workspace";
+import { CHANGE_COLOUR } from "../changes";
 
 const RING_WIDTH = 1;
 const CENTRE = HEAD_SIZE / 2;
@@ -19,9 +20,9 @@ export function rimOf(status: WorktreeStatus | undefined): ReactNode {
   const arcs: { colour: string; from: number; to: number }[] = [];
   let from = 0;
   for (const [count, colour] of [
-    [status.added, "var(--mui-palette-success-main)"],
-    [status.modified, "var(--mui-palette-warning-main)"],
-    [status.deleted, "var(--mui-palette-error-main)"],
+    [status.added, CHANGE_COLOUR.added],
+    [status.modified, CHANGE_COLOUR.modified],
+    [status.deleted, CHANGE_COLOUR.deleted],
   ] as const) {
     if (count === 0) continue;
     from += count / total;

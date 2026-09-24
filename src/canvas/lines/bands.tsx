@@ -13,12 +13,17 @@ import { pathOf, stroke } from "./path";
 
 export type Batch = { key: string; stroke: StrokeStyle; parts: GraphLine[] };
 
+/** The colour a line is run over in, by the node it ends on; see `GraphLines`. */
+export type Tints = ReadonlyMap<string, string>;
+
 export const Reach = memo(function Reach({
   reach,
   standing,
+  tints,
 }: {
   reach: readonly Batch[];
   standing: ReadonlyMap<string, XYPosition>;
+  tints: Tints;
 }) {
   return (
     <>
@@ -30,23 +35,65 @@ export const Reach = memo(function Reach({
           {...stroke(batch.stroke)}
         />
       ))}
+      {reach.map((batch) =>
+        batch.parts.map((part) => {
+          const tint = tints.get(part.to.node);
+          return tint ? <Tint key={part.id} line={part} standing={standing} colour={tint} /> : null;
+        }),
+      )}
     </>
   );
 });
+
+/**
+ * The rim's colour run back along the line, so what moved on a branch is seen from the folder
+ * above it: a soft width under a line of the colour, over the grey line already there.
+ */
+function Tint({
+  line,
+  standing,
+  colour,
+}: {
+  line: GraphLine;
+  standing: ReadonlyMap<string, XYPosition>;
+  colour: string;
+}) {
+  const d = pathOf([line], standing);
+  return (
+    <>
+      <path className="edge__tint edge__tint--glow" d={d} stroke={colour} />
+      <path
+        className="edge__tint edge__tint--core"
+        d={d}
+        stroke={colour}
+        strokeWidth={line.stroke.width}
+        strokeDasharray={line.stroke.dash}
+      />
+    </>
+  );
+}
 
 export const Bands = memo(function Bands({
   bands,
   standing,
   offering,
+  tints,
 }: {
   bands: readonly Band[];
   standing: ReadonlyMap<string, XYPosition>;
   offering: boolean;
+  tints: Tints;
 }) {
   return (
     <>
       {bands.map((band) => (
-        <BandGroup key={band.id} band={band} standing={standing} offering={offering} />
+        <BandGroup
+          key={band.id}
+          band={band}
+          standing={standing}
+          offering={offering}
+          tints={tints}
+        />
       ))}
     </>
   );
@@ -56,10 +103,12 @@ function BandGroup({
   band,
   standing,
   offering,
+  tints,
 }: {
   band: Band;
   standing: ReadonlyMap<string, XYPosition>;
   offering: boolean;
+  tints: Tints;
 }) {
   const at = standing.get(band.id);
   return (
@@ -79,6 +128,10 @@ function BandGroup({
       {band.lines.named.map((line) => (
         <g key={line.id}>
           <path id={line.id} d={pathOf([line], standing)} {...stroke(line.stroke)} />
+          {/* A branch's line is the named one: its worktree's colour runs from the ring back to the commit. */}
+          {tints.has(line.to.node) && (
+            <Tint line={line} standing={standing} colour={tints.get(line.to.node) ?? ""} />
+          )}
           {/* A named line keeps a path of its own for the textPath, so it is not batched. */}
           {line.name?.note && (
             <text className="edge__name edge__note" dy={-12}>

@@ -4,12 +4,15 @@ import { useTranslation } from "react-i18next";
 import type { RepoMarkFlowNode } from "../../lib/graph";
 import { FOLDER_MARK_X, GRIP, ROW_NAME } from "../../lib/graph/folders";
 import { CLI_GLYPH, CliMark } from "../../marks";
+import { changeClass, useChanges } from "../changes";
 import { useGraphActions } from "../graphActions";
 
 export function RepoMarkNode({ data }: NodeProps<RepoMarkFlowNode>) {
   const { t } = useTranslation();
   const { repository, work } = data;
   const { openRepository, openWork } = useGraphActions();
+  // Folded, the ring stands for every branch: it wears what all of them come to.
+  const change = useChanges().repositories.get(repository.id);
 
   return (
     <div className="band folder repo-mark">
@@ -17,7 +20,7 @@ export function RepoMarkNode({ data }: NodeProps<RepoMarkFlowNode>) {
       <div className="row__name" style={{ left: ROW_NAME.x, width: ROW_NAME.width }}>
         <button
           type="button"
-          className="folder__name nopan"
+          className={`folder__name nopan${changeClass(change)}`}
           aria-label={repository.name}
           aria-expanded={false}
           onPointerDown={(event) => event.stopPropagation()}
@@ -48,7 +51,7 @@ export function RepoMarkNode({ data }: NodeProps<RepoMarkFlowNode>) {
 
       {/* The ring is the drag handle, as a folder's mark is; the name beside it is the toggle. */}
       <span className={`${GRIP} nopan`} style={{ left: FOLDER_MARK_X }} title={t("folder.move")}>
-        <span className="repo-mark__ring" />
+        <span className={`repo-mark__ring${changeClass(change)}`} />
       </span>
     </div>
   );

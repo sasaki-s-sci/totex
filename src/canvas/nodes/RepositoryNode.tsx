@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { COMMIT_STEP, type RepositoryFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
 import { CloseMark, GitMark, MARK_BUTTON } from "../../marks";
+import { changeClass, useChanges } from "../changes";
 import { useGraphActions } from "../graphActions";
 import { HistoryLength } from "./HistoryLength";
 
@@ -15,6 +16,8 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   const { t } = useTranslation();
   const { repository, label } = data;
   const { closeRepository, foldRepository } = useGraphActions();
+  // What its worktrees come to, as the column colours a repository's name.
+  const change = useChanges().repositories.get(repository.id);
 
   return (
     <div className="band">
@@ -47,7 +50,7 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
           </button>
           <button
             type="button"
-            className="folder__name nopan"
+            className={`folder__name nopan${changeClass(change)}`}
             aria-label={repository.name}
             aria-expanded
             onPointerDown={(event) => event.stopPropagation()}

@@ -20,6 +20,26 @@
   cursor: pointer;
 }
 
+/* The rim's colour run back along a line: a soft width of it under the line's own weight in it. */
+.edge__tint {
+  fill: none;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.edge__tint--glow {
+  stroke-width: 5;
+  stroke-opacity: 0.16;
+}
+
+.edge__tint--core {
+  stroke-opacity: 0.9;
+}
+
+.band-lines--provisional .edge__tint {
+  stroke-opacity: 0.3;
+}
+
 .edge__hit {
   fill: none;
   stroke: transparent;

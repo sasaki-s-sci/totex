@@ -38,6 +38,22 @@
   color: var(--mui-palette-text-primary);
 }
 
+/* What became of the files under it, in the rim's colours: the colour climbs from a ring to its repository's name and on to the folder's. After the hover rule, so a name keeps its colour under the cursor as the column's rows do. */
+.folder__name.is-added,
+.repo-mark__ring.is-added {
+  color: var(--mui-palette-success-main);
+}
+
+.folder__name.is-modified,
+.repo-mark__ring.is-modified {
+  color: var(--mui-palette-warning-main);
+}
+
+.folder__name.is-deleted,
+.repo-mark__ring.is-deleted {
+  color: var(--mui-palette-error-main);
+}
+
 /* A name that is only a name: nothing to press, so nothing to invite. */
 .folder__name--still {
   cursor: default;
