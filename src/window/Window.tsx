@@ -101,7 +101,7 @@ export function Window() {
           position: "relative",
           display: "flex",
           height: "100vh",
-          bgcolor: "background.default",
+          // No ground: the body paints it, so the wave can sit between the two.
         }}
       >
         {!leftOpen && (

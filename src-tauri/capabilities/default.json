@@ -22,6 +22,7 @@
     "core:webview:allow-create-webview-window",
     "core:window:allow-show",
     "core:window:allow-inner-position",
-    "core:window:allow-scale-factor"
+    "core:window:allow-scale-factor",
+    "core:window:allow-set-effects"
   ]
 }

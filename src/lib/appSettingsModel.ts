@@ -1,5 +1,7 @@
 export type AppSettings = {
   theme: "system" | "light" | "dark";
+  /** Theme ids per layer; see src/theme/declaration.ts. */
+  appearance: { colors: string; style: string; effects: string };
   language: "system" | "en" | "ja";
   reveal: "never" | "edge" | "centre";
   /** Whether Ctrl+Arrow, at the last terminal or group, comes round to the first. */
@@ -34,8 +36,9 @@ export type AppSettings = {
   };
 };
 
-export type SettingsPatch = Omit<Partial<AppSettings>, "said"> & {
+export type SettingsPatch = Omit<Partial<AppSettings>, "said" | "appearance"> & {
   said?: Partial<AppSettings["said"]>;
+  appearance?: Partial<AppSettings["appearance"]>;
 };
 
 /** What the backend reads of a repository unless told otherwise, so as many as there are to show. */
@@ -43,6 +46,7 @@ export const HISTORY_ALL = 300;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
+  appearance: { colors: "neon", style: "default", effects: "none" },
   language: "system",
   reveal: "edge",
   walkWrap: true,
@@ -72,7 +76,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
 export function settingsFrom(value: SettingsPatch): AppSettings {
-  return { ...DEFAULT_SETTINGS, ...value, said: { ...DEFAULT_SETTINGS.said, ...value.said } };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...value,
+    appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
+    said: { ...DEFAULT_SETTINGS.said, ...value.said },
+  };
 }
 
 export function legacySettings(read: (key: string) => string | null): AppSettings {
@@ -86,6 +95,11 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
   };
   return {
     theme: pick("totex.mode", ["system", "light", "dark"], "system"),
+    // `totex.preset` was a shipped id or a whole preset in JSON; only an id carries over.
+    appearance: {
+      ...DEFAULT_SETTINGS.appearance,
+      colors: pick("totex.preset", ["neon", "classic"], "neon"),
+    },
     language: pick("totex.language", ["system", "en", "ja"], "system"),
     reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
     walkWrap: true,

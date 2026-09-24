@@ -18,4 +18,5 @@ pub mod remote;
 pub mod space;
 pub mod ssh;
 pub mod sync;
+pub mod themes;
 pub mod wsl;

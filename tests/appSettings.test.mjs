@@ -6,6 +6,7 @@ test("migrates all existing user preferences, including line size one", () => {
   const values = new Map(
     Object.entries({
       "totex.mode": "dark",
+      "totex.preset": "classic",
       "totex.language": "ja",
       "totex.reveal": "centre",
       "totex.follow": "on",
@@ -23,6 +24,7 @@ test("migrates all existing user preferences, including line size one", () => {
     legacySettings((key) => values.get(key) ?? null),
     {
       theme: "dark",
+      appearance: { colors: "classic", style: "default", effects: "none" },
       language: "ja",
       reveal: "centre",
       walkWrap: true,
@@ -63,6 +65,10 @@ test("missing and invalid legacy preferences fall back to valid defaults", () =>
   );
   assert.equal(legacySettings(() => "999").said.size, 20);
   assert.equal(legacySettings(() => "0.1").said.size, 1);
+  // A preset saved as a whole JSON object is not an id; it falls back rather than carrying over.
+  const preset = (value) => (key) => (key === "totex.preset" ? value : null);
+  assert.equal(legacySettings(preset('{"name":"mine"}')).appearance.colors, "neon");
+  assert.equal(legacySettings(preset("neon")).appearance.colors, "neon");
 });
 
 test("partial JSON uses defaults independently of migrated local preferences", () => {
@@ -70,4 +76,13 @@ test("partial JSON uses defaults independently of migrated local preferences", (
   assert.equal(settings.theme, "system");
   assert.equal(settings.fileTitle, "path");
   assert.deepEqual(settings.said, { ...DEFAULT_SETTINGS.said, size: 1 });
+});
+
+test("a partial appearance keeps the other layers at their defaults", () => {
+  assert.deepEqual(settingsFrom({}).appearance, DEFAULT_SETTINGS.appearance);
+  assert.deepEqual(settingsFrom({ appearance: { colors: "mine" } }).appearance, {
+    colors: "mine",
+    style: "default",
+    effects: "none",
+  });
 });

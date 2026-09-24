@@ -1,0 +1,6 @@
+{
+  "kind": "effects",
+  "id": "crt",
+  "name": "CRT",
+  "scanlines": 0.35
+}

@@ -23,7 +23,7 @@ import { openTerminalLink } from "../lib/terminalLinks";
 import { useWheel, wheelFactor } from "../lib/wheel";
 import { frontInactive, readyAfter } from "../shell/bridge";
 import { frontValue, readOnSnapshot } from "../shell/state";
-import { usePalette } from "../theme";
+import { usePalette, useTerminalLook, withAlpha } from "../theme";
 
 import "@xterm/xterm/css/xterm.css";
 
@@ -55,21 +55,31 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
   const palette = usePalette();
+  const look = useTerminalLook();
   const { t } = useTranslation();
   const [copyFailed, setCopyFailed] = useState(false);
   const [pasteFailed, setPasteFailed] = useState(false);
   const [failed, setFailed] = useState(false);
-  const surface = palette.background[background];
+  const opaque = palette.background[background];
+  const surface = withAlpha(opaque, look.opacity);
 
   const colours = useMemo(
     () => ({
       background: surface,
       foreground: palette.text.primary,
       cursor: palette.primary.main,
-      cursorAccent: surface,
+      cursorAccent: opaque,
       selectionBackground: palette.action.selected,
+      ...look.ansi,
     }),
-    [surface, palette.text.primary, palette.primary.main, palette.action.selected],
+    [
+      surface,
+      opaque,
+      palette.text.primary,
+      palette.primary.main,
+      palette.action.selected,
+      look.ansi,
+    ],
   );
 
   // Refs, so a rebuilt callback never rebuilds the terminal and loses its scrollback.
@@ -90,7 +100,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
     const terminal = new Terminal({
       fontSize: FONT * drawnAt.current,
-      fontFamily: 'ui-monospace, "Cascadia Mono", Consolas, monospace',
+      fontFamily: look.mono,
+      allowTransparency: look.seeThrough,
       cursorBlink: true,
       theme: colours,
       scrollSensitivity: wheelFactor("cli"),
@@ -343,6 +354,13 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     const terminal = drawn.current;
     if (terminal) terminal.options.theme = colours;
   }, [colours]);
+
+  useEffect(() => {
+    const terminal = drawn.current;
+    if (!terminal) return;
+    terminal.options.fontFamily = look.mono;
+    terminal.options.allowTransparency = look.seeThrough;
+  }, [look.mono, look.seeThrough]);
 
   const wheel = useWheel("cli");
   useEffect(() => {

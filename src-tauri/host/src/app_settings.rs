@@ -56,6 +56,20 @@ fn validate(value: &Value) -> Result<(), String> {
         range(said, "lines", 1, 6)?;
         range(said, "width", 80, 640)?;
     }
+    // Ids name theme files that come and go, so only their shape is checked here.
+    if let Some(appearance) = object.get("appearance") {
+        let fields = appearance
+            .as_object()
+            .ok_or("appearance must be an object")?;
+        for key in ["colors", "style", "effects"] {
+            if fields
+                .get(key)
+                .is_some_and(|v| v.as_str().is_none_or(|s| s.is_empty()))
+            {
+                return Err(format!("Invalid appearance.{key}"));
+            }
+        }
+    }
     Ok(())
 }
 fn range(value: &Value, key: &str, least: u64, most: u64) -> Result<(), String> {
@@ -194,6 +208,27 @@ mod tests {
         assert!(read(&temp.0, &json!({})).is_err());
         assert!(patch(&temp.0, &json!({"follow":true})).is_err());
         assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), "broken");
+    }
+    #[test]
+    fn appearance_names_any_theme_but_must_name_one() {
+        let temp = Temp::new();
+        read(&temp.0, &json!({})).unwrap();
+        let next = patch(&temp.0, &json!({"appearance":{"colors":"mine"}})).unwrap();
+        assert_eq!(next.value["appearance"], json!({"colors":"mine"}));
+        let next = patch(&temp.0, &json!({"appearance":{"effects":"glow"}})).unwrap();
+        assert_eq!(
+            next.value["appearance"],
+            json!({"colors":"mine", "effects":"glow"})
+        );
+        for invalid in [
+            json!({"appearance":"neon"}),
+            json!({"appearance":{"colors":""}}),
+            json!({"appearance":{"style":1}}),
+            json!({"appearance":{"effects":null}}),
+        ] {
+            assert!(patch(&temp.0, &invalid).is_err());
+        }
+        assert_eq!(read(&temp.0, &json!({})).unwrap().value, next.value);
     }
     #[test]
     fn refuses_same_length_external_edit() {

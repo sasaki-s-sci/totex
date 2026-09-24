@@ -54,7 +54,7 @@
   flex: none;
   margin-top: 7px;
   color: var(--mui-palette-text-secondary);
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: var(--totex-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
   font-size: 10px;
   line-height: 13px;
   white-space: pre;

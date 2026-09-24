@@ -43,6 +43,9 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
     ...one,
     ...two,
     ...(one.said || two.said ? { said: { ...one.said, ...two.said } } : {}),
+    ...(one.appearance || two.appearance
+      ? { appearance: { ...one.appearance, ...two.appearance } }
+      : {}),
   };
 }
 function accept(next: SettingsDocument) {
@@ -50,6 +53,7 @@ function accept(next: SettingsDocument) {
   settings = settingsFrom({
     ...next.value,
     ...pending,
+    appearance: { ...next.value.appearance, ...pending.appearance },
     said: { ...next.value.said, ...pending.said },
   });
   error = null;
@@ -86,7 +90,12 @@ export function refreshSettings(): Promise<void> {
 
 export function updateSettings(patch: SettingsPatch): void {
   pending = merge(pending, patch);
-  settings = settingsFrom({ ...settings, ...patch, said: { ...settings.said, ...patch.said } });
+  settings = settingsFrom({
+    ...settings,
+    ...patch,
+    appearance: { ...settings.appearance, ...patch.appearance },
+    said: { ...settings.said, ...patch.said },
+  });
   cacheBootTheme();
   changes.notify();
   clearTimeout(timer);

@@ -1,0 +1,7 @@
+{
+  "kind": "style",
+  "id": "round",
+  "name": "Round",
+  "radius": 12,
+  "font": { "size": 14 }
+}

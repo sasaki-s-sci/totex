@@ -1,0 +1,7 @@
+{
+  "kind": "effects",
+  "id": "mica",
+  "name": "Mica",
+  "window": { "material": "mica", "opacity": 0.85 },
+  "blur": 12
+}
