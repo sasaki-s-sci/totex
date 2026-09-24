@@ -7,6 +7,16 @@ export const totexSchema: RJSFSchema = {
   type: "object",
   properties: {
     theme: { title: "Theme", type: "string", enum: ["system", "light", "dark"] },
+    // Ids, not an enum: they name files under ~/.totex/themes as well as the built-ins.
+    appearance: {
+      title: "Appearance",
+      type: "object",
+      properties: {
+        colors: { title: "Colors", type: "string", minLength: 1 },
+        style: { title: "Style", type: "string", minLength: 1 },
+        effects: { title: "Effects", type: "string", minLength: 1 },
+      },
+    },
     language: { title: "Language", type: "string", enum: ["system", "en", "ja"] },
     reveal: { title: "Reveal", type: "string", enum: ["never", "edge", "centre"] },
     walkWrap: { title: "Ctrl+Arrow comes round at the ends", type: "boolean" },

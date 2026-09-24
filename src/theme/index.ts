@@ -7,18 +7,18 @@ import {
 } from "@mui/material/styles";
 
 import { settingsNow } from "../lib/appSettings";
-import { DEFAULT_PRESET, presetById } from "./presets";
-import { type Preset, readPreset, type Scheme } from "./scheme";
+import { useAppearance } from "./appearance";
+import type { ColorsDeclaration, StyleDeclaration } from "./declaration";
+import type { Scheme } from "./scheme";
 
-export { CLASSIC, DEFAULT_PRESET, NEON, PRESETS, presetById } from "./presets";
-export { type Preset, readPreset, SCHEME_KEYS, type Scheme } from "./scheme";
+export { appearanceNow, useAppearance } from "./appearance";
+export type { ColorsDeclaration, EffectsDeclaration, StyleDeclaration } from "./declaration";
+export { SCHEME_KEYS, type Scheme } from "./scheme";
 
 export type ThemeMode = "system" | "light" | "dark";
 
 /** A mode with `system` resolved. */
 export type Half = "light" | "dark";
-
-export const PRESET_KEY = "totex.preset";
 
 const SCHEME_ATTRIBUTE = "data-color-scheme";
 
@@ -38,17 +38,18 @@ function paletteFrom(scheme: Scheme) {
 
 // `cssVariables` lets the graph's thousands of nodes read colours from a plain stylesheet.
 // The attribute selector, not the media query, is what makes the mode switchable.
-export function themeFrom(preset: Preset): Theme {
+// Rebuilt whenever either layer changes; MUI rewrites its variables in place.
+export function themeFrom(colors: ColorsDeclaration, style: StyleDeclaration): Theme {
   return createTheme({
     cssVariables: { colorSchemeSelector: SCHEME_ATTRIBUTE },
     colorSchemes: {
-      light: { palette: paletteFrom(preset.light) },
-      dark: { palette: paletteFrom(preset.dark) },
+      light: { palette: paletteFrom(colors.light) },
+      dark: { palette: paletteFrom(colors.dark) },
     },
-    shape: { borderRadius: 6 },
+    shape: { borderRadius: style.radius },
     typography: {
-      fontFamily: 'system-ui, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif',
-      fontSize: 13,
+      fontFamily: style.font.ui,
+      fontSize: style.font.size,
       button: { textTransform: "none", fontWeight: 600 },
     },
     components: {
@@ -61,18 +62,6 @@ export function themeFrom(preset: Preset): Theme {
     },
   });
 }
-
-// A shipped id, or a whole preset written out.
-export function storedPreset(): Preset {
-  try {
-    const stored = localStorage.getItem(PRESET_KEY);
-    if (stored) return presetById(stored) ?? readPreset(JSON.parse(stored)) ?? DEFAULT_PRESET;
-  } catch {}
-  return DEFAULT_PRESET;
-}
-
-// Built once at load; changing preset is a restart.
-export const theme = themeFrom(storedPreset());
 
 // Read directly: the provider reads it in an effect, a frame after first paint.
 export function storedMode(): ThemeMode {
@@ -91,6 +80,35 @@ function schemeFor(mode: ThemeMode): Half {
 
 function documentScheme(): Half {
   return document.documentElement.getAttribute(SCHEME_ATTRIBUTE) === "dark" ? "dark" : "light";
+}
+
+/** The half the window is drawn in now. */
+export function useHalf(): Half {
+  const { colorScheme } = useColorScheme();
+  return colorScheme ?? documentScheme();
+}
+
+/** What a terminal takes from the layers beyond MUI's palette. */
+export function useTerminalLook() {
+  const { colors, style, effects } = useAppearance();
+  const half = useHalf();
+  return {
+    ansi: colors[half].terminal,
+    mono: style.font.mono,
+    // xterm's webgl renderer paints an opaque ground unless told the page shows through.
+    seeThrough: effects.window.opacity < 1,
+    opacity: effects.window.opacity,
+  };
+}
+
+/** `#rgb`/`#rrggbb` with an alpha channel; anything else is returned as it came. */
+export function withAlpha(colour: string, alpha: number): string {
+  const long = /^#[0-9a-f]{3}$/i.test(colour)
+    ? `#${[...colour.slice(1)].map((digit) => digit + digit).join("")}`
+    : colour;
+  if (alpha >= 1 || !/^#[0-9a-f]{6}$/i.test(long)) return colour;
+  const byte = Math.round(Math.max(0, alpha) * 255);
+  return long + byte.toString(16).padStart(2, "0");
 }
 
 // `useTheme().palette` holds the default half only; the switch happens in CSS. Read the

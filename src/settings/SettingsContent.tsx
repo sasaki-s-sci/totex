@@ -1,5 +1,6 @@
 import { Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { AppearanceRows } from "./AppearanceRows";
 import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
 import { GapRow } from "./GapRow";
@@ -51,6 +52,9 @@ export function SettingsContent() {
       </Section>
       <Section name={t("settings.other")}>
         <ThemeRow />
+        <Group name={t("settings.appearance")}>
+          <AppearanceRows />
+        </Group>
         <LanguageRow />
         <UpdateRow />
       </Section>

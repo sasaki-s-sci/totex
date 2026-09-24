@@ -1,0 +1,7 @@
+{
+  "kind": "effects",
+  "id": "glass",
+  "name": "Glass",
+  "window": { "material": "acrylic", "opacity": 0.8 },
+  "blur": 16
+}

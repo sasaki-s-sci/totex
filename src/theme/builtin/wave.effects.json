@@ -1,0 +1,6 @@
+{
+  "kind": "effects",
+  "id": "wave",
+  "name": "Wave",
+  "wave": { "enabled": true, "strength": 0.5, "period": 14 }
+}

@@ -127,7 +127,7 @@
   overflow: hidden;
   color: var(--mui-palette-text-disabled);
   opacity: var(--said-opacity, 1);
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: var(--totex-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
   font-size: var(--said-size, 9px);
   line-height: 1.35;
   overflow-wrap: anywhere;

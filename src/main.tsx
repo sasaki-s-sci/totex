@@ -27,6 +27,7 @@ import {
 import { prime } from "./lib/remembered";
 import { isCardWindow } from "./lib/thisWindow";
 import { applyStoredMode } from "./theme";
+import { loadThemes } from "./theme/registry";
 
 // Written before the first paint; the provider settles the same thing an effect later.
 applyStoredMode();
@@ -73,6 +74,7 @@ connection?.install({
 Promise.all([
   prime(),
   loadSettings(),
+  loadThemes(),
   swapEphemeral(),
   canvasPart.warm(),
   ...(connection?.snapshot
@@ -84,6 +86,7 @@ Promise.all([
     applyStoredMode();
     window.addEventListener("focus", () => {
       void refreshSettings();
+      void loadThemes();
     });
     window.addEventListener("pagehide", () => {
       void flushSettings();

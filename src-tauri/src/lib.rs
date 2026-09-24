@@ -11,6 +11,7 @@ mod pty;
 mod release;
 mod space;
 mod tasks;
+mod themes;
 mod update;
 
 /// The machine, as the app knows it.
@@ -223,6 +224,8 @@ pub fn run() {
             app_settings::app_settings_read,
             app_settings::app_settings_patch,
             app_settings::app_settings_write,
+            themes::themes_read,
+            themes::themes_open,
             read_file_head,
             read_file_data,
             write_file,
