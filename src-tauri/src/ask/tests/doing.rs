@@ -3,7 +3,7 @@
 
 use super::super::watch::Watcher;
 use super::super::{Doing, doing};
-use super::{full_screen_box, inline_agent, screen_of};
+use super::{editor_screen, full_screen_box, inline_agent, screen_of};
 
 /// A shell standing at its prompt with nothing typed at it: the one state where
 /// the window is waiting for the person rather than the other way round.
@@ -107,13 +107,40 @@ fn an_agent_that_handed_the_terminal_back_has_stopped() {
     assert_eq!(doing(&screen, Some("claude")), Doing::Idle);
 }
 
-/// The same screen, run by something that is not an agent. A full-screen
-/// program is a command like any other, and the two are told apart by the one
-/// thing that says which program is up.
+/// A terminal taken by something that is not an agent. An editor takes the
+/// terminal the same two ways an agent does, and what tells them apart is what
+/// is drawn on it: an editor draws nowhere to type a turn.
 #[test]
 fn another_full_screen_program_is_only_running() {
-    let screen = screen_of(&full_screen_box());
-    assert_ne!(doing(&screen, Some("vim src/main.rs")), Doing::Agent);
+    let screen = screen_of(&editor_screen());
+    assert_eq!(doing(&screen, Some("vim src/main.rs")), Doing::Running);
+    assert_eq!(doing(&screen, None), Doing::Running);
+}
+
+/// An agent whose start was never read is an agent all the same: the line that
+/// started it is read a moment before the agent takes the terminal, and on a
+/// terminal that repaints rather than prints that moment is not to be relied
+/// on. What is relied on instead is what the agent draws.
+#[test]
+fn an_agent_whose_start_was_never_read_is_still_an_agent() {
+    assert_eq!(doing(&screen_of(&full_screen_box()), None), Doing::Agent);
+    for (hint, expected) in [
+        ("? for shortcuts", Doing::Agent),
+        ("⏸ manual mode on · esc to interrupt", Doing::Working),
+        ("• Working (2s • esc to interrupt)", Doing::Working),
+    ] {
+        let screen = screen_of(&inline_agent(hint));
+        assert_eq!(doing(&screen, None), expected, "{hint}");
+    }
+}
+
+/// And what was typed still counts where the screen says nothing: a name in
+/// `AGENTS` on a taken terminal is an agent before it has drawn a composer.
+#[test]
+fn an_agent_named_at_the_shell_is_one_before_it_has_drawn() {
+    let screen = screen_of("\u{1b}[?1004h\u{1b}[2J\u{1b}[H  Loading…");
+    assert_eq!(doing(&screen, Some("claude")), Doing::Agent);
+    assert_eq!(doing(&screen, None), Doing::Running);
 }
 
 /// And the moment the agent hands that screen back, it has stopped being one —
@@ -170,12 +197,61 @@ fn a_launcher_with_switches_still_names_the_agent() {
     }
 }
 
-/// A session nobody has typed anything into cannot be running an agent, whatever
-/// is on its screen.
+/// Once read as an agent, a session stays one until the terminal is handed
+/// back: a question box drawn where the composer was is the agent asking, not
+/// the agent gone.
 #[test]
-fn a_session_never_typed_at_is_not_an_agent() {
-    let screen = screen_of(&full_screen_box());
-    assert_ne!(doing(&screen, None), Doing::Agent);
+fn an_agent_asking_in_a_box_is_still_an_agent() {
+    let mut watcher = Watcher::new(24, 60);
+    let mut at = 0;
+    assert_eq!(
+        told(&mut watcher, &mut at, &inline_agent("? for shortcuts")),
+        Some(Doing::Agent)
+    );
+    // The whole screen redrawn as a box, with no composer anywhere on it.
+    let boxed = [
+        "\u{1b}[2J\u{1b}[H",
+        "╭──────────────────────────────╮\r\n",
+        "│ Do you want to proceed?      │\r\n",
+        "│   1. Yes                     │\r\n",
+        "│   2. No                      │\r\n",
+        "╰──────────────────────────────╯\r\n",
+        "  Esc to cancel",
+    ]
+    .concat();
+    assert_eq!(told(&mut watcher, &mut at, &boxed), None);
+    assert_eq!(watcher.doing(), Doing::Agent);
+    // And handing the terminal back is what ends it.
+    assert_eq!(
+        told(&mut watcher, &mut at, "\u{1b}[?1004l\r\na@box:~/repo$ "),
+        Some(Doing::Idle)
+    );
+}
+
+/// An editor taken and given back, in a session nobody typed an agent into,
+/// is never an agent: what it draws has nowhere to type a turn.
+#[test]
+fn an_editor_is_not_an_agent_however_it_took_the_terminal() {
+    let mut watcher = Watcher::new(24, 60);
+    let mut at = 0;
+    assert_eq!(
+        told(&mut watcher, &mut at, "a@box:~/repo$ "),
+        Some(Doing::Idle)
+    );
+    assert_eq!(
+        told(&mut watcher, &mut at, "vim src/main.rs\r\n"),
+        Some(Doing::Running)
+    );
+    assert_eq!(told(&mut watcher, &mut at, &editor_screen()), None);
+    assert_eq!(watcher.doing(), Doing::Running);
+    assert_eq!(
+        told(
+            &mut watcher,
+            &mut at,
+            "\u{1b}[?1004l\u{1b}[?1049l\r\na@box:~/repo$ "
+        ),
+        Some(Doing::Idle)
+    );
 }
 
 /// Feeds a run of output to a watcher the way a session does, and says what the

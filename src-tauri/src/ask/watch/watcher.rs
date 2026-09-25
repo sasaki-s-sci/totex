@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::super::{Ask, Doing, Reading, Screen, doing, read, typed};
+use super::super::{Ask, Doing, Reading, Screen, doing_as, read, typed};
 
 /// What a session whose terminal has been taken over cannot be asked twice.
 ///
@@ -17,6 +17,11 @@ pub struct Taken {
     started: Option<String>,
     watched: bool,
     alt: bool,
+    /// Whether what took it was read as an agent — see `Watcher::agent`. Kept
+    /// with the rest because it is the reading that outlives the drawing it
+    /// was taken from, and absent from what an older window kept.
+    #[serde(default)]
+    agent: bool,
 }
 
 /// Fed everything the session says whether or not a terminal is being drawn for
@@ -51,6 +56,16 @@ pub struct Watcher {
     /// started it, and it is left standing for as long as the agent has the
     /// terminal.
     started: Option<String>,
+    /// Whether the program holding the terminal has been read as an agent.
+    ///
+    /// Held, not read afresh each time: an agent is recognised by its composer
+    /// or by the line that started it, and neither is on the screen the whole
+    /// time it runs — a question box is drawn where the composer was, and the
+    /// starting line is only ever seen at the start. So this stands from the
+    /// first frame that said so until the terminal is handed back, which is the
+    /// one thing that says the agent has gone. Kept outside the window with
+    /// `started` for the same reason it is.
+    agent: bool,
     /// What the session is doing, as its screen stands.
     ///
     /// Kept rather than read when asked for, because this one is *sent*: the
@@ -82,6 +97,7 @@ impl Watcher {
             asking: None,
             typed: None,
             started: None,
+            agent: false,
             // A shell that has not printed its prompt yet is a shell nobody
             // can type at, which is what starting up is.
             doing: Doing::Running,
@@ -96,6 +112,7 @@ impl Watcher {
     /// the program going, another starting — is read over this as it comes.
     pub(super) fn resume(&mut self, taken: &Taken) {
         self.started = taken.started.clone();
+        self.agent = taken.agent;
         self.screen.retake(taken.watched, taken.alt);
     }
 
@@ -187,7 +204,13 @@ impl Watcher {
 
     /// Takes the session's state off the screen as it stands, and keeps it.
     fn reckon(&mut self) {
-        let doing = doing(&self.screen, self.started.as_deref());
+        // Handing the terminal back is what ends an agent; nothing drawn while
+        // it is held does.
+        if !self.screen.standing().taken {
+            self.agent = false;
+        }
+        let doing = doing_as(&self.screen, self.started.as_deref(), self.agent);
+        self.agent = matches!(doing, Doing::Agent | Doing::Working);
         if doing == self.doing {
             return;
         }
@@ -213,6 +236,7 @@ impl Watcher {
             started: self.started.clone(),
             watched,
             alt,
+            agent: self.agent,
         })
     }
 

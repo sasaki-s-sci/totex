@@ -35,7 +35,9 @@ pub mod watch;
 #[cfg(test)]
 mod tests;
 
-pub use doing::{Doing, doing};
+#[cfg(test)]
+pub(crate) use doing::doing;
+pub use doing::{Doing, doing_as};
 pub use read::read;
 pub use screen::Screen;
 pub use typed::typed;

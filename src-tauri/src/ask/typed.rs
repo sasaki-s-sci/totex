@@ -30,7 +30,7 @@ use super::screen::Screen;
 /// same character opens every line of what an agent says it has done, and a
 /// reading that took those would say `Listing 1 directory…` where somebody
 /// asked for a directory to be listed.
-const OPENERS: [char; 5] = ['❯', '>', '▶', '›', '»'];
+pub(super) const OPENERS: [char; 5] = ['❯', '>', '▶', '›', '»'];
 
 /// The last thing typed at this session, if any of it is still drawn.
 pub fn typed(screen: &Screen) -> Option<String> {

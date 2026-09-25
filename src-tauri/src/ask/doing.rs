@@ -14,12 +14,20 @@
 //! machine this app runs on.
 //!
 //! Four states out of three readings, and every one of them is deliberately
-//! blunt. What was typed at the shell says *what* is running — see `AGENTS`,
-//! which is the one place in this app that reads what somebody ran rather than
-//! that they ran something. Whether the terminal has been taken over says
-//! whether it is still running — see `Standing::taken`. And for anything that
-//! is not an agent, somewhere to type at the caret means the session is waiting
-//! for somebody, while nowhere to type means something is running.
+//! blunt. Whether the terminal has been taken over says that something is
+//! drawing rather than printing — see `Standing::taken`. What that something is
+//! is read two ways, either of which is enough: what was typed at the shell —
+//! see `AGENTS`, the one place in this app that reads what somebody ran rather
+//! than that they ran something — and what is drawn on the taken terminal, see
+//! `COMPOSERS`. The second is there because the first is not to be relied on:
+//! the line that started the agent is read off the screen a moment before the
+//! agent takes it, and on a terminal that repaints rather than prints — a
+//! Windows console, which is where this app runs — that moment was never
+//! observed to come. Every taken terminal on the machine this was measured on
+//! stood with no record of what started it, and so no agent was ever drawn. And
+//! for anything that is not an agent, somewhere to type at the caret means the
+//! session is waiting for somebody, while nowhere to type means something is
+//! running.
 //!
 //! An agent is asked the last of those a different way. Its composer is
 //! somewhere to type whatever it is doing — that is the whole point of a
@@ -29,6 +37,7 @@
 
 use super::glyph::{MARKERS, SIGILS};
 use super::screen::Screen;
+use super::typed::OPENERS;
 
 use serde::Serialize;
 
@@ -80,29 +89,60 @@ const AGENTS: [&str; 5] = ["claude", "codex", "opencode", "gemini", "aider"];
 /// is most certainly not the agent working.
 const STOPPING: [&str; 3] = ["esc to interrupt", "esc interrupt", "esc to stop"];
 
+/// What an agent draws as the place to type at it, and a shell never does: the
+/// mark its composer opens with.
+///
+/// The same marks `typed` reads a turn after, with one more: the bar Claude
+/// Code draws its composer behind on a screen of its own. A shell prompt ends
+/// in one of `SIGILS`, never opens with one of these; and a program that took
+/// the terminal to edit or page through a file draws no line to type a turn
+/// on. So a taken terminal with one of these at the head of a line is a
+/// session somebody is having, whatever started it and whether or not that
+/// start was ever seen.
+const COMPOSERS: [char; 6] = [
+    OPENERS[0], OPENERS[1], OPENERS[2], OPENERS[3], OPENERS[4], '▌',
+];
+
 /// What stands in front of a command without being one: the environment it is
 /// given, and the programs whose whole job is to run the next word along.
 const LAUNCHERS: [&str; 9] = [
     "npx", "bunx", "pnpx", "uvx", "sudo", "env", "exec", "command", "time",
 ];
 
-/// What a session is doing, out of its screen and the last thing typed at it.
-///
-/// The two are read together on purpose. The screen says whether anybody is
-/// being waited for; it cannot say what they are waiting for, because an
-/// agent's composer and a shell's prompt are the same thing to a terminal. So
-/// what was typed says which program is up, and the terminal having been taken
-/// over says it is still up — which is a fact about the terminal rather than a
-/// guess about the program.
+/// The reading as the tests take it, with nothing yet known about the session:
+/// the watcher always asks with what it knows, see `doing_as`.
+#[cfg(test)]
 pub fn doing(screen: &Screen, started: Option<&str>) -> Doing {
+    doing_as(screen, started, false)
+}
+
+/// What a session is doing, out of its screen, the last thing typed at it, and
+/// what the reading said last time.
+///
+/// The screen says whether anybody is being waited for; it cannot say what
+/// they are waiting for, because an agent's composer and a shell's prompt are
+/// the same thing to a terminal. So the terminal having been taken over says
+/// something is up — a fact about the terminal rather than a guess about the
+/// program — and which program it is comes from what was typed, or from what
+/// the program went on to draw.
+///
+/// `seen` is what the reading said last time: the watcher passes it back,
+/// because an agent stopping to ask something draws a box in place of its
+/// composer, and a reading that took every screen on its own would say the
+/// agent had gone every time it asked. What ends an agent is the terminal being
+/// handed back, and nothing drawn on it while it is held.
+pub fn doing_as(screen: &Screen, started: Option<&str>, seen: bool) -> Doing {
     let standing = screen.standing();
-    if standing.taken && started.is_some_and(agent) {
-        // An agent is the session itself for the whole of its run, so what is
-        // left to say is only which half of that run this is.
-        return match working(&screen.lines()) {
-            true => Doing::Working,
-            false => Doing::Agent,
-        };
+    if standing.taken {
+        let lines = screen.lines();
+        if seen || started.is_some_and(agent) || composing(&lines) {
+            // An agent is the session itself for the whole of its run, so what
+            // is left to say is only which half of that run this is.
+            return match working(&lines) {
+                true => Doing::Working,
+                false => Doing::Agent,
+            };
+        }
     }
     // What is in front of the caret, with nothing trimmed off the end of it:
     // the space after a shell's sigil is the whole of what says the sigil is a
@@ -124,6 +164,25 @@ fn working(lines: &[String]) -> bool {
     lines.iter().any(|line| {
         let said = line.to_lowercase();
         STOPPING.iter().any(|offer| said.contains(offer))
+    })
+}
+
+/// Whether the screen has an agent's composer drawn on it: a line opening with
+/// one of `COMPOSERS`, wherever on the screen the agent put it.
+///
+/// Anywhere rather than at the caret, because the two agents measured leave
+/// the caret in different places — Claude Code in its composer, Codex on the
+/// hint under it — and the fixtures beside this reading stand it on the hint.
+/// A turn already taken opens with the same mark as the composer, and counts
+/// the same: what is being asked is whether an agent is up, not where it is.
+fn composing(lines: &[String]) -> bool {
+    // The line as drawn rather than undressed: the bar is a side to `undressed`,
+    // and taking it off would take the one composer it stands for with it.
+    lines.iter().any(|line| {
+        line.trim_start()
+            .chars()
+            .next()
+            .is_some_and(|first| COMPOSERS.contains(&first))
     })
 }
 

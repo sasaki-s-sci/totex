@@ -76,6 +76,23 @@ pub(super) fn inline_agent(hint: &str) -> String {
     .concat()
 }
 
+/// What an editor draws when it takes the terminal: a screen of its own, the
+/// tildes down the side of an empty buffer, and a status line. Nothing on it is
+/// somewhere to type a turn.
+pub(super) fn editor_screen() -> String {
+    [
+        "\u{1b}[?1049h\u{1b}[?1004h\u{1b}[2J\u{1b}[H",
+        "fn main() {\r\n",
+        "    println!(\"hello\");\r\n",
+        "}\r\n",
+        "~\r\n",
+        "~\r\n",
+        "~\r\n",
+        "\"src/main.rs\" 3L, 38B                    1,1           All",
+    ]
+    .concat()
+}
+
 pub(super) fn screen_of(text: &str) -> Screen {
     let mut screen = Screen::new(24, 60);
     screen.feed(text);
