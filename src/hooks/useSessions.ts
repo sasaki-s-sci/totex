@@ -34,11 +34,17 @@ export function useSessions() {
     return endShell(going.id).catch(() => undefined);
   }, []);
 
-  const open = useCallback((next: Session) => {
+  // `below` puts it straight after that terminal, wherever it stands; otherwise it goes last.
+  const open = useCallback((next: Session, below?: string) => {
     // Started with the session, not by whatever draws it; the terminal retries and reports a
     // failure.
     void startShell(next).catch(() => undefined);
-    setSessions((current) => [...current, next]);
+    setSessions((current) => {
+      const at = current.findIndex((session) => session.id === below);
+      return at < 0
+        ? [...current, next]
+        : [...current.slice(0, at + 1), next, ...current.slice(at + 1)];
+    });
     setShowing(next.id);
   }, []);
 

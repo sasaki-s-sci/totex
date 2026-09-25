@@ -12,6 +12,7 @@ import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
+import { TerminalSortRow } from "./TerminalSortRow";
 import { ThemeRow } from "./ThemeRow";
 import { UpdateRow } from "./UpdateRow";
 import { WalkRow } from "./WalkRow";
@@ -48,6 +49,7 @@ export function SettingsContent() {
       </Section>
       <Section name={t("settings.terminal")}>
         <WheelRow place="cli" />
+        <TerminalSortRow />
         <SaidRows />
       </Section>
       <Section name={t("settings.other")}>

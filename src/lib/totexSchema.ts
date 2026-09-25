@@ -20,6 +20,11 @@ export const totexSchema: RJSFSchema = {
     language: { title: "Language", type: "string", enum: ["system", "en", "ja"] },
     reveal: { title: "Reveal", type: "string", enum: ["never", "edge", "centre"] },
     walkWrap: { title: "Ctrl+Arrow comes round at the ends", type: "boolean" },
+    terminalSort: {
+      title: "Terminal sort",
+      type: "string",
+      enum: ["createdWhere", "createdAt"],
+    },
     follow: { title: "Follow", type: "boolean" },
     spareWorktree: { title: "Keep a spare worktree", type: "boolean" },
     backgroundGrid: { title: "Background grid", type: "boolean" },

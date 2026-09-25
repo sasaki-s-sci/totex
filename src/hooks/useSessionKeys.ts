@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
+import { settingsNow } from "../lib/appSettings";
 import { terminal, typing } from "../lib/keys";
 import { type Session, shellSession } from "../lib/session";
 
 type Options = {
   sessions: readonly Session[];
   showing: string | null;
-  open: (session: Session) => void;
+  open: (session: Session, below?: string) => void;
 };
 
 export function useSessionKeys({ sessions, showing, open }: Options) {
@@ -30,7 +31,8 @@ export function useSessionKeys({ sessions, showing, open }: Options) {
       event.preventDefault();
       // Not on repeat.
       if (event.repeat) return;
-      open(shellSession(shown.cwd, shown.branch, shown.folder));
+      const below = settingsNow().terminalSort === "createdWhere" ? shown.id : undefined;
+      open(shellSession(shown.cwd, shown.branch, shown.folder), below);
     };
 
     window.addEventListener("keydown", onKeyDown);

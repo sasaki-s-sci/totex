@@ -24,6 +24,7 @@ fn validate(value: &Value) -> Result<(), String> {
         ("language", &["system", "en", "ja"][..]),
         ("reveal", &["never", "edge", "centre"][..]),
         ("fileTitle", &["name", "path"][..]),
+        ("terminalSort", &["createdWhere", "createdAt"][..]),
     ] {
         if let Some(v) = object.get(key)
             && !v.as_str().is_some_and(|s| choices.contains(&s))
@@ -198,6 +199,7 @@ mod tests {
             "{\"follow\":\"yes\"}",
             "{\"backgroundGrid\":\"yes\"}",
             "{\"fileTitle\":\"bad\"}",
+            "{\"terminalSort\":\"bad\"}",
             "{\"cliWheel\":0}",
             "{\"graphWheel\":401}",
         ] {

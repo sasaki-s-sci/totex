@@ -28,6 +28,7 @@ test("migrates all existing user preferences, including line size one", () => {
       language: "ja",
       reveal: "centre",
       walkWrap: true,
+      terminalSort: "createdWhere",
       follow: true,
       spareWorktree: true,
       backgroundGrid: false,

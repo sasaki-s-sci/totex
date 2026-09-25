@@ -6,6 +6,8 @@ export type AppSettings = {
   reveal: "never" | "edge" | "centre";
   /** Whether Ctrl+Arrow, at the last terminal or group, comes round to the first. */
   walkWrap: boolean;
+  /** Where Ctrl+A puts its terminal: after the one it was pressed in, or after every other. */
+  terminalSort: "createdWhere" | "createdAt";
   follow: boolean;
   /** Whether a worktree is kept checked out ahead of time for the next branch to take. */
   spareWorktree: boolean;
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "system",
   reveal: "edge",
   walkWrap: true,
+  terminalSort: "createdWhere",
   follow: false,
   spareWorktree: true,
   backgroundGrid: false,
@@ -103,6 +106,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     language: pick("totex.language", ["system", "en", "ja"], "system"),
     reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
     walkWrap: true,
+    terminalSort: "createdWhere",
     follow: read("totex.follow") === "on",
     spareWorktree: true,
     backgroundGrid: false,
