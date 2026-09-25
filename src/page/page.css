@@ -122,6 +122,16 @@
   cursor: grab;
 }
 
+/* In the sidebar the header is the window's title bar: everything but a control lets the press
+   through to the drag sheet beneath it. */
+.page--sidebar .page__header > :not(.page__window-drag) {
+  pointer-events: none;
+}
+
+.page--sidebar .page__header :is(button, select, input, a) {
+  pointer-events: auto;
+}
+
 .page .page__body[hidden] {
   display: none;
 }
