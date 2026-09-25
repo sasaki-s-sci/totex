@@ -237,9 +237,14 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
         return false;
       }
 
-      // Ctrl+digit, Ctrl+arrow, Ctrl+A and Ctrl+Alt+A are the window's keys.
+      // Ctrl+digit, Ctrl+arrow, Ctrl+A, Ctrl+Alt+A and Ctrl+X are the window's keys. xterm stops
+      // the propagation of every key it sends, so a key the window wants must be refused here.
       const digit = event.key.length === 1 && event.key >= "0" && event.key <= "9";
       if (plain && event.ctrlKey && !event.shiftKey && digit) return false;
+
+      if (plain && event.ctrlKey && !event.shiftKey && event.key.toLowerCase() === "x") {
+        return false;
+      }
 
       if (plain && event.ctrlKey && ARROWS.has(event.key)) return false;
 

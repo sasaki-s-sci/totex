@@ -312,7 +312,8 @@ export function Canvas({
 
   const {
     picked,
-    jumps,
+    numbers,
+    holding,
     offering,
     selectedCommit,
     setSelectedCommit,
@@ -350,7 +351,9 @@ export function Canvas({
 
   const cliPlaces = useMemo(() => new Map(run.map((place) => [place.group, place.name])), [run]);
 
-  const typed = useCliTyped(jumps !== null, showing, asks, reports);
+  const jumps = useMemo(() => ({ numbers, holding }), [numbers, holding]);
+
+  const typed = useCliTyped(holding, showing, asks, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,

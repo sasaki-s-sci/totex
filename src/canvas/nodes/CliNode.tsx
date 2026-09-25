@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
 import { CliGlyph } from "../../marks";
 import { useCliDoing } from "../cliDoing";
-import { useCliJump } from "../cliJumps";
+import { useCliHolding, useCliJump } from "../cliJumps";
 import { useCliPlace } from "../cliPlaces";
 import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
@@ -15,6 +15,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { session, showing, ordinal, group } = data;
   const { showSession, endSession } = useGraphActions();
   const jump = useCliJump(id);
+  const holding = useCliHolding();
   const said = useTypedLine(session.id);
   const doing = useCliDoing(session.id);
   const place = useCliPlace(group);
@@ -25,7 +26,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
     <div className="cell cli">
       <div className="mark mark--centred cli__row">
         {/* Room is always held for the place and the end mark, so a stack never shifts under the pointer. */}
-        {showing && jump !== null && place ? (
+        {showing && holding && place ? (
           <span className="cli__place" aria-hidden="true">
             <span className="cli__place-name">{place}</span>
             <CliIdentity cwd={session.cwd} shown />

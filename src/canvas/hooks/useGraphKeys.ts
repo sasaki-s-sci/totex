@@ -14,7 +14,6 @@ import {
 import { terminal, typing } from "../../lib/keys";
 import { revealing } from "../../lib/reveal";
 import { isWrapping } from "../../lib/walk";
-import type { CliJumps } from "../cliJumps";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
   ArrowRight: { x: 1, y: 0 },
@@ -233,9 +232,10 @@ export function useGraphKeys({
         return;
       }
 
-      // The ended shell sees the ^D as well; stopping that would cost every terminal its EOF.
-      if (event.key.toLowerCase() === "d" && !event.shiftKey && at.current) {
-        const node = latest.current.nodes.find((candidate) => candidate.id === at.current);
+      // Ends the terminal stood on, else the one looked at. A text field keeps Ctrl+X for cut.
+      if (event.key.toLowerCase() === "x" && !event.shiftKey && !writing) {
+        const standing = at.current ?? latest.current.shown;
+        const node = latest.current.nodes.find((candidate) => candidate.id === standing);
 
         if (node?.type !== "cli") return;
         event.preventDefault();
@@ -331,8 +331,8 @@ export function useGraphKeys({
     };
   }, [picked, nodes, host, offering]);
 
-  const jumps: CliJumps = holding ? numbers : null;
-  return { picked, jumps, offering };
+  // The numbers are always the canvas's to draw; what Ctrl adds is the labels beside them.
+  return { picked, numbers, holding, offering };
 }
 
 function numeric(event: KeyboardEvent): boolean {

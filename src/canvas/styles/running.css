@@ -1,6 +1,8 @@
 .cli__row {
   display: flex;
-  width: 16px;
+  /* As wide as the mark and its number: the row is centred on the cell, so it grows both ways. */
+  width: max-content;
+  min-width: 16px;
   height: 16px;
   align-items: center;
   justify-content: center;

@@ -2,7 +2,7 @@ import { Box, Typography } from "@mui/material";
 import type { Doing } from "../lib/doing";
 import type { CliPlace } from "../lib/graphNav";
 import type { Session } from "../lib/session";
-import { CLI_GLYPH, CliGlyph } from "../marks";
+import { CLI_GLYPH, CLI_NUMBER, CliGlyph } from "../marks";
 
 const GAP = 4;
 const GROUP_GAP = 6;
@@ -24,8 +24,9 @@ type Party = {
   key: string;
 };
 
+// Every mark in a run has a number after it; a session off the graph has none, and is never in a run.
 function marksWide(party: Party): number {
-  return party.run.length * CLI_GLYPH + (party.run.length - 1) * GAP;
+  return party.run.length * (CLI_GLYPH + CLI_NUMBER) + (party.run.length - 1) * GAP;
 }
 
 // Consecutive, not grouped by row: grouping would put the numbers out of order.
@@ -105,14 +106,14 @@ export function TabStrip({ run, sessions, showing, doings }: Props) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    width: `${CLI_GLYPH}px`,
+                    minWidth: `${CLI_GLYPH}px`,
                     height: `${CLI_GLYPH}px`,
                     flex: "none",
                     color: lit ? "primary.main" : "text.disabled",
                     ml: slot === 0 ? 0 : `${GAP}px`,
                   }}
                 >
-                  <CliGlyph doing={doings.get(place.session) ?? null} jump={lit ? jump : null} />
+                  <CliGlyph doing={doings.get(place.session) ?? null} jump={jump} />
                 </Box>
               );
             })}
