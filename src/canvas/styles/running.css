@@ -123,7 +123,8 @@
   margin-left: 15px;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: var(--said-lines, 1);
+  /* A turn typed over several rows shows every row, however few lines are set. */
+  -webkit-line-clamp: max(var(--said-lines, 1), var(--said-rows, 1));
   width: max-content;
   max-width: var(--said-width, 220px);
   overflow: hidden;
@@ -133,6 +134,7 @@
   font-size: var(--said-size, 9px);
   line-height: 1.35;
   overflow-wrap: anywhere;
+  white-space: pre-line;
   transform: translateY(-50%);
   pointer-events: none;
 }

@@ -73,31 +73,42 @@ fn at_the_caret(screen: &Screen) -> Option<String> {
     if standing.alt && standing.shown && line.trim_start().starts_with('▌') {
         return written(undressed(&line)).map(str::to_string);
     }
-    if let Some(said) = prompted(undressed(&line)) {
-        return Some(said.to_string());
+    // A composer's later rows before a prompt's own: `  a > b` typed on the
+    // second row is words, not a prompt with `b` at it.
+    if let Some(said) = continued(&lines[..standing.row], undressed(&line)) {
+        return Some(said);
     }
-    if blank(undressed(&line))
-        || choice_of(undressed(&line)).is_some()
-        || !undressed(&line).starts_with(' ')
-    {
+    prompted(undressed(&line)).map(str::to_string)
+}
+
+/// Everything typed into a composer that runs over several rows, when the caret
+/// stands on one of the later ones.
+///
+/// An agent takes a newline into its composer and indents the rows after the
+/// first, so only the first carries the mark. The caret's row may well be blank
+/// — it is, straight after the newline is typed — and is still part of what is
+/// being typed rather than a reason to go and read the transcript, which would
+/// find the mark and say only the first row.
+fn continued(above: &[String], line: &str) -> Option<String> {
+    if choice_of(line).is_some() || !line.starts_with(' ') {
         return None;
     }
-    // Continuation rows retain the composer marker on an earlier row.
-    let mut continuation = vec![undressed(&line).trim().to_string()];
-    for previous in lines[..standing.row].iter().rev() {
+    let mut rows = vec![line.trim().to_string()];
+    for previous in above.iter().rev() {
         let previous = undressed(previous);
         if super::glyph::is_edge(previous) {
-            break;
+            return None;
         }
         if let Some(first) = opened(previous) {
-            continuation.push(first.to_string());
-            continuation.reverse();
-            return Some(continuation.join("\n"));
+            rows.push(first.to_string());
+            rows.reverse();
+            // The row just opened by a newline has nothing on it yet.
+            return Some(rows.join("\n").trim_end().to_string());
         }
         if !blank(previous) && !previous.starts_with(' ') {
-            break;
+            return None;
         }
-        continuation.push(previous.trim().to_string());
+        rows.push(previous.trim().to_string());
     }
     None
 }
@@ -129,10 +140,23 @@ fn in_the_transcript(screen: &Screen) -> Option<String> {
     } else {
         lines.len()
     };
-    lines[..end]
+    let lines = &lines[..end];
+    let (at, first) = lines
         .iter()
+        .enumerate()
         .rev()
-        .find_map(|line| opened(undressed(line)).map(str::to_string))
+        .find_map(|(at, line)| opened(undressed(line)).map(|first| (at, first)))?;
+    // A turn typed over several rows is echoed the way it was composed: the
+    // rows after the mark are indented, and the first row that is not ends it.
+    let mut said = vec![first];
+    for row in &lines[at + 1..] {
+        let row = undressed(row);
+        if blank(row) || !row.starts_with(' ') || super::glyph::is_edge(row) {
+            break;
+        }
+        said.push(row.trim());
+    }
+    Some(said.join("\n"))
 }
 
 /// What follows the place to type on a line, wherever that place is.

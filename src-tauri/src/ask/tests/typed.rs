@@ -184,6 +184,59 @@ fn multiline_composer_keeps_the_user_turn() {
     }
 }
 
+/// Straight after a newline is typed into a composer the caret stands on an
+/// empty indented row. That row is still the composer, so every row above it
+/// is read — not the transcript, which would find the mark and say only the
+/// first.
+#[test]
+fn a_newline_just_typed_into_a_composer_keeps_every_row() {
+    let text = [
+        "\u{1b}[2J\u{1b}[H",
+        &format!("{}\r\n", rule()),
+        "\u{276f} fix input\r\n",
+        "  and animation\r\n",
+        "  \r\n",
+        &format!("{}\r\n", rule()),
+        "  \u{23f8} manual mode on\u{1b}[5;3H",
+    ]
+    .concat();
+    assert_eq!(
+        typed(&screen_of(&text)).as_deref(),
+        Some("fix input\nand animation")
+    );
+}
+
+/// A later row of a composer is words, whatever sigils are in them.
+#[test]
+fn a_sigil_on_a_later_composer_row_is_part_of_the_turn() {
+    let screen = screen_of("\u{276f} build it\r\n  then cargo test > log");
+    assert_eq!(
+        typed(&screen).as_deref(),
+        Some("build it\nthen cargo test > log")
+    );
+}
+
+/// A turn sent over several rows is echoed back over several, and read whole.
+#[test]
+fn a_turn_echoed_over_several_rows_is_read_whole() {
+    let text = [
+        "\u{1b}[2J\u{1b}[H",
+        "\u{276f} fix input\r\n",
+        "  and animation\r\n",
+        "\r\n",
+        "\u{25cf} I will look.\r\n",
+        "\r\n",
+        &format!("{}\r\n", rule()),
+        "\u{276f}\r\n",
+        &format!("{}\r\n", rule()),
+    ]
+    .concat();
+    assert_eq!(
+        typed(&screen_of(&text)).as_deref(),
+        Some("fix input\nand animation")
+    );
+}
+
 #[test]
 fn full_screen_bar_composer_is_input_even_when_it_asks_a_question() {
     let screen = screen_of("\x1b[?1049h▌ why does this fail?");

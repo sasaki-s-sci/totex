@@ -1,5 +1,6 @@
 import CloseIcon from "@mui/icons-material/Close";
 import type { NodeProps } from "@xyflow/react";
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
 import { CliGlyph } from "../../marks";
@@ -61,7 +62,11 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
         </button>
 
         {said === null ? null : (
-          <span className="cli__said" aria-hidden="true">
+          <span
+            className="cli__said"
+            aria-hidden="true"
+            style={{ "--said-rows": said.split("\n").length } as CSSProperties}
+          >
             {said}
           </span>
         )}
