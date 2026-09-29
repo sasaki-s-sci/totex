@@ -1,5 +1,5 @@
 import { Box, Divider, Stack } from "@mui/material";
-import { useState } from "react";
+import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createEntry, renameFile } from "../folder/api";
 import { DROP_INTO, folderUnder } from "../folder/dropInto";
@@ -13,6 +13,7 @@ import { HEADER_INSET } from "../window/WindowControls";
 import { FileContextMenu, type FileMenuTarget } from "./left/FileContextMenu";
 import { FolderPane } from "./left/FolderPane";
 import type { Naming } from "./left/NameField";
+import { movePane, PANE_DRAG_TYPE, type PaneGrip, slotAt } from "./left/paneOrder";
 import { RepoPane } from "./left/RepoPane";
 import { RootsMenu } from "./left/RootsMenu";
 import { type FolderDestination, shownPath, usePanes } from "./left/usePanes";
@@ -108,6 +109,38 @@ export function LeftSidebar({
 
   const carrying = (transfer: DataTransfer) => transfer.types.includes(FILE_DRAG_TYPE);
 
+  // A pane picked up by its header goes before the pane the pointer is over; the canvas draws its
+  // places in the column's order, so it moves there too.
+  const carried = useRef<number | null>(null);
+  const [slot, setSlot] = useState<number | null>(null);
+  const moving = (transfer: DataTransfer) => transfer.types.includes(PANE_DRAG_TYPE);
+
+  function gripOf(id: number): PaneGrip {
+    return {
+      draggable: true,
+      onDragStart: (event) => {
+        carried.current = id;
+        event.dataTransfer.setData(PANE_DRAG_TYPE, String(id));
+        event.dataTransfer.effectAllowed = "move";
+      },
+      onDragEnd: () => {
+        carried.current = null;
+        setSlot(null);
+      },
+    };
+  }
+
+  function slotUnder(event: DragEvent<HTMLElement>): number {
+    const boxes = [
+      ...event.currentTarget.querySelectorAll<HTMLElement>(":scope > [data-folder-pane]"),
+    ].map((pane) => pane.getBoundingClientRect());
+    return slotAt(boxes, event.clientY);
+  }
+
+  // Either side of the pane itself is where it already stands: nothing to mark.
+  const from = panes.panes.findIndex((pane) => pane.id === carried.current);
+  const marked = slot === null || slot === from || slot === from + 1 ? null : slot;
+
   return (
     <Sidebar
       id="folder-sidebar"
@@ -186,9 +219,47 @@ export function LeftSidebar({
           // The rail's width is held from the start, so a row's buttons stay put when it appears.
           scrollbarGutter: "stable",
         }}
+        onDragOver={(event) => {
+          if (!moving(event.dataTransfer)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setSlot(slotUnder(event));
+        }}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setSlot(null);
+        }}
+        onDrop={(event) => {
+          if (!moving(event.dataTransfer)) return;
+          event.preventDefault();
+          const id = Number(event.dataTransfer.getData(PANE_DRAG_TYPE));
+          const to = slotUnder(event);
+          setSlot(null);
+          panes.setPanes((current) => movePane(current, id, to));
+        }}
       >
         {panes.panes.map((pane, index) => (
-          <Box key={pane.id} data-folder-pane={pane.id}>
+          <Box
+            key={pane.id}
+            data-folder-pane={pane.id}
+            sx={{
+              position: "relative",
+              // Over the sticky header, whose own background would hide a line drawn on the pane.
+              "&::after":
+                marked === index || (marked === panes.panes.length && index === marked - 1)
+                  ? {
+                      content: '""',
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      height: 2,
+                      zIndex: 3,
+                      bgcolor: "primary.main",
+                      pointerEvents: "none",
+                      ...(marked === index ? { top: 0 } : { bottom: 0 }),
+                    }
+                  : undefined,
+            }}
+          >
             {index > 0 && <Divider />}
             {pane.kind === "repository" ? (
               <RepoPane
@@ -212,6 +283,7 @@ export function LeftSidebar({
                   panes.showWorktree(pane.id, repository, path);
                 }}
                 onListed={(repositories) => panes.settleList(pane.id, repositories)}
+                grip={gripOf(pane.id)}
                 onOpenFile={onOpenFile}
                 onMenu={setMenu}
                 naming={naming?.pane === pane.id ? naming : null}
@@ -237,6 +309,7 @@ export function LeftSidebar({
                 onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
                 onToggleGraph={(path) => panes.toggleGraph(pane.id, path)}
                 onListRepositories={(path) => panes.addPane(path, "repository")}
+                grip={gripOf(pane.id)}
                 onOpenFile={onOpenFile}
                 onMenu={setMenu}
                 naming={naming?.pane === pane.id ? naming : null}

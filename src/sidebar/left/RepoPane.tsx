@@ -16,6 +16,7 @@ import { CloseMark, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } f
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
+import type { PaneGrip } from "./paneOrder";
 import { ICON, REFUSED_DROP, ROW_INDENT, TAKING_DROP } from "./rows";
 import { useRepositoryList } from "./useRepositoryList";
 
@@ -50,6 +51,8 @@ export interface RepoPaneProps {
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
   onClose: () => void;
+  /** Picks the pane up by its header, or by its one row when it has no header. */
+  grip?: PaneGrip;
 }
 
 /** A row's level can put nothing on the canvas: the row is what goes there. */
@@ -80,6 +83,7 @@ export function RepoPane({
   onNameDone,
   onNameCancel,
   onClose,
+  grip,
 }: RepoPaneProps) {
   const { t } = useTranslation();
   const { rows, listing, failed, truncated } = useRepositoryList(path, onListed);
@@ -98,6 +102,7 @@ export function RepoPane({
       {!alone && (
         <Stack
           direction="row"
+          {...grip}
           sx={{
             position: "sticky",
             top: 0,
@@ -158,6 +163,7 @@ export function RepoPane({
             return (
               <Box key={repository.path}>
                 <ListItemButton
+                  {...(alone ? grip : null)}
                   data-repo-row={`${id}:${repository.path}`}
                   {...{ [DROP_INTO]: reading }}
                   sx={{ pl: alone ? 1 : ROW_INDENT, pr: 0.5, gap: 0.5, ...mark }}

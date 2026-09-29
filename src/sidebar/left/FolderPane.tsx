@@ -20,6 +20,7 @@ import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import { useHolding } from "./holding";
 import type { Naming } from "./NameField";
+import type { PaneGrip } from "./paneOrder";
 import { CHANGE_COLOUR, REFUSED_DROP, TAKING_DROP } from "./rows";
 
 export interface FolderPaneProps {
@@ -45,6 +46,8 @@ export interface FolderPaneProps {
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
   onClose: () => void;
+  /** Picks the pane up by its header, to put it elsewhere in the column. */
+  grip?: PaneGrip;
 }
 
 /**
@@ -68,6 +71,7 @@ export function FolderPane({
   onNameDone,
   onNameCancel,
   onClose,
+  grip,
 }: FolderPaneProps) {
   const { t } = useTranslation();
   const [root, setRoot] = useState<Listing | null>(null);
@@ -116,6 +120,7 @@ export function FolderPane({
     >
       <Stack
         direction="row"
+        {...grip}
         {...{ [DROP_INTO]: path }}
         sx={{
           position: "sticky",
