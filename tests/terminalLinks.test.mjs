@@ -11,7 +11,9 @@ function click(ctrlKey = true, button = 0) {
     ctrlKey,
     button,
     preventDefault() {},
-    stopPropagation() {},
+    stopPropagation() {
+      throw new Error("the mouseup must reach xterm's selection drag");
+    },
   };
 }
 
