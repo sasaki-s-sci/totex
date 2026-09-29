@@ -16,6 +16,8 @@ export type AppSettings = {
   gridSnap: boolean;
   /** Grid rows of air between one repository or folder and the next, measured from their outermost nodes. */
   groupGap: number;
+  /** What the canvas lines its groups up by: their terminal stacks, or where their histories start. */
+  canvasAlign: "terminal" | "initial";
   /** Commits a band shows from its tip; at `HISTORY_ALL` or past it, every one read. */
   historyLength: number;
   /** Whether a band is cut back to that length as commits arrive, rather than growing with them. */
@@ -59,6 +61,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   gridStep: 24,
   gridSnap: false,
   groupGap: 2,
+  canvasAlign: "terminal",
   historyLength: 3,
   historyFollow: false,
   mcpServing: false,
@@ -113,6 +116,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     gridStep: 24,
     gridSnap: false,
     groupGap: 2,
+    canvasAlign: "terminal",
     historyLength: 3,
     historyFollow: false,
     mcpServing: read("totex.mcp.serving") === "yes",

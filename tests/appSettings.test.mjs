@@ -35,6 +35,7 @@ test("migrates all existing user preferences, including line size one", () => {
       gridStep: 24,
       gridSnap: false,
       groupGap: 2,
+      canvasAlign: "terminal",
       historyLength: 3,
       historyFollow: false,
       mcpServing: true,

@@ -36,6 +36,8 @@ export type PreparedRepository = {
   style: { width: number; height: number };
   /** The trunk line, where the folder connects to this band. */
   trunk: number;
+  /** Band-relative left edge of the terminal column, whether or not anything stands in it. */
+  stack: number;
   nodes: (CommitFlowNode | BranchHeadFlowNode | CollapseFlowNode | JunctionFlowNode)[];
   lines: BandLines;
   runs: BranchRun[];
@@ -199,6 +201,7 @@ function layout(
       },
     },
     trunk: top,
+    stack: working - SESSION_WIDTH / 2,
     style: {
       width,
       height: bottom,

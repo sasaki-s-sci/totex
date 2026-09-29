@@ -25,6 +25,7 @@ fn validate(value: &Value) -> Result<(), String> {
         ("reveal", &["never", "edge", "centre"][..]),
         ("fileTitle", &["name", "path"][..]),
         ("terminalSort", &["createdWhere", "createdAt"][..]),
+        ("canvasAlign", &["terminal", "initial"][..]),
     ] {
         if let Some(v) = object.get(key)
             && !v.as_str().is_some_and(|s| choices.contains(&s))

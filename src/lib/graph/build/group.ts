@@ -40,12 +40,14 @@ export function folderGroup(
     reaching: string | null;
     /** Air above each band after the first, the same as between groups. */
     gap: number;
+    /** Group-relative left edge every terminal stack stands at; `null` leaves each where it falls. */
+    axis: number | null;
   },
   at: { x: number; y: number },
   claimed: Set<string>,
   draw: Draw,
 ): LaidGroup {
-  const { folder, held, opened, open, showing, asks, reports, reaching, gap } = input;
+  const { folder, held, opened, open, showing, asks, reports, reaching, gap, axis } = input;
 
   const id = folderId(folder.root);
   const shown = held.filter((entry) => isOpen(opened, entry.repository.id, held.length));
@@ -58,6 +60,7 @@ export function folderGroup(
   const inset = { x: 0, y: Math.max(0, rowReach(running.length) - LANE_HEIGHT / 2) };
 
   const head = { x: at.x + inset.x, y: at.y + inset.y };
+  const stackX = head.x + (axis ?? ROW_STACK_X);
 
   const drawn: LaidGroup = {
     nodes: [],
@@ -102,7 +105,7 @@ export function folderGroup(
       socket: inBand(id, ROW_SOCKET.x, ROW_SOCKET.y),
       group: id,
       lead: FOLDER_MARK / 2,
-      at: { x: head.x + ROW_STACK_X, y: head.y + ROW_SOCKET.y },
+      at: { x: stackX, y: head.y + ROW_SOCKET.y },
       showing,
       asks,
       reports,
@@ -120,7 +123,7 @@ export function folderGroup(
         `offer${id}`,
         { kind: "open", repository: null, branch: folder.name, cwd: folder.root },
         null,
-        head.x + ROW_STACK_X,
+        stackX,
         head.y + ROW_SOCKET.y - CLI_STEP / 2,
         draw,
       ),
@@ -130,8 +133,8 @@ export function folderGroup(
   const place: Place = {
     id,
     from,
-    // Inset from the mark, which the name now stands ahead of.
-    x: rowed ? head.x + FOLDER_MARK_X + FOLDER_INSET : head.x,
+    x: head.x + heldX(rowed),
+    stack: axis === null ? null : stackX,
     open,
     showing,
     asks,
@@ -152,4 +155,24 @@ export function folderGroup(
   drawn.height = down.cursor - at.y;
   drawn.bottom = Math.max(drawn.bottom, down.cursor, down.floor);
   return drawn;
+}
+
+// Inset from the mark, which the name now stands ahead of.
+function heldX(rowed: boolean): number {
+  return rowed ? FOLDER_MARK_X + FOLDER_INSET : 0;
+}
+
+/** Group-relative left edge of the rightmost terminal stack the group would draw unaligned. */
+export function stackAxis(
+  folder: Folder,
+  held: readonly PreparedRepository[],
+  opened: ReadonlyMap<string, boolean>,
+): number {
+  const x = heldX(folder.kind === "folder");
+  let reach = folder.kind === "folder" ? ROW_STACK_X : 0;
+  for (const entry of held) {
+    const shown = isOpen(opened, entry.repository.id, held.length);
+    reach = Math.max(reach, x + (shown ? entry.stack : ROW_STACK_X));
+  }
+  return reach;
 }

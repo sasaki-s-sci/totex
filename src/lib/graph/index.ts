@@ -1,6 +1,6 @@
 export type { AskCard, AskFlowNode, AskNodeData } from "./asking";
 export { cellsOf, clamp, wrap } from "./asking";
-export { buildCommitGraph, type GraphInput } from "./build";
+export { type Align, buildCommitGraph, type GraphInput } from "./build";
 export { isOpen } from "./folders";
 export {
   circlesOf,

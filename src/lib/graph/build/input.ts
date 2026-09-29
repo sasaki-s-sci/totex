@@ -34,4 +34,9 @@ export type GraphInput = {
 
   /** Air between one repository or folder and the next, in layout units; `REPO_GAP_Y` unless said. */
   gap?: number;
+
+  /** What the groups are lined up by: their terminal stacks, or their left edge; `initial` unless said. */
+  align?: Align;
 };
+
+export type Align = "terminal" | "initial";

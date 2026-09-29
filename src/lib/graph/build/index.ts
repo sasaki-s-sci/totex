@@ -14,11 +14,11 @@ import {
   REPO_GAP_Y,
   STEP,
 } from "../model";
-import { folderGroup } from "./group";
+import { folderGroup, stackAxis } from "./group";
 import type { GraphInput } from "./input";
 import { batched, type Held } from "./nodes";
 
-export type { GraphInput };
+export type { Align, GraphInput } from "./input";
 
 export function buildCommitGraph(
   {
@@ -34,6 +34,7 @@ export function buildCommitGraph(
     reaching,
     places,
     gap = REPO_GAP_Y,
+    align = "initial",
   }: GraphInput,
   previous?: GraphResult,
 ): GraphResult {
@@ -96,6 +97,15 @@ export function buildCommitGraph(
 
   const claimed = new Set<string>();
 
+  const heldBy = (folder: (typeof folders)[number]) =>
+    folder.repositories.map((id) => prepared.get(id)).filter((entry) => entry !== undefined);
+
+  // Lined up, every stack stands where the rightmost one would: nothing is pulled back over a history.
+  const axis =
+    align === "terminal"
+      ? Math.max(0, ...folders.map((folder) => stackAxis(folder, heldBy(folder), opened)))
+      : null;
+
   let bottom = 0;
   let right = 0;
 
@@ -103,9 +113,7 @@ export function buildCommitGraph(
   let flowed = 0;
 
   for (const folder of folders) {
-    const held = folder.repositories
-      .map((id) => prepared.get(id))
-      .filter((entry) => entry !== undefined);
+    const held = heldBy(folder);
 
     const at = { x: 0, y: flowed };
     const key = groupKey(folder);
@@ -121,6 +129,7 @@ export function buildCommitGraph(
         reports,
         reaching,
         gap,
+        axis,
       },
       { x: at.x + (moved?.x ?? 0), y: at.y + (moved?.y ?? 0) },
       claimed,

@@ -137,7 +137,8 @@ export function Canvas({
   const { closed, toggleJunction } = useJunctionView();
 
   const { places, placeFolder } = useFolderPlaces();
-  const gap = groupGapOf(useAppSettings().groupGap);
+  const { groupGap, canvasAlign: align } = useAppSettings();
+  const gap = groupGapOf(groupGap);
   const graph = useMemo(
     () =>
       buildCommitGraph(
@@ -154,6 +155,7 @@ export function Canvas({
           reaching,
           places,
           gap,
+          align,
         },
         applied.current ?? undefined,
       ),
@@ -170,6 +172,7 @@ export function Canvas({
       reaching,
       places,
       gap,
+      align,
     ],
   );
 

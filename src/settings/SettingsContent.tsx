@@ -1,5 +1,6 @@
 import { Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { AlignRow } from "./AlignRow";
 import { AppearanceRows } from "./AppearanceRows";
 import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
@@ -40,6 +41,7 @@ export function SettingsContent() {
         </Group>
         <Group name={t("settings.graph")}>
           <GapRow />
+          <AlignRow />
           <RevealRow />
           <WalkRow />
           <HistoryRows />

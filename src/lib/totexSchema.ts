@@ -36,6 +36,7 @@ export const totexSchema: RJSFSchema = {
       minimum: 0,
       maximum: 10,
     },
+    canvasAlign: { title: "Line groups up by", type: "string", enum: ["terminal", "initial"] },
     mcpServing: { title: "MCP server", type: "boolean" },
     fileTitle: { title: "File title", type: "string", enum: ["name", "path"] },
     readingSize: { title: "Reading size", type: "integer", minimum: 8, maximum: 20 },

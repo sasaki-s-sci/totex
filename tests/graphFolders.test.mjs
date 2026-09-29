@@ -48,7 +48,7 @@ function repository(id, path) {
   };
 }
 
-function build(workspace, folders, previous, sessions = []) {
+function build(workspace, folders, previous, sessions = [], align) {
   return buildCommitGraph(
     {
       workspace,
@@ -62,6 +62,7 @@ function build(workspace, folders, previous, sessions = []) {
       reports: new Map(),
       reaching: null,
       places: new Map(),
+      align,
     },
     previous,
   );
@@ -214,4 +215,69 @@ test("a branch and a folder nothing runs in are offered a terminal, and a reposi
     running.offers.map((offer) => offer.data.kind),
     ["open", "new"],
   );
+});
+
+// A repository checked out at its own path, with `length` commits in one line of history.
+function checkedOut(id, path, length) {
+  const repo = repository(id, path);
+  repo.commits = Array.from({ length }, (_, at) => ({
+    id: `${id}${at}`,
+    parents: at === 0 ? [] : [`${id}${at - 1}`],
+  }));
+  repo.head = repo.commits.at(-1).id;
+  repo.branches[0].commit = repo.head;
+  repo.branches[0].checkedOutIn = [`${id}-tree`];
+  repo.worktrees = [
+    {
+      id: `${id}-tree`,
+      path,
+      name: id,
+      branch: "main",
+      head: repo.head,
+      exists: true,
+      bare: false,
+    },
+  ];
+  return repo;
+}
+
+function stacksOf(graph) {
+  const at = new Map(graph.nodes.map((node) => [node.id, node.position]));
+  return graph.nodes
+    .filter((node) => node.type === "cli")
+    .map((node) => node.position.x + (node.parentId ? at.get(node.parentId).x : 0));
+}
+
+test("lined up by terminal, every stack stands on one line; by initial, the groups start together", () => {
+  const short = checkedOut("short", "/home/a/short", 1);
+  const long = checkedOut("long", "/home/a/long", 3);
+  const inside = checkedOut("inside", "/home/c/inside", 1);
+  const beside = checkedOut("beside", "/home/c/beside", 1);
+  const workspace = { root: "/home", repositories: [short, long, inside, beside], warnings: [] };
+  const folders = [
+    { kind: "folder", root: "/home/b", name: "b", repositories: [] },
+    { kind: "repository", root: "/home/a/short", name: "short", repositories: ["short"] },
+    { kind: "repository", root: "/home/a/long", name: "long", repositories: ["long"] },
+    // Two repositories start folded, each a mark with its terminals beside it.
+    { kind: "repository", root: "/home/c", name: "c", repositories: ["inside", "beside"] },
+  ];
+  const sessions = [
+    { id: "b", cwd: "/home/b", branch: "b", folder: true },
+    { id: "short", cwd: "/home/a/short", branch: "main" },
+    { id: "long", cwd: "/home/a/long", branch: "main" },
+    { id: "inside", cwd: "/home/c/inside", branch: "main" },
+  ];
+
+  const lined = build(workspace, folders, undefined, sessions, "terminal");
+  const xs = stacksOf(lined);
+  assert.equal(xs.length, 4);
+  assert.equal(new Set(xs).size, 1);
+
+  const loose = build(workspace, folders, undefined, sessions, "initial");
+  assert.ok(new Set(stacksOf(loose)).size > 1);
+  for (const band of bandNodes(loose)) assert.equal(band.position.x, 0);
+  // The shortest history is the one pushed right to meet the rest.
+  const x = (graph, id) => bandNodes(graph).find((band) => band.id === id).position.x;
+  assert.equal(x(lined, "long"), 0);
+  assert.ok(x(lined, "short") > 0);
 });

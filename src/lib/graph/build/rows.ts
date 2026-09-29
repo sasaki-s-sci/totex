@@ -41,6 +41,8 @@ export type Place = {
   from: LineEnd | null;
 
   x: number;
+  /** Where every terminal stack stands, when they are lined up; `null` leaves each at its own. */
+  stack: number | null;
   open: ReadonlyMap<string, Session[]>;
   showing: string | null;
   asks: ReadonlyMap<string, Ask>;
@@ -66,7 +68,7 @@ export function placeRow(row: Row, place: Place, drawn: LaidGroup, at: Cursor): 
 
 function bandRow(
   row: Row & { column: Column },
-  { id, from, x, reaching, draw }: Place,
+  { id, from, x: start, stack, reaching, draw }: Place,
   drawn: LaidGroup,
   at: Cursor,
   air: number,
@@ -74,6 +76,8 @@ function bandRow(
   const entry = row.entry;
   const top = at.cursor + air;
   const width = entry.style.width;
+  // Lined up, the band is pushed right until its terminal column stands on the shared one.
+  const x = stack === null ? start : stack - entry.stack;
   const proposed = entry.repository.id === reaching;
   drawn.nodes.push(
     repositoryNode(entry, x, top, width, from === null, draw.before.get(entry.repository.id)),
@@ -115,7 +119,7 @@ function bandRow(
 
 function markRow(
   row: Row & { standing: Session[] },
-  { id, from, x, open, showing, asks, reports, draw }: Place,
+  { id, from, x, stack: lined, open, showing, asks, reports, draw }: Place,
   drawn: LaidGroup,
   at: Cursor,
   air: number,
@@ -132,6 +136,7 @@ function markRow(
 
   const mark = markId(id, entry.repository);
   const work = workOf(entry);
+  const stackX = lined ?? x + ROW_STACK_X;
   drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, work, from === null, draw));
   drawn.members.push(mark);
   if (from) {
@@ -148,7 +153,7 @@ function markRow(
 
       group: mark,
       lead: REPO_MARK_TRIM,
-      at: { x: x + ROW_STACK_X, y: line },
+      at: { x: stackX, y: line },
       showing,
       asks,
       reports,
@@ -165,7 +170,7 @@ function markRow(
         `offer${mark}`,
         { kind: "open", repository: entry.repository, ...work },
         null,
-        x + ROW_STACK_X,
+        stackX,
         line - CLI_STEP / 2,
         draw,
       ),
