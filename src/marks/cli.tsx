@@ -21,8 +21,8 @@ type Props = {
 
 /**
  * A terminal as a mark and a number: the mark says what is up in it — a shell, or one of
- * the coding agents — and the number says which terminal it is. Nothing moves: whether
- * the session is working is not drawn here, only what kind of session it is.
+ * the coding agents — and the number says which terminal it is. The agent's mark turns
+ * while it is generating an answer; nothing else moves.
  */
 export function CliGlyph({ doing, jump = null, size = CLI_GLYPH }: Props) {
   const agent = doing === "agent" || doing === "working";
@@ -36,7 +36,7 @@ export function CliGlyph({ doing, jump = null, size = CLI_GLYPH }: Props) {
         whiteSpace: "nowrap",
       }}
     >
-      {agent ? <AgentMark size={size} /> : <CliMark size={size} />}
+      {agent ? <AgentMark size={size} working={doing === "working"} /> : <CliMark size={size} />}
       {jump === null ? null : (
         <span
           style={{

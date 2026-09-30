@@ -1,7 +1,21 @@
+import { Box } from "@mui/material";
+
 import { Frame, HAIRLINE, SIZE, struck } from ".";
 
-// Still marks: what a terminal is doing is said by which mark it wears and the number beside it,
-// not by motion. See `CliGlyph`.
+// A third of a turn loops seamlessly: the three points are near-evenly spaced. Transform only, so
+// the compositor runs it without a redraw; on the drawing because the canvas and the sidebar band
+// share no stylesheet.
+const SPIN = {
+  // The points' own centre, a little below the square's; about the square the mark would orbit.
+  transformBox: "view-box",
+  transformOrigin: "12px 13.47px",
+  animation: "totex-agent-turn 2.7s linear infinite",
+  "@keyframes totex-agent-turn": { to: { transform: "rotate(120deg)" } },
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+} as const;
+
+// The shell's mark stays still: what a terminal is doing is said by which mark it wears, and the
+// agent's alone turns while it is answering. See `CliGlyph`.
 export function CliMark({ size }: { size?: number }) {
   return (
     <Frame size={size}>
@@ -11,14 +25,16 @@ export function CliMark({ size }: { size?: number }) {
   );
 }
 
-export function AgentMark({ size }: { size?: number }) {
+export function AgentMark({ size, working }: { size?: number; working?: boolean }) {
   return (
     <Frame size={size}>
-      <circle cx="12" cy="5.6" r="2.6" />
-      <circle cx="5.6" cy="17.4" r="2.6" />
-      <circle cx="18.4" cy="17.4" r="2.6" />
-      {/* Rim to rim: a stroke under a circle doubles the hairline into a blot. */}
-      <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      <Box component="g" sx={working ? SPIN : undefined}>
+        <circle cx="12" cy="5.6" r="2.6" />
+        <circle cx="5.6" cy="17.4" r="2.6" />
+        <circle cx="18.4" cy="17.4" r="2.6" />
+        {/* Rim to rim: a stroke under a circle doubles the hairline into a blot. */}
+        <path d="M10.76 7.89 L6.84 15.11 M13.24 7.89 L17.16 15.11 M8.2 17.4 H15.8" />
+      </Box>
     </Frame>
   );
 }
