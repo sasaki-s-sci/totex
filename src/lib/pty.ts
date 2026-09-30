@@ -76,8 +76,48 @@ export function attachShell(id: string): Promise<Held | null> {
   return invoke<Held | null>("pty_attach", { id });
 }
 
+type Batch = { data: string; done: Promise<void>; settle: (sent: Promise<void>) => void };
+
+/** Per session: whether a write is in flight, and what was typed while it was. */
+const typing = new Map<string, Batch | null>();
+
+/**
+ * One write in flight per session, and whatever is typed meanwhile goes together as the next.
+ * Separate invokes run concurrently on the host and can land out of order; gathering keeps the
+ * order without a round trip per key.
+ */
 export function writeShell(id: string, data: string): Promise<void> {
-  return invoke<void>("pty_write", { id, data });
+  if (!typing.has(id)) {
+    typing.set(id, null);
+    return send(id, data);
+  }
+  let held = typing.get(id);
+  if (!held) {
+    let settle: Batch["settle"] = () => undefined;
+    const done = new Promise<void>((resolve, reject) => {
+      settle = (sent) => sent.then(resolve, reject);
+    });
+    held = { data: "", done, settle };
+    typing.set(id, held);
+  }
+  held.data += data;
+  return held.done;
+}
+
+function send(id: string, data: string): Promise<void> {
+  const sent = invoke<void>("pty_write", { id, data });
+  void sent
+    .catch(() => undefined)
+    .then(() => {
+      const held = typing.get(id);
+      if (!held) {
+        typing.delete(id);
+        return;
+      }
+      typing.set(id, null);
+      held.settle(send(id, held.data));
+    });
+  return sent;
 }
 
 export function resizeShell(id: string, rows: number, cols: number): Promise<void> {

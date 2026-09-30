@@ -1,6 +1,7 @@
 //! Everything asked of a session once it is running.
 
 use std::io::Write;
+use std::sync::Arc;
 
 use portable_pty::PtySize;
 
@@ -47,13 +48,14 @@ impl Sessions {
 
     /// Sends what was typed. Keystrokes, not lines: the shell does the editing.
     pub fn write(&self, id: &str, data: &str) -> Result<(), String> {
-        let mut sessions = self.lock();
-        let session = sessions.get_mut(id).ok_or("no-session")?;
-        session
-            .writer
+        // Taken out of the map before writing: a pty whose buffer is full
+        // blocks the write, and it must not block every other session too.
+        let writer = Arc::clone(&self.lock().get(id).ok_or("no-session")?.writer);
+        let mut writer = lock(&writer);
+        writer
             .write_all(data.as_bytes())
             .map_err(|error| error.to_string())?;
-        session.writer.flush().map_err(|error| error.to_string())
+        writer.flush().map_err(|error| error.to_string())
     }
 
     /// Tells the shell how much room it has, so that anything full-screen draws

@@ -40,6 +40,8 @@ const PAD = { x: 8, y: 4 };
 const SCROLLBAR = 7;
 // Ctrl+V on the wire, which agents read as a picture paste.
 const PASTE_KEY = "\x16";
+// The longest a hidden terminal's output waits for the window to be idle.
+const UNSEEN_WAIT = 500;
 
 type Props = {
   session: Session;
@@ -89,6 +91,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
   }, [onEnded]);
   const drawnAt = useRef(scale);
   const settle = useRef<(() => void) | null>(null);
+  const showing = useRef(shown);
+  const catchUpNow = useRef<(() => void) | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
   useEffect(() => {
@@ -275,12 +279,34 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       return true;
     });
 
+    // Output for a terminal nobody is looking at waits for an idle moment, so the one being typed
+    // at is never parsing behind it.
+    let unseen = "";
+    let idle: number | null = null;
+    const catchUp = () => {
+      if (idle !== null) cancelIdleCallback(idle);
+      idle = null;
+      if (!unseen) return;
+      terminal.write(unseen);
+      unseen = "";
+    };
+    catchUpNow.current = catchUp;
+    const draw = (data: string) => {
+      if (showing.current) {
+        catchUp();
+        terminal.write(data);
+        return;
+      }
+      unseen += data;
+      idle ??= requestIdleCallback(catchUp, { timeout: UNSEEN_WAIT });
+    };
+
     // Data heard before the backlog arrives is held and replayed after it.
     let reached: number | null = null;
     const waiting: Said[] = [];
     const say = (said: Said) => {
       if (reached === null) waiting.push(said);
-      else if (said.seq >= reached) terminal.write(said.data);
+      else if (said.seq >= reached) draw(said.data);
     };
 
     const incoming = listen<Said>(DATA_EVENT, (event) => {
@@ -341,6 +367,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
     return () => {
       live = false;
+      if (idle !== null) cancelIdleCallback(idle);
+      catchUpNow.current = null;
       drawn.current = null;
       settle.current = null;
       resize.disconnect();
@@ -378,6 +406,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     settle.current?.();
   }, [scale]);
   useEffect(() => {
+    showing.current = shown;
+    if (shown) catchUpNow.current?.();
     if (shown && host) drawn.current?.focus();
   }, [shown, host]);
 

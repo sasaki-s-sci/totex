@@ -40,7 +40,9 @@ pub use spawn::shell;
 /// One running shell. The master is kept so the session can be resized.
 struct Session {
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    /// Its own lock, so that a shell which has stopped reading holds up what
+    /// is typed at it and nothing typed at any other.
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Box<dyn Child + Send + Sync>,
     /// Shared with the thread reading the pty, which fills it whether or not
     /// there is a window at the other end of the socket.

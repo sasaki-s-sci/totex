@@ -166,7 +166,7 @@ impl Sessions {
                 id.to_string(),
                 Session {
                     master: pty.master,
-                    writer,
+                    writer: Arc::new(Mutex::new(writer)),
                     child,
                     said,
                     cwd: cwd.to_string(),
