@@ -51,6 +51,17 @@ export function trunkOf(repository: Repository): Branch | undefined {
   );
 }
 
+/** Where a new workspace is cut: the default branch's tip, else the trunk's, else the latest commit. */
+export function newWorkBase(repository: Repository): {
+  branch: Branch | undefined;
+  commit: string | undefined;
+} {
+  const branch =
+    repository.branches.find((candidate) => candidate.refName === repository.defaultBranch) ??
+    trunkOf(repository);
+  return { branch, commit: branch?.commit ?? repository.commits[0]?.id };
+}
+
 export function placeHistory(repository: Repository, shown: number): History {
   const branchesAt = groupBy(repository.branches, (branch) => branch.commit);
   const worktreesAt = groupBy(repository.worktrees, (worktree) => worktree.head ?? "");

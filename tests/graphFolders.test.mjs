@@ -191,14 +191,26 @@ test("a branch and a folder nothing runs in are offered a terminal, and a reposi
     assert.equal(fresh.position.x, offer.position.x);
   }
 
-  // Its line leaves the default branch's ring and is kept apart from the lines always drawn.
+  // Every offer's line leaves the ring it stands off, and is kept apart from the lines always drawn.
   const drawn = graph.bands.find((candidate) => candidate.id === "repo");
   const lines = drawn.offers.flatMap((batch) => batch.parts);
+  const ring = graph.nodes.find((node) => node.type === "head" && node.data.name === "main").id;
   assert.deepEqual(
     lines.map((line) => [line.from.node, line.to.node]),
-    [[graph.nodes.find((node) => node.type === "head" && node.data.name === "main").id, "repo"]],
+    [
+      [ring, "repo"],
+      [ring, "repo"],
+    ],
   );
-  assert.ok(!drawn.runs.some((batch) => batch.parts.some((line) => line.id === lines[0].id)));
+  for (const line of lines) {
+    assert.ok(!drawn.runs.some((batch) => batch.parts.some((part) => part.id === line.id)));
+  }
+
+  // The folder row's offer stands outside any band: its line is the canvas's.
+  assert.deepEqual(
+    graph.offerReach.flatMap((batch) => batch.parts).map((line) => line.from.node),
+    [graph.nodes.find((node) => node.type === "folder").id],
+  );
 
   // Unchanged offers come back as themselves, so holding the keys over a rescan redraws nothing.
   const again = build(workspace, folders, graph);

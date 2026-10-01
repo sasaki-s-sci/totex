@@ -24,6 +24,11 @@ export type Shown = {
   running: (cwd: string | null) => boolean;
 };
 
+/** A ref's ring; a branch's key is its id, a detached worktree's is the worktree's. */
+export function refNodeId(repository: Repository, key: string): string {
+  return `${repository.id}ref${key}`;
+}
+
 export function placeBranches(
   repository: Repository,
   placed: readonly Placed[],
@@ -53,7 +58,7 @@ export function placeBranches(
     if (held === undefined) taken.set(ref.shared, row);
 
     return {
-      id: `${repository.id}ref${ref.key}`,
+      id: refNodeId(repository, ref.key),
       data: {
         repository,
         kind: ref.kind,

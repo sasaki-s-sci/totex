@@ -182,6 +182,28 @@ function OfferLines({ band, standing }: { band: Band; standing: ReadonlyMap<stri
   );
 }
 
+/** The offers' lines outside any band, from a folder or mark row; mounted only while Ctrl+Shift is held. */
+export function OfferReach({
+  reach,
+  standing,
+}: {
+  reach: readonly Batch[];
+  standing: ReadonlyMap<string, XYPosition>;
+}) {
+  return (
+    <>
+      {reach.map((batch) => (
+        <path
+          key={batch.key}
+          className="offer-line"
+          d={pathOf(batch.parts, standing)}
+          {...stroke(batch.stroke)}
+        />
+      ))}
+    </>
+  );
+}
+
 export type CommitDot = Band["lines"]["dots"] extends Map<string, infer Dot> ? Dot : never;
 
 /** The whole history as one path: commits were nodes once, and a thousand wrappers cost more than the drawing. */

@@ -473,6 +473,7 @@ export function Canvas({
                             <GraphLines
                               bands={graph.bands}
                               reach={graph.reach}
+                              offerReach={graph.offerReach}
                               holds={graph.holds}
                               extent={graph.extent}
                               nodes={lineNodes}

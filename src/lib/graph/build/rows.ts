@@ -4,14 +4,17 @@ import type { Session } from "../../session";
 import { FOLDER_ROW_WIDTH, markId, ROW_SOCKET, ROW_STACK_X, repoMark } from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
+  CLI_MARK,
   CLI_STEP,
   type Draw,
   FOLDER_GAP_Y,
   LANE_HEIGHT,
   type LineEnd,
+  OFFER_STROKE,
   REPO_MARK_TRIM,
   rowPitch,
   rowReach,
+  SESSION_WIDTH,
 } from "../model";
 import type { Column } from "./column";
 import { batched, offerNode, provisional, repositoryNode } from "./nodes";
@@ -175,6 +178,15 @@ function markRow(
         draw,
       ),
     );
+    drawn.offerLinks.push({
+      id: `offer${mark}line`,
+      from: { node: mark, dx: ROW_SOCKET.x, dy: ROW_SOCKET.y },
+      to: { node: mark, dx: stackX - x + SESSION_WIDTH / 2, dy: LANE_HEIGHT / 2 },
+      shape: "curve",
+      trim: CLI_MARK / 2,
+      lead: REPO_MARK_TRIM,
+      stroke: OFFER_STROKE,
+    });
   }
 
   drawn.right = Math.max(drawn.right, x + FOLDER_ROW_WIDTH, stack.right);

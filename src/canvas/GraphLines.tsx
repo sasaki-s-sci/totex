@@ -2,7 +2,7 @@ import { ViewportPortal, type XYPosition } from "@xyflow/react";
 import { memo, useMemo } from "react";
 import type { AppNode, Band, CommitFlowNode, Hold } from "../lib/graph";
 import { CHANGE_COLOUR, useChanges } from "./changes";
-import { Bands, type Batch, Reach } from "./lines/bands";
+import { Bands, type Batch, OfferReach, Reach } from "./lines/bands";
 import { CommitEmphasis, Hover } from "./lines/hover";
 import { CommitMessages } from "./lines/messages";
 
@@ -10,6 +10,7 @@ import { CommitMessages } from "./lines/messages";
 export const GraphLines = memo(function GraphLines({
   bands,
   reach,
+  offerReach,
   holds,
   extent,
   nodes,
@@ -22,6 +23,8 @@ export const GraphLines = memo(function GraphLines({
   bands: readonly Band[];
 
   reach: readonly Batch[];
+
+  offerReach: readonly Batch[];
 
   holds: readonly Hold[];
 
@@ -70,6 +73,7 @@ export const GraphLines = memo(function GraphLines({
       <svg className="graph__lines" width={extent.width} height={extent.height} aria-hidden="true">
         <Reach reach={reach} standing={standing} tints={tints} />
         <Bands bands={bands} standing={standing} offering={offering} tints={tints} />
+        {offering && <OfferReach reach={offerReach} standing={standing} />}
         {reading && <CommitMessages bands={bands} standing={standing} />}
         <CommitEmphasis
           bands={bands}

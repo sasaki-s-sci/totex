@@ -13,13 +13,16 @@ import {
 } from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
+  CLI_MARK,
   CLI_STEP,
   type Draw,
   FOLDER_INSET,
   FOLDER_MARK,
   inBand,
   LANE_HEIGHT,
+  OFFER_STROKE,
   rowReach,
+  SESSION_WIDTH,
 } from "../model";
 import { bandColumn } from "./column";
 import { offerNode } from "./nodes";
@@ -67,6 +70,7 @@ export function folderGroup(
     offers: [],
     bands: [],
     links: [],
+    offerLinks: [],
     holds: [],
     members: [],
     inset,
@@ -128,6 +132,15 @@ export function folderGroup(
         draw,
       ),
     );
+    drawn.offerLinks.push({
+      id: `offer${id}line`,
+      from: inBand(id, ROW_SOCKET.x, ROW_SOCKET.y),
+      to: { node: id, dx: stackX - head.x + SESSION_WIDTH / 2, dy: ROW_SOCKET.y },
+      shape: "curve",
+      trim: CLI_MARK / 2,
+      lead: FOLDER_MARK / 2,
+      stroke: OFFER_STROKE,
+    });
   }
 
   const place: Place = {

@@ -31,6 +31,8 @@ export type GraphResult = {
   bands: Band[];
   /** Lines between canvas-level things: folder reach and folder-row terminals. */
   reach: { key: string; stroke: StrokeStyle; parts: GraphLine[] }[];
+  /** Lines into the offers outside a band: only while Ctrl+Shift is held. */
+  offerReach: { key: string; stroke: StrokeStyle; parts: GraphLine[] }[];
   holds: Hold[];
   groups: ReadonlyMap<string, Group>;
   /** The box the line SVG is given; an SVG root clips to it regardless of overflow. */

@@ -188,3 +188,123 @@ test("a knot shut in another repository is nothing to this one", () => {
   assert.equal(graph.nodes.filter((n) => n.type === "head").length, 3);
   assert.equal(graph.nodes.find((n) => n.type === "junction").data.closed, false);
 });
+
+test("the new workspace's line leaves the mark the workspace is cut from", async () => {
+  const cache = await mkdtemp(join(tmpdir(), "totex-graph-column-"));
+  const vite = await createServer({ configFile: false, cacheDir: cache, server: { watch: null } });
+  const { bandColumn } = await vite.ssrLoadModule("/src/lib/graph/build/column.ts");
+  await vite.close();
+  await rm(cache, { recursive: true, force: true });
+
+  const lineFrom = (repo) => {
+    const entry = prepare(repo, undefined, new Map());
+    const draw = { before: new Map(), offered: new Map() };
+    const column = bandColumn(entry, new Map(), new Set(), null, new Map(), new Map(), draw);
+    return column.offerLines.find((part) => part.id.endsWith("newline"))?.from.node;
+  };
+
+  // The default branch is sorted after another local one.
+  const local = repository(
+    ["dev", "main"],
+    [
+      { id: "dev", parents: [] },
+      { id: "main", parents: [] },
+    ],
+  );
+  assert.equal(lineFrom(local), "reporefmain");
+
+  // Only the remote end of the default branch exists: the cut is its commit, not the first local ring.
+  const remote = repository(
+    ["dev"],
+    [
+      { id: "dev", parents: ["main"] },
+      { id: "main", parents: [] },
+    ],
+  );
+  remote.remotes = [{ name: "origin" }];
+  remote.defaultBranch = "refs/remotes/origin/main";
+  remote.branches.push({
+    id: "origin/main",
+    name: "origin/main",
+    logicalName: "main",
+    refName: "refs/remotes/origin/main",
+    kind: "remote",
+    remote: "origin",
+    commit: "main",
+    isHead: false,
+    checkedOutIn: [],
+    upstream: null,
+  });
+  assert.equal(lineFrom(remote), "reporeforigin/main");
+});
+
+test("a branch nothing runs in reaches its offer with a dashed line from its ring", async () => {
+  const cache = await mkdtemp(join(tmpdir(), "totex-graph-column-"));
+  const vite = await createServer({ configFile: false, cacheDir: cache, server: { watch: null } });
+  const { bandColumn } = await vite.ssrLoadModule("/src/lib/graph/build/column.ts");
+  await vite.close();
+  await rm(cache, { recursive: true, force: true });
+
+  const repo = repository(["main"]);
+  repo.worktrees = [{ id: "wt", name: "repo", path: "/repo", head: "tip", branch: "main" }];
+  repo.branches[0].checkedOutIn = ["wt"];
+  const entry = prepare(repo, undefined, new Map());
+  const draw = { before: new Map(), offered: new Map() };
+
+  const empty = bandColumn(entry, new Map(), new Set(), null, new Map(), new Map(), draw);
+  const offer = empty.offers.find((node) => node.data.kind === "open");
+  const line = empty.offerLines.find((part) => part.id === "offerreporefmainline");
+  assert.ok(offer && line);
+  assert.ok(line.stroke.dash);
+  assert.deepEqual(
+    { x: line.to.dx, y: line.to.dy },
+    { x: offer.position.x + offer.initialWidth / 2, y: offer.position.y + offer.initialHeight / 2 },
+  );
+
+  // Once a terminal stands there, the offer and its line are gone.
+  const open = new Map([["/repo", [{ id: "s", cwd: "/repo" }]]]);
+  const running = bandColumn(entry, open, new Set(), null, new Map(), new Map(), draw);
+  assert.ok(!running.offers.some((node) => node.data.kind === "open"));
+  assert.ok(!running.offerLines.some((part) => part.id === "offerreporefmainline"));
+});
+
+test("a folder row and a shut repository's mark reach their offers with dashed lines", async () => {
+  const cache = await mkdtemp(join(tmpdir(), "totex-graph-group-"));
+  const vite = await createServer({ configFile: false, cacheDir: cache, server: { watch: null } });
+  const { folderGroup } = await vite.ssrLoadModule("/src/lib/graph/build/group.ts");
+  await vite.close();
+  await rm(cache, { recursive: true, force: true });
+
+  const repo = repository(["main"]);
+  const group = folderGroup(
+    {
+      folder: { kind: "folder", root: "/work", name: "work", repositories: ["repo"] },
+      held: [prepare(repo, undefined, new Map())],
+      opened: new Map([["repo", false]]),
+      open: new Map(),
+      showing: null,
+      asks: new Map(),
+      reports: new Map(),
+      reaching: null,
+      gap: 0,
+      axis: null,
+    },
+    { x: 40, y: 80 },
+    new Set(),
+    { before: new Map(), offered: new Map() },
+  );
+
+  const at = new Map(group.nodes.map((node) => [node.id, node.position]));
+  assert.equal(group.offers.length, 2);
+  assert.equal(group.offerLinks.length, 2);
+  for (const offer of group.offers) {
+    const middle = {
+      x: offer.position.x + offer.initialWidth / 2,
+      y: offer.position.y + offer.initialHeight / 2,
+    };
+    const line = group.offerLinks.find((part) => part.id === `${offer.id}line`);
+    assert.ok(line?.stroke.dash);
+    const end = at.get(line.to.node);
+    assert.deepEqual({ x: end.x + line.to.dx, y: end.y + line.to.dy }, middle);
+  }
+});

@@ -9,6 +9,9 @@ export type LaidGroup = {
 
   links: GraphLine[];
 
+  /** Lines into `offers` that stand outside a band; drawn only while the offers are. */
+  offerLinks: GraphLine[];
+
   holds: Hold[];
 
   members: string[];

@@ -90,6 +90,7 @@ export function buildCommitGraph(
   const bands: Band[] = [];
 
   const links: GraphLine[] = [];
+  const offerLinks: GraphLine[] = [];
   const holds: Hold[] = [];
   const groups = new Map<string, Group>();
   const offered = new Map((previous?.offers ?? []).map((offer) => [offer.id, offer]));
@@ -140,6 +141,7 @@ export function buildCommitGraph(
     offers.push(...group.offers);
     bands.push(...group.bands);
     links.push(...group.links);
+    offerLinks.push(...group.offerLinks);
     holds.push(...group.holds);
     // A repository has no row of its own above it: nothing drawn, nothing to move.
     const handle = folder.kind === "folder" ? folderId(folder.root) : group.members[0];
@@ -167,6 +169,7 @@ export function buildCommitGraph(
     bands,
     groups,
     reach: batched(links),
+    offerReach: batched(offerLinks),
     holds,
 
     // A cell past the edge, for the offer the cursor draws.

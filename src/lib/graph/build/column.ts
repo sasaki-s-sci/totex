@@ -2,6 +2,8 @@ import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
 import { ASK_GAP, ASK_STACK_GAP } from "../asking";
+import { refNodeId } from "../branches";
+import { commitNodeId, newWorkBase } from "../history";
 import type { PreparedRepository } from "../layout";
 import {
   type AppNode,
@@ -9,13 +11,18 @@ import {
   CLI_STEP,
   CLI_STROKE,
   COMMIT_STEP,
+  COMMIT_TRIM,
   type Draw,
   type GraphLine,
   inBand,
+  type LineEnd,
   OFFER_STROKE,
   type OfferFlowNode,
+  onCommit,
   onHead,
   onStack,
+  REMOTE_HEAD_TRIM,
+  RING_TRIM,
   SESSION_WIDTH,
   stackReach,
 } from "../model";
@@ -77,6 +84,15 @@ export function bandColumn(
           draw,
         ),
       );
+      drawn.offerLines.push({
+        id: `offer${run.head}line`,
+        from: onHead(run.head),
+        to: inBand(band, run.x + SESSION_WIDTH / 2, run.y + CLI_STEP / 2),
+        shape: "curve",
+        trim: CLI_MARK / 2,
+        lead: run.lead,
+        stroke: OFFER_STROKE,
+      });
     }
 
     // Centred on the branch line; the layout made room either side.
@@ -146,12 +162,11 @@ export function bandColumn(
     ),
   );
 
-  const main = entry.repository.defaultBranch?.replace(/^refs\/heads\//, "");
-  const from = entry.runs.find((run) => run.branch === main) ?? entry.runs[0];
+  const from = newWorkFrom(entry);
   if (from) {
     drawn.offerLines.push({
       id: `offer${band}newline`,
-      from: onHead(from.head),
+      from: from.end,
       to: inBand(band, column + SESSION_WIDTH / 2, rise + CLI_STEP / 2),
       shape: "curve",
       trim: CLI_MARK / 2,
@@ -161,6 +176,28 @@ export function bandColumn(
   }
 
   return drawn;
+}
+
+// The mark the new workspace is cut from, as `newWork` cuts it: its branch's ring, else its
+// commit; a cut behind the fold, under a hidden branch, has nothing drawn to leave from.
+function newWorkFrom({ repository, nodes }: PreparedRepository): {
+  end: LineEnd;
+  lead: number;
+} | null {
+  const { branch, commit } = newWorkBase(repository);
+  const drawn = (id: string) => nodes.some((node) => node.id === id);
+
+  const ring = branch && refNodeId(repository, branch.id);
+  if (ring && drawn(ring)) {
+    return {
+      end: onHead(ring),
+      lead: branch.kind === "remote" ? REMOTE_HEAD_TRIM : RING_TRIM,
+    };
+  }
+
+  const dot = commit && commitNodeId(repository, commit);
+  if (dot && drawn(dot)) return { end: onCommit(dot), lead: COMMIT_TRIM };
+  return null;
 }
 
 export function cardLine(card: string, mark: string, height: number): GraphLine {
