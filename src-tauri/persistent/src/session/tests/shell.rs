@@ -123,7 +123,7 @@ fn fake_ssh() -> &'static str {
              while [ $# -gt 0 ]; do\n\
              \x20 case \"$1\" in\n\
              \x20   -T|-t) shift ;;\n\
-             \x20   -o) shift 2 ;;\n\
+             \x20   -o|-p) shift 2 ;;\n\
              \x20   --) shift ;;\n\
              \x20   *) break ;;\n\
              \x20 esac\n\

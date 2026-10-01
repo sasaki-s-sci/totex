@@ -239,7 +239,7 @@ export function LeftSidebar({
       >
         {panes.panes.map((pane, index) => (
           <Box
-            key={pane.id}
+            key={panes.paneKey(pane)}
             data-folder-pane={pane.id}
             sx={{
               position: "relative",

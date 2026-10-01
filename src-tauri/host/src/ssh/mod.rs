@@ -5,23 +5,28 @@
 //! to this program — see [`crate::remote`], where the shell is held open and
 //! the commands go down it. What is particular to ssh is here: how a path on
 //! such a machine is spelled from the outside, how `ssh` itself is invoked so
-//! that it never waits on a prompt, and which machines the user's own config
-//! names.
+//! that it never waits on a prompt, the password it is given when a machine
+//! wants one, and which machines the user's own config names.
 //!
 //! The spelling is `ssh://<host>/<path>`, with `<host>` whatever `ssh` would
 //! take on its command line — an alias out of `~/.ssh/config`, or
-//! `user@hostname`. It stays the canonical form the rest of the app passes
+//! `user@hostname` — or that with a port after it, `user@hostname:2222`, which
+//! `ssh` is handed as `-p` (see [`target`]). It stays the canonical form the rest of the app passes
 //! around, exactly as the UNC spelling does for a distribution, so nothing else
 //! has to know a path is on another machine until it runs something.
 
+pub mod askpass;
 mod config;
+mod probe;
+pub mod secrets;
 mod shell;
 
 #[cfg(test)]
 mod tests;
 
 pub use config::{hosts, parse_config};
-pub use shell::{command, login_line, program};
+pub use probe::{Reached, classify, reach};
+pub use shell::{command, destination, login_line, program, target};
 
 use crate::remote::path;
 

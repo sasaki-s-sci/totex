@@ -31,6 +31,7 @@ import {
 import { useFrontState } from "../shell/state";
 import { type FolderDestination, LeftSidebar } from "../sidebar/LeftSidebar";
 import type { Repository } from "../types/git";
+import { SshPassword } from "./SshPassword";
 import { useClosedRepositories } from "./useClosedRepositories";
 import { useFolderRoots } from "./useFolderRoots";
 import { useWindowBoot } from "./useWindowBoot";
@@ -192,6 +193,7 @@ export function Window() {
         {RightSidebar && <RightSidebar />}
 
         <WindowControls />
+        <SshPassword />
 
         {TaskMenu && <TaskMenu session={tasks.asking} onClose={tasks.close} onRun={tasks.run} />}
         {CommitMenu && (

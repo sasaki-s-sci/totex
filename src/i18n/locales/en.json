@@ -26,7 +26,7 @@
     "openAs": "Open as",
     "asFolder": "Folder",
     "asRepositories": "Repositories",
-    "pathHint": "Path, e.g. ~/repo or ssh://host/repo",
+    "pathHint": "Path, e.g. ~/repo, ssh a@ip or ssh://host/repo",
     "noFolder": "No folder there",
     "drop": "Forget",
     "settings": "Settings",
@@ -38,6 +38,22 @@
     "move": "Move",
     "shell": "Shell",
     "listRepositories": "List the repositories in it"
+  },
+  "ssh": {
+    "title": "SSH",
+    "add": "Add an SSH host",
+    "addHint": "a@192.168.1.10",
+    "forget": "Forget",
+    "hostKey": "The host's key is not known yet: connect once with ssh in a terminal to accept it",
+    "unreachable": "Could not reach the host: {{reason}}",
+    "failed": "Could not connect: {{reason}}",
+    "notHost": "Write a host, e.g. a@192.168.1.10 or a@host:2222",
+    "passwordTitle": "Password for {{host}}",
+    "password": "Password",
+    "wrongPassword": "Wrong password",
+    "passwordKept": "Kept only until totex closes",
+    "cancel": "Cancel",
+    "connect": "Connect"
   },
   "file": {
     "newFile": "New file",

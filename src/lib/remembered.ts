@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 // Documents go to the persistent half as opaque JSON; webview storage is only the copy
 // available before the socket answers, and `prime` brings it up to date.
-const REMEMBERED = ["totex.roots", "totex.places"] as const;
+const REMEMBERED = ["totex.roots", "totex.places", "totex.sshHosts"] as const;
 
 export function remember(name: string, value: unknown): void {
   try {

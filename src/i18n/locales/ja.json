@@ -26,7 +26,7 @@
     "openAs": "開き方",
     "asFolder": "フォルダ",
     "asRepositories": "リポジトリ",
-    "pathHint": "パス（例: ~/repo、ssh://host/repo）",
+    "pathHint": "パス（例: ~/repo、ssh a@ip、ssh://host/repo）",
     "noFolder": "そのフォルダはありません",
     "drop": "登録を外す",
     "settings": "設定",
@@ -38,6 +38,22 @@
     "move": "動かす",
     "shell": "シェル",
     "listRepositories": "配下のリポジトリを一覧する"
+  },
+  "ssh": {
+    "title": "SSH",
+    "add": "SSH ホストを登録",
+    "addHint": "a@192.168.1.10",
+    "forget": "登録を外す",
+    "hostKey": "ホストの鍵がまだ登録されていません。一度ターミナルの ssh で接続して受け入れてください",
+    "unreachable": "ホストに届きません: {{reason}}",
+    "failed": "接続できません: {{reason}}",
+    "notHost": "ホストを書いてください（例: a@192.168.1.10、a@host:2222）",
+    "passwordTitle": "{{host}} のパスワード",
+    "password": "パスワード",
+    "wrongPassword": "パスワードが違います",
+    "passwordKept": "totex を閉じるまでだけ保持します",
+    "cancel": "キャンセル",
+    "connect": "接続"
   },
   "file": {
     "newFile": "新しいファイル",

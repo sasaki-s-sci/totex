@@ -6,8 +6,9 @@
 //! file off it, writing one back. A crate of its own so that every program in
 //! the workspace can link it without linking the window.
 //!
-//! Nothing here remembers anything between two calls. Every answer is a
-//! question about the machine asked and answered on the spot, which is what
+//! Nothing here remembers anything between two calls, save the passwords typed
+//! for machines reached over ssh — see `ssh::secrets`, and why. Every answer is
+//! a question about the machine asked and answered on the spot, which is what
 //! makes it a library rather than a place anything is kept.
 
 pub mod app_settings;

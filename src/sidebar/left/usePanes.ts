@@ -1,6 +1,19 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { describeFolders, listRoots, type Place, type Root, resolveFolder } from "../../folder/api";
 import { type Graphed, type GraphedKind, graphedKey, type PaneSeed } from "../../lib/graphed";
+import {
+  forgetSshHost,
+  parseSshTyped,
+  reachSsh,
+  reachSshWith,
+  readSshHost,
+  rememberSshHost,
+  type SshFailureKey,
+  sshFailure,
+  sshHome,
+  sshHostOf,
+  sshHosts,
+} from "../../lib/ssh";
 import { type Homes, homeAfterRemoval } from "../../lib/worktrees";
 import { useFrontState } from "../../shell/state";
 import { keepPlaces, keptPlaces } from "./places";
@@ -21,6 +34,13 @@ export interface Pane {
   expanded: string[];
   /** Repository pane: the worktree a row shows in place of the repository's own folder, by repository path. */
   shown: Record<string, string>;
+}
+
+/** An ssh failure, under the field it came from. */
+export interface SshFailed {
+  at: "path" | "ssh";
+  key: SshFailureKey;
+  reason: string;
 }
 
 /** The canvas asking the pane that graphed `root` to browse `path`. */
@@ -100,6 +120,26 @@ export function usePanes(
   const [asking, setAsking] = useState<GraphedKind>("folder");
   const [typed, setTyped] = useState("");
   const [refused, setRefused] = useState(false);
+  const [hosts, setHosts] = useState(sshHosts);
+  const [sshTyped, setSshTyped] = useState("");
+  const [sshFailed, setSshFailed] = useState<SshFailed | null>(null);
+  /** The host a pick is waiting on. */
+  const [reaching, setReaching] = useState<string | null>(null);
+  /** Hosts given a password since the panes came up: their panes read again. */
+  const [unlocked, setUnlocked] = useState<ReadonlySet<string>>(() => new Set());
+
+  // The password is asked up front for panes left on a host by the last run.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, for the panes the run began with
+  useEffect(() => {
+    const remote = new Set(panes.flatMap((pane) => sshHostOf(pane.path) ?? []));
+    for (const host of remote) {
+      reachSshWith(host)
+        .then((reach) => {
+          if (reach === "given") setUnlocked((held) => new Set(held).add(host));
+        })
+        .catch(() => undefined);
+    }
+  }, []);
 
   // One place once, however many panes graphed it: the canvas draws a place, not a pane.
   const graphed = useMemo(() => {
@@ -290,6 +330,8 @@ export function usePanes(
   function openRootMenu(event: MouseEvent<HTMLElement>, kind?: GraphedKind) {
     setAnchor(event.currentTarget);
     if (kind) setAsking(kind);
+    // Read each time: another window may have registered one, and `prime` lands after mount.
+    setHosts(sshHosts());
     if (!roots) {
       listRoots()
         .then(setRoots)
@@ -306,17 +348,68 @@ export function usePanes(
     setAnchor(null);
     setTyped("");
     setRefused(false);
+    setSshTyped("");
+    setSshFailed(null);
+  }
+
+  /** `then` once `host` lets us in; a cancelled password does nothing. */
+  function reachThen(host: string, at: SshFailed["at"], then: () => void) {
+    setReaching(host);
+    setSshFailed(null);
+    reachSsh(host)
+      .then((reached) => {
+        if (reached) then();
+      })
+      .catch((error) => setSshFailed({ at, ...sshFailure(error) }))
+      .finally(() => setReaching(null));
+  }
+
+  /** A pick from the menu: a path on a host is reached first, so a password is asked here. */
+  function pick(path: string) {
+    const host = sshHostOf(path);
+    if (host) reachThen(host, "ssh", () => addPane(path));
+    else addPane(path);
+  }
+
+  function addSshTyped() {
+    const host = readSshHost(sshTyped);
+    if (!host) {
+      setSshFailed({ at: "ssh", key: "ssh.notHost", reason: "" });
+      return;
+    }
+    setHosts(rememberSshHost(host));
+    const url = parseSshTyped(sshTyped)?.url ?? sshHome(host);
+    setSshTyped("");
+    reachThen(host, "ssh", () => addPane(url));
+  }
+
+  function forgetSsh(host: string) {
+    setHosts(forgetSshHost(host));
   }
 
   function keepTyped() {
     const asked = typed.trim();
     if (!asked) return;
+    // `ssh a@ip ~/repo` registers the host and goes where it would have landed.
+    const command = parseSshTyped(asked);
+    if (command) setHosts(rememberSshHost(command.host));
+    const path = command?.url ?? asked;
+    const host = command?.host ?? sshHostOf(path);
+    // A host's home is already its SSH row.
+    const keep = command?.path !== "~";
+    if (host) reachThen(host, "path", () => resolveTyped(path, keep));
+    else resolveTyped(path, keep);
+  }
+
+  function resolveTyped(asked: string, keep: boolean) {
     resolveFolder(asked)
       .then((place) => {
-        const held = places ?? [];
-        const kept = held.some((one) => one.path === place.path) ? held : [...held, place];
-        setPlaces(kept);
-        keepPlaces(kept);
+        if (keep) {
+          const held = places ?? [];
+          const kept = held.some((one) => one.path === place.path) ? held : [...held, place];
+          setPlaces(kept);
+          keepPlaces(kept);
+        }
         setTyped("");
         setRefused(false);
         addPane(place.path);
@@ -340,8 +433,15 @@ export function usePanes(
     });
   }
 
+  /** Changes once a pane's host is given a password, so the pane is drawn, and read, afresh. */
+  function paneKey(pane: Pane): string {
+    const host = sshHostOf(pane.path);
+    return host && unlocked.has(host) ? `${pane.id}:unlocked` : String(pane.id);
+  }
+
   return {
     panes,
+    paneKey,
     setPanes,
     column,
     roots,
@@ -364,6 +464,15 @@ export function usePanes(
     addPane,
     dropPlace,
     keepTyped,
+    hosts,
+    sshTyped,
+    setSshTyped,
+    sshFailed,
+    setSshFailed,
+    reaching,
+    pick,
+    addSshTyped,
+    forgetSsh,
   };
 }
 

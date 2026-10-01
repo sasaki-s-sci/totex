@@ -10,6 +10,7 @@ mod persistent;
 mod pty;
 mod release;
 mod space;
+mod ssh;
 mod tasks;
 mod themes;
 mod update;
@@ -273,6 +274,8 @@ pub fn run() {
             tasks::directory_tasks,
             space::space_standing,
             space::space_tell,
+            ssh::ssh_reach,
+            ssh::ssh_password,
             pty::pty_open,
             pty::pty_sessions,
             pty::pty_attach,

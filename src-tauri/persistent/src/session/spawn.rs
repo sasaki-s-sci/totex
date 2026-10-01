@@ -78,9 +78,13 @@ fn session_command(cwd: &str, dressing: &[(String, String)]) -> CommandBuilder {
             // shell there is being handed; `--` keeps a host whose name begins
             // with a dash from being read as an option. Not `BatchMode`: a
             // terminal is exactly where a passphrase or a host-key prompt
-            // belongs, and this is the one place `ssh` may ask.
+            // belongs, and this is the one place `ssh` may ask. A port in the
+            // host's spelling goes over as `-p`, which is the only way `ssh`
+            // takes one.
             command.arg("-t");
-            command.arg(&host);
+            for word in ssh::destination(&host) {
+                command.arg(word);
+            }
             command.arg("--");
             command.arg(ssh::login_line(&far.native(Path::new(cwd))));
             // `ssh` forwards the client's TERM, so this is what the far shell
