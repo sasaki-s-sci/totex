@@ -242,14 +242,22 @@ export function useGraphKeys({
 
         if (event.repeat) return;
 
-        const stacks = places.current;
-        const place = stacks.findIndex((stack) => stack.id === node.id);
-        const next = stacks[place + 1] ?? stacks[place - 1] ?? null;
+        // The terminal after it, else the one before: a repository row cannot fill the panel.
+        const { nodes, shown } = latest.current;
+        const terminals = places.current.filter((stack) =>
+          nodes.some((candidate) => candidate.id === stack.id && candidate.type === "cli"),
+        );
+        const place = terminals.findIndex((stack) => stack.id === node.id);
+        const next = terminals[place + 1] ?? terminals[place - 1] ?? null;
         at.current = next?.id ?? null;
 
         typed.current = null;
         setPicked(next?.id ?? null);
         latest.current.end(node);
+
+        // The panel moves on rather than closing with the terminal it held.
+        const following = next && nodes.find((candidate) => candidate.id === next.id);
+        if (shown === node.id && following) latest.current.jump(following);
         return;
       }
 
