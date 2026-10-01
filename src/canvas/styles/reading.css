@@ -258,11 +258,19 @@
   font-size: 12px;
 }
 
+.file-preview__pdf-status {
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+/* The page is sized to the scroller's width, so a scrollbar that came and went with it would
+   resize, redraw and resize again without end. */
 .file-preview__pdf-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .file-preview__pdf-paper {

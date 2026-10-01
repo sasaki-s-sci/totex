@@ -57,10 +57,11 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     if (!pdf || !container || width <= 0) return;
     let active = true;
     let render: ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]> | undefined;
+    // Drawn off the page and swapped in once done: a blank canvas in its place would shrink the
+    // scroller for a frame, and the page shown until then would blink out.
     const canvas = document.createElement("canvas");
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", `${name} — ${page}`);
-    container.replaceChildren(canvas);
     setRendering(true);
     setFailed(false);
     void pdf
@@ -80,7 +81,9 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
         canvas.style.height = `${view.height}px`;
         render = sheet.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] });
         await render.promise;
-        if (active) setRendering(false);
+        if (!active) return;
+        container.replaceChildren(canvas);
+        setRendering(false);
       })
       .catch(() => {
         if (active) {
@@ -91,7 +94,6 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     return () => {
       active = false;
       render?.cancel();
-      canvas.remove();
     };
   }, [pdf, page, zoom, width, name]);
 
@@ -137,17 +139,17 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
         <button type="button" onClick={() => setZoom(1)}>
           {t("filePreview.pdfFitWidth")}
         </button>
+        {/* In the bar, not over the scroller: a line coming and going would move the page. */}
+        {!failed && rendering && (
+          <span className="file-preview__pdf-status" role="status">
+            {t("filePreview.loading")}
+          </span>
+        )}
       </div>
-      {failed ? (
+      {failed && (
         <p className="file-preview__message is-error" role="alert">
           {t("filePreview.documentFailed")}
         </p>
-      ) : (
-        rendering && (
-          <p className="file-preview__document-status" role="status">
-            {t("filePreview.loading")}
-          </p>
-        )
       )}
       <div className="file-preview__pdf-scroll nopan" ref={viewport}>
         <div className="file-preview__pdf-paper" ref={paper} />
