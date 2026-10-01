@@ -60,10 +60,14 @@ export function folderGroup(
   const running = rowed ? take(open, claimed, [folder.root]) : [];
 
   // The stack opens out either side of the row's line, so a tall one reaches above the row.
-  const inset = { x: 0, y: Math.max(0, rowReach(running.length) - LANE_HEIGHT / 2) };
+  // Lined up, the row moves right until its mark stands where a band's rings do.
+  const inset = {
+    x: rowed && axis !== null ? axis - ROW_STACK_X : 0,
+    y: Math.max(0, rowReach(running.length) - LANE_HEIGHT / 2),
+  };
 
   const head = { x: at.x + inset.x, y: at.y + inset.y };
-  const stackX = head.x + (axis ?? ROW_STACK_X);
+  const stackX = at.x + (axis ?? ROW_STACK_X);
 
   const drawn: LaidGroup = {
     nodes: [],

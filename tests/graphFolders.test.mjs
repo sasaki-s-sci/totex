@@ -12,7 +12,7 @@ const server = await createServer({
   server: { watch: null },
 });
 const { buildCommitGraph } = await server.ssrLoadModule("/src/lib/graph/build/index.ts");
-const { folderId, groupKey } = await server.ssrLoadModule("/src/lib/graph/folders.ts");
+const { folderId, groupKey, ROW_SOCKET } = await server.ssrLoadModule("/src/lib/graph/folders.ts");
 await server.close();
 await rm(cacheDir, { recursive: true, force: true });
 
@@ -285,9 +285,19 @@ test("lined up by terminal, every stack stands on one line; by initial, the grou
   assert.equal(xs.length, 4);
   assert.equal(new Set(xs).size, 1);
 
+  // The folder's mark stands where every band's rings do, as its stack stands on theirs.
+  const at = new Map(lined.nodes.map((node) => [node.id, node.position]));
+  const rings = lined.nodes
+    .filter((node) => node.type === "head")
+    .map((node) => at.get(node.parentId).x + node.position.x + 50);
+  assert.ok(rings.length > 0);
+  assert.equal(new Set(rings).size, 1);
+  assert.equal(folderNodes(lined)[0].position.x + ROW_SOCKET.x, rings[0]);
+
   const loose = build(workspace, folders, undefined, sessions, "initial");
   assert.ok(new Set(stacksOf(loose)).size > 1);
   for (const band of bandNodes(loose)) assert.equal(band.position.x, 0);
+  assert.equal(folderNodes(loose)[0].position.x, 0);
   // The shortest history is the one pushed right to meet the rest.
   const x = (graph, id) => bandNodes(graph).find((band) => band.id === id).position.x;
   assert.equal(x(lined, "long"), 0);
