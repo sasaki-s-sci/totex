@@ -13,8 +13,8 @@ import {
 import { useDraft } from "../canvas/nodes/preview/draft";
 import { widthWithout } from "../canvas/nodes/preview/measure";
 import { useReading } from "../canvas/nodes/preview/reading";
-import type { SchemaHandle } from "../canvas/nodes/preview/SchemaReading";
 import { insertTab, removeTab } from "../canvas/nodes/preview/text";
+import { rowOf, useWrappedRows, wrappedNumbers } from "../canvas/nodes/preview/wrap";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import { drawn, vector } from "../lib/filePreview";
@@ -27,7 +27,6 @@ import {
   mediaPart,
   modelPart,
   pdfPart,
-  schemaPart,
   settingsPart,
   tablePart,
 } from "../parts";
@@ -65,6 +64,7 @@ export function FilePage({
     setBody,
     sheet,
     gutter,
+    paper,
     setPaper,
     across,
     down,
@@ -76,21 +76,11 @@ export function FilePage({
     railMove,
     railUp,
   } = view;
-  const {
-    editable,
-    reading,
-    lines,
-    numbers,
-    unsaved,
-    refused,
-    save: saveNative,
-    typing,
-    onInput,
-  } = useDraft(data, view, saveFilePreview);
-  const Schema = schemaPart.use(data.view === "schema");
-  const schemaRef = useRef<SchemaHandle>(null);
-  const save = () =>
-    data.view === "schema" ? (schemaRef.current?.save() ?? Promise.resolve(true)) : saveNative();
+  const { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput } = useDraft(
+    data,
+    view,
+    saveFilePreview,
+  );
   // A page drawn of a file is not the card asking; the card beside it is.
   const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);
   const runs = fileRuns(diff, lines);
@@ -118,6 +108,9 @@ export function FilePage({
       : data.picture;
   const ready = data.state === "ready" && (data.text !== null || picture !== null);
   const bar = useRef<HTMLElement>(null);
+  // Held by the page alone: it follows the page between hosts, as the scroll does.
+  const [wrapped, setWrapped] = useState(false);
+  const rows = useWrappedRows(paper, wrapped && data.view === "text", lines);
   const drawing = useRef<HTMLImageElement>(null);
   const [undrawn, setUndrawn] = useState<string | null>(null);
   const size = useReadingSize();
@@ -167,11 +160,7 @@ export function FilePage({
       pinned={placement === "canvas" && data.pinnedAt !== null}
       headerRef={bar}
       bodyRef={setBody}
-      onBodyWheel={
-        data.view === "settings" || data.view === "schema" || isDocument || nativeScroll
-          ? undefined
-          : onWheel
-      }
+      onBodyWheel={data.view === "settings" || isDocument || nativeScroll ? undefined : onWheel}
       footnote={footnote}
       style={{ "--reading-size": `${size}px` } as CSSProperties}
       onPointerDown={(event) => {
@@ -214,6 +203,8 @@ export function FilePage({
             changed={changed(diff)}
             save={save}
             onFit={fitWidth}
+            wrapped={wrapped}
+            onWrap={data.view === "text" ? () => setWrapped((held) => !held) : undefined}
             onShrink={shrink}
           />
         </>
@@ -222,13 +213,6 @@ export function FilePage({
       {data.view === "settings" &&
         (Settings ? (
           <Settings />
-        ) : (
-          <p className="file-preview__message">{t("filePreview.loading")}</p>
-        ))}
-      {data.view === "schema" &&
-        data.state === "ready" &&
-        (Schema ? (
-          <Schema data={data} ref={schemaRef} write={saveFilePreview} />
         ) : (
           <p className="file-preview__message">{t("filePreview.loading")}</p>
         ))}
@@ -253,16 +237,19 @@ export function FilePage({
           </p>
         )}
       {ready && data.view === "text" && (
-        <div className="file-preview__code" ref={sheet}>
+        <div className={`file-preview__code${rows ? " is-wrapped" : ""}`} ref={sheet}>
           <div className="file-preview__rule" aria-hidden="true" ref={gutter}>
-            <pre className="file-preview__gutter">{numbers}</pre>
-            {runs.map((run) => (
-              <i
-                key={`${run.mark}:${run.line}`}
-                className={`file-preview__mark is-${run.mark}`}
-                style={runBox(run.line - 1, run.lines)}
-              />
-            ))}
+            <pre className="file-preview__gutter">{rows ? wrappedNumbers(rows) : numbers}</pre>
+            {runs.map((run) => {
+              const from = rowOf(rows, run.line - 1);
+              return (
+                <i
+                  key={`${run.mark}:${run.line}`}
+                  className={`file-preview__mark is-${run.mark}`}
+                  style={runBox(from, rowOf(rows, run.line - 1 + run.lines) - from)}
+                />
+              );
+            })}
           </div>
           {/* Never rendered into: useDraft writes it, because React must not own an editable box. */}
           <pre
@@ -379,30 +366,26 @@ export function FilePage({
           <p className="file-preview__message">{t("filePreview.loading")}</p>
         ))}
 
-      {ready &&
-        !isDocument &&
-        !nativeScroll &&
-        data.view !== "settings" &&
-        data.view !== "schema" && (
-          <>
-            <i
-              className="file-preview__reach file-preview__reach--y"
-              ref={down}
-              onPointerDown={railDown("y")}
-              onPointerMove={railMove}
-              onPointerUp={railUp}
-              onPointerCancel={railUp}
-            />
-            <i
-              className="file-preview__reach file-preview__reach--x"
-              ref={across}
-              onPointerDown={railDown("x")}
-              onPointerMove={railMove}
-              onPointerUp={railUp}
-              onPointerCancel={railUp}
-            />
-          </>
-        )}
+      {ready && !isDocument && !nativeScroll && data.view !== "settings" && (
+        <>
+          <i
+            className="file-preview__reach file-preview__reach--y"
+            ref={down}
+            onPointerDown={railDown("y")}
+            onPointerMove={railMove}
+            onPointerUp={railUp}
+            onPointerCancel={railUp}
+          />
+          <i
+            className="file-preview__reach file-preview__reach--x"
+            ref={across}
+            onPointerDown={railDown("x")}
+            onPointerMove={railMove}
+            onPointerUp={railUp}
+            onPointerCancel={railUp}
+          />
+        </>
+      )}
     </Page>
   );
 }

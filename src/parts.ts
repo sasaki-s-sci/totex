@@ -36,10 +36,6 @@ export function storedRoots(): PaneSeed[] {
   return [];
 }
 
-export const schemaPart = onDemand(() =>
-  import("./canvas/nodes/preview/SchemaReading").then((part) => part.SchemaReading),
-);
-
 export const pdfPart = onDemand(() =>
   import("./canvas/nodes/preview/PdfReading").then((part) => part.PdfReading),
 );

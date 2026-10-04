@@ -6,7 +6,6 @@ export type FilePreviewView =
   | "markdown"
   | "picture"
   | "settings"
-  | "schema"
   | "pdf"
   | "dxf"
   | "video"

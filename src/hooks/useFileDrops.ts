@@ -1,11 +1,23 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { draftKey } from "../canvas/nodes/preview/draft";
 import type { CardSeed } from "../lib/cardWindow";
 import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
 import { keepFrontValue, useFrontState } from "../shell/state";
 
 export function useFileDrops() {
-  const [filePreviews, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
+  const [held, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
+  // An earlier version could keep a card in its JSON Schema form, which is gone: it reads as text.
+  const filePreviews = useMemo(
+    () =>
+      held.some((preview) => (preview.view as string | undefined) === "schema")
+        ? held.map((preview) =>
+            (preview.view as string | undefined) === "schema"
+              ? { ...preview, view: "text" as const }
+              : preview,
+          )
+        : held,
+    [held],
+  );
   const nextFilePreview = useRef(Math.max(-1, ...filePreviews.map((file) => file.id)) + 1);
 
   const openFiles = useCallback((paths: readonly string[], at: { x: number; y: number } | null) => {

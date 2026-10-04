@@ -16,3 +16,9 @@
 .graph .react-flow__node-offer {
   contain: layout;
 }
+
+/* The name stands over the row's terminals, past the row's own box. */
+.graph .react-flow__node-folder,
+.graph .react-flow__node-repo-mark {
+  contain: layout;
+}

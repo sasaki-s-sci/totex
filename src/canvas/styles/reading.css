@@ -291,3 +291,15 @@
   overflow: hidden;
   touch-action: none;
 }
+
+/* Wrapped, the text keeps to the page's width; the gutter counts rows to stay level with it. */
+.file-preview__code.is-wrapped {
+  width: 100%;
+}
+
+.file-preview__code.is-wrapped .file-preview__text {
+  min-width: 0;
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

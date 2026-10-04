@@ -1,7 +1,8 @@
 import DifferenceIcon from "@mui/icons-material/Difference";
+import WrapTextIcon from "@mui/icons-material/WrapText";
 import { useTranslation } from "react-i18next";
 import { useSettingsDocument } from "../lib/appSettings";
-import { drawn, type FilePreviewView, previewable, previewView } from "../lib/filePreview";
+import { drawn } from "../lib/filePreview";
 import type { FilePreviewNodeData } from "../lib/graph";
 import type { FilePageActions } from "./actions";
 import { PageTool } from "./Page";
@@ -18,6 +19,8 @@ export function FileTools({
   save,
   onFit,
   onShrink,
+  wrapped,
+  onWrap,
 }: {
   data: FilePreviewNodeData;
   actions: FilePageActions;
@@ -28,6 +31,9 @@ export function FileTools({
   save: () => Promise<boolean>;
   onFit: () => void;
   onShrink: () => void;
+  wrapped: boolean;
+  /** Absent where the page shows no text to wrap. */
+  onWrap?: () => void;
 }) {
   const { t } = useTranslation();
   const config = useSettingsDocument();
@@ -53,36 +59,15 @@ export function FileTools({
         close: afterSave(() => closeFilePreview(data.requestId)),
       }}
     >
-      <select
-        className="file-preview__mode nodrag"
-        aria-label={t("filePreview.mode")}
-        value={drawn(data.view) ? "preview" : data.view === "schema" ? "schema" : "text"}
-        onChange={(event) => {
-          const mode = event.target.value;
-          const next: FilePreviewView =
-            mode === "preview"
-              ? isSettings
-                ? "settings"
-                : previewView(data.path)
-              : mode === "schema"
-                ? "schema"
-                : "text";
-          void save().then((saved) => saved && setFilePreviewView(data.requestId, next));
-        }}
-      >
-        <option
-          value="preview"
-          disabled={!isSettings && !previewable(data.path) && data.picture === null}
+      {onWrap && (
+        <PageTool
+          label={t(wrapped ? "filePreview.unwrap" : "filePreview.wrap", { name: data.name })}
+          on={wrapped}
+          onClick={onWrap}
         >
-          Preview
-        </option>
-        <option value="text" disabled={data.state === "ready" && data.text === null}>
-          Native
-        </option>
-        <option value="schema" disabled={!/\.json$/i.test(data.path)}>
-          Schemaed
-        </option>
-      </select>
+          <WrapTextIcon sx={{ fontSize: 12 }} />
+        </PageTool>
+      )}
       {!isSettings && !drawn(data.view) && changed && (
         <PageTool
           label={t(data.view === "diff" ? "filePreview.showFile" : "filePreview.showDiff", {

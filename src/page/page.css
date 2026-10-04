@@ -123,8 +123,9 @@
 }
 
 /* In the sidebar the header is the window's title bar: everything but a control lets the press
-   through to the drag sheet beneath it. */
-.page--sidebar .page__header > :not(.page__window-drag) {
+   through to the drag sheet beneath it. Kept light with `:where`, so the controls' rule below wins
+   for a control that is itself a child of the header. */
+.page--sidebar .page__header > :where(:not(.page__window-drag)) {
   pointer-events: none;
 }
 
