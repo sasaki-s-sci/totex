@@ -12,6 +12,7 @@ import { MarkSizeRows } from "./MarkSizeRows";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
+import { Callout, SettingsMap } from "./SettingsMap";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
 import { TerminalSortRow } from "./TerminalSortRow";
@@ -29,41 +30,66 @@ export function SettingsContent() {
         px: 2,
         py: 1.5,
         gap: 0.5,
-        minWidth: 518,
-        "& > .MuiDivider-root:first-child": { display: "none" },
+        "& .MuiDivider-root:first-of-type": { display: "none" },
       }}
     >
       <SettingsSaveStatus />
-      <Section name={t("settings.canvas")}>
-        <GridRows />
-        <MarkSizeRows />
-        <WheelRow place="graph" />
-        <Group name={t("settings.page")}>
-          <FileTitleRow />
-        </Group>
-        <Group name={t("settings.graph")}>
-          <GapRow />
-          <AlignRow />
-          <RevealRow />
-          <WalkRow />
-          <HistoryRows />
-          <FollowRows />
-          <SpareRow />
-        </Group>
-      </Section>
-      <Section name={t("settings.terminal")}>
-        <WheelRow place="cli" />
-        <TerminalSortRow />
-        <SaidRows />
-      </Section>
-      <Section name={t("settings.other")}>
-        <ThemeRow />
-        <Group name={t("settings.appearance")}>
-          <AppearanceRows />
-        </Group>
-        <LanguageRow />
-        <UpdateRow />
-      </Section>
+      <SettingsMap>
+        <Section name={t("settings.canvas")}>
+          <Callout parts={["canvas"]} name={t("settings.moving")}>
+            <WheelRow place="graph" />
+            <RevealRow />
+            <WalkRow />
+          </Callout>
+          <Callout parts={["grid"]} name={t("settings.background")}>
+            <GridRows />
+          </Callout>
+          <Callout parts={["folderMark", "cliMark"]} name={t("settings.marks")}>
+            <MarkSizeRows />
+          </Callout>
+          <Callout parts={["page"]} name={t("settings.page")}>
+            <FileTitleRow />
+          </Callout>
+          <Group name={t("settings.graph")}>
+            <Callout parts={["gap", "align"]} name={t("settings.layout")}>
+              <GapRow />
+              <AlignRow />
+            </Callout>
+            <Callout parts={["commits"]} name={t("settings.history")}>
+              <HistoryRows />
+            </Callout>
+            <Callout parts={["remote"]} name={t("settings.remote")}>
+              <FollowRows />
+            </Callout>
+            <Callout parts={["branch"]} name={t("settings.branches")}>
+              <SpareRow />
+            </Callout>
+          </Group>
+        </Section>
+        <Section name={t("settings.terminal")}>
+          <Callout parts={["terminal"]} name={t("settings.terminalView")}>
+            <WheelRow place="cli" />
+          </Callout>
+          <Callout parts={["stack"]} name={t("settings.terminalMarks")}>
+            <TerminalSortRow />
+          </Callout>
+          <Callout parts={["said"]} name={t("settings.saidGroup")}>
+            <SaidRows />
+          </Callout>
+        </Section>
+        <Section name={t("settings.other")}>
+          <Callout parts={["window"]} name={t("settings.appearance")}>
+            <ThemeRow />
+            <AppearanceRows />
+          </Callout>
+          <Callout parts={["sidebar"]}>
+            <LanguageRow />
+          </Callout>
+          <Callout parts={["controls"]}>
+            <UpdateRow />
+          </Callout>
+        </Section>
+      </SettingsMap>
     </Stack>
   );
 }

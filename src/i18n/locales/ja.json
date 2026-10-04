@@ -211,7 +211,17 @@
     "saidFit": "行をキャンバスに合わせる",
     "saidLines": "行数",
     "saidWidth": "行の幅",
-    "wheel": "ホイール"
+    "wheel": "ホイール",
+    "moving": "移動",
+    "background": "背景",
+    "marks": "アイコン",
+    "layout": "並べ方",
+    "history": "履歴",
+    "remote": "リモート",
+    "branches": "ブランチ",
+    "terminalView": "ターミナル画面",
+    "terminalMarks": "ターミナルのアイコン",
+    "saidGroup": "ターミナル横の行"
   },
   "update": {
     "title": "Updates",

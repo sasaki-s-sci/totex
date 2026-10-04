@@ -211,7 +211,17 @@
     "saidFit": "Fit the lines to the canvas",
     "saidLines": "Lines",
     "saidWidth": "Line width",
-    "wheel": "Wheel"
+    "wheel": "Wheel",
+    "moving": "Moving around",
+    "background": "Background",
+    "marks": "Marks",
+    "layout": "Layout",
+    "history": "History",
+    "remote": "Remote",
+    "branches": "Branches",
+    "terminalView": "Terminal view",
+    "terminalMarks": "Terminal marks",
+    "saidGroup": "Line beside a terminal"
   },
   "update": {
     "title": "Updates",

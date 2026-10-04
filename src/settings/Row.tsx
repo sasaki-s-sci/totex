@@ -13,11 +13,23 @@ export function Row({ label, children }: { label: string; children?: React.React
       direction="row"
       sx={{ alignItems: "center", justifyContent: "space-between", gap: 2, minHeight: ROW_HEIGHT }}
     >
-      <Typography variant="body2">{label}</Typography>
+      {/* A narrow column squeezes the control first, so a short label stays on one line. */}
+      <Typography variant="body2" sx={{ minWidth: "5em" }}>
+        {label}
+      </Typography>
       {children}
     </Stack>
   );
 }
+
+/** Nested rows hang off a rule so each level reads as belonging to the heading above it. */
+export const NEST_SX = {
+  gap: 0.5,
+  ml: 0.75,
+  pl: 1.5,
+  borderLeft: 1,
+  borderColor: "divider",
+} as const;
 
 export function Section({ name, children }: { name: string; children: React.ReactNode }) {
   return (
@@ -25,22 +37,23 @@ export function Section({ name, children }: { name: string; children: React.Reac
       <Divider sx={{ my: 0.5 }} />
       <Typography
         variant="subtitle2"
-        sx={{ minHeight: ROW_HEIGHT, display: "flex", alignItems: "center" }}
+        sx={{ minHeight: ROW_HEIGHT, display: "flex", alignItems: "center", fontWeight: 600 }}
       >
         {name}
       </Typography>
-      {children}
+      <Stack sx={NEST_SX}>{children}</Stack>
     </>
   );
 }
 
 export function Group({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <>
+    <Stack sx={{ gap: 0.5, mt: 0.5 }}>
       <Typography
-        variant="caption"
+        variant="body2"
         sx={{
           color: "text.secondary",
+          fontWeight: 600,
           minHeight: ROW_HEIGHT,
           display: "flex",
           alignItems: "center",
@@ -48,8 +61,8 @@ export function Group({ name, children }: { name: string; children: React.ReactN
       >
         {name}
       </Typography>
-      <Stack sx={{ gap: 0.5, pl: 1.5 }}>{children}</Stack>
-    </>
+      <Stack sx={NEST_SX}>{children}</Stack>
+    </Stack>
   );
 }
 

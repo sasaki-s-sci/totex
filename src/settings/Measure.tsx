@@ -22,9 +22,13 @@ export function Measure({
 }) {
   return (
     <Row label={label}>
-      <Stack direction="row" sx={{ alignItems: "center", gap: 2, width: 180 }}>
+      <Stack
+        direction="row"
+        sx={{ alignItems: "center", gap: 1.5, width: 180, minWidth: 96, flexShrink: 4 }}
+      >
         <Slider
           size="small"
+          sx={{ flex: 1, minWidth: 0 }}
           aria-label={label}
           value={value}
           min={room.least}
@@ -37,7 +41,7 @@ export function Measure({
         />
         <Typography
           variant="body2"
-          sx={{ minWidth: 28, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
+          sx={{ minWidth: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
         >
           {read ? read(value) : `${value}${unit}`}
         </Typography>

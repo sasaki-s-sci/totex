@@ -7,7 +7,7 @@ import { fileNodeId, fileSize, SETTINGS_LEAST } from "./filePreviewBox";
 import { canvasMiddle, PAGE_HANDLE, PAGE_Z } from "./pagePlacing";
 import type { PageCanvas } from "./useFilePreviews";
 
-const BOX = { width: 760, height: 390 };
+const BOX = { width: 860, height: 480 };
 export function useSettingsPage(
   request: number,
   { host, instance, setNodes, flowReady }: PageCanvas,
