@@ -12,7 +12,16 @@ import { useTranslation } from "react-i18next";
 import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
-import { CloseMark, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } from "../../marks";
+import {
+  CloseMark,
+  GitMark,
+  GraphRepoMark,
+  MarkButton,
+  PaneFolderMark,
+  PaneRepoMark,
+  SIZE,
+  UpMark,
+} from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
@@ -45,6 +54,8 @@ export interface RepoPaneProps {
   onShowWorktree: (repository: string, path: string | null) => void;
   /** The whole list, once a walk has ended with nothing cut short: what the rows are now. */
   onListed: (repositories: string[]) => void;
+  /** The pane turns back into the folder pane on the checkout it lists alone. */
+  onFolderMode: () => void;
   onOpenFile?: (path: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
@@ -78,6 +89,7 @@ export function RepoPane({
   onToggleExpanded,
   onShowWorktree,
   onListed,
+  onFolderMode,
   onOpenFile,
   onMenu,
   naming,
@@ -216,6 +228,17 @@ export function RepoPane({
                         }}
                       >
                         <UpMark />
+                      </MarkButton>
+                    )}
+                    {alone && (
+                      <MarkButton
+                        label={t("repository.folderMode")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onFolderMode();
+                        }}
+                      >
+                        <PaneFolderMark size={SIZE} />
                       </MarkButton>
                     )}
                     <MarkButton

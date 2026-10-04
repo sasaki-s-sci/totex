@@ -289,6 +289,27 @@ export function usePanes(
     );
   }
 
+  /**
+   * The way back: a repository pane listing only its own checkout turns into the folder pane on
+   * it. The repository on the canvas goes on as the folder, as `toRepository` took it.
+   */
+  function toFolder(id: number) {
+    setPanes((current) =>
+      current.map((pane) =>
+        pane.id === id && pane.kind === "repository"
+          ? {
+              ...pane,
+              kind: "folder",
+              open: true,
+              graphed: pane.graphed.includes(pane.path) ? [pane.path] : [],
+              expanded: [],
+              shown: {},
+            }
+          : pane,
+      ),
+    );
+  }
+
   function toggleGraph(id: number, path: string) {
     setPanes((current) =>
       current.map((pane) =>
@@ -497,6 +518,7 @@ export function usePanes(
     setRefused,
     update,
     toRepository,
+    toFolder,
     toggleGraph,
     settleList,
     toggleExpanded,

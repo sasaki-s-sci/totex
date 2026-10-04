@@ -289,6 +289,10 @@ export function LeftSidebar({
                   panes.showWorktree(pane.id, repository, path);
                 }}
                 onListed={(repositories) => panes.settleList(pane.id, repositories)}
+                onFolderMode={() => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.toFolder(pane.id);
+                }}
                 grip={gripOf(pane.id)}
                 onOpenFile={onOpenFile}
                 onMenu={setMenu}

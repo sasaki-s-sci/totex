@@ -89,16 +89,19 @@ export function FolderPane({
   // `/home/a` means one thing per distribution, so the name alone says nothing.
   const distro = root?.path === path ? root.distro : null;
   const answer = useDirectoryChanges(path);
-  const isRepository = root?.path === path && root.entries.some((entry) => entry.name === ".git");
+  // A `.git` directory, as the repository list counts one: a worktree's `.git` file would switch
+  // to a pane with no row in it.
+  const isRepository =
+    root?.path === path && root.entries.some((entry) => entry.name === ".git" && entry.isDir);
   const changes = isRepository ? Object.values(answer.changed) : [];
   const change = changes.reduce<(typeof changes)[number] | undefined>(
     (held, next) => (held === undefined || held === next ? next : "modified"),
     undefined,
   );
   const colour = change ? CHANGE_COLOUR[change] : "text.primary";
-  // The list is offered where it would have a row. A checkout says so by its own listing; any
-  // other folder is walked for one.
-  const holds = useHolding([path], root?.entries.length).has(path) || isRepository;
+  // The list is offered where it would have a row other than the pane's own: a checkout switches
+  // in place instead.
+  const holds = useHolding([path], root?.entries.length).has(path) && !isRepository;
 
   return (
     /* Anything that is not a row answers for the pane's own folder; a row stops the press first. */

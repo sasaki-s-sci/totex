@@ -86,7 +86,8 @@
     "none": "No repositories here",
     "cutShort": "Stopped looking part way: the folder is too deep",
     "home": "Back to its own folder",
-    "showing": "Showing {{branch}}"
+    "showing": "Showing {{branch}}",
+    "folderMode": "Switch to folder"
   },
   "branch": {
     "head": "{{name}}",

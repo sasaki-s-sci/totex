@@ -86,7 +86,8 @@
     "none": "リポジトリはありません",
     "cutShort": "途中で探索を打ち切りました（フォルダが深すぎます）",
     "home": "元のフォルダに戻す",
-    "showing": "{{branch}} を表示中"
+    "showing": "{{branch}} を表示中",
+    "folderMode": "フォルダモードにする"
   },
   "branch": {
     "head": "{{name}}",
