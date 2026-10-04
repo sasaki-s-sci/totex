@@ -7,15 +7,16 @@ import { commitNodeId, newWorkBase } from "../history";
 import type { PreparedRepository } from "../layout";
 import {
   type AppNode,
+  CHIP_STEP,
   CLI_MARK,
   CLI_STEP,
   CLI_STROKE,
-  COMMIT_STEP,
   COMMIT_TRIM,
   type Draw,
   type GraphLine,
   inBand,
   type LineEnd,
+  NEW_RISE,
   OFFER_STROKE,
   type OfferFlowNode,
   onCommit,
@@ -44,9 +45,6 @@ export type Column = {
 
   right: number;
 };
-
-/** The air between the topmost stack and the new workspace over it. */
-const NEW_RISE = (COMMIT_STEP.y - CLI_STEP) / 2;
 
 export function bandColumn(
   entry: PreparedRepository,
@@ -147,8 +145,8 @@ export function bandColumn(
     }
   }
 
-  // The new workspace heads the column, over every branch there is, and leaves the default
-  // branch's ring, which stands on its latest commit: the corridor beside the rings is the lines'.
+  // The new workspace heads the column, over every branch there is. What it draws is a workspace:
+  // a ring cut from a commit, with the terminal it opens hanging off it as any branch's does.
   const column = entry.runs[0]?.x ?? entry.style.width - SESSION_WIDTH;
   const rise = ceiling - NEW_RISE - CLI_STEP;
   drawn.offers.push(
@@ -162,30 +160,44 @@ export function bandColumn(
     ),
   );
 
+  // Where a ring would stand in the ring column, level with the terminal it opens.
+  const ring = inBand(band, column + SESSION_WIDTH / 2 - CHIP_STEP, rise + CLI_STEP / 2);
   const from = newWorkFrom(entry);
   if (from) {
     drawn.offerLines.push({
-      id: `offer${band}newline`,
+      id: `offer${band}newcut`,
       from: from.end,
-      to: inBand(band, column + SESSION_WIDTH / 2, rise + CLI_STEP / 2),
+      to: ring,
       shape: "curve",
-      trim: CLI_MARK / 2,
+      trim: RING_TRIM,
       lead: from.lead,
       stroke: OFFER_STROKE,
     });
   }
+  drawn.offerLines.push({
+    id: `offer${band}newline`,
+    from: ring,
+    to: inBand(band, column + SESSION_WIDTH / 2, rise + CLI_STEP / 2),
+    shape: "curve",
+    trim: CLI_MARK / 2,
+    lead: RING_TRIM,
+    stroke: OFFER_STROKE,
+  });
 
   return drawn;
 }
 
-// The mark the new workspace is cut from, as `newWork` cuts it: its branch's ring, else its
-// commit; a cut behind the fold, under a hidden branch, has nothing drawn to leave from.
+// The commit the new workspace is cut from, as `newWork` cuts it; behind the fold, its branch's
+// ring stands for it, and under a hidden branch there is nothing drawn to leave from.
 function newWorkFrom({ repository, nodes }: PreparedRepository): {
   end: LineEnd;
   lead: number;
 } | null {
   const { branch, commit } = newWorkBase(repository);
   const drawn = (id: string) => nodes.some((node) => node.id === id);
+
+  const dot = commit && commitNodeId(repository, commit);
+  if (dot && drawn(dot)) return { end: onCommit(dot), lead: COMMIT_TRIM };
 
   const ring = branch && refNodeId(repository, branch.id);
   if (ring && drawn(ring)) {
@@ -194,9 +206,6 @@ function newWorkFrom({ repository, nodes }: PreparedRepository): {
       lead: branch.kind === "remote" ? REMOTE_HEAD_TRIM : RING_TRIM,
     };
   }
-
-  const dot = commit && commitNodeId(repository, commit);
-  if (dot && drawn(dot)) return { end: onCommit(dot), lead: COMMIT_TRIM };
   return null;
 }
 

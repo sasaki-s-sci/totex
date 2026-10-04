@@ -29,8 +29,9 @@
 }
 
 /*
- * Two lines over three columns. The lower line is the trunk's: the name, then the mark against
- * the fold. The line above carries the rail with its count, and what closes over the mark.
+ * Two lines over three columns. The lower line is the trunk's: the mark against the fold, with the
+ * name over the terminal column instead. The line above carries the rail with its count, and what
+ * closes over the mark.
  */
 .band__heading {
   display: grid;
@@ -39,7 +40,7 @@
   height: 100%;
   grid-template-areas:
     "length shown close"
-    "name name grip";
+    ". . grip";
   grid-template-columns: minmax(0, 1fr) auto var(--square);
   grid-template-rows: minmax(0, 1fr) var(--line);
   align-items: center;
@@ -53,13 +54,6 @@
   height: auto;
   grid-area: grip;
   transform: none;
-}
-
-/* From the edge a folder's line arrives at; the mark stands in its own column, against the fold. */
-.band__heading .folder__name {
-  grid-area: name;
-  justify-self: start;
-  max-width: 100%;
 }
 
 .band__length {

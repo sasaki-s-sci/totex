@@ -17,8 +17,9 @@
   contain: layout;
 }
 
-/* The name stands over the row's terminals, past the row's own box. */
+/* The name stands over the row's or the band's terminals, past the node's own box. */
 .graph .react-flow__node-folder,
-.graph .react-flow__node-repo-mark {
+.graph .react-flow__node-repo-mark,
+.graph .react-flow__node-repository {
   contain: layout;
 }

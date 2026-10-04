@@ -143,13 +143,12 @@
   font-family: inherit;
 }
 
-/* A terminal not yet there: the stack mark's outline, dashed in, until it is stood on. */
+/* A terminal not yet there: the stack mark itself, greyed, until it is stood on. */
 .offer__take {
   display: flex;
   padding: 0;
-  border: 1px dashed currentcolor;
-  border-radius: 4px;
-  background: var(--mui-palette-background-default);
+  border: none;
+  background: transparent;
   color: var(--mui-palette-text-disabled);
   cursor: pointer;
   opacity: 0.7;
@@ -159,11 +158,29 @@
     filter var(--reveal);
 }
 
+/* The workspace a new terminal would be cut into: a branch's ring, greyed as its terminal is. */
+.offer__ring {
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  color: var(--mui-palette-text-disabled);
+  opacity: 0.7;
+  pointer-events: none;
+  transition:
+    color var(--reveal),
+    opacity var(--reveal);
+}
+
 .offer__take:hover,
 .react-flow__node.is-picked .offer__take {
   color: var(--mui-palette-primary-main);
   opacity: 1;
   filter: var(--lit);
+}
+
+.offer:hover .offer__ring,
+.react-flow__node.is-picked .offer__ring {
+  color: var(--mui-palette-primary-main);
+  opacity: 1;
 }
 
 /* Named only where stood: a band offers one per branch, and their names are already on the lines. */

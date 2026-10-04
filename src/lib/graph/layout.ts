@@ -4,6 +4,7 @@ import type { Frame } from "./band/frame";
 import { drawHeads } from "./band/heads";
 import { drawJunctions } from "./band/junctions";
 import { placeBranches } from "./branches";
+import { NAME_ABOVE } from "./folders";
 import type { Point } from "./geometry";
 import { depthOf, placeHistory } from "./history";
 import { bundleBranches, dealColumn, junctionId } from "./junctions";
@@ -13,6 +14,8 @@ import {
   type BranchHeadFlowNode,
   branchPitch,
   CHIP_STEP,
+  CLI_MARK,
+  CLI_STEP,
   COLUMN_WIDTH,
   COMMIT_STEP,
   type CollapseFlowNode,
@@ -22,9 +25,11 @@ import {
   type JunctionFlowNode,
   MIN_BAND_WIDTH,
   NAME_HEIGHT,
+  NEW_RISE,
   type RepositoryNodeData,
   rowReach,
   SESSION_WIDTH,
+  stackReach,
 } from "./model";
 
 // Everything here is relative to the band; `build` places the band and fills
@@ -134,7 +139,16 @@ function layout(
   const branchTop = rows > 0 ? -rowReach(stacks[0]) : 0;
   const branchBottom = rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0;
   const centre = Math.round((branchTop + branchBottom) / (2 * COMMIT_STEP.y)) * COMMIT_STEP.y;
-  const top = gridRows(Math.max(NAME_HEIGHT - historyTop, centre - branchTop));
+  // The name stands over the new workspace, which heads the terminal column: on its glyph's top.
+  const ceiling = Math.min(
+    0,
+    ...stacks.map((marks, row) => branchLine[row] - CLI_STEP / 2 - stackReach(Math.max(1, marks))),
+  );
+  const nameBottom = ceiling - NEW_RISE - CLI_STEP / 2 - CLI_MARK / 2;
+  const nameTop = nameBottom - NAME_ABOVE.height;
+  const top = gridRows(
+    Math.max(NAME_HEIGHT - historyTop, centre - branchTop, rows > 0 ? centre - nameTop : 0),
+  );
   const historyLine = (row: number) => top + laneOffset(row);
   for (let row = 0; row < rows; row++) branchLine[row] += top - centre;
 
@@ -188,11 +202,15 @@ function layout(
   // band never widens when a terminal opens.
   const width = Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2);
 
+  // Where `bandColumn` stands the new workspace: the first branch's column, else the band's edge.
+  const column = runs[0]?.x ?? width - SESSION_WIDTH;
+
   return {
     repository,
     data: {
       repository,
-      // Down to the trunk cell's bottom edge, so the name's line is the trunk's.
+      name: { x: column, y: rows > 0 ? nameTop + top - centre : nameTop, ...NAME_ABOVE },
+      // Down to the trunk cell's bottom edge, so the mark's line is the trunk's.
       label: {
         x: 0,
         y: top - NAME_HEIGHT,

@@ -29,12 +29,13 @@ export const NAME_ABOVE = { width: 240, height: 18 } as const;
 
 /**
  * Row-relative box of the name, standing on the top of the row's stack of `marks` terminals; with
- * none, on the offer, which stands where a stack of one would.
+ * none, on the offer, which stands where a stack of one would. `stack` is the row-relative left
+ * edge of that stack, which lining the terminals up can move off the mark.
  */
-export function nameAbove(marks: number): RowLabel {
+export function nameAbove(marks: number, stack = ROW_STACK_X): RowLabel {
   // A terminal's glyph stands in the middle of its slot: the name comes down to the glyph's top.
   const top = ROW_SOCKET.y - stackReach(Math.max(1, marks)) - CLI_MARK / 2;
-  return { x: ROW_STACK_X, y: top - NAME_ABOVE.height, ...NAME_ABOVE };
+  return { x: stack, y: top - NAME_ABOVE.height, ...NAME_ABOVE };
 }
 
 export type RowLabel = { x: number; y: number; width: number; height: number };
@@ -115,6 +116,8 @@ export function repoMark(
   repository: Repository,
   /** Terminals standing beside the mark: the name stands on top of them. */
   marks: number,
+  /** Row-relative left edge of those terminals, where the name stands. */
+  stack: number,
   at: { x: number; y: number },
   /** Where the mark's own terminal opens. */
   work: RepoMarkData["work"],
@@ -123,6 +126,7 @@ export function repoMark(
   draw: Draw,
 ): RepoMarkFlowNode {
   const id = markId(band, repository);
+  const label = nameAbove(marks, stack);
   const held = draw.before.get(id);
   if (
     held?.type === "repo-mark" &&
@@ -130,7 +134,8 @@ export function repoMark(
     held.data.repository === repository &&
     held.data.work.branch === work.branch &&
     held.data.work.cwd === work.cwd &&
-    held.data.label.y === nameAbove(marks).y &&
+    held.data.label.x === label.x &&
+    held.data.label.y === label.y &&
     held.position.x === at.x &&
     held.position.y === at.y
   ) {
@@ -141,7 +146,7 @@ export function repoMark(
     id,
     type: "repo-mark",
     position: { x: at.x, y: at.y },
-    data: { repository, work, label: nameAbove(marks) },
+    data: { repository, work, label },
     style: { width: FOLDER_ROW_WIDTH, height: LANE_HEIGHT, pointerEvents: "none" },
     draggable: grip,
     ...(grip ? { dragHandle: `.${GRIP}` } : null),

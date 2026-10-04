@@ -106,6 +106,23 @@ test("uneven terminal stacks remain balanced, spaced and inside the band", () =>
   }
 });
 
+test("the name stands over the terminal column, above the topmost stack and inside the band", () => {
+  for (const counts of [[0], [1], [5, 1], [0, 3, 2]]) {
+    const repo = repository(counts.map((_, i) => `dev/${i}`));
+    repo.worktrees = repo.branches.map((branch, i) => {
+      branch.checkedOutIn = [`wt${i}`];
+      return { id: `wt${i}`, path: `/repo/${i}`, head: "tip" };
+    });
+    const graph = prepare(repo, undefined, new Map(counts.map((n, i) => [`/repo/${i}`, n])));
+    const { name } = graph.data;
+    assert.equal(name.x, graph.stack);
+    assert.ok(name.y >= 0);
+    const ys = graph.nodes.filter((n) => n.type === "head").map(middle);
+    const highest = Math.min(...ys.map((y, i) => y - (Math.max(1, counts[i]) * 34) / 2));
+    assert.ok(name.y + name.height < highest);
+  }
+});
+
 test("a knot pressed shut puts its branches away and takes a row of its own", () => {
   const repo = repository(["dev/a", "dev/b", "dev/c", "main", "side/x", "side/y"]);
   const open = prepare(repo, undefined, new Map());
@@ -189,7 +206,7 @@ test("a knot shut in another repository is nothing to this one", () => {
   assert.equal(graph.nodes.find((n) => n.type === "junction").data.closed, false);
 });
 
-test("the new workspace's line leaves the mark the workspace is cut from", async () => {
+test("the new workspace's line leaves the commit the workspace is cut from", async () => {
   const cache = await mkdtemp(join(tmpdir(), "totex-graph-column-"));
   const vite = await createServer({ configFile: false, cacheDir: cache, server: { watch: null } });
   const { bandColumn } = await vite.ssrLoadModule("/src/lib/graph/build/column.ts");
@@ -200,7 +217,7 @@ test("the new workspace's line leaves the mark the workspace is cut from", async
     const entry = prepare(repo, undefined, new Map());
     const draw = { before: new Map(), offered: new Map() };
     const column = bandColumn(entry, new Map(), new Set(), null, new Map(), new Map(), draw);
-    return column.offerLines.find((part) => part.id.endsWith("newline"))?.from.node;
+    return column.offerLines.find((part) => part.id.endsWith("newcut"))?.from.node;
   };
 
   // The default branch is sorted after another local one.
@@ -211,9 +228,9 @@ test("the new workspace's line leaves the mark the workspace is cut from", async
       { id: "main", parents: [] },
     ],
   );
-  assert.equal(lineFrom(local), "reporefmain");
+  assert.equal(lineFrom(local), "repocommitmain");
 
-  // Only the remote end of the default branch exists: the cut is its commit, not the first local ring.
+  // Only the remote end of the default branch exists: the cut is its commit, not the first local one.
   const remote = repository(
     ["dev"],
     [
@@ -235,7 +252,7 @@ test("the new workspace's line leaves the mark the workspace is cut from", async
     checkedOutIn: [],
     upstream: null,
   });
-  assert.equal(lineFrom(remote), "reporeforigin/main");
+  assert.equal(lineFrom(remote), "repocommitmain");
 });
 
 test("a branch nothing runs in reaches its offer with a dashed line from its ring", async () => {

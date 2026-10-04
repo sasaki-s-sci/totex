@@ -191,7 +191,8 @@ test("a branch and a folder nothing runs in are offered a terminal, and a reposi
     assert.equal(fresh.position.x, offer.position.x);
   }
 
-  // Every offer's line leaves the ring it stands off, and is kept apart from the lines always drawn.
+  // A branch's offer leaves its ring; the new workspace leaves the commit it is cut from for a ring
+  // of its own, which its terminal hangs off. All are kept apart from the lines always drawn.
   const drawn = graph.bands.find((candidate) => candidate.id === "repo");
   const lines = drawn.offers.flatMap((batch) => batch.parts);
   const ring = graph.nodes.find((node) => node.type === "head" && node.data.name === "main").id;
@@ -199,7 +200,8 @@ test("a branch and a folder nothing runs in are offered a terminal, and a reposi
     lines.map((line) => [line.from.node, line.to.node]),
     [
       [ring, "repo"],
-      [ring, "repo"],
+      ["repocommittip", "repo"],
+      ["repo", "repo"],
     ],
   );
   for (const line of lines) {
@@ -284,6 +286,15 @@ test("lined up by terminal, every stack stands on one line; by initial, the grou
   const xs = stacksOf(lined);
   assert.equal(xs.length, 4);
   assert.equal(new Set(xs).size, 1);
+
+  // Every name, the folder's, a band's and a folded mark's, stands over that one line.
+  const named = lined.nodes.filter((node) => ["folder", "repo-mark"].includes(node.type));
+  const names = [
+    ...named.map((node) => node.position.x + node.data.label.x),
+    ...bandNodes(lined).map((band) => band.position.x + band.data.name.x),
+  ];
+  assert.equal(names.length, 5);
+  assert.deepEqual(new Set(names), new Set(xs));
 
   // The folder's mark stands where every band's rings do, as its stack stands on theirs.
   const at = new Map(lined.nodes.map((node) => [node.id, node.position]));

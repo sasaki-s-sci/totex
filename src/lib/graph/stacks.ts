@@ -6,6 +6,8 @@ export const CLI_MARK = 16;
 /** Half a cell: the corridor between branches and terminals is swept by lines. */
 export const CHIP_STEP = 66;
 export const CLI_STEP = 34;
+/** The air between the topmost stack and the new workspace over it. */
+export const NEW_RISE = (COMMIT_STEP.y - CLI_STEP) / 2;
 
 // A stack is centred on its branch line, so its room is split between the
 // rows above and below; spacing two rows sums both stacks.
