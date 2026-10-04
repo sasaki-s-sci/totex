@@ -8,6 +8,7 @@ import { GapRow } from "./GapRow";
 import { GridRows } from "./GridRows";
 import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
+import { MarkSizeRows } from "./MarkSizeRows";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
@@ -35,6 +36,7 @@ export function SettingsContent() {
       <SettingsSaveStatus />
       <Section name={t("settings.canvas")}>
         <GridRows />
+        <MarkSizeRows />
         <WheelRow place="graph" />
         <Group name={t("settings.page")}>
           <FileTitleRow />

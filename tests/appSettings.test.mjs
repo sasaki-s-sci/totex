@@ -34,6 +34,8 @@ test("migrates all existing user preferences, including line size one", () => {
       backgroundGrid: false,
       gridStep: 24,
       gridSnap: false,
+      cliMarkSize: 11,
+      folderMarkSize: 15,
       groupGap: 2,
       canvasAlign: "terminal",
       historyLength: 3,

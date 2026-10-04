@@ -2,16 +2,18 @@ import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import { type BranchHeadFlowNode, HEAD_SIZE, REMOTE_HEAD_SIZE } from "../../lib/graph";
 import { dirtyCount } from "../../lib/workspace";
-import { CLI_GLYPH, CliMark, RimFolderMark } from "../../marks";
+import { CliMark, RimFolderMark } from "../../marks";
 import { useBrowsing } from "../browsing";
 import { useGraphActions } from "../graphActions";
 import { branchMark, useGraphMark } from "../graphMarks";
 import { useFetchPull } from "../hooks/useFetchPull";
+import { useMarkSizes } from "../markSizes";
 import { useWorktreeStatuses, type WorktreeStatuses } from "../worktreeStatus";
 import { dashes, rimOf } from "./branchRim";
 
 export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
   const { t } = useTranslation();
+  const marks = useMarkSizes();
   const { name, kind, together, fetch, cwd, repository, provisional } = data;
   const { openWork, browseWorktree, pickBranch, dragBranch, fetchBranch } = useGraphActions();
   const statuses = useWorktreeStatuses();
@@ -113,7 +115,7 @@ export function BranchHeadNode({ data }: NodeProps<BranchHeadFlowNode>) {
               openWork({ repository, branch: name, cwd });
             }}
           >
-            <CliMark size={CLI_GLYPH} />
+            <CliMark size={marks.cli} />
           </button>
         </>
       )}

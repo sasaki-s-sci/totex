@@ -14,6 +14,10 @@ export type AppSettings = {
   backgroundGrid: boolean;
   gridStep: number;
   gridSnap: boolean;
+  /** Pixels the canvas draws a terminal's mark at; see `src/canvas/markSizes.ts`. */
+  cliMarkSize: number;
+  /** Pixels the canvas draws a folder's mark at. */
+  folderMarkSize: number;
   /** Grid rows of air between one repository or folder and the next, measured from their outermost nodes. */
   groupGap: number;
   /** What the canvas lines its groups up by: their terminal stacks, or where their histories start. */
@@ -60,6 +64,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backgroundGrid: false,
   gridStep: 24,
   gridSnap: false,
+  cliMarkSize: 11,
+  folderMarkSize: 15,
   groupGap: 2,
   canvasAlign: "terminal",
   historyLength: 3,
@@ -115,6 +121,8 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     backgroundGrid: false,
     gridStep: 24,
     gridSnap: false,
+    cliMarkSize: 11,
+    folderMarkSize: 15,
     groupGap: 2,
     canvasAlign: "terminal",
     historyLength: 3,
