@@ -11,12 +11,14 @@ export function useCliTyped(
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
+  overseen: boolean,
 ): CliTyped {
   const kept = useShowingSaid();
   const [said, setSaid] = useState<CliTyped>(null);
 
   useEffect(() => {
-    if (!holding && !kept) {
+    // The overseer's line says what was typed when it matters, in its words.
+    if (overseen || (!holding && !kept)) {
       setSaid(null);
       return;
     }
@@ -32,7 +34,7 @@ export function useCliTyped(
       },
       showing !== null || holding ? 100 : 1000,
     );
-  }, [holding, kept, showing]);
+  }, [holding, kept, showing, overseen]);
 
   return useMemo(() => {
     if (!said) return null;

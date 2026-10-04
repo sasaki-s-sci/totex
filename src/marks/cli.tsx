@@ -1,5 +1,5 @@
 import type { Doing } from "../lib/doing";
-import { AgentMark, CliMark } from "./row";
+import { AgentMark, CliMark, OverseerMark } from "./row";
 
 /** One size on the canvas and in the sidebar band: the same run of terminals read in two places. */
 export const CLI_GLYPH = 11;
@@ -17,6 +17,8 @@ type Props = {
   /** The number a key would reach this terminal by, drawn after the mark; none for a terminal off the graph. */
   jump?: number | null;
   size?: number;
+  /** The overseer's own terminal, marked as such whatever runs in it. */
+  overseer?: boolean;
 };
 
 /**
@@ -24,8 +26,9 @@ type Props = {
  * the coding agents — and the number says which terminal it is. The agent's mark turns
  * while it is generating an answer; nothing else moves.
  */
-export function CliGlyph({ doing, jump = null, size = CLI_GLYPH }: Props) {
+export function CliGlyph({ doing, jump = null, size = CLI_GLYPH, overseer = false }: Props) {
   const agent = doing === "agent" || doing === "working";
+  const working = doing === "working";
   return (
     <span
       style={{
@@ -36,7 +39,13 @@ export function CliGlyph({ doing, jump = null, size = CLI_GLYPH }: Props) {
         whiteSpace: "nowrap",
       }}
     >
-      {agent ? <AgentMark size={size} working={doing === "working"} /> : <CliMark size={size} />}
+      {overseer ? (
+        <OverseerMark size={size} working={working} />
+      ) : agent ? (
+        <AgentMark size={size} working={working} />
+      ) : (
+        <CliMark size={size} />
+      )}
       {jump === null ? null : (
         <span
           style={{

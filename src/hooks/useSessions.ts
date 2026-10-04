@@ -11,12 +11,12 @@ export function useSessions() {
   // A terminal has one view; this records which host owns it.
   const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", []);
 
-  // Sessions outlive the window: pick up shells still running from before a reload.
-  useEffect(() => {
-    let alive = true;
+  // Sessions outlive the window: pick up shells still running from before a reload, or opened by
+  // the host rather than by this window (the overseer's).
+  const pickUp = useCallback((alive: () => boolean = () => true) => {
     runningShells()
       .then((running) => {
-        if (!alive) return;
+        if (!alive()) return;
         setSessions((current) => {
           const known = new Set(current.map((session) => session.id));
           // Anything opened while this was in flight is newer than what came back.
@@ -25,10 +25,15 @@ export function useSessions() {
         });
       })
       .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    pickUp(() => alive);
     return () => {
       alive = false;
     };
-  }, []);
+  }, [pickUp]);
 
   const kill = useCallback((going: Session): Promise<unknown> => {
     return endShell(going.id).catch(() => undefined);
@@ -99,5 +104,19 @@ export function useSessions() {
 
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
 
-  return { sessions, showing, paged, attached, open, show, jump, hide, page, dock, end, endIn };
+  return {
+    sessions,
+    showing,
+    paged,
+    attached,
+    open,
+    show,
+    jump,
+    hide,
+    page,
+    dock,
+    end,
+    endIn,
+    pickUp,
+  };
 }

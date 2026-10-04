@@ -167,6 +167,7 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
                 if let Some(standing) = retaken {
                     taken::keep(&handle, standing);
                 }
+                crate::overseer::noticed(&handle, id, turned, asked.as_ref());
                 if let Some(ask) = asked {
                     let _ = handle.emit(
                         ASK_EVENT,
@@ -245,6 +246,20 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
     if standing != kept {
         taken::keep(app, standing);
     }
+}
+
+/// Looks at every screen being followed, under the one hold of the map.
+///
+/// For the overseer, which reads the sessions as a whole rather than one
+/// reading at a time. What is handed in runs under the lock, so it takes what
+/// it needs and lets go: the next run of output is waiting on it.
+pub fn looking<R: Runtime, T>(
+    app: &AppHandle<R>,
+    look: impl FnOnce(&HashMap<String, Watcher>) -> T,
+) -> T {
+    let state = app.state::<AskState>();
+    let watching = state.lock();
+    look(&watching)
 }
 
 /// The last thing typed at every running session that has been typed at.

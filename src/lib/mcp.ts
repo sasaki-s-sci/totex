@@ -12,6 +12,8 @@ export type Step = {
 export type Report = {
   doing: string;
   steps: Step[];
+  /** Never sent by an agent: the overseer's line, drawn in place of whatever the agent said. */
+  overseen?: true;
 };
 
 export type Reported = {

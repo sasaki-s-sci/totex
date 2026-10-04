@@ -6,7 +6,7 @@ import { useGraphActions } from "../graphActions";
 
 export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
   const { t } = useTranslation();
-  const { session, card } = data;
+  const { session, report, card } = data;
   const { showSession } = useGraphActions();
 
   return (
@@ -22,7 +22,9 @@ export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
         }}
       >
         <span className="report__who">{session.branch}</span>
-        <span className="report__count">{card.count ?? t("report.working")}</span>
+        <span className="report__count">
+          {card.count ?? (report.overseen ? t("overseer.says") : t("report.working"))}
+        </span>
       </button>
 
       {card.doing.length > 0 && <p className="report__doing">{card.doing.join("\n")}</p>}

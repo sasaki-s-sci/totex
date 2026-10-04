@@ -9,10 +9,12 @@ import { useCliHolding, useCliJump } from "../cliJumps";
 import { useCliPlace } from "../cliPlaces";
 import { useTypedLine } from "../cliTyped";
 import { useGraphActions } from "../graphActions";
+import { useMarkSizes } from "../markSizes";
 import { CliIdentity } from "./CliIdentity";
 
 export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { t } = useTranslation();
+  const marks = useMarkSizes();
   const { session, showing, ordinal, group } = data;
   const { showSession, endSession } = useGraphActions();
   const jump = useCliJump(id);
@@ -21,7 +23,8 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const doing = useCliDoing(session.id);
   const place = useCliPlace(group);
 
-  const name = ordinal ? `${t("cli.shell")} ${ordinal}` : t("cli.shell");
+  const kind = session.overseer ? t("overseer.terminal") : t("cli.shell");
+  const name = ordinal ? `${kind} ${ordinal}` : kind;
 
   return (
     <div className="cell cli">
@@ -45,7 +48,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             showSession(session);
           }}
         >
-          <CliGlyph doing={doing} jump={jump} />
+          <CliGlyph doing={doing} jump={jump} overseer={session.overseer} size={marks.cli} />
         </button>
 
         <button

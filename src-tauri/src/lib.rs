@@ -6,6 +6,7 @@ mod front;
 mod fs_watch;
 mod git;
 mod mcp;
+mod overseer;
 mod persistent;
 mod pty;
 mod release;
@@ -187,6 +188,9 @@ pub fn run() {
         .manage(git::SessionState::default())
         .manage(git::ListState::default())
         .manage(ask::watch::AskState::default())
+        // The agent watching over the rest, and what it is told -- see
+        // `overseer`.
+        .manage(Arc::new(overseer::Overseer::default()))
         // What the sessions say is read for the questions agents ask, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
@@ -196,6 +200,7 @@ pub fn run() {
         // window that has just come up is standing in front of them.
         .setup(|app| {
             ask::watch::attend(app.handle());
+            overseer::attend(app.handle());
             persistent::deliver(app.handle());
             ask::watch::rederive(app.handle());
             Ok(())
@@ -294,6 +299,8 @@ pub fn run() {
             mcp::mcp_serve,
             mcp::mcp_stop,
             mcp::mcp_reports,
+            overseer::overseer_session,
+            overseer::overseer_statuses,
             persistent::persistent_get,
             persistent::persistent_put,
             persistent::persistent_restart,

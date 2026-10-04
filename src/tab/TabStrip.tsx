@@ -43,6 +43,7 @@ function parties(run: readonly CliPlace[]): Party[] {
 
 export function TabStrip({ run, sessions, showing, doings }: Props) {
   const groups = parties(run);
+  const overseers = new Set(sessions.filter((session) => session.overseer).map(({ id }) => id));
   // Sessions outside the current graph still belong in the header, without a graph shortcut.
   for (const session of sessions) {
     if (run.some((place) => place.session === session.id)) continue;
@@ -113,7 +114,11 @@ export function TabStrip({ run, sessions, showing, doings }: Props) {
                     ml: slot === 0 ? 0 : `${GAP}px`,
                   }}
                 >
-                  <CliGlyph doing={doings.get(place.session) ?? null} jump={jump} />
+                  <CliGlyph
+                    doing={doings.get(place.session) ?? null}
+                    jump={jump}
+                    overseer={overseers.has(place.session)}
+                  />
                 </Box>
               );
             })}

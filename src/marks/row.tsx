@@ -39,6 +39,17 @@ export function AgentMark({ size, working }: { size?: number; working?: boolean 
   );
 }
 
+// An eye: the agent that watches the other terminals. It wears this whatever it is doing, and its
+// pupil fills while it is answering rather than turning, so the eye never reads as another agent.
+export function OverseerMark({ size, working }: { size?: number; working?: boolean }) {
+  return (
+    <Frame size={size}>
+      <path d="M2.8 12 C6.6 6.2 17.4 6.2 21.2 12 C17.4 17.8 6.6 17.8 2.8 12 Z" />
+      <circle cx="12" cy="12" r="2.8" fill={working ? "currentColor" : "none"} />
+    </Frame>
+  );
+}
+
 export function CloseMark() {
   return (
     <Frame>

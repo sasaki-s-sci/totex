@@ -167,6 +167,12 @@ impl Watcher {
         self.screen.resize(rows, cols);
     }
 
+    /// Every row of the screen as it stands, for somebody reading it rather
+    /// than reading a question off it — see `overseer`.
+    pub fn lines(&self) -> Vec<String> {
+        self.screen.lines()
+    }
+
     pub fn asking(&self) -> Option<&Ask> {
         self.asking.as_ref()
     }
