@@ -74,6 +74,7 @@ export function Canvas({
   paged,
   asks,
   reports,
+  overseen,
   doings,
   onAnswer,
   onReply,
@@ -87,6 +88,7 @@ export function Canvas({
   onBrowseWorktree,
   onPickBranch,
   onCloseRepository,
+  onCloseFolder,
   onMerge,
   onSync,
   onFetch,
@@ -356,7 +358,7 @@ export function Canvas({
 
   const jumps = useMemo(() => ({ numbers, holding }), [numbers, holding]);
 
-  const typed = useCliTyped(holding, showing, asks, reports);
+  const typed = useCliTyped(holding, showing, asks, reports, overseen);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,
@@ -386,6 +388,7 @@ export function Canvas({
     dragBranch,
     onFetch,
     onCloseRepository,
+    onCloseFolder,
     openRepository,
     foldRepository,
     toggleJunction,

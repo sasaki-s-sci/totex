@@ -85,7 +85,15 @@ export function folderGroup(
 
   if (rowed) {
     drawn.nodes.push(
-      folderRow(folder.root, folder.name, folder.kind, shown.length === held.length, head, draw),
+      folderRow(
+        folder.root,
+        folder.name,
+        folder.kind,
+        shown.length === held.length,
+        running.length,
+        head,
+        draw,
+      ),
     );
   }
 

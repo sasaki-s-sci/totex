@@ -50,6 +50,9 @@ export type GraphActions = FilePageActions & {
 
   closeRepository: (repository: Repository) => void;
 
+  /** Takes a folder off the canvas: the sidebar's panes stop graphing it. */
+  closeFolder: (root: string) => void;
+
   openRepository: (repository: string) => void;
 
   foldRepository: (repository: string) => void;
@@ -94,6 +97,7 @@ export const NO_ACTIONS: GraphActions = {
   dragBranch: () => {},
   fetchBranch: () => {},
   closeRepository: () => {},
+  closeFolder: () => {},
   openRepository: () => {},
   foldRepository: () => {},
   toggleJunction: () => {},

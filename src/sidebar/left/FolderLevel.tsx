@@ -1,9 +1,9 @@
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack } from "@mui/material";
-import { useEffect } from "react";
+import { type MouseEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import type { FsEntry, Listing } from "../../folder/api";
+import type { Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { isInside } from "../../folder/format";
 import { FILE_DRAG_TYPE } from "../../lib/filePreview";
@@ -20,6 +20,7 @@ import {
   ROW_INDENT,
   TAKING_DROP,
 } from "./rows";
+import { PICK_ROW, picksMore } from "./selection";
 import { useLevel } from "./useLevel";
 
 interface LevelProps {
@@ -27,11 +28,14 @@ interface LevelProps {
   root: string;
   depth: number;
   graphed: readonly string[];
-  selected: string | null;
+  /** The pane's pick, across every level it has open; see `useSelection`. */
+  selected: readonly string[];
   /** Anywhere in the column; every level is told, and the one row that is it draws itself. */
   dropping: string | null;
   refused: string | null;
-  onOpen: (entry: FsEntry) => void;
+  onPick: (path: string, event: MouseEvent<HTMLElement>) => void;
+  /** Answers what the menu is for: the pick if the row is in it, else the row alone. */
+  onPoint: (path: string) => readonly string[];
   /** Absent under a repository's row: the files shown are read where they are, with no pane to move. */
   onNavigate?: (path: string) => void;
   /** Absent where a folder cannot go on the canvas; the row then has no mark for it. */
@@ -60,7 +64,8 @@ export function Level({
   selected,
   dropping,
   refused,
-  onOpen,
+  onPick,
+  onPoint,
   onNavigate,
   onToggleGraph,
   onListRepositories,
@@ -155,7 +160,8 @@ export function Level({
         return (
           <Box key={entry.path}>
             <ListItemButton
-              selected={entry.path === selected}
+              selected={selected.includes(entry.path)}
+              {...{ [PICK_ROW]: entry.path }}
               draggable={!entry.isDir}
               {...{ [DROP_INTO]: into }}
               sx={{ pl: indent, pr: 0.5, gap: 0.5, ...mark }}
@@ -168,16 +174,16 @@ export function Level({
               onDoubleClick={(event) => {
                 if (entry.isDir) return;
                 event.stopPropagation();
-                onOpen(entry);
                 onOpenFile?.(entry.path);
               }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 // The row answers for itself: the menu is asked of what was pointed at.
                 event.stopPropagation();
-                onOpen(entry);
+                const paths = onPoint(entry.path);
                 onMenu({
                   path: entry.path,
+                  paths,
                   name: entry.name,
                   isDir: entry.isDir,
                   into,
@@ -185,10 +191,11 @@ export function Level({
                   at: { x: event.clientX, y: event.clientY },
                 });
               }}
-              onClick={() => {
-                onOpen(entry);
-                // A folder opens where it is; going to it is the mark beside the name.
-                if (entry.isDir) toggle(entry.path);
+              onClick={(event) => {
+                onPick(entry.path, event);
+                // A folder opens where it is; going to it is the mark beside the name. One picked
+                // alongside others stays as it is.
+                if (entry.isDir && !picksMore(event)) toggle(entry.path);
               }}
             >
               <ListItemIcon sx={ICON}>
@@ -257,7 +264,8 @@ export function Level({
                 selected={selected}
                 dropping={dropping}
                 refused={refused}
-                onOpen={onOpen}
+                onPick={onPick}
+                onPoint={onPoint}
                 onNavigate={onNavigate}
                 onToggleGraph={onToggleGraph}
                 onListRepositories={onListRepositories}

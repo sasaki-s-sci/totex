@@ -2,6 +2,7 @@ import type { Repository } from "../../types/git";
 import type { GraphedKind } from "../graphed";
 import {
   CHIP_STEP,
+  CLI_MARK,
   type Draw,
   FOLDER_MARK,
   type FolderFlowNode,
@@ -11,18 +12,32 @@ import {
   type RepoMarkData,
   type RepoMarkFlowNode,
   SESSION_WIDTH,
+  stackReach,
 } from "./model";
 
 /** The name stands ahead of the mark on its line, in the same columns a band's heading takes. */
 export const FOLDER_MARK_X = HEADING_WIDTH;
-/** Row-relative box of the name, ending a little short of the mark. */
-export const ROW_NAME = { x: 0, width: FOLDER_MARK_X - 4 } as const;
 export const FOLDER_ROW_WIDTH = FOLDER_MARK_X + 40;
 
 /** Row-relative middle of the mark: where a row's lines leave, as a branch's leave its ring. */
 export const ROW_SOCKET = { x: FOLDER_MARK_X + FOLDER_MARK / 2, y: LANE_HEIGHT / 2 };
 /** Row-relative left edge of a row's stack, as far from the mark as a branch's is from its ring. */
 export const ROW_STACK_X = ROW_SOCKET.x + CHIP_STEP - SESSION_WIDTH / 2;
+
+/** The name's box over a row's stack: as tall as one line of it, and free to run on to the right. */
+export const NAME_ABOVE = { width: 240, height: 18 } as const;
+
+/**
+ * Row-relative box of the name, standing on the top of the row's stack of `marks` terminals; with
+ * none, on the offer, which stands where a stack of one would.
+ */
+export function nameAbove(marks: number): RowLabel {
+  // A terminal's glyph stands in the middle of its slot: the name comes down to the glyph's top.
+  const top = ROW_SOCKET.y - stackReach(Math.max(1, marks)) - CLI_MARK / 2;
+  return { x: ROW_STACK_X, y: top - NAME_ABOVE.height, ...NAME_ABOVE };
+}
+
+export type RowLabel = { x: number; y: number; width: number; height: number };
 
 /** The drag handle class React Flow is pointed at; the row must draw it. */
 export const GRIP = "folder__grip";
@@ -55,6 +70,8 @@ export function folderRow(
   name: string,
   kind: GraphedKind,
   open: boolean,
+  /** Terminals standing beside the row: the name stands on top of them. */
+  marks: number,
   at: { x: number; y: number },
   draw: Draw,
 ): FolderFlowNode {
@@ -62,7 +79,7 @@ export function folderRow(
     kind,
     root,
     name,
-    label: { x: ROW_NAME.x, y: 0, width: ROW_NAME.width, height: LANE_HEIGHT },
+    label: nameAbove(marks),
     open,
     mark: FOLDER_MARK_X,
   };
@@ -96,6 +113,8 @@ export function folderRow(
 export function repoMark(
   band: string,
   repository: Repository,
+  /** Terminals standing beside the mark: the name stands on top of them. */
+  marks: number,
   at: { x: number; y: number },
   /** Where the mark's own terminal opens. */
   work: RepoMarkData["work"],
@@ -111,6 +130,7 @@ export function repoMark(
     held.data.repository === repository &&
     held.data.work.branch === work.branch &&
     held.data.work.cwd === work.cwd &&
+    held.data.label.y === nameAbove(marks).y &&
     held.position.x === at.x &&
     held.position.y === at.y
   ) {
@@ -121,7 +141,7 @@ export function repoMark(
     id,
     type: "repo-mark",
     position: { x: at.x, y: at.y },
-    data: { repository, work },
+    data: { repository, work, label: nameAbove(marks) },
     style: { width: FOLDER_ROW_WIDTH, height: LANE_HEIGHT, pointerEvents: "none" },
     draggable: grip,
     ...(grip ? { dragHandle: `.${GRIP}` } : null),
@@ -138,6 +158,7 @@ function same(held: FolderNodeData, next: FolderNodeData): boolean {
     held.kind === next.kind &&
     held.root === next.root &&
     held.name === next.name &&
-    held.open === next.open
+    held.open === next.open &&
+    held.label.y === next.label.y
   );
 }

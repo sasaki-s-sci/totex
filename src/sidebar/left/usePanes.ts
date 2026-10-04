@@ -49,6 +49,11 @@ export interface FolderDestination {
   path: string;
 }
 
+/** The canvas asking every pane that graphed `root` as a folder to stop. A new object each time. */
+export interface FolderUngraph {
+  root: string;
+}
+
 const NO_HOMES: Homes = new Map();
 
 /** Reports `value` only when it changes by value: a report becomes scans. */
@@ -100,6 +105,7 @@ export function usePanes(
   onBrowsingChange: ((paths: string[]) => void) | undefined,
   destination?: FolderDestination | null,
   homes?: Homes,
+  ungraph?: FolderUngraph | null,
 ) {
   const nextId = useRef(0);
   const [held, setPanes] = useFrontState<Pane[]>("folders.panes", () =>
@@ -211,6 +217,20 @@ export function usePanes(
     });
   }, [destination]);
 
+  useEffect(() => {
+    if (!ungraph) return;
+    const { root } = ungraph;
+    setPanes((current) =>
+      current.some((pane) => pane.kind === "folder" && pane.graphed.includes(root))
+        ? current.map((pane) =>
+            pane.kind === "folder" && pane.graphed.includes(root)
+              ? { ...pane, graphed: pane.graphed.filter((held) => held !== root) }
+              : pane,
+          )
+        : current,
+    );
+  }, [ungraph]);
+
   // A pane whose worktree was deleted goes to the repository's main copy; a row showing a deleted
   // worktree goes back to the repository's own folder.
   const standing = homes ?? NO_HOMES;
@@ -245,6 +265,28 @@ export function usePanes(
 
   function update(id: number, change: Partial<Pane>) {
     setPanes((current) => current.map((pane) => (pane.id === id ? { ...pane, ...change } : pane)));
+  }
+
+  /**
+   * A folder pane standing in a checkout turns into the repository pane for it, the row opened out
+   * to its files. The folder on the canvas goes on as the repository; anything else the pane put
+   * there leaves with the folder pane, as it would were the pane closed.
+   */
+  function toRepository(id: number) {
+    setPanes((current) =>
+      current.map((pane) =>
+        pane.id === id && pane.kind === "folder"
+          ? {
+              ...pane,
+              kind: "repository",
+              open: true,
+              graphed: pane.graphed.includes(pane.path) ? [pane.path] : [],
+              expanded: [pane.path],
+              shown: {},
+            }
+          : pane,
+      ),
+    );
   }
 
   function toggleGraph(id: number, path: string) {
@@ -454,6 +496,7 @@ export function usePanes(
     refused,
     setRefused,
     update,
+    toRepository,
     toggleGraph,
     settleList,
     toggleExpanded,

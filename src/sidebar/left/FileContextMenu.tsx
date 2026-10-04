@@ -1,10 +1,12 @@
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import DriveFileRenameOutlineIcon from "@mui/icons-material/DriveFileRenameOutline";
 import FileCopyOutlinedIcon from "@mui/icons-material/FileCopyOutlined";
 import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
 import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
 import {
   Button,
@@ -21,13 +23,23 @@ import {
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { deleteFile, deleteFolder, downloadEntry, duplicateFile, readFile } from "../../folder/api";
+import {
+  copyInto,
+  deleteFile,
+  deleteFolder,
+  downloadEntry,
+  duplicateFile,
+  readFile,
+} from "../../folder/api";
 import { displayPath } from "../../folder/format";
 import { copyText } from "../../lib/clipboard";
 import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
+  /** The row pointed at: what is renamed, removed or downloaded. */
   path: string;
+  /** What `Copy` holds: the pane's pick when the row is in it, else the row alone. */
+  paths: readonly string[];
   name: string;
   /**
    * Folders are offered less: copy and rename are refused underneath; removal is `deleteFolder`.
@@ -43,11 +55,14 @@ export type FileMenuTarget = {
 
 type Props = {
   target: FileMenuTarget | null;
+  /** Held by the column, so what is copied in one pane is pasted in another. */
+  copied: readonly string[];
+  onCopy: (paths: readonly string[]) => void;
   onName: (kind: Naming["kind"]) => void;
   onClose: () => void;
 };
 
-export function FileContextMenu({ target, onName, onClose }: Props) {
+export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Props) {
   const { t } = useTranslation();
   /** Removal is still asked in a box: it cannot be undone and is not visible from the row. */
   const [deleting, setDeleting] = useState(false);
@@ -64,7 +79,7 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
   }, [target]);
 
   if (!target) return null;
-  const { path, isDir, root } = target;
+  const { path, paths, isDir, root } = target;
   // The folder a pane stands in is not offered for removal: the pane would be left showing a folder
   // that is not there.
   const removable = !isDir || path !== root;
@@ -111,13 +126,32 @@ export function FileContextMenu({ target, onName, onClose }: Props) {
           disabled={busy !== null}
           onClick={() => onName("new-folder")}
         />
-        {!isDir && <Divider />}
+        <Divider />
+        <FileItem
+          icon={<ContentCopyIcon />}
+          label={paths.length > 1 ? t("file.copyMany", { count: paths.length }) : t("file.copy")}
+          disabled={busy !== null}
+          onClick={() => {
+            onCopy(paths);
+            onClose();
+          }}
+        />
+        {copied.length > 0 && (
+          <FileItem
+            icon={<ContentPasteIcon />}
+            label={
+              copied.length > 1 ? t("file.pasteMany", { count: copied.length }) : t("file.paste")
+            }
+            disabled={busy !== null}
+            onClick={() => void run("paste", () => copyInto([...copied], target.into))}
+          />
+        )}
         {!isDir && (
           <FileItem
-            icon={<ContentCopyIcon />}
-            label={t("file.copy")}
+            icon={<NotesOutlinedIcon />}
+            label={t("file.copyContents")}
             disabled={busy !== null}
-            onClick={() => void run("copy", () => copyContents(path))}
+            onClick={() => void run("copy-contents", () => copyContents(path))}
           />
         )}
         {!isDir && (

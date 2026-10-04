@@ -37,7 +37,9 @@
     "door": "Agents report from {{space}}",
     "move": "Move",
     "shell": "Shell",
-    "listRepositories": "List the repositories in it"
+    "listRepositories": "List the repositories in it",
+    "gitMode": "Switch to git",
+    "takeOff": "Take off the canvas"
   },
   "ssh": {
     "title": "SSH",
@@ -59,6 +61,10 @@
     "newFile": "New file",
     "newFolder": "New folder",
     "copy": "Copy",
+    "copyMany": "Copy {{count}} items",
+    "paste": "Paste",
+    "pasteMany": "Paste {{count}} items",
+    "copyContents": "Copy contents",
     "duplicate": "Duplicate",
     "download": "Download",
     "downloaded": "Copied to {{path}}",
@@ -145,6 +151,10 @@
     "pick": "Take this one too",
     "take": "Answer"
   },
+  "overseer": {
+    "terminal": "Overseer",
+    "says": "overseer"
+  },
   "report": {
     "open": "Open the terminal",
     "working": "is working"
@@ -182,6 +192,8 @@
     "createdWhere": "Created where",
     "createdAt": "Created at",
     "groupGap": "Rows between repositories and folders",
+    "cliMarkSize": "Terminal icon size",
+    "folderMarkSize": "Folder icon size",
     "canvasAlign": "Line groups up by",
     "alignTerminal": "Terminals",
     "alignInitial": "Start of history",
@@ -282,17 +294,8 @@
     "epubRetry": "Retry",
     "truncated": "Showing the first {{kilobytes}} KB",
     "patchCut": "Showing the first part of the patch",
-    "mode": "File view mode",
-    "attachSchema": "Attach JSON Schema",
-    "schemaEmpty": "Attach a JSON Schema (draft-07) to edit this file as a form. Include referenced schemas in the same document.",
-    "schemaInvalid": "This schema cannot be rendered.",
-    "schemaJsonInvalid": "A complete, valid JSON file is required. Fix it in Native mode.",
-    "schemaConflict": "The file changed while editing. Copy your changes before reopening this view.",
-    "schemaSaveFailed": "Could not save. Your edits are still here.",
-    "schemaStorageFailed": "Schema attached for this session; it could not be remembered.",
-    "schemaSave": "Save",
-    "schemaSaving": "Saving…",
-    "schemaDiscard": "Discard edits"
+    "wrap": "Wrap lines in {{name}}",
+    "unwrap": "Stop wrapping lines in {{name}}"
   },
   "said": {
     "terminal": "The terminal's",

@@ -1,7 +1,7 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { FsEntry, Listing } from "../../folder/api";
+import type { Listing } from "../../folder/api";
 import { useDirectoryChanges } from "../../folder/changes";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName } from "../../folder/format";
@@ -22,6 +22,7 @@ import { useHolding } from "./holding";
 import type { Naming } from "./NameField";
 import type { PaneGrip } from "./paneOrder";
 import { CHANGE_COLOUR, REFUSED_DROP, TAKING_DROP } from "./rows";
+import { useSelection } from "./selection";
 
 export interface FolderPaneProps {
   /** Two panes can show one folder, so a row is named by pane as well as path. */
@@ -39,6 +40,8 @@ export interface FolderPaneProps {
   onToggleGraph: (path: string) => void;
   /** The other way onto the canvas: a pane listing the repositories under the folder. */
   onListRepositories: (path: string) => void;
+  /** The pane turns into the repository pane for the checkout it stands in. */
+  onGitMode: () => void;
   onOpenFile?: (path: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
@@ -65,6 +68,7 @@ export function FolderPane({
   onToggleOpen,
   onToggleGraph,
   onListRepositories,
+  onGitMode,
   onOpenFile,
   onMenu,
   naming,
@@ -75,7 +79,7 @@ export function FolderPane({
 }: FolderPaneProps) {
   const { t } = useTranslation();
   const [root, setRoot] = useState<Listing | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const { selected, pick, point } = useSelection();
   // The space this pane stands in, which is rarely this folder: a pane inside a checkout stands in
   // the space at its root.
   const { standing, tell } = useSpace(path);
@@ -96,10 +100,6 @@ export function FolderPane({
   // other folder is walked for one.
   const holds = useHolding([path], root?.entries.length).has(path) || isRepository;
 
-  function open(entry: FsEntry) {
-    setSelected(entry.path);
-  }
-
   return (
     /* Anything that is not a row answers for the pane's own folder; a row stops the press first. */
     <Box
@@ -109,6 +109,7 @@ export function FolderPane({
         event.preventDefault();
         onMenu({
           path,
+          paths: [path],
           name,
           isDir: true,
           into: path,
@@ -135,6 +136,27 @@ export function FolderPane({
           ...(path === dropping ? TAKING_DROP : path === refused ? REFUSED_DROP : null),
         }}
       >
+        {isRepository && (
+          <Box
+            component="button"
+            type="button"
+            aria-label={t("folder.gitMode")}
+            title={t("folder.gitMode")}
+            onClick={onGitMode}
+            sx={{
+              flex: "none",
+              display: "flex",
+              p: 0,
+              mr: 0.75,
+              border: "none",
+              background: "none",
+              color: "text.primary",
+              cursor: "pointer",
+            }}
+          >
+            <PaneFolderMark git />
+          </Box>
+        )}
         <Box
           component="button"
           type="button"
@@ -154,7 +176,7 @@ export function FolderPane({
             textAlign: "left",
           }}
         >
-          <PaneFolderMark />
+          {!isRepository && <PaneFolderMark />}
           <Typography variant="body2" noWrap title={distro ?? undefined} sx={{ color: colour }}>
             {name}
           </Typography>
@@ -194,7 +216,8 @@ export function FolderPane({
           selected={selected}
           dropping={dropping}
           refused={refused}
-          onOpen={open}
+          onPick={pick}
+          onPoint={point}
           onNavigate={onNavigate}
           onToggleGraph={onToggleGraph}
           onListRepositories={onListRepositories}

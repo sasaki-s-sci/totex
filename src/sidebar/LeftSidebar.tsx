@@ -16,10 +16,10 @@ import type { Naming } from "./left/NameField";
 import { movePane, PANE_DRAG_TYPE, type PaneGrip, slotAt } from "./left/paneOrder";
 import { RepoPane } from "./left/RepoPane";
 import { RootsMenu } from "./left/RootsMenu";
-import { type FolderDestination, shownPath, usePanes } from "./left/usePanes";
+import { type FolderDestination, type FolderUngraph, shownPath, usePanes } from "./left/usePanes";
 import { Sidebar, type Sizing } from "./Sidebar";
 
-export type { FolderDestination, Pane } from "./left/usePanes";
+export type { FolderDestination, FolderUngraph, Pane } from "./left/usePanes";
 
 const SIZING: Sizing = { min: 200, max: 560, initial: 288, storageKey: "totex.sidebarWidth" };
 
@@ -38,6 +38,8 @@ export interface LeftSidebarProps {
   onOpenFile?: (path: string) => void;
   drops: Drops;
   destination?: FolderDestination | null;
+  /** The canvas asking for a folder to come off it. */
+  ungraph?: FolderUngraph | null;
   homes?: Homes;
   /** Worktree path to the branch it is on, for a repository row showing one. */
   branches?: ReadonlyMap<string, string>;
@@ -60,6 +62,7 @@ export function LeftSidebar({
   onOpenFile,
   drops,
   destination,
+  ungraph,
   homes,
   branches,
 }: LeftSidebarProps) {
@@ -71,8 +74,11 @@ export function LeftSidebar({
     onBrowsingChange,
     destination,
     homes,
+    ungraph,
   );
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
+  // What the menu's `Copy` took, kept until the next one: a paste leaves it for another.
+  const [copied, setCopied] = useState<readonly string[]>([]);
   // Held by the column, not the level: the levels open their way down to the folder being named, so
   // the name has to outlast them.
   const [naming, setNaming] = useState<Naming | null>(null);
@@ -309,6 +315,10 @@ export function LeftSidebar({
                 onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
                 onToggleGraph={(path) => panes.toggleGraph(pane.id, path)}
                 onListRepositories={(path) => panes.addPane(path, "repository")}
+                onGitMode={() => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.toRepository(pane.id);
+                }}
                 grip={gripOf(pane.id)}
                 onOpenFile={onOpenFile}
                 onMenu={setMenu}
@@ -335,6 +345,7 @@ export function LeftSidebar({
                   event.preventDefault();
                   setMenu({
                     path: under.path,
+                    paths: [under.path],
                     name: baseName(under.path),
                     isDir: true,
                     into: under.path,
@@ -350,6 +361,8 @@ export function LeftSidebar({
 
       <FileContextMenu
         target={menu}
+        copied={copied}
+        onCopy={setCopied}
         onName={(kind) => menu && startName(kind, menu)}
         onClose={() => setMenu(null)}
       />

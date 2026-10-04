@@ -140,7 +140,7 @@ function markRow(
   const mark = markId(id, entry.repository);
   const work = workOf(entry);
   const stackX = lined ?? x + ROW_STACK_X;
-  drawn.nodes.push(repoMark(id, entry.repository, { x, y: top }, work, from === null, draw));
+  drawn.nodes.push(repoMark(id, entry.repository, marks, { x, y: top }, work, from === null, draw));
   drawn.members.push(mark);
   if (from) {
     drawn.links.push(

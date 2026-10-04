@@ -8,6 +8,8 @@ export type RepoMarkData = {
   repository: Repository;
   /** The branch a terminal opened from the mark stands in. */
   work: { branch: string; cwd: string | null };
+  /** Mark-relative box of the name, on top of the mark's stack. */
+  label: { x: number; y: number; width: number; height: number };
 };
 
 export type CollapseNodeData = {

@@ -40,6 +40,9 @@ export type CanvasProps = {
 
   reports: ReadonlyMap<string, Report>;
 
+  /** The overseer is running: its lines are all that stands beside the terminals, so no typed line either. */
+  overseen: boolean;
+
   doings: ReadonlyMap<string, Doing>;
 
   onAnswer: (session: Session, ask: Ask, key: string) => void;
@@ -62,6 +65,8 @@ export type CanvasProps = {
   onPickBranch: (pick: BranchPick) => void;
 
   onCloseRepository: (repository: Repository) => void;
+
+  onCloseFolder: (root: string) => void;
 
   onMerge: (request: MergeRequest) => void;
 

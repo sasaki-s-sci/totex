@@ -9,7 +9,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type FsEntry, readFileHead } from "../../folder/api";
+import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
 import { CloseMark, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } from "../../marks";
@@ -18,6 +18,7 @@ import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
 import type { PaneGrip } from "./paneOrder";
 import { ICON, REFUSED_DROP, ROW_INDENT, TAKING_DROP } from "./rows";
+import { useSelection } from "./selection";
 import { useRepositoryList } from "./useRepositoryList";
 
 export interface RepoPaneProps {
@@ -87,15 +88,11 @@ export function RepoPane({
 }: RepoPaneProps) {
   const { t } = useTranslation();
   const { rows, listing, failed, truncated } = useRepositoryList(path, onListed);
-  const [selected, setSelected] = useState<string | null>(null);
+  const { selected, pick, point } = useSelection();
   const name = baseName(path);
   // A root that is a repository lists itself and nothing else: the row says all the header would,
   // so it stands alone and takes the header's close.
   const alone = rows.length === 1 && rows[0].path === path;
-
-  function open(entry: FsEntry) {
-    setSelected(entry.path);
-  }
 
   return (
     <Box component="section" sx={{ pb: 0.5 }}>
@@ -172,6 +169,7 @@ export function RepoPane({
                     event.stopPropagation();
                     onMenu({
                       path: reading,
+                      paths: [reading],
                       name: repository.name,
                       isDir: true,
                       into: reading,
@@ -256,7 +254,8 @@ export function RepoPane({
                     selected={selected}
                     dropping={dropping}
                     refused={refused}
-                    onOpen={open}
+                    onPick={pick}
+                    onPoint={point}
                     onOpenFile={onOpenFile}
                     // The levels below know nothing about which pane draws them.
                     onMenu={(target) => onMenu({ ...target, pane: id })}

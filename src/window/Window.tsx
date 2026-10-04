@@ -1,5 +1,5 @@
 import { Box } from "@mui/material";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAsks } from "../hooks/useAsks";
 import { useAutoFollow } from "../hooks/useAutoFollow";
@@ -8,6 +8,7 @@ import { useDoings } from "../hooks/useDoings";
 import { useDrops } from "../hooks/useDrops";
 import { useFileDrops } from "../hooks/useFileDrops";
 import { useMarks } from "../hooks/useMarks";
+import { useOverseer } from "../hooks/useOverseer";
 import { useReports } from "../hooks/useReports";
 import { useServing } from "../hooks/useServing";
 import { useSessionKeys } from "../hooks/useSessionKeys";
@@ -15,6 +16,7 @@ import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
+import type { Ask } from "../lib/ask";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import { useEver } from "../lib/onDemand";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
@@ -29,7 +31,7 @@ import {
   worktreePart,
 } from "../parts";
 import { useFrontState } from "../shell/state";
-import { type FolderDestination, LeftSidebar } from "../sidebar/LeftSidebar";
+import { type FolderDestination, type FolderUngraph, LeftSidebar } from "../sidebar/LeftSidebar";
 import type { Repository } from "../types/git";
 import { SshPassword } from "./SshPassword";
 import { useClosedRepositories } from "./useClosedRepositories";
@@ -40,10 +42,14 @@ import { WindowBand } from "./WindowBand";
 import { HEADER_INSET, WindowControls } from "./WindowControls";
 
 /** LeftSidebar | Canvas | RightSidebar, and the menus drawn over them. */
+// One map for every render: a fresh empty one would redraw the canvas each time.
+const NO_ASKS: ReadonlyMap<string, Ask> = new Map();
+
 export function Window() {
   const { t } = useTranslation();
   const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", false);
   const [destination, setDestination] = useState<FolderDestination | null>(null);
+  const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
@@ -52,7 +58,18 @@ export function Window() {
 
   const sessions = useSessions();
   const asks = useAsks();
-  const reports = useReports();
+  const said = useReports();
+  const overseer = useOverseer();
+  // While the overseer runs, everything beside a terminal is its line: the agents' own reports and
+  // questions reach the person through it.
+  const overseen = overseer.session !== null;
+  const reports = overseen ? overseer.statuses : said;
+  // The host opens the overseer's shell itself, maybe after this window listed what was running.
+  const { pickUp } = sessions;
+  const overseerKnown = sessions.sessions.some(({ id }) => id === overseer.session);
+  useEffect(() => {
+    if (overseen && !overseerKnown) pickUp();
+  }, [overseen, overseerKnown, pickUp]);
   const doings = useDoings();
   useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
   const tasks = useTaskKeys({
@@ -130,6 +147,7 @@ export function Window() {
           onOpenFile={(path) => files.openFiles([path], null)}
           drops={drops}
           destination={destination}
+          ungraph={ungraph}
           homes={homes}
           branches={branches}
         />
@@ -159,8 +177,9 @@ export function Window() {
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
-              asks={asks.asks}
+              asks={overseen ? NO_ASKS : asks.asks}
               reports={reports}
+              overseen={overseen}
               doings={doings}
               onAnswer={asks.answer}
               onReply={asks.reply}
@@ -174,6 +193,7 @@ export function Window() {
               onBrowseWorktree={work.browseWorktree}
               onPickBranch={menus.setWorktree}
               onCloseRepository={closeRepository}
+              onCloseFolder={(root) => setUngraph({ root })}
               onMerge={work.merge}
               onSync={work.sync}
               onFetch={work.fetch}

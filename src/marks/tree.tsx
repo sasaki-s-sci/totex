@@ -66,10 +66,36 @@ export function PaneRepoMark({ size = ROW_SIZE }: { size?: number }) {
   return <GitMark on size={size} />;
 }
 
-export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
+const GIT_SCALE = 0.6;
+
+/**
+ * `git` puts git's figure on the folder's lower right: the folder is a checkout. The disc behind it
+ * is in the pane header's colour, so the figure reads against the filled folder.
+ */
+export function PaneFolderMark({ size = ROW_SIZE, git }: { size?: number; git?: boolean }) {
   return (
-    <Frame size={size}>
+    <Frame size={size} spill={git}>
       <path d={SHUT} fill="currentColor" />
+      {git && (
+        <>
+          <circle
+            cx="17.5"
+            cy="17"
+            r="7.5"
+            stroke="none"
+            style={{ fill: "var(--mui-palette-background-paper)" }}
+          />
+          <g
+            transform={`translate(10.5 9.8) scale(${GIT_SCALE})`}
+            strokeWidth={struck(size) / GIT_SCALE}
+          >
+            <path d="M6 7.6 V16.4 M18 10.6 C18 14.6 6 12.6 6 16.4" />
+            <circle cx="6" cy="5" r="2.6" fill="currentColor" />
+            <circle cx="6" cy="19" r="2.6" fill="currentColor" />
+            <circle cx="18" cy="8" r="2.6" fill="currentColor" />
+          </g>
+        </>
+      )}
     </Frame>
   );
 }
