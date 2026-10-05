@@ -268,6 +268,7 @@ export function Canvas({
 
   const {
     saveFilePreview,
+    refreshFilePreview,
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,
@@ -404,6 +405,7 @@ export function Canvas({
     onTake,
     onCloseFilePreview: closePage,
     saveFilePreview,
+    refreshFilePreview,
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,

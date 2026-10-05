@@ -211,6 +211,13 @@ pub fn run() {
         // running for a card nobody can put back.
         .on_window_event(|window, event| {
             use tauri::Manager;
+            // What a window had watched goes with it.
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .app_handle()
+                    .state::<fs_watch::BrowseWatch>()
+                    .forget(window.label());
+            }
             if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
                 for (label, other) in window.app_handle().webview_windows() {
                     if label != "main" {

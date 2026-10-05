@@ -117,6 +117,7 @@ export const NO_ACTIONS: GraphActions = {
   take: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
+  refreshFilePreview: () => {},
   collapseFilePreview: () => {},
   setFilePreviewView: () => {},
   previewFilePreview: () => {},

@@ -58,7 +58,7 @@ export function FilePage({
   const { t } = useTranslation();
   const { fileTitle } = useAppSettings();
   const Settings = settingsPart.use(data.view === "settings");
-  const { saveFilePreview, previewFilePreview, fitFilePreview } = actions;
+  const { previewFilePreview, fitFilePreview } = actions;
   const view = useReading();
   const {
     setBody,
@@ -79,7 +79,7 @@ export function FilePage({
   const { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput } = useDraft(
     data,
     view,
-    saveFilePreview,
+    actions,
   );
   // A page drawn of a file is not the card asking; the card beside it is.
   const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);

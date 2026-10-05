@@ -200,6 +200,7 @@ export function CardWindow() {
           return false;
         }
       },
+      refreshFilePreview: (_requestId, read) => setData((held) => held && { ...held, ...read }),
       collapseFilePreview: () => {
         if (!data) return;
         const collapsed = !data.collapsed;

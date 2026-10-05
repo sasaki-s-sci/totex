@@ -3,7 +3,9 @@
 //! The tree reads a directory when it is expanded and would then show that
 //! reading forever — a worktree removed a moment ago stays on screen until
 //! somebody thinks to press refresh. So the directories the tree currently has
-//! open are watched, and each one is told when its own contents move.
+//! open are watched, and each one is told when its own contents move. A file
+//! card watches the directory holding its file the same way, so what it shows
+//! follows the file when something else writes it.
 //!
 //! Only the levels that are open are watched, and none of them recursively: an
 //! expanded tree is a handful of directories, while the tree below them is
@@ -15,6 +17,11 @@
 //! This machine's own notifications watch its own; a remote machine is asked
 //! from inside, because nothing on this side is ever told that a file there
 //! moved.
+//!
+//! Each window says what it wants watched for itself — a card torn off into a
+//! window of its own watches its file's directory while the main window watches
+//! its tree — so the sets are kept apart by window, and each window is told
+//! only about its own.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -23,7 +30,7 @@ use std::time::Duration;
 
 use notify_debouncer_full::notify::RecursiveMode;
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
-use tauri::{AppHandle, Emitter, Runtime, State};
+use tauri::{AppHandle, Emitter, Runtime, State, Window};
 
 use crate::host::Host;
 use crate::remote;
@@ -37,7 +44,7 @@ const DEBOUNCE: Duration = Duration::from_millis(120);
 
 type Local = Debouncer<notify_debouncer_full::notify::RecommendedWatcher, RecommendedCache>;
 
-/// Everything watching for the tree as it now stands.
+/// Everything watching for one window as it now stands.
 ///
 /// Dropping it stops all of it — the local watcher's thread and every poll
 /// running on a remote machine — which is the only thing replacing the set
@@ -51,51 +58,58 @@ struct Watching {
     inside: Vec<remote::Poll>,
 }
 
+/// Keyed by the label of the window that asked.
 #[derive(Default)]
 pub struct BrowseWatch {
-    current: Mutex<Option<Watching>>,
+    current: Mutex<BTreeMap<String, Watching>>,
 }
 
 impl BrowseWatch {
-    fn watching(&self) -> BTreeSet<PathBuf> {
+    fn watching(&self, window: &str) -> BTreeSet<PathBuf> {
         crate::sync::lock(&self.current)
-            .as_ref()
+            .get(window)
             .map(|held| held.paths.clone())
             .unwrap_or_default()
     }
 
-    fn replace(&self, next: Option<Watching>) {
+    fn replace(&self, window: &str, next: Option<Watching>) {
         let mut guard = crate::sync::lock(&self.current);
-        *guard = next;
+        match next {
+            Some(next) => guard.insert(window.to_string(), next),
+            None => guard.remove(window),
+        };
     }
 
-    /// Stops watching altogether. The tree says what it wants watched every
-    /// time it changes, so what this costs is one round of notifications
-    /// nobody had asked about yet.
-    pub fn clear(&self) {
-        self.replace(None);
+    /// Stops watching for one window. A window says what it wants watched
+    /// every time that changes, so what this costs a window still open is one
+    /// round of notifications nobody had asked about yet.
+    pub fn forget(&self, window: &str) {
+        self.replace(window, None);
     }
 }
 
-/// Watches exactly `paths` — the directories the tree has open — and nothing
-/// else. Called again with the new set every time a folder is expanded or
-/// collapsed; an empty list stops watching altogether.
+/// Watches exactly `paths` — the directories the window has open — and nothing
+/// else for it. Called again with the new set every time a folder is expanded
+/// or collapsed or a card opens or closes; an empty list stops watching for
+/// that window altogether.
 #[tauri::command]
 pub fn watch_directories<R: Runtime>(
     app: AppHandle<R>,
+    window: Window<R>,
     state: State<'_, BrowseWatch>,
     paths: Vec<String>,
 ) -> Result<(), String> {
+    let label = window.label().to_string();
     let wanted: BTreeSet<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
     // The tree re-sends its set on every expand and collapse, and most of those
     // are one directory different from the last. Rebuilding the watcher for a
     // set it is already watching would drop and re-take every watch.
-    if wanted == state.watching() {
+    if wanted == state.watching(&label) {
         return Ok(());
     }
 
     if wanted.is_empty() {
-        state.replace(None);
+        state.replace(&label, None);
         return Ok(());
     }
 
@@ -123,35 +137,37 @@ pub fn watch_directories<R: Runtime>(
     }
 
     if !here.is_empty() {
-        held.local = Some(locally(&app, Arc::clone(&watched), &here)?);
+        held.local = Some(locally(&app, &label, Arc::clone(&watched), &here)?);
     }
     for (host, paths) in elsewhere.into_values() {
         // A machine that will not answer costs the folders on it their
         // refreshes and nothing else. The rest of the tree is still watched,
         // which is what a tree spanning two machines has to be able to do.
-        if let Ok(poll) = inside(&app, Arc::clone(&watched), &host, &paths) {
+        if let Ok(poll) = inside(&app, &label, Arc::clone(&watched), &host, &paths) {
             held.inside.push(poll);
         }
     }
 
-    state.replace(Some(held));
+    state.replace(&label, Some(held));
     Ok(())
 }
 
 /// The directories on this machine, watched by it.
 fn locally<R: Runtime>(
     app: &AppHandle<R>,
+    window: &str,
     watched: Arc<BTreeSet<PathBuf>>,
     paths: &[PathBuf],
 ) -> Result<Local, String> {
     let handle = app.clone();
+    let window = window.to_string();
     let mut debouncer = new_debouncer(DEBOUNCE, None, move |result: DebounceEventResult| {
         let Ok(events) = result else {
             return;
         };
         let touched = directories(events.iter().flat_map(|event| event.paths.iter()), &watched);
         if !touched.is_empty() {
-            let _ = handle.emit(CHANGED_EVENT, touched);
+            let _ = handle.emit_to(window.as_str(), CHANGED_EVENT, touched);
         }
     })
     .map_err(|error| error.to_string())?;
@@ -168,6 +184,7 @@ fn locally<R: Runtime>(
 /// The directories on one remote machine, watched from inside it.
 fn inside<R: Runtime>(
     app: &AppHandle<R>,
+    window: &str,
     watched: Arc<BTreeSet<PathBuf>>,
     host: &Host,
     paths: &[PathBuf],
@@ -175,12 +192,13 @@ fn inside<R: Runtime>(
     let native: Vec<String> = paths.iter().map(|path| host.native(path)).collect();
     let handle = app.clone();
     let spelling = host.clone();
+    let window = window.to_string();
 
     host.watch(false, &native, move |moved| {
         let paths: Vec<PathBuf> = moved.iter().map(|path| spelling.canonical(path)).collect();
         let touched = directories(paths.iter(), &watched);
         if !touched.is_empty() {
-            let _ = handle.emit(CHANGED_EVENT, touched);
+            let _ = handle.emit_to(window.as_str(), CHANGED_EVENT, touched);
         }
     })
 }

@@ -6,6 +6,7 @@ import type { CardSeed } from "../../lib/cardWindow";
 import { drawn, previewable } from "../../lib/filePreview";
 import type { FilePreviewFlowNode } from "../../lib/graph";
 import { gridNow, sizeOnGrid, upToGrid } from "../../lib/grid";
+import type { FileReading } from "../../page/actions";
 import { fileLeast, fileSize } from "./filePreviewBox";
 import { useCardWindows } from "./useCardWindows";
 import type { PageCanvas } from "./useFilePreviews";
@@ -51,6 +52,19 @@ export function useFilePreviewCard(
       } catch {
         return false;
       }
+    },
+    [setNodes],
+  );
+
+  const refreshFilePreview = useCallback(
+    (requestId: number, read: FileReading) => {
+      setNodes((current) =>
+        current.map((node) =>
+          node.type === "file-preview" && node.data.requestId === requestId
+            ? { ...node, data: { ...node.data, ...read } }
+            : node,
+        ),
+      );
     },
     [setNodes],
   );
@@ -203,6 +217,7 @@ export function useFilePreviewCard(
   );
   return {
     saveFilePreview,
+    refreshFilePreview,
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,

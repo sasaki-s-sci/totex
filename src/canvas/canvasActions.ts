@@ -29,6 +29,7 @@ export function useCanvasActions({
   onTake,
   onCloseFilePreview,
   saveFilePreview,
+  refreshFilePreview,
   collapseFilePreview,
   setFilePreviewView,
   previewFilePreview,
@@ -62,6 +63,7 @@ export function useCanvasActions({
   onTake: GraphActions["take"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
   saveFilePreview: GraphActions["saveFilePreview"];
+  refreshFilePreview: GraphActions["refreshFilePreview"];
   collapseFilePreview: GraphActions["collapseFilePreview"];
   setFilePreviewView: GraphActions["setFilePreviewView"];
   previewFilePreview: GraphActions["previewFilePreview"];
@@ -98,6 +100,7 @@ export function useCanvasActions({
       take: onTake,
       closeFilePreview: onCloseFilePreview,
       saveFilePreview,
+      refreshFilePreview,
       collapseFilePreview,
       setFilePreviewView,
       previewFilePreview,
@@ -132,6 +135,7 @@ export function useCanvasActions({
       onTake,
       onCloseFilePreview,
       saveFilePreview,
+      refreshFilePreview,
       collapseFilePreview,
       setFilePreviewView,
       previewFilePreview,

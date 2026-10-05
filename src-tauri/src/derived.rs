@@ -33,7 +33,7 @@
 //! it is the persistent half's too. It goes when the session it belongs to goes, and not
 //! before.
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, Window};
 
 use crate::ask;
 use crate::fs_watch::BrowseWatch;
@@ -45,9 +45,10 @@ use crate::git;
 /// The window is what calls this, and it has one thing to do afterwards: scan
 /// its folders again. Everything else is either already back or was never gone.
 #[tauri::command]
-pub fn rederive<R: Runtime>(app: AppHandle<R>) {
+pub fn rederive<R: Runtime>(app: AppHandle<R>, window: Window<R>) {
     git::session::forget_all(&app);
-    app.state::<BrowseWatch>().clear();
+    // Only the asking window's: a card standing in a window of its own still watches its file.
+    app.state::<BrowseWatch>().forget(window.label());
     ask::watch::rederive(&app);
     // Nothing about the door is touched. It is held open by the persistent half and the
     // reports behind it were said rather than read, so there is no version of
