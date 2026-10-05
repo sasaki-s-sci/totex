@@ -106,8 +106,8 @@ test("uneven terminal stacks remain balanced, spaced and inside the band", () =>
   }
 });
 
-test("the name stands over the terminal column, on the topmost glyph and inside the band", () => {
-  for (const counts of [[0], [1], [5, 1], [0, 3, 2]]) {
+test("the name stands over the ring column, clear of every stack and inside the band", () => {
+  for (const counts of [[0], [1], [2], [5, 1], [0, 3, 2]]) {
     const repo = repository(counts.map((_, i) => `dev/${i}`));
     repo.worktrees = repo.branches.map((branch, i) => {
       branch.checkedOutIn = [`wt${i}`];
@@ -115,14 +115,20 @@ test("the name stands over the terminal column, on the topmost glyph and inside 
     });
     const graph = prepare(repo, undefined, new Map(counts.map((n, i) => [`/repo/${i}`, n])));
     const { name } = graph.data;
-    assert.equal(name.x, graph.stack);
-    assert.ok(name.y >= 0);
-    const ys = graph.nodes.filter((n) => n.type === "head").map(middle);
+    const heads = graph.nodes.filter((n) => n.type === "head");
+    // From the left edge of the 22px shell glyph over each ring.
+    assert.equal(name.x, heads[0].position.x + 50 - 11);
+    assert.ok(name.offered >= 0);
+    assert.ok(name.offered <= name.y);
+    const ys = heads.map(middle);
+    // On the topmost ring's shell glyph, whose top stands 26px over the ring's middle.
+    assert.equal(
+      name.y + name.height,
+      Math.min(...ys.map((y, i) => y - Math.max(26, ((Math.max(1, counts[i]) - 1) * 34) / 2 + 8))),
+    );
+    // Clear of every terminal's 16px glyph, standing in the middle of its 34px slot.
     const highest = Math.min(...ys.map((y, i) => y - (Math.max(1, counts[i]) * 34) / 2));
-    // A terminal's 16px glyph stands in the middle of its 34px slot: the name comes down to its top.
-    const glyph = highest + (34 - 16) / 2;
-    assert.ok(name.y + name.height <= glyph);
-    assert.ok(name.y + name.height > highest);
+    assert.ok(name.y + name.height <= highest + (34 - 16) / 2);
   }
 });
 

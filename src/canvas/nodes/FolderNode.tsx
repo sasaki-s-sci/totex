@@ -25,10 +25,10 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
 
   return (
     <div className="band folder">
-      {/* On top of the terminals beside the mark, as a heading over its column. Only a name: a folder holds nothing to fold. */}
+      {/* Over the mark's shell glyph, as a heading over its column, rising with it. Only a name: a folder holds nothing to fold. */}
       <div
         className="row__name row__name--above"
-        style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
+        style={{ left: label.x, top: label.y - grown, width: label.width, height: label.height }}
       >
         <Typography
           className={`folder__name folder__name--still${changeClass(change)}`}

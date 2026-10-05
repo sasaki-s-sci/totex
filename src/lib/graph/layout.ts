@@ -4,7 +4,7 @@ import type { Frame } from "./band/frame";
 import { drawHeads } from "./band/heads";
 import { drawJunctions } from "./band/junctions";
 import { placeBranches } from "./branches";
-import { NAME_ABOVE } from "./folders";
+import { NAME_ABOVE, nameRise } from "./folders";
 import type { Point } from "./geometry";
 import { depthOf, placeHistory } from "./history";
 import { bundleBranches, dealColumn, junctionId } from "./junctions";
@@ -20,6 +20,7 @@ import {
   COMMIT_STEP,
   type CollapseFlowNode,
   type CommitFlowNode,
+  FOLDER_MARK,
   gridRows,
   HEADING_WIDTH,
   type JunctionFlowNode,
@@ -139,22 +140,20 @@ function layout(
   const branchTop = rows > 0 ? -rowReach(stacks[0]) : 0;
   const branchBottom = rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0;
   const centre = Math.round((branchTop + branchBottom) / (2 * COMMIT_STEP.y)) * COMMIT_STEP.y;
-  // The name stands on the topmost terminal's glyph, as a folder's does; the new workspace, drawn
-  // only while offered, stands over it.
+  // The name stands over the ring column, on the topmost ring's shell glyph, as a folder's stands
+  // over its mark.
+  const nameBottom = Math.min(...stacks.map((marks, row) => branchLine[row] - nameRise(marks)));
+  // The new workspace is drawn only while offered, over the topmost stack.
   const ceiling = Math.min(
     0,
     ...stacks.map((marks, row) => branchLine[row] - CLI_STEP / 2 - stackReach(Math.max(1, marks))),
   );
-  const nameBottom = ceiling + CLI_STEP / 2 - CLI_MARK / 2;
-  const nameTop = nameBottom - NAME_ABOVE.height;
-  // Room is still held for the new workspace's glyph, so offering it never runs into the band above.
   const offerTop = ceiling - NEW_RISE - CLI_STEP / 2 - CLI_MARK / 2;
+  // While it is offered, the name rises off the shell glyph to stand on its ring instead; the band
+  // holds that room, so offering never runs into the band above.
+  const offeredTop = Math.min(nameBottom, offerTop) - NAME_ABOVE.height;
   const top = gridRows(
-    Math.max(
-      NAME_HEIGHT - historyTop,
-      centre - branchTop,
-      rows > 0 ? centre - Math.min(nameTop, offerTop) : 0,
-    ),
+    Math.max(NAME_HEIGHT - historyTop, centre - branchTop, rows > 0 ? centre - offeredTop : 0),
   );
   const historyLine = (row: number) => top + laneOffset(row);
   for (let row = 0; row < rows; row++) branchLine[row] += top - centre;
@@ -209,14 +208,19 @@ function layout(
   // band never widens when a terminal opens.
   const width = Math.max(MIN_BAND_WIDTH, working + SESSION_WIDTH / 2);
 
-  // Where `bandColumn` stands the new workspace: the first branch's column, else the band's edge.
-  const column = runs[0]?.x ?? width - SESSION_WIDTH;
-
   return {
     repository,
     data: {
       repository,
-      name: { x: column, y: rows > 0 ? nameTop + top - centre : nameTop, ...NAME_ABOVE },
+      name: {
+        x: ring - FOLDER_MARK / 2,
+        y:
+          rows > 0
+            ? nameBottom - NAME_ABOVE.height + top - centre
+            : top - nameRise(0) - NAME_ABOVE.height,
+        ...NAME_ABOVE,
+        offered: rows > 0 ? offeredTop + top - centre : top - nameRise(0) - NAME_ABOVE.height,
+      },
       // Down to the trunk cell's bottom edge, so the mark's line is the trunk's.
       label: {
         x: 0,

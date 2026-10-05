@@ -73,11 +73,16 @@
   overflow: hidden;
 }
 
-/* Over the stack rather than on the line: as tall as the name, which runs on to the right and may stand above the row's own box. */
+/* Over the mark's column rather than on the line: as tall as the name, which runs on to the right and may stand above the row's own box. */
 .row__name--above {
   align-items: flex-end;
   padding-left: 0;
   overflow: visible;
+}
+
+/* A band's name rises onto the new workspace's ring while that is offered over the topmost ring. */
+.graph[data-offering] .react-flow__node-repository .row__name--above {
+  transform: translateY(var(--offered));
 }
 
 /* The close ahead of the mark, shown while the pointer is on either. */

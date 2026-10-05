@@ -55,10 +55,18 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
         </div>
       </div>
 
-      {/* On top of the terminal column, where a folder's name and a folded repository's stand. */}
+      {/* Over the ring column, as a folder's name and a folded repository's stand over their marks. */}
       <div
         className="row__name row__name--above"
-        style={{ left: name.x, top: name.y, width: name.width, height: name.height }}
+        style={
+          {
+            left: name.x,
+            top: name.y,
+            width: name.width,
+            height: name.height,
+            "--offered": `${name.offered - name.y}px`,
+          } as CSSProperties
+        }
       >
         <button
           type="button"

@@ -422,7 +422,12 @@ export function Canvas({
                   <CliDoingProvider value={doings}>
                     <CliTypedProvider value={typed}>
                       {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
-                      <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                      <div
+                        ref={host}
+                        className="graph"
+                        data-coarse={coarse || undefined}
+                        data-offering={offering || undefined}
+                      >
                         <ReactFlow<AppNode, Edge>
                           ref={pane}
                           nodes={shown}

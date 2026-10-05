@@ -287,15 +287,6 @@ test("lined up by terminal, every stack stands on one line; by initial, the grou
   assert.equal(xs.length, 4);
   assert.equal(new Set(xs).size, 1);
 
-  // Every name, the folder's, a band's and a folded mark's, stands over that one line.
-  const named = lined.nodes.filter((node) => ["folder", "repo-mark"].includes(node.type));
-  const names = [
-    ...named.map((node) => node.position.x + node.data.label.x),
-    ...bandNodes(lined).map((band) => band.position.x + band.data.name.x),
-  ];
-  assert.equal(names.length, 5);
-  assert.deepEqual(new Set(names), new Set(xs));
-
   // The folder's mark stands where every band's rings do, as its stack stands on theirs.
   const at = new Map(lined.nodes.map((node) => [node.id, node.position]));
   const rings = lined.nodes
@@ -304,6 +295,18 @@ test("lined up by terminal, every stack stands on one line; by initial, the grou
   assert.ok(rings.length > 0);
   assert.equal(new Set(rings).size, 1);
   assert.equal(folderNodes(lined)[0].position.x + ROW_SOCKET.x, rings[0]);
+
+  // Every name stands over its own mark, from the left edge of the 22px shell glyph over it: the
+  // folder's and every band's over that column, a folded mark's over its ring, which stays put.
+  const names = [
+    ...folderNodes(lined).map((node) => node.position.x + node.data.label.x),
+    ...bandNodes(lined).map((band) => band.position.x + band.data.name.x),
+  ];
+  assert.equal(names.length, 3);
+  assert.deepEqual(new Set(names), new Set([rings[0] - 11]));
+  const folded = lined.nodes.filter((node) => node.type === "repo-mark");
+  assert.equal(folded.length, 2);
+  for (const node of folded) assert.equal(node.data.label.x, ROW_SOCKET.x - 11);
 
   const loose = build(workspace, folders, undefined, sessions, "initial");
   assert.ok(new Set(stacksOf(loose)).size > 1);

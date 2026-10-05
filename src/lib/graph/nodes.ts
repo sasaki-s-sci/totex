@@ -51,8 +51,11 @@ export type RepositoryNodeData = {
    * length rail on the line above it.
    */
   label: { x: number; y: number; width: number; height: number };
-  /** Band-relative box of the name: over the terminal column, as a folder's and a folded mark's are. */
-  name: { x: number; y: number; width: number; height: number };
+  /**
+   * Band-relative box of the name: over the ring column, as a folder's is over its mark. `offered`
+   * is its top while the new workspace is offered, which stands over the topmost ring.
+   */
+  name: { x: number; y: number; width: number; height: number; offered: number };
 };
 
 export type FolderNodeData = {
