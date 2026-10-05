@@ -30,7 +30,6 @@ import type { CanvasProps } from "./CanvasProps";
 import { useCanvasActions } from "./canvasActions";
 import { CliDoingProvider } from "./cliDoing";
 import { CliJumpsProvider } from "./cliJumps";
-import { CliPlacesProvider } from "./cliPlaces";
 import { CliTypedProvider } from "./cliTyped";
 import { GraphLines } from "./GraphLines";
 import { GraphActionsProvider } from "./graphActions";
@@ -318,7 +317,6 @@ export function Canvas({
   const {
     picked,
     numbers,
-    holding,
     offering,
     selectedCommit,
     setSelectedCommit,
@@ -354,11 +352,9 @@ export function Canvas({
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
 
-  const cliPlaces = useMemo(() => new Map(run.map((place) => [place.group, place.name])), [run]);
+  const jumps = useMemo(() => ({ numbers }), [numbers]);
 
-  const jumps = useMemo(() => ({ numbers, holding }), [numbers, holding]);
-
-  const typed = useCliTyped(holding, showing, asks, reports, overseen);
+  const typed = useCliTyped(showing, asks, reports, overseen);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,
@@ -423,80 +419,78 @@ export function Canvas({
             <BrowsingProvider value={browsed}>
               <GraphMarksProvider value={marks}>
                 <CliJumpsProvider value={jumps}>
-                  <CliPlacesProvider value={cliPlaces}>
-                    <CliDoingProvider value={doings}>
-                      <CliTypedProvider value={typed}>
-                        {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
-                        <div ref={host} className="graph" data-coarse={coarse || undefined}>
-                          <ReactFlow<AppNode, Edge>
-                            ref={pane}
-                            nodes={shown}
-                            nodeTypes={nodeTypes}
-                            onNodesChange={onNodesChange}
-                            onInit={(flow) => {
-                              instance.current = flow;
-                              const kept = frontValue<Viewport>("canvas.viewport");
-                              if (kept) void flow.setViewport(kept);
-                              setFlowReady(true);
+                  <CliDoingProvider value={doings}>
+                    <CliTypedProvider value={typed}>
+                      {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
+                      <div ref={host} className="graph" data-coarse={coarse || undefined}>
+                        <ReactFlow<AppNode, Edge>
+                          ref={pane}
+                          nodes={shown}
+                          nodeTypes={nodeTypes}
+                          onNodesChange={onNodesChange}
+                          onInit={(flow) => {
+                            instance.current = flow;
+                            const kept = frontValue<Viewport>("canvas.viewport");
+                            if (kept) void flow.setViewport(kept);
+                            setFlowReady(true);
 
-                              resolve(flow.getViewport().zoom);
-                            }}
-                            onMove={handleMove}
-                            onNodeClick={handleNodeClick}
-                            onNodeDragStart={takeGroup}
-                            onNodeDrag={carryGroup}
-                            onNodeDragStop={dropGroup}
-                            onPaneClick={() => setSelectedCommit(null)}
-                            nodesConnectable={false}
-                            nodesDraggable
-                            elevateNodesOnSelect={false}
-                            // React Flow's per-frame visibility pass cost more than moving the nodes.
-                            onlyRenderVisibleElements={false}
-                            minZoom={MIN_ZOOM}
-                            maxZoom={MAX_ZOOM}
-                            // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
-                            zoomOnScroll={false}
-                            proOptions={proOptions}
-                            // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
-                            fitView={fitOnInit}
-                          >
-                            <CanvasBackground />
-                            <Pages
-                              nodes={nodes}
-                              sessions={sessions}
-                              terminalList={
-                                <TabStrip
-                                  run={run}
-                                  sessions={sessions}
-                                  showing={showing}
-                                  doings={doings}
-                                />
-                              }
-                            />
-                            <GraphLines
-                              bands={graph.bands}
-                              reach={graph.reach}
-                              offerReach={graph.offerReach}
-                              holds={graph.holds}
-                              extent={graph.extent}
-                              nodes={lineNodes}
-                              selected={selectedCommit}
-                              picked={picked}
-                              offering={offering}
-                              reading={offering && !coarse}
-                              onCommit={handleCommitClick}
-                            />
-                          </ReactFlow>
-                          <PinnedCards
-                            pinnedFiles={pinnedFiles.filter(
-                              (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
-                            )}
-                            pinDrag={pinDrag}
+                            resolve(flow.getViewport().zoom);
+                          }}
+                          onMove={handleMove}
+                          onNodeClick={handleNodeClick}
+                          onNodeDragStart={takeGroup}
+                          onNodeDrag={carryGroup}
+                          onNodeDragStop={dropGroup}
+                          onPaneClick={() => setSelectedCommit(null)}
+                          nodesConnectable={false}
+                          nodesDraggable
+                          elevateNodesOnSelect={false}
+                          // React Flow's per-frame visibility pass cost more than moving the nodes.
+                          onlyRenderVisibleElements={false}
+                          minZoom={MIN_ZOOM}
+                          maxZoom={MAX_ZOOM}
+                          // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
+                          zoomOnScroll={false}
+                          proOptions={proOptions}
+                          // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
+                          fitView={fitOnInit}
+                        >
+                          <CanvasBackground />
+                          <Pages
+                            nodes={nodes}
+                            sessions={sessions}
+                            terminalList={
+                              <TabStrip
+                                run={run}
+                                sessions={sessions}
+                                showing={showing}
+                                doings={doings}
+                              />
+                            }
                           />
-                        </div>
-                      </CliTypedProvider>
-                    </CliDoingProvider>
-                  </CliPlacesProvider>
+                          <GraphLines
+                            bands={graph.bands}
+                            reach={graph.reach}
+                            offerReach={graph.offerReach}
+                            holds={graph.holds}
+                            extent={graph.extent}
+                            nodes={lineNodes}
+                            selected={selectedCommit}
+                            picked={picked}
+                            offering={offering}
+                            reading={offering && !coarse}
+                            onCommit={handleCommitClick}
+                          />
+                        </ReactFlow>
+                        <PinnedCards
+                          pinnedFiles={pinnedFiles.filter(
+                            (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
+                          )}
+                          pinDrag={pinDrag}
+                        />
+                      </div>
+                    </CliTypedProvider>
+                  </CliDoingProvider>
                 </CliJumpsProvider>
               </GraphMarksProvider>
             </BrowsingProvider>

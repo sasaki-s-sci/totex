@@ -7,7 +7,6 @@ import { typedNow } from "../../lib/typed";
 import type { CliTyped } from "../cliTyped";
 
 export function useCliTyped(
-  holding: boolean,
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
@@ -18,7 +17,7 @@ export function useCliTyped(
 
   useEffect(() => {
     // The overseer's line says what was typed when it matters, in its words.
-    if (overseen || (!holding && !kept)) {
+    if (overseen || !kept) {
       setSaid(null);
       return;
     }
@@ -32,9 +31,9 @@ export function useCliTyped(
             : next,
         );
       },
-      showing !== null || holding ? 100 : 1000,
+      showing !== null ? 100 : 1000,
     );
-  }, [holding, kept, showing, overseen]);
+  }, [kept, showing, overseen]);
 
   return useMemo(() => {
     if (!said) return null;

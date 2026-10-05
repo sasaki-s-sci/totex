@@ -106,7 +106,7 @@ test("uneven terminal stacks remain balanced, spaced and inside the band", () =>
   }
 });
 
-test("the name stands over the terminal column, above the topmost stack and inside the band", () => {
+test("the name stands over the terminal column, on the topmost glyph and inside the band", () => {
   for (const counts of [[0], [1], [5, 1], [0, 3, 2]]) {
     const repo = repository(counts.map((_, i) => `dev/${i}`));
     repo.worktrees = repo.branches.map((branch, i) => {
@@ -119,7 +119,10 @@ test("the name stands over the terminal column, above the topmost stack and insi
     assert.ok(name.y >= 0);
     const ys = graph.nodes.filter((n) => n.type === "head").map(middle);
     const highest = Math.min(...ys.map((y, i) => y - (Math.max(1, counts[i]) * 34) / 2));
-    assert.ok(name.y + name.height < highest);
+    // A terminal's 16px glyph stands in the middle of its 34px slot: the name comes down to its top.
+    const glyph = highest + (34 - 16) / 2;
+    assert.ok(name.y + name.height <= glyph);
+    assert.ok(name.y + name.height > highest);
   }
 });
 

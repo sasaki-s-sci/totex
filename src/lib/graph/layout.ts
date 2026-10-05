@@ -139,15 +139,22 @@ function layout(
   const branchTop = rows > 0 ? -rowReach(stacks[0]) : 0;
   const branchBottom = rows > 0 ? branchLine[rows - 1] + rowReach(stacks[rows - 1]) : 0;
   const centre = Math.round((branchTop + branchBottom) / (2 * COMMIT_STEP.y)) * COMMIT_STEP.y;
-  // The name stands over the new workspace, which heads the terminal column: on its glyph's top.
+  // The name stands on the topmost terminal's glyph, as a folder's does; the new workspace, drawn
+  // only while offered, stands over it.
   const ceiling = Math.min(
     0,
     ...stacks.map((marks, row) => branchLine[row] - CLI_STEP / 2 - stackReach(Math.max(1, marks))),
   );
-  const nameBottom = ceiling - NEW_RISE - CLI_STEP / 2 - CLI_MARK / 2;
+  const nameBottom = ceiling + CLI_STEP / 2 - CLI_MARK / 2;
   const nameTop = nameBottom - NAME_ABOVE.height;
+  // Room is still held for the new workspace's glyph, so offering it never runs into the band above.
+  const offerTop = ceiling - NEW_RISE - CLI_STEP / 2 - CLI_MARK / 2;
   const top = gridRows(
-    Math.max(NAME_HEIGHT - historyTop, centre - branchTop, rows > 0 ? centre - nameTop : 0),
+    Math.max(
+      NAME_HEIGHT - historyTop,
+      centre - branchTop,
+      rows > 0 ? centre - Math.min(nameTop, offerTop) : 0,
+    ),
   );
   const historyLine = (row: number) => top + laneOffset(row);
   for (let row = 0; row < rows; row++) branchLine[row] += top - centre;

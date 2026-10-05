@@ -58,8 +58,6 @@ export function useGraphKeys({
 }: Options) {
   const [picked, setPicked] = useState<string | null>(null);
 
-  const [holding, setHolding] = useState(false);
-
   const [offering, setOffering] = useState(false);
 
   const shown = useMemo(
@@ -117,7 +115,6 @@ export function useGraphKeys({
       at.current = null;
       typed.current = null;
       setPicked(null);
-      setHolding(false);
       setOffering(false);
     };
 
@@ -194,8 +191,6 @@ export function useGraphKeys({
     const onKeyDown = (event: KeyboardEvent) => {
       // Ctrl alone; Alt and Meta combinations belong to something else.
       if (!event.ctrlKey || event.altKey || event.metaKey) return;
-
-      setHolding(true);
 
       // A text field keeps Ctrl+Shift+Arrow for word selection; a terminal does not.
       const writing = typing(event.target) && !terminal(event.target);
@@ -339,8 +334,7 @@ export function useGraphKeys({
     };
   }, [picked, nodes, host, offering]);
 
-  // The numbers are always the canvas's to draw; what Ctrl adds is the labels beside them.
-  return { picked, numbers, holding, offering };
+  return { picked, numbers, offering };
 }
 
 function numeric(event: KeyboardEvent): boolean {

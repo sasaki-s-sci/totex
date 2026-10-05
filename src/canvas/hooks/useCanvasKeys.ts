@@ -72,7 +72,7 @@ export function useCanvasKeys({
     [onNewWork, onOpenWork],
   );
 
-  const { picked, numbers, holding, offering } = useGraphKeys({
+  const { picked, numbers, offering } = useGraphKeys({
     nodes: graph.nodes,
     offers: graph.offers,
     instance,
@@ -88,7 +88,6 @@ export function useCanvasKeys({
   return {
     picked,
     numbers,
-    holding,
     offering,
     selectedCommit,
     setSelectedCommit,
