@@ -8,7 +8,7 @@ export type GraphedKind = "folder" | "repository";
 export type Graphed = { kind: GraphedKind; root: string };
 
 /** Where a pane stood, kept between runs: the folder it browsed, or the root it listed. */
-export type PaneSeed = { kind: GraphedKind; path: string };
+export type PaneSeed = { kind: GraphedKind; path: string; minimized?: boolean };
 
 // No path on any platform contains NUL, which keeps the join reversible.
 const SEPARATOR = "\u0000";
@@ -34,8 +34,9 @@ export function readSeeds(stored: unknown): PaneSeed[] {
       continue;
     }
     if (!entry || typeof entry !== "object") continue;
-    const { kind, path } = entry as Partial<PaneSeed>;
-    if (isGraphedKind(kind) && typeof path === "string") seeds.push({ kind, path });
+    const { kind, path, minimized } = entry as Partial<PaneSeed>;
+    if (isGraphedKind(kind) && typeof path === "string")
+      seeds.push({ kind, path, ...(minimized === true ? { minimized: true } : null) });
   }
   return seeds;
 }

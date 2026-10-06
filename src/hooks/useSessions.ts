@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { endShell, resumeShells, runningShells, startShell } from "../lib/pty";
+import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
 import { restored, type Session } from "../lib/session";
 import { frontValue, useFrontState } from "../shell/state";
 
@@ -20,7 +20,9 @@ export function useSessions() {
         setSessions((current) => {
           const known = new Set(current.map((session) => session.id));
           // Anything opened while this was in flight is newer than what came back.
-          const found = restored(running).filter((session) => !known.has(session.id));
+          const found = restored(running).filter(
+            (session) => !known.has(session.id) && !shellEnded(session.id),
+          );
           return found.length === 0 ? current : [...found, ...current];
         });
       })
@@ -102,6 +104,27 @@ export function useSessions() {
     [kill, sessions],
   );
 
+  // Include native sessions that have no current graph or terminal view.
+  const endMatching = useCallback(
+    async (matches: (session: Session) => boolean) => {
+      const native = restored(await runningShells());
+      const all = new Map([...native, ...sessions].map((session) => [session.id, session]));
+      const going = [...all.values()].filter(matches);
+      const results = await Promise.allSettled(going.map((session) => endShell(session.id)));
+      const ended = new Set(
+        going
+          .filter((_, index) => results[index].status === "fulfilled")
+          .map((session) => session.id),
+      );
+      setSessions((current) => current.filter((session) => !ended.has(session.id)));
+      setPaged((current) => current.filter((id) => !ended.has(id)));
+      setShowing((current) => (current !== null && ended.has(current) ? null : current));
+      if (results.some((result) => result.status === "rejected"))
+        throw new Error("terminal removal failed");
+    },
+    [sessions],
+  );
+
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
 
   return {
@@ -117,6 +140,7 @@ export function useSessions() {
     dock,
     end,
     endIn,
+    endMatching,
     pickUp,
   };
 }

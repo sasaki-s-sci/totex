@@ -64,11 +64,14 @@ import { WorktreeStatusProvider } from "./worktreeStatus";
 
 import "./styles/index.css";
 
+const EMPTY_SET: ReadonlySet<string> = new Set();
+
 export function Canvas({
   workspace,
   folders,
   browsing,
   sessions,
+  hiddenSessions = EMPTY_SET,
   showing,
   paged,
   asks,
@@ -86,7 +89,9 @@ export function Canvas({
   onOpenWork,
   onBrowseWorktree,
   onPickBranch,
+  onMinimizeRepository,
   onCloseRepository,
+  onMinimizeFolder,
   onCloseFolder,
   onMerge,
   onSync,
@@ -347,10 +352,18 @@ export function Canvas({
             : node.type === "cli-page"
               ? terminalPageId(node.data.session.id)
               : null;
-        return id && placement?.(id) === "sidebar" ? { ...node, hidden: true } : node;
+        const minimized = node.type === "cli-page" && hiddenSessions.has(node.data.session.id);
+        return minimized || (id && placement?.(id) === "sidebar")
+          ? { ...node, hidden: true }
+          : node;
       });
     return offering ? [...drawn, ...graph.offers] : drawn;
-  }, [nodes, offering, graph.offers, placement]);
+  }, [nodes, offering, graph.offers, placement, hiddenSessions]);
+
+  const visibleSessions = useMemo(
+    () => sessions.filter((session) => !hiddenSessions.has(session.id)),
+    [sessions, hiddenSessions],
+  );
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
 
@@ -385,7 +398,9 @@ export function Canvas({
     onPickBranch,
     dragBranch,
     onFetch,
+    onMinimizeRepository,
     onCloseRepository,
+    onMinimizeFolder,
     onCloseFolder,
     openRepository,
     foldRepository,
@@ -468,10 +483,11 @@ export function Canvas({
                           <Pages
                             nodes={nodes}
                             sessions={sessions}
+                            hiddenSessions={hiddenSessions}
                             terminalList={
                               <TabStrip
                                 run={run}
-                                sessions={sessions}
+                                sessions={visibleSessions}
                                 showing={showing}
                                 doings={doings}
                               />

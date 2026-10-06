@@ -37,6 +37,11 @@ const ROWS = 24;
 const COLS = 80;
 
 const started = new Map<string, Promise<void>>();
+const ended = new Set<string>();
+
+export function shellEnded(id: string): boolean {
+  return ended.has(id);
+}
 
 export function resumeShells(sessions: readonly Session[]): void {
   reserveSessionIds(sessions);
@@ -49,6 +54,7 @@ export function resumeShells(sessions: readonly Session[]): void {
  * Called by the opener and by every terminal; a failed start is forgotten so the next asks again.
  */
 export function startShell(session: Session): Promise<void> {
+  if (ended.has(session.id)) return Promise.reject(new Error("terminal has ended"));
   const already = started.get(session.id);
   if (already) return already;
 
@@ -124,7 +130,17 @@ export function resizeShell(id: string, rows: number, cols: number): Promise<voi
   return invoke<void>("pty_resize", { id, rows, cols });
 }
 
-export function endShell(id: string): Promise<void> {
+export async function endShell(id: string): Promise<void> {
+  // A close must follow an in-flight open, or the terminal could appear after deletion.
+  const starting = started.get(id);
+  ended.add(id);
   started.delete(id);
-  return invoke<void>("pty_close", { id });
+  if (starting) await starting.catch(() => undefined);
+  try {
+    await invoke<void>("pty_close", { id });
+  } catch (cause) {
+    ended.delete(id);
+    if (starting) started.set(id, starting);
+    throw cause;
+  }
 }

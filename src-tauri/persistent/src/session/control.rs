@@ -10,6 +10,9 @@ use totex_host::sync::lock;
 use super::model::{Held, Running};
 use super::{Event, Sessions};
 
+#[path = "terminate.rs"]
+mod terminate;
+
 impl Sessions {
     /// Every session that is still running — what a window asks for when it
     /// comes up in front of shells it does not know about. A session is a
@@ -93,7 +96,13 @@ impl Sessions {
     /// dropped, and it is that thread — not this — which says the session has
     /// gone.
     pub fn close(&self, id: &str) {
-        if let Some(mut session) = self.lock().remove(id) {
+        // Releasing the map before waiting lets other terminals keep running
+        // and lets the output reader publish the ended session independently.
+        let removed = self.lock().remove(id);
+        if let Some(mut session) = removed {
+            if let Some(pid) = session.child.process_id() {
+                terminate::terminal_jobs(pid);
+            }
             let _ = session.child.kill();
             let _ = session.child.wait();
         }

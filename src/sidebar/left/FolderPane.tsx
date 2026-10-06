@@ -7,7 +7,7 @@ import { DROP_INTO } from "../../folder/dropInto";
 import { baseName } from "../../folder/format";
 import { useSpace } from "../../lib/space";
 import {
-  CloseMark,
+  Frame,
   GitMark,
   GraphFolderMark,
   MarkButton,
@@ -48,6 +48,7 @@ export interface FolderPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
+  onMinimize: () => void;
   onClose: () => void;
   /** Picks the pane up by its header, to put it elsewhere in the column. */
   grip?: PaneGrip;
@@ -74,6 +75,7 @@ export function FolderPane({
   naming,
   onNameDone,
   onNameCancel,
+  onMinimize,
   onClose,
   grip,
 }: FolderPaneProps) {
@@ -184,8 +186,15 @@ export function FolderPane({
             {name}
           </Typography>
         </Box>
-        <MarkButton label={t("folder.close")} onClick={onClose}>
-          <CloseMark />
+        <MarkButton label={t("folder.minimize")} onClick={onMinimize}>
+          <Frame>
+            <path d="M6 12h12" />
+          </Frame>
+        </MarkButton>
+        <MarkButton label={t("folder.remove")} onClick={onClose}>
+          <Frame>
+            <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
+          </Frame>
         </MarkButton>
         {standing && (
           <MarkButton

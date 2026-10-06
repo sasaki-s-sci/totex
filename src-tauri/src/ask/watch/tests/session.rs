@@ -49,7 +49,7 @@ fn a_question_that_wants_words_is_answered_by_writing_at_it() {
     .expect("the shell takes input");
 
     let Some(said) = wait_for(&rx, |ask| ask["taking"] == "words") else {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told words were being asked for");
     };
     let ask = &said["ask"];
@@ -74,7 +74,7 @@ fn a_question_that_wants_words_is_answered_by_writing_at_it() {
         "an answer to a question that has been answered went through"
     );
 
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
 }
 
 /// The box is printed rather than an agent run: what an agent actually draws is
@@ -94,7 +94,7 @@ fn a_question_drawn_in_a_session_reaches_the_window_and_is_answered() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told a question was being asked");
     };
     let ask = &said["ask"];
@@ -116,7 +116,7 @@ fn a_question_drawn_in_a_session_reaches_the_window_and_is_answered() {
         "an answer to a question that has been answered went through"
     );
 
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
 }
 
 /// A press the session does nothing about puts the question back.
@@ -135,7 +135,7 @@ fn a_press_nothing_came_of_puts_the_question_back() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told a question was being asked");
     };
     let seq = said["ask"]["seq"].as_u64().expect("the question is named");
@@ -146,7 +146,7 @@ fn a_press_nothing_came_of_puts_the_question_back() {
     );
     // Which is the card gone: the window is told so at the press.
     let back = wait_for(&rx, |ask| ask["seq"].as_u64() == Some(seq));
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
     assert!(
         back.is_some(),
         "a question the press did nothing about never came back"
@@ -164,7 +164,7 @@ fn an_answer_the_question_moved_on_from_says_what_is_being_asked_now() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told a question was being asked");
     };
     let stale = said["ask"]["seq"].as_u64().expect("the question is named");
@@ -187,7 +187,7 @@ fn an_answer_the_question_moved_on_from_says_what_is_being_asked_now() {
     let told = wait_for(&rx, |ask| {
         ask["question"] == serde_json::json!("Delete it?")
     });
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
 
     assert!(refused.is_err(), "an answer to the wrong question went in");
     assert!(
@@ -206,7 +206,7 @@ fn the_reading_can_be_thrown_away_and_taken_again() {
     draw_box(&handle, &id);
 
     let Some(said) = wait_asked(&rx) else {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told a question was being asked");
     };
     let before = said["ask"].clone();
@@ -229,7 +229,7 @@ fn the_reading_can_be_thrown_away_and_taken_again() {
         "a card drawn before the rebuild could no longer be answered"
     );
 
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
 }
 
 /// Nothing about a session is the window's to remember: what is running is only
@@ -259,7 +259,7 @@ fn what_is_running_is_asked_for_rather_than_remembered() {
     assert_eq!(found.cwd, cwd);
     assert_eq!(found.meta.as_deref(), Some("{\"branch\":\"main\"}"));
 
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
 }
 
 /// The one reading the backlog cannot give back: an agent that has said more
@@ -302,7 +302,7 @@ fn an_agent_is_still_one_after_its_backlog_has_lost_its_head() {
         }
     }
     if !working {
-        pty::pty_close(handle.clone(), id.clone());
+        pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
         panic!("the window was never told the agent was working");
     }
 
@@ -317,6 +317,6 @@ fn an_agent_is_still_one_after_its_backlog_has_lost_its_head() {
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
-    pty::pty_close(handle.clone(), id.clone());
+    pty::pty_close(handle.clone(), id.clone()).expect("the terminal closes");
     assert_eq!(doing[0]["doing"], "working", "{doing}");
 }

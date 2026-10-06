@@ -87,6 +87,8 @@ pub fn pty_resize<R: Runtime>(
 
 /// Ends a session.
 #[tauri::command(async)]
-pub fn pty_close<R: Runtime>(app: AppHandle<R>, id: String) {
-    let _ = crate::persistent::link(&app).ask("close", json!({ "id": id }));
+pub fn pty_close<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
+    crate::persistent::link(&app)
+        .ask("close", json!({ "id": id }))
+        .map(|_| ())
 }

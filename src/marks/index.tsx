@@ -48,6 +48,7 @@ export function MarkButton({
   label,
   danger,
   faint,
+  disabled,
   onClick,
   children,
   ...aria
@@ -57,6 +58,7 @@ export function MarkButton({
   label: string;
   danger?: boolean;
   faint?: boolean;
+  disabled?: boolean;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   children: React.ReactNode;
 }) {
@@ -64,6 +66,7 @@ export function MarkButton({
     <Box
       component="button"
       type="button"
+      disabled={disabled}
       aria-label={label}
       {...aria}
       onClick={onClick}
@@ -78,8 +81,8 @@ export function MarkButton({
         borderRadius: 1,
         background: "none",
         color: "text.secondary",
-        cursor: "pointer",
-        opacity: faint ? 0.45 : 1,
+        cursor: disabled ? "default" : "pointer",
+        opacity: faint || disabled ? 0.45 : 1,
         transition: "opacity 90ms ease-out, color 90ms ease-out",
         "&:hover, &:focus-visible": {
           opacity: 1,

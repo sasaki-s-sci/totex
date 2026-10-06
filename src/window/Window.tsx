@@ -1,4 +1,4 @@
-import { Box } from "@mui/material";
+import { Alert, Box, Snackbar } from "@mui/material";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAsks } from "../hooks/useAsks";
@@ -18,7 +18,9 @@ import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import type { Graphed } from "../lib/graphed";
 import { useEver } from "../lib/onDemand";
+import { sessionsInPlaces } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { PageWorkspace } from "../page/PageWorkspace";
@@ -31,11 +33,16 @@ import {
   worktreePart,
 } from "../parts";
 import { useFrontState } from "../shell/state";
-import { type FolderDestination, type FolderUngraph, LeftSidebar } from "../sidebar/LeftSidebar";
+import {
+  type FolderDestination,
+  type FolderUngraph,
+  LeftSidebar,
+  type Pane,
+} from "../sidebar/LeftSidebar";
 import type { Repository } from "../types/git";
 import { SshPassword } from "./SshPassword";
-import { useClosedRepositories } from "./useClosedRepositories";
 import { useFolderRoots } from "./useFolderRoots";
+import { useMinimizedPlaces } from "./useMinimizedPlaces";
 import { useWindowBoot } from "./useWindowBoot";
 import { useWindowMenus } from "./useWindowMenus";
 import { WindowBand } from "./WindowBand";
@@ -50,6 +57,11 @@ export function Window() {
   const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", false);
   const [destination, setDestination] = useState<FolderDestination | null>(null);
   const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
+  const [removeFailed, setRemoveFailed] = useState(false);
+  const [minimizedPanes, setMinimizedPanes] = useFrontState<readonly Graphed[]>(
+    "window.minimizedPanes.v1",
+    [],
+  );
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
@@ -85,7 +97,62 @@ export function Window() {
   useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
-  const { drawn, closeRepository } = useClosedRepositories(workspace);
+  const places = useMinimizedPlaces(workspace, graphed, minimizedPanes);
+  const hiddenSessions = useMemo(() => {
+    const hidden = sessionsInPlaces(
+      [...places.minimized, ...minimizedPanes],
+      workspace?.repositories ?? [],
+    );
+    return new Set(sessions.sessions.filter(hidden).map((session) => session.id));
+  }, [places.minimized, minimizedPanes, workspace, sessions.sessions]);
+  const deletePlace = useCallback(
+    async (place: Graphed) => {
+      await sessions.endMatching(sessionsInPlaces([place], workspace?.repositories ?? []));
+      places.restore(place);
+      setUngraph({ root: place.root, kind: place.kind });
+    },
+    [sessions.endMatching, workspace, places.restore],
+  );
+  const deletePane = useCallback(
+    async (pane: Pane) => {
+      const owned: Graphed[] = [
+        { kind: pane.kind, root: pane.path },
+        ...pane.graphed.map((root) => ({ kind: pane.kind, root })),
+      ];
+      await sessions.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? []));
+      for (const place of places.minimized) {
+        if (owned.some((root) => root.kind === place.kind && root.root === place.root))
+          places.restore(place);
+      }
+    },
+    [sessions.endMatching, workspace, places.minimized, places.restore],
+  );
+  const closeRepository = useCallback(
+    (repository: Repository) => {
+      void deletePlace(places.repositoryPlace(repository)).catch(() => setRemoveFailed(true));
+    },
+    [deletePlace, places.repositoryPlace],
+  );
+  const closeFolder = useCallback(
+    (root: string) => {
+      void deletePlace({ kind: "folder", root }).catch(() => setRemoveFailed(true));
+    },
+    [deletePlace],
+  );
+  const minimizeRepository = useCallback(
+    (repository: Repository) => {
+      places.minimizeRepository(repository);
+      setLeftOpen(true);
+    },
+    [places.minimizeRepository],
+  );
+  const minimizeFolder = useCallback(
+    (root: string) => {
+      places.minimizeFolder(root);
+      setLeftOpen(true);
+    },
+    [places.minimizeFolder],
+  );
   useWindowBoot(workspace);
 
   const browseFolder = useCallback(
@@ -150,6 +217,11 @@ export function Window() {
           ungraph={ungraph}
           homes={homes}
           branches={branches}
+          minimized={places.minimized}
+          onRestorePlace={places.restore}
+          onDeletePlace={deletePlace}
+          onDeletePane={deletePane}
+          onMinimizedPanesChange={setMinimizedPanes}
         />
 
         <Box
@@ -171,12 +243,13 @@ export function Window() {
           <WindowBand />
           {Canvas && (
             <Canvas
-              workspace={drawn ?? EMPTY_WORKSPACE}
-              folders={graphed}
+              workspace={places.drawn ?? EMPTY_WORKSPACE}
+              folders={places.drawnFolders}
               browsing={folders.browsing}
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
+              hiddenSessions={hiddenSessions}
               asks={overseen ? NO_ASKS : asks.asks}
               reports={reports}
               overseen={overseen}
@@ -193,7 +266,9 @@ export function Window() {
               onBrowseWorktree={work.browseWorktree}
               onPickBranch={menus.setWorktree}
               onCloseRepository={closeRepository}
-              onCloseFolder={(root) => setUngraph({ root })}
+              onCloseFolder={closeFolder}
+              onMinimizeRepository={minimizeRepository}
+              onMinimizeFolder={minimizeFolder}
               onMerge={work.merge}
               onSync={work.sync}
               onFetch={work.fetch}
@@ -214,6 +289,11 @@ export function Window() {
 
         <WindowControls />
         <SshPassword />
+        <Snackbar open={removeFailed} onClose={() => setRemoveFailed(false)}>
+          <Alert severity="error" onClose={() => setRemoveFailed(false)}>
+            {t("folder.removeFailed")}
+          </Alert>
+        </Snackbar>
 
         {TaskMenu && <TaskMenu session={tasks.asking} onClose={tasks.close} onRun={tasks.run} />}
         {CommitMenu && (

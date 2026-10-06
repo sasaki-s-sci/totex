@@ -13,7 +13,7 @@ import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
 import {
-  CloseMark,
+  Frame,
   GitMark,
   GraphRepoMark,
   MarkButton,
@@ -62,6 +62,7 @@ export interface RepoPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
+  onMinimize: () => void;
   onClose: () => void;
   /** Picks the pane up by its header, or by its one row when it has no header. */
   grip?: PaneGrip;
@@ -95,6 +96,7 @@ export function RepoPane({
   naming,
   onNameDone,
   onNameCancel,
+  onMinimize,
   onClose,
   grip,
 }: RepoPaneProps) {
@@ -148,8 +150,15 @@ export function RepoPane({
               {name}
             </Typography>
           </Box>
-          <MarkButton label={t("folder.close")} onClick={onClose}>
-            <CloseMark />
+          <MarkButton label={t("repository.minimize")} onClick={onMinimize}>
+            <Frame>
+              <path d="M6 12h12" />
+            </Frame>
+          </MarkButton>
+          <MarkButton label={t("repository.remove")} onClick={onClose}>
+            <Frame>
+              <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
+            </Frame>
           </MarkButton>
         </Stack>
       )}
@@ -256,13 +265,28 @@ export function RepoPane({
                     </MarkButton>
                     {alone && (
                       <MarkButton
-                        label={t("folder.close")}
+                        label={t("repository.minimize")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onMinimize();
+                        }}
+                      >
+                        <Frame>
+                          <path d="M6 12h12" />
+                        </Frame>
+                      </MarkButton>
+                    )}
+                    {alone && (
+                      <MarkButton
+                        label={t("repository.remove")}
                         onClick={(event) => {
                           event.stopPropagation();
                           onClose();
                         }}
                       >
-                        <CloseMark />
+                        <Frame>
+                          <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
+                        </Frame>
                       </MarkButton>
                     )}
                   </Stack>

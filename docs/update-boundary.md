@@ -54,7 +54,7 @@ chunks remain available even when starting with a confirmed overlay.
 
 `src/shell/state.ts` carries structured-cloneable state under explicit keys,
 independent of hook order. Current coverage includes folders and graph roots,
-workspace readings, selected terminal, history depth and viewport, file cards
+workspace readings, minimized folders/repositories and explorer panes, selected terminal, history depth and viewport, file cards
 and unsaved drafts. Drafts retain their original disk contents for conflict
 checking. Focus/selection and terminal scroll/selection are restored where their
 corresponding content remains available. Terminal replay is bounded by the

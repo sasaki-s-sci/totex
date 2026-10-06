@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { COMMIT_STEP, type RepositoryFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
-import { CloseMark, GitMark, MARK_BUTTON } from "../../marks";
+import { Frame, GitMark, MARK_BUTTON } from "../../marks";
 import { changeClass, useChanges } from "../changes";
 import { useGraphActions } from "../graphActions";
 import { HistoryLength } from "./HistoryLength";
@@ -15,7 +15,7 @@ const NAME_FONT = 13;
 export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   const { t } = useTranslation();
   const { repository, label, name } = data;
-  const { closeRepository, foldRepository } = useGraphActions();
+  const { minimizeRepository, closeRepository, foldRepository } = useGraphActions();
   // What its worktrees come to, as the column colours a repository's name.
   const change = useChanges().repositories.get(repository.id);
 
@@ -25,7 +25,7 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
         className="band__name"
         style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
       >
-        {/* Two lines: the rail and what closes above, then the mark against the fold on the trunk. */}
+        {/* Two lines: the rail and its controls above, then the mark against the fold on the trunk. */}
         <div
           className="band__heading"
           style={
@@ -38,15 +38,33 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
           <HistoryLength repository={repository} />
           <button
             type="button"
-            className="band__close nopan"
-            aria-label={t("repository.close")}
+            className="band__action band__action--minimize nopan"
+            aria-label={t("repository.minimize")}
+            title={t("repository.minimize")}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              minimizeRepository(repository);
+            }}
+          >
+            <Frame>
+              <path d="M5 12 H19" />
+            </Frame>
+          </button>
+          <button
+            type="button"
+            className="band__action band__action--remove nopan"
+            aria-label={t("repository.remove")}
+            title={t("repository.remove")}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
               closeRepository(repository);
             }}
           >
-            <CloseMark />
+            <Frame>
+              <path d="M4 7 H20 M9 7 V4 H15 V7 M6 7 L7 20 H17 L18 7 M10 10 V17 M14 10 V17" />
+            </Frame>
           </button>
           {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}
           <div className={`${GRIP} band__grip nopan`} title={t("folder.move")}>

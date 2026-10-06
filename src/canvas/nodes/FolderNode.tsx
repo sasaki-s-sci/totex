@@ -3,13 +3,13 @@ import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { FolderFlowNode } from "../../lib/graph";
 import { GRIP } from "../../lib/graph/folders";
-import { CliMark, CloseMark, FolderMark } from "../../marks";
+import { CliMark, FolderMark, Frame } from "../../marks";
 import { changeClass, useChanges } from "../changes";
 import { useGraphActions } from "../graphActions";
 import { FOLDER_HOLD, useMarkSizes } from "../markSizes";
 
-/** The close's width, ahead of the mark. */
-const FOLDER_CLOSE = 22;
+/** Both controls precede the grip without moving its centre. */
+const FOLDER_CONTROLS = 44;
 
 export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   const { t } = useTranslation();
@@ -19,7 +19,7 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
   // What the grip grows by on each side: its centre stays where the layout put the mark's.
   const grown = (hold - FOLDER_HOLD) / 2;
   const { root, name, label, open, mark } = data;
-  const { openWork, closeFolder } = useGraphActions();
+  const { openWork, minimizeFolder, closeFolder } = useGraphActions();
   // The top of the climb: what every repository under the folder comes to.
   const change = useChanges().folders.get(root);
 
@@ -55,20 +55,37 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
         <CliMark size={marks.cli} />
       </button>
 
-      {/* The close comes out ahead of the mark under the pointer; one box holds both, so it stays while the pointer goes to it. */}
-      <div className="folder__mark" style={{ left: mark - FOLDER_CLOSE - grown, height: hold }}>
+      {/* Controls share the mark’s hover area without moving its drag handle. */}
+      <div className="folder__mark" style={{ left: mark - FOLDER_CONTROLS - grown, height: hold }}>
         <button
           type="button"
-          className="folder__close nopan"
-          aria-label={t("folder.takeOff")}
-          title={t("folder.takeOff")}
+          className="folder__action nopan"
+          aria-label={t("folder.minimize")}
+          title={t("folder.minimize")}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            minimizeFolder(root);
+          }}
+        >
+          <Frame>
+            <path d="M5 12 H19" />
+          </Frame>
+        </button>
+        <button
+          type="button"
+          className="folder__action folder__action--remove nopan"
+          aria-label={t("folder.remove")}
+          title={t("folder.remove")}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
             closeFolder(root);
           }}
         >
-          <CloseMark />
+          <Frame>
+            <path d="M4 7 H20 M9 7 V4 H15 V7 M6 7 L7 20 H17 L18 7 M10 10 V17 M14 10 V17" />
+          </Frame>
         </button>
         {/* The mark is the drag handle and deliberately not a button: a button would fire on every drag that came to nothing. */}
         <div

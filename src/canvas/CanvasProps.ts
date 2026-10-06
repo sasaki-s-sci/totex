@@ -32,6 +32,9 @@ export type CanvasProps = {
 
   sessions: readonly Session[];
 
+  /** Sessions belonging to minimized places; their pages remain mounted. */
+  hiddenSessions?: ReadonlySet<string>;
+
   showing: string | null;
 
   paged: readonly string[];
@@ -64,7 +67,11 @@ export type CanvasProps = {
   onBrowseWorktree: (request: WorktreeBrowseRequest) => void;
   onPickBranch: (pick: BranchPick) => void;
 
+  onMinimizeRepository: (repository: Repository) => void;
+
   onCloseRepository: (repository: Repository) => void;
+
+  onMinimizeFolder: (root: string) => void;
 
   onCloseFolder: (root: string) => void;
 

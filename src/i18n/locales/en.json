@@ -39,7 +39,12 @@
     "shell": "Shell",
     "listRepositories": "List the repositories in it",
     "gitMode": "Switch to git",
-    "takeOff": "Take off the canvas"
+    "takeOff": "Take off the canvas",
+    "minimize": "Minimize folder",
+    "remove": "Remove folder and end its terminals",
+    "restore": "Restore folder",
+    "minimized": "Minimized",
+    "removeFailed": "Could not end all terminals. Try removing again."
   },
   "ssh": {
     "title": "SSH",
@@ -87,7 +92,10 @@
     "cutShort": "Stopped looking part way: the folder is too deep",
     "home": "Back to its own folder",
     "showing": "Showing {{branch}}",
-    "folderMode": "Switch to folder"
+    "folderMode": "Switch to folder",
+    "minimize": "Minimize repository",
+    "remove": "Remove repository and end its terminals",
+    "restore": "Restore repository"
   },
   "branch": {
     "head": "{{name}}",

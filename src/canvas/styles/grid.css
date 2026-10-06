@@ -29,9 +29,9 @@
 }
 
 /*
- * Two lines over three columns. The lower line is the trunk's: the mark against the fold, with the
+ * Two lines over four columns. The lower line is the trunk's: the mark against the fold, with the
  * name over the terminal column instead. The line above carries the rail with its count, and what
- * closes over the mark.
+ * minimizes or removes the repository over the mark.
  */
 .band__heading {
   display: grid;
@@ -39,9 +39,9 @@
   width: 100%;
   height: 100%;
   grid-template-areas:
-    "length shown close"
-    ". . grip";
-  grid-template-columns: minmax(0, 1fr) auto var(--square);
+    "length shown minimize remove"
+    ". . . grip";
+  grid-template-columns: minmax(0, 1fr) auto var(--square) var(--square);
   grid-template-rows: minmax(0, 1fr) var(--line);
   align-items: center;
   padding-left: 6px;
@@ -77,8 +77,12 @@
   grid-area: shown;
 }
 
-.band__close {
-  grid-area: close;
+.band__action--minimize {
+  grid-area: minimize;
+}
+
+.band__action--remove {
+  grid-area: remove;
 }
 
 .band__shown {
@@ -88,7 +92,7 @@
   text-align: center;
 }
 
-.band__close {
+.band__action {
   display: flex;
   flex: none;
   width: var(--square);
@@ -99,18 +103,26 @@
   padding: 0;
   border: none;
   background: none;
-  color: transparent;
+  color: var(--mui-palette-text-secondary);
+  opacity: 0.65;
   cursor: pointer;
   pointer-events: all;
-  transition: color var(--reveal);
+  transition:
+    opacity var(--reveal),
+    color var(--reveal);
 }
 
-.band__name:hover .band__close,
-.band__name:focus-within .band__close {
-  color: var(--mui-palette-text-secondary);
+.band__name:hover .band__action,
+.band__name:focus-within .band__action {
+  opacity: 1;
 }
 
-.band__name .band__close:hover,
-.band__name .band__close:focus-visible {
+.band__name .band__action:hover,
+.band__name .band__action:focus-visible {
   color: var(--mui-palette-text-primary);
+}
+
+.band__name .band__action--remove:hover,
+.band__name .band__action--remove:focus-visible {
+  color: var(--mui-palette-error-main);
 }

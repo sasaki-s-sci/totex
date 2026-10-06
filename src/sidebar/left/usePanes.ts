@@ -28,6 +28,8 @@ export interface Pane {
   /** A folder pane browses this and moves; a repository pane lists under this and never moves. */
   path: string;
   open: boolean;
+  /** Hidden in the sidebar tray while its graphed places keep running. */
+  minimized?: boolean;
   /** Folder pane: folders on the canvas as folders. Repository pane: repositories on the canvas. */
   graphed: string[];
   /** Repository pane: rows opened out to their files, by repository path. */
@@ -49,9 +51,10 @@ export interface FolderDestination {
   path: string;
 }
 
-/** The canvas asking every pane that graphed `root` as a folder to stop. A new object each time. */
+/** The canvas asking every pane that graphed `root` by this kind to stop. A new object each time. */
 export interface FolderUngraph {
   root: string;
+  kind?: GraphedKind;
 }
 
 const NO_HOMES: Homes = new Map();
@@ -74,7 +77,8 @@ function whole(pane: Pane): boolean {
     (pane.kind === "folder" || pane.kind === "repository") &&
     Array.isArray(pane.expanded) &&
     pane.shown !== null &&
-    typeof pane.shown === "object"
+    typeof pane.shown === "object" &&
+    typeof pane.minimized === "boolean"
   );
 }
 
@@ -83,6 +87,7 @@ function readPane(pane: Pane): Pane {
   if (whole(pane)) return pane;
   return {
     ...pane,
+    minimized: pane.minimized === true,
     kind: pane.kind === "repository" ? "repository" : "folder",
     expanded: Array.isArray(pane.expanded) ? pane.expanded : [],
     shown: pane.shown !== null && typeof pane.shown === "object" ? pane.shown : {},
@@ -90,7 +95,7 @@ function readPane(pane: Pane): Pane {
 }
 
 function fresh(id: number, kind: GraphedKind, path: string, open: boolean): Pane {
-  return { id, kind, path, open, graphed: [], expanded: [], shown: {} };
+  return { id, kind, path, open, minimized: false, graphed: [], expanded: [], shown: {} };
 }
 
 /** The path a repository's row reads: the worktree put in its place, or its own folder. */
@@ -106,10 +111,14 @@ export function usePanes(
   destination?: FolderDestination | null,
   homes?: Homes,
   ungraph?: FolderUngraph | null,
+  onMinimizedPanesChange?: (places: Graphed[]) => void,
 ) {
   const nextId = useRef(0);
   const [held, setPanes] = useFrontState<Pane[]>("folders.panes", () =>
-    initial.map((seed) => fresh(nextId.current++, seed.kind, seed.path, false)),
+    initial.map((seed) => ({
+      ...fresh(nextId.current++, seed.kind, seed.path, false),
+      minimized: seed.minimized === true,
+    })),
   );
   // Read as a claim: the front may hand back panes an earlier version wrote. Settled once, before
   // any press can reach an updater.
@@ -163,19 +172,37 @@ export function usePanes(
     return all;
   }, [panes]);
   useReport(graphed, onGraphedChange);
+  const minimizedPlaces = useMemo(() => {
+    const visible = new Set(
+      panes
+        .filter((pane) => !pane.minimized)
+        .flatMap((pane) => pane.graphed.map((root) => graphedKey({ kind: pane.kind, root }))),
+    );
+    return graphed.filter((place) => !visible.has(graphedKey(place)));
+  }, [panes, graphed]);
+  useReport(minimizedPlaces, onMinimizedPanesChange);
   const seeds = useMemo(
-    () => panes.map((pane): PaneSeed => ({ kind: pane.kind, path: pane.path })),
+    () =>
+      panes.map(
+        (pane): PaneSeed => ({
+          kind: pane.kind,
+          path: pane.path,
+          ...(pane.minimized ? { minimized: true } : {}),
+        }),
+      ),
     [panes],
   );
   useReport(seeds, onPanesChange);
   // What is being read: a folder pane's folder, and the files each opened row shows.
   const browsing = useMemo(
     () =>
-      panes.flatMap((pane) =>
-        pane.kind === "folder"
-          ? [pane.path]
-          : pane.expanded.map((repository) => shownPath(pane, repository)),
-      ),
+      panes
+        .filter((pane) => !pane.minimized)
+        .flatMap((pane) =>
+          pane.kind === "folder"
+            ? [pane.path]
+            : pane.expanded.map((repository) => shownPath(pane, repository)),
+        ),
     [panes],
   );
   useReport(browsing, onBrowsingChange);
@@ -191,6 +218,7 @@ export function usePanes(
     );
     if (listing) {
       update(listing.id, {
+        minimized: false,
         open: true,
         expanded: listing.expanded.includes(root) ? listing.expanded : [...listing.expanded, root],
         shown: withShown(listing.shown, root, path),
@@ -209,7 +237,7 @@ export function usePanes(
       addPane(path, "folder");
       return;
     }
-    update(pane.id, { path, open: true });
+    update(pane.id, { path, open: true, minimized: false });
     requestAnimationFrame(() => {
       column.current
         ?.querySelector<HTMLElement>(`[data-folder-pane="${pane.id}"]`)
@@ -219,11 +247,11 @@ export function usePanes(
 
   useEffect(() => {
     if (!ungraph) return;
-    const { root } = ungraph;
+    const { root, kind = "folder" } = ungraph;
     setPanes((current) =>
-      current.some((pane) => pane.kind === "folder" && pane.graphed.includes(root))
+      current.some((pane) => pane.kind === kind && pane.graphed.includes(root))
         ? current.map((pane) =>
-            pane.kind === "folder" && pane.graphed.includes(root)
+            pane.kind === kind && pane.graphed.includes(root)
               ? { ...pane, graphed: pane.graphed.filter((held) => held !== root) }
               : pane,
           )

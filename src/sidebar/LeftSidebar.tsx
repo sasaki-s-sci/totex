@@ -1,4 +1,4 @@
-import { Box, Divider, Stack } from "@mui/material";
+import { Alert, Box, Divider, Stack, Typography } from "@mui/material";
 import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createEntry, renameFile } from "../folder/api";
@@ -6,9 +6,17 @@ import { DROP_INTO, folderUnder } from "../folder/dropInto";
 import { baseName } from "../folder/format";
 import type { Drops } from "../hooks/useDrops";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
-import type { Graphed, PaneSeed } from "../lib/graphed";
+import { type Graphed, graphedKey, type PaneSeed } from "../lib/graphed";
 import type { Homes } from "../lib/worktrees";
-import { AddMark, Frame, MARK_BUTTON, MarkButton, SettingsMark } from "../marks";
+import {
+  AddMark,
+  Frame,
+  MARK_BUTTON,
+  MarkButton,
+  PaneFolderMark,
+  PaneRepoMark,
+  SettingsMark,
+} from "../marks";
 import { HEADER_INSET } from "../window/WindowControls";
 import { FileContextMenu, type FileMenuTarget } from "./left/FileContextMenu";
 import { FolderPane } from "./left/FolderPane";
@@ -16,7 +24,13 @@ import type { Naming } from "./left/NameField";
 import { movePane, PANE_DRAG_TYPE, type PaneGrip, slotAt } from "./left/paneOrder";
 import { RepoPane } from "./left/RepoPane";
 import { RootsMenu } from "./left/RootsMenu";
-import { type FolderDestination, type FolderUngraph, shownPath, usePanes } from "./left/usePanes";
+import {
+  type FolderDestination,
+  type FolderUngraph,
+  type Pane,
+  shownPath,
+  usePanes,
+} from "./left/usePanes";
 import { Sidebar, type Sizing } from "./Sidebar";
 
 export type { FolderDestination, FolderUngraph, Pane } from "./left/usePanes";
@@ -32,6 +46,8 @@ export interface LeftSidebarProps {
   onGraphedChange?: (graphed: Graphed[]) => void;
   /** Where the panes stand, kept between runs. */
   onPanesChange?: (panes: PaneSeed[]) => void;
+  /** Canvas places hidden by minimized panes; their scans remain active. */
+  onMinimizedPanesChange?: (places: Graphed[]) => void;
   /** The directories being read: they light the worktrees they stand in. */
   onBrowsingChange?: (paths: string[]) => void;
   onOpenSettings?: () => void;
@@ -43,6 +59,10 @@ export interface LeftSidebarProps {
   homes?: Homes;
   /** Worktree path to the branch it is on, for a repository row showing one. */
   branches?: ReadonlyMap<string, string>;
+  minimized?: readonly { kind: "folder" | "repository"; root: string; name: string }[];
+  onRestorePlace?: (place: Graphed) => void;
+  onDeletePlace?: (place: Graphed) => Promise<void>;
+  onDeletePane?: (pane: Pane) => Promise<void>;
 }
 
 const NO_BRANCHES: ReadonlyMap<string, string> = new Map();
@@ -57,6 +77,7 @@ export function LeftSidebar({
   initialPanes,
   onGraphedChange,
   onPanesChange,
+  onMinimizedPanesChange,
   onBrowsingChange,
   onOpenSettings,
   onOpenFile,
@@ -65,6 +86,10 @@ export function LeftSidebar({
   ungraph,
   homes,
   branches,
+  minimized = [],
+  onRestorePlace,
+  onDeletePlace,
+  onDeletePane,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
   const panes = usePanes(
@@ -75,7 +100,43 @@ export function LeftSidebar({
     destination,
     homes,
     ungraph,
+    onMinimizedPanesChange,
   );
+  const visible = panes.panes.filter((pane) => !pane.minimized);
+  const hidden = panes.panes.filter((pane) => pane.minimized);
+  const removing = useRef(new Set<string>());
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const [removeFailed, setRemoveFailed] = useState(false);
+
+  async function remove(key: string, action: () => Promise<void>) {
+    if (removing.current.has(key)) return;
+    removing.current.add(key);
+    setPending(new Set(removing.current));
+    setRemoveFailed(false);
+    try {
+      await action();
+    } catch {
+      setRemoveFailed(true);
+    } finally {
+      removing.current.delete(key);
+      setPending(new Set(removing.current));
+    }
+  }
+
+  function deletePane(pane: Pane) {
+    void remove(`pane:${pane.id}`, async () => {
+      await onDeletePane?.(pane);
+      if (naming?.pane === pane.id) setNaming(null);
+      panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
+    });
+  }
+
+  function minimizePane(pane: Pane) {
+    if (naming?.pane === pane.id) setNaming(null);
+    setMenu((current) => (current?.pane === pane.id ? null : current));
+    panes.update(pane.id, { minimized: true });
+  }
+
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
   // What the menu's `Copy` took, kept until the next one: a paste leaves it for another.
   const [copied, setCopied] = useState<readonly string[]>([]);
@@ -83,7 +144,7 @@ export function LeftSidebar({
   // the name has to outlast them.
   const [naming, setNaming] = useState<Naming | null>(null);
   // A list's root has no level to type a name in, so the last folder pane answers for the blank.
-  const under = [...panes.panes].reverse().find((pane) => pane.kind === "folder") ?? null;
+  const under = [...visible].reverse().find((pane) => pane.kind === "folder") ?? null;
 
   function startName(kind: Naming["kind"], target: FileMenuTarget) {
     setMenu(null);
@@ -144,7 +205,7 @@ export function LeftSidebar({
   }
 
   // Either side of the pane itself is where it already stands: nothing to mark.
-  const from = panes.panes.findIndex((pane) => pane.id === carried.current);
+  const from = visible.findIndex((pane) => pane.id === carried.current);
   const marked = slot === null || slot === from || slot === from + 1 ? null : slot;
 
   return (
@@ -219,6 +280,7 @@ export function LeftSidebar({
         ref={panes.column}
         sx={{
           flex: 1,
+          minHeight: 0,
           display: "flex",
           flexDirection: "column",
           overflowY: "auto",
@@ -240,10 +302,16 @@ export function LeftSidebar({
           const id = Number(event.dataTransfer.getData(PANE_DRAG_TYPE));
           const to = slotUnder(event);
           setSlot(null);
-          panes.setPanes((current) => movePane(current, id, to));
+          panes.setPanes((current) => {
+            const before = visible[to];
+            const slot = before
+              ? current.findIndex((pane) => pane.id === before.id)
+              : current.length;
+            return movePane(current, id, slot);
+          });
         }}
       >
-        {panes.panes.map((pane, index) => (
+        {visible.map((pane, index) => (
           <Box
             key={panes.paneKey(pane)}
             data-folder-pane={pane.id}
@@ -251,7 +319,7 @@ export function LeftSidebar({
               position: "relative",
               // Over the sticky header, whose own background would hide a line drawn on the pane.
               "&::after":
-                marked === index || (marked === panes.panes.length && index === marked - 1)
+                marked === index || (marked === visible.length && index === marked - 1)
                   ? {
                       content: '""',
                       position: "absolute",
@@ -299,10 +367,8 @@ export function LeftSidebar({
                 naming={naming?.pane === pane.id ? naming : null}
                 onNameDone={takeName}
                 onNameCancel={() => setNaming(null)}
-                onClose={() => {
-                  if (naming?.pane === pane.id) setNaming(null);
-                  panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
-                }}
+                onMinimize={() => minimizePane(pane)}
+                onClose={() => deletePane(pane)}
               />
             ) : (
               <FolderPane
@@ -329,10 +395,8 @@ export function LeftSidebar({
                 naming={naming?.pane === pane.id ? naming : null}
                 onNameDone={takeName}
                 onNameCancel={() => setNaming(null)}
-                onClose={() => {
-                  if (naming?.pane === pane.id) setNaming(null);
-                  panes.setPanes((current) => current.filter((held) => held.id !== pane.id));
-                }}
+                onMinimize={() => minimizePane(pane)}
+                onClose={() => deletePane(pane)}
               />
             )}
           </Box>
@@ -362,6 +426,101 @@ export function LeftSidebar({
           }
         />
       </Box>
+
+      {removeFailed && (
+        <Alert
+          severity="error"
+          onClose={() => setRemoveFailed(false)}
+          sx={{ flex: "none", mx: 1, my: 0.5 }}
+        >
+          {t("folder.removeFailed")}
+        </Alert>
+      )}
+      {(hidden.length > 0 || minimized.length > 0) && (
+        <Box
+          component="section"
+          aria-label={t("folder.minimized")}
+          sx={{
+            flex: "0 1 auto",
+            minHeight: 0,
+            maxHeight: "35%",
+            overflowY: "auto",
+            borderTop: 1,
+            borderColor: "divider",
+            py: 0.5,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{ display: "block", px: 1, mb: 0.25, color: "text.secondary" }}
+          >
+            {t("folder.minimized")}
+          </Typography>
+          {hidden.map((pane) => (
+            <Stack
+              key={`pane:${pane.id}`}
+              direction="row"
+              sx={{ alignItems: "center", px: 1, gap: 0.5 }}
+            >
+              {pane.kind === "folder" ? <PaneFolderMark /> : <PaneRepoMark />}
+              <Typography variant="body2" noWrap title={pane.path} sx={{ flex: 1, minWidth: 0 }}>
+                {baseName(pane.path)}
+              </Typography>
+              <MarkButton
+                label={t(`${pane.kind}.restore`)}
+                disabled={pending.has(`pane:${pane.id}`)}
+                onClick={() => panes.update(pane.id, { minimized: false })}
+              >
+                <Frame>
+                  <path d="M5 10V5h5M14 5h5v5M19 14v5h-5M10 19H5v-5" />
+                </Frame>
+              </MarkButton>
+              <MarkButton
+                label={t(`${pane.kind}.remove`)}
+                disabled={pending.has(`pane:${pane.id}`)}
+                onClick={() => deletePane(pane)}
+              >
+                <Frame>
+                  <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
+                </Frame>
+              </MarkButton>
+            </Stack>
+          ))}
+          {minimized.map((place) => {
+            const key = `place:${graphedKey(place)}`;
+            return (
+              <Stack key={key} direction="row" sx={{ alignItems: "center", px: 1, gap: 0.5 }}>
+                {place.kind === "folder" ? <PaneFolderMark /> : <PaneRepoMark />}
+                <Typography variant="body2" noWrap title={place.root} sx={{ flex: 1, minWidth: 0 }}>
+                  {place.name}
+                </Typography>
+                <MarkButton
+                  label={t(`${place.kind}.restore`)}
+                  disabled={!onRestorePlace || pending.has(key)}
+                  onClick={() => onRestorePlace?.(place)}
+                >
+                  <Frame>
+                    <path d="M5 10V5h5M14 5h5v5M19 14v5h-5M10 19H5v-5" />
+                  </Frame>
+                </MarkButton>
+                <MarkButton
+                  label={t(`${place.kind}.remove`)}
+                  disabled={!onDeletePlace || pending.has(key)}
+                  onClick={() => {
+                    void remove(key, async () => {
+                      await onDeletePlace?.(place);
+                    });
+                  }}
+                >
+                  <Frame>
+                    <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
+                  </Frame>
+                </MarkButton>
+              </Stack>
+            );
+          })}
+        </Box>
+      )}
 
       <FileContextMenu
         target={menu}

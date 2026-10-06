@@ -13,10 +13,12 @@ import { MIN_HEIGHT, MIN_WIDTH } from "./nodes/CliPageNode";
 export function Pages({
   nodes,
   sessions,
+  hiddenSessions,
   terminalList,
 }: {
   nodes: readonly AppNode[];
   sessions: readonly Session[];
+  hiddenSessions?: ReadonlySet<string>;
   terminalList?: ReactNode;
 }) {
   const workspace = usePageWorkspace();
@@ -54,7 +56,8 @@ export function Pages({
           (one) => one.type === "cli-page" && one.data.session.id === session.id,
         );
         const collapsed = node?.type === "cli-page" && node.data.collapsed;
-        const shown = placement === "sidebar" ? workspace.showing === id : !collapsed;
+        const hidden = hiddenSessions?.has(session.id) ?? false;
+        const shown = !hidden && (placement === "sidebar" ? workspace.showing === id : !collapsed);
         const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
         return (
           <PagePortal
@@ -64,22 +67,25 @@ export function Pages({
             place={placement}
             focus={shown ? ".xterm-helper-textarea" : undefined}
           >
-            <PageView
-              kind="terminal"
-              terminalList={terminalList}
-              session={session}
-              placement={placement}
-              scale={placement === "canvas" ? scale : 1}
-              shown={shown}
-              collapsed={collapsed}
-              controls={{
-                move: () => workspace.move(id, placement === "canvas" ? "sidebar" : "canvas"),
-                hide: workspace.hide,
-                collapse: () => actions.collapseCliPage(session.id),
-                shrink: () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
-              }}
-              onEnded={() => actions.endSession(session)}
-            />
+            {/* Keep the terminal runtime and portal alive while its place is minimized. */}
+            <div style={{ display: hidden ? "none" : "contents" }}>
+              <PageView
+                kind="terminal"
+                terminalList={terminalList}
+                session={session}
+                placement={placement}
+                scale={placement === "canvas" ? scale : 1}
+                shown={shown}
+                collapsed={collapsed}
+                controls={{
+                  move: () => workspace.move(id, placement === "canvas" ? "sidebar" : "canvas"),
+                  hide: workspace.hide,
+                  collapse: () => actions.collapseCliPage(session.id),
+                  shrink: () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
+                }}
+                onEnded={() => actions.endSession(session)}
+              />
+            </div>
           </PagePortal>
         );
       })}

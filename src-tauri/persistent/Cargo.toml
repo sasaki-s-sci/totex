@@ -38,6 +38,9 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 tar = "0.4.46"
 tokio = { version = "1.53.1", default-features = false, features = ["rt"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
+
 [dev-dependencies]
 # Signing a release of this test's own, for the one test that runs a release
 # the whole way through this program -- see tests/relaunch.rs.

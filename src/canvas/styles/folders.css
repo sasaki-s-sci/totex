@@ -85,12 +85,13 @@
   transform: translateY(var(--offered));
 }
 
-/* The close ahead of the mark, shown while the pointer is on either. */
+/* Both controls precede the mark; its grip remains at the layout coordinate. */
 .folder__mark {
   position: absolute;
   top: 50%;
   display: flex;
   height: 22px;
+  align-items: center;
   pointer-events: all;
   transform: translateY(-50%);
 }
@@ -100,7 +101,7 @@
   transform: none;
 }
 
-.folder__close {
+.folder__action {
   display: flex;
   width: 22px;
   height: 22px;
@@ -112,18 +113,26 @@
   background: none;
   color: var(--mui-palette-text-secondary);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--reveal);
-}
-
-.folder__mark:hover .folder__close,
-.folder__close:focus-visible {
-  opacity: 1;
+  flex: none;
+  opacity: 0.65;
   pointer-events: all;
+  transition:
+    opacity var(--reveal),
+    color var(--reveal);
 }
 
-.folder__close:hover {
+.folder__mark:hover .folder__action,
+.folder__mark:focus-within .folder__action {
+  opacity: 1;
+}
+
+.folder__action:hover,
+.folder__action:focus-visible {
+  color: var(--mui-palette-text-primary);
+}
+
+.folder__action--remove:hover,
+.folder__action--remove:focus-visible {
   color: var(--mui-palette-error-main);
 }
 
