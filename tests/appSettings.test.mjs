@@ -43,6 +43,7 @@ test("migrates all existing user preferences, including line size one", () => {
       mcpServing: true,
       fileTitle: "name",
       readingSize: 14,
+      undoDepth: 200,
       cliWheel: 100,
       graphWheel: 100,
       said: {

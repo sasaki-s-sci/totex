@@ -17,6 +17,7 @@ import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
 import { TerminalSortRow } from "./TerminalSortRow";
 import { ThemeRow } from "./ThemeRow";
+import { UndoRow } from "./UndoRow";
 import { UpdateRow } from "./UpdateRow";
 import { WalkRow } from "./WalkRow";
 import { WheelRow } from "./WheelRow";
@@ -49,6 +50,7 @@ export function SettingsContent() {
           </Callout>
           <Callout parts={["page"]} name={t("settings.page")}>
             <FileTitleRow />
+            <UndoRow />
           </Callout>
           <Group name={t("settings.graph")}>
             <Callout parts={["gap", "align"]} name={t("settings.layout")}>

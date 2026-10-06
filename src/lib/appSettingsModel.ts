@@ -29,6 +29,8 @@ export type AppSettings = {
   mcpServing: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
+  /** How many steps back Ctrl+Z can take a file being edited. */
+  undoDepth: number;
   /** Percent of xterm's own wheel distance. */
   cliWheel: number;
   /** Percent of d3-zoom's own wheel distance. */
@@ -73,6 +75,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   mcpServing: false,
   fileTitle: "name",
   readingSize: 11,
+  undoDepth: 200,
   cliWheel: 100,
   graphWheel: 100,
   said: {
@@ -130,6 +133,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     mcpServing: read("totex.mcp.serving") === "yes",
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),
+    undoDepth: 200,
     cliWheel: 100,
     graphWheel: 100,
     said: {

@@ -39,6 +39,7 @@ fn validate(value: &Value) -> Result<(), String> {
         }
     }
     range(value, "readingSize", 8, 20)?;
+    range(value, "undoDepth", 10, 1000)?;
     range(value, "cliWheel", 25, 400)?;
     range(value, "graphWheel", 25, 400)?;
     if let Some(said) = object.get("said") {
@@ -203,6 +204,7 @@ mod tests {
             "{\"terminalSort\":\"bad\"}",
             "{\"cliWheel\":0}",
             "{\"graphWheel\":401}",
+            "{\"undoDepth\":5}",
         ] {
             assert!(write(&temp.0, invalid, &before.text).is_err());
             assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), before.text);

@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { readFileHead } from "../../../folder/api";
 import { folderOf } from "../../../folder/format";
+import { useAppSettings } from "../../../lib/appSettings";
 import type { FilePreviewNodeData } from "../../../lib/graph";
 import type { FilePageActions } from "../../../page/actions";
 import { frontValue, readOnSnapshot } from "../../../shell/state";
 import { watchDirectory } from "../../../sidebar/left/watch";
+import {
+  type History,
+  kindOf,
+  newHistory,
+  remember,
+  type Step,
+  stepAhead,
+  stepBack,
+} from "./history";
 import { carried, merge } from "./merge";
 import type { useReading } from "./reading";
 import { countLines, draftOf, lineNumbers } from "./text";
@@ -28,6 +38,12 @@ function caretIn(paper: HTMLElement): number | null {
   range.setStart(paper, 0);
   range.setEnd(selection.focusNode, selection.focusOffset);
   return draftOf(range.cloneContents()).length;
+}
+
+/** Written whole, with the caret put at `at` in it. */
+function put(paper: HTMLElement, text: string, at: number): void {
+  paper.textContent = text;
+  window.getSelection()?.collapse(paper.firstChild ?? paper, Math.min(at, text.length));
 }
 
 /** Written whole, with the caret kept where it stood in what it was carried into. */
@@ -74,13 +90,28 @@ export function useDraft(
   const inputTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
   const reread = useRef<(() => void) | null>(null);
+  // The paper is a new, empty element each time the text view comes back from another view, so
+  // what the last one held is kept for it.
+  const filled = useRef<HTMLElement | null>(null);
+  const left = useRef<string | null>(null);
+  const history = useRef<History>(newHistory());
+  const { undoDepth } = useAppSettings();
+  const depth = useRef(undoDepth);
+  depth.current = undoDepth;
+
+  useLayoutEffect(() => {
+    if (!paper) return;
+    return () => {
+      left.current = draftOf(paper);
+    };
+  }, [paper]);
 
   useLayoutEffect(
     () =>
       readOnSnapshot(key, async () => {
         if (writing.current) await writing.current;
         return {
-          text: paper ? draftOf(paper) : (restored.current?.text ?? reading ?? ""),
+          text: paper ? draftOf(paper) : (left.current ?? restored.current?.text ?? reading ?? ""),
           disk: disk.current,
           kept: kept.current,
           dirty: dirty.current,
@@ -168,6 +199,10 @@ export function useDraft(
   // editable box, and rendering would move the caret.
   useLayoutEffect(() => {
     if (!paper || reading === null) return;
+    if (filled.current !== paper) {
+      if (filled.current !== null && left.current !== null) paper.textContent = left.current;
+      filled.current = paper;
+    }
     const before = restored.current;
     if (before?.dirty) {
       restored.current = undefined;
@@ -203,7 +238,17 @@ export function useDraft(
     }
     if (carriedOver !== draft) {
       if (first) paper.textContent = carriedOver;
-      else rewrite(paper, carriedOver);
+      else {
+        // The file moving under the paper is a step Ctrl+Z can take back like any other.
+        remember(
+          history.current,
+          { text: draft, caret: caretIn(paper) },
+          null,
+          Date.now(),
+          depth.current,
+        );
+        rewrite(paper, carriedOver);
+      }
     }
     dirty.current = carriedOver !== reading;
     clashed.current = false;
@@ -292,6 +337,45 @@ export function useDraft(
     }, 60);
     saveSoon();
   }, [cancelInputInspection, move, paper, saveSoon, showCaret]);
+
+  // Native listeners: React's beforeinput carries no inputType, and these must run before the
+  // page's own key handling changes the paper.
+  useEffect(() => {
+    if (!paper || !editable) return;
+    const here = (): Step => ({ text: draftOf(paper), caret: caretIn(paper) });
+    const walk = (back: boolean) => {
+      const step = (back ? stepBack : stepAhead)(history.current, here());
+      if (!step) return;
+      put(paper, step.text, step.caret ?? step.text.length);
+      onInput();
+    };
+    const beforeInput = (event: InputEvent) => {
+      if (event.inputType === "historyUndo" || event.inputType === "historyRedo") {
+        event.preventDefault();
+        walk(event.inputType === "historyUndo");
+        return;
+      }
+      remember(history.current, here(), kindOf(event.inputType), Date.now(), depth.current);
+    };
+    const keyDown = (event: KeyboardEvent) => {
+      // Tab is written by execCommand, which fires no beforeinput.
+      if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        remember(history.current, here(), null, Date.now(), depth.current);
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      event.preventDefault();
+      walk(key === "z" && !event.shiftKey);
+    };
+    paper.addEventListener("beforeinput", beforeInput);
+    paper.addEventListener("keydown", keyDown);
+    return () => {
+      paper.removeEventListener("beforeinput", beforeInput);
+      paper.removeEventListener("keydown", keyDown);
+    };
+  }, [paper, editable, onInput]);
 
   return { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput };
 }

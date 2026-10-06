@@ -163,6 +163,7 @@
     "grid": "Grid",
     "gridSnap": "Hold file cards to it",
     "fileTitle": "File title",
+    "undoDepth": "Undo steps in a file",
     "fileName": "File name",
     "fullPath": "Full path",
     "showJson": "Edit settings JSON",

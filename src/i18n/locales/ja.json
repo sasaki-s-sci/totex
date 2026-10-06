@@ -163,6 +163,7 @@
     "grid": "グリッド",
     "gridSnap": "ファイルカードを合わせる",
     "fileTitle": "ファイルの表示名",
+    "undoDepth": "ファイルで戻せる回数",
     "fileName": "ファイル名",
     "fullPath": "フルパス",
     "showJson": "設定 JSON を編集",
