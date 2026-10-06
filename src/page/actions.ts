@@ -10,6 +10,8 @@ export type FilePageActions = {
   collapseFilePreview: (id: number) => void;
   setFilePreviewView: (id: number, view: FilePreviewView) => void;
   previewFilePreview: (id: number) => void;
+  /** A file a link on the page points to, opened beside it. */
+  openLinkedFile: (id: number, path: string) => void;
   fitFilePreview: (id: number, width: number, height?: number) => void;
   pinFilePreview: (id: number) => void;
 };

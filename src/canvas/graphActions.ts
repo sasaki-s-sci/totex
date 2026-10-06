@@ -121,6 +121,7 @@ export const NO_ACTIONS: GraphActions = {
   collapseFilePreview: () => {},
   setFilePreviewView: () => {},
   previewFilePreview: () => {},
+  openLinkedFile: () => {},
   fitFilePreview: () => {},
   pinFilePreview: () => {},
 };

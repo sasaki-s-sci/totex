@@ -272,6 +272,7 @@ export function Canvas({
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,
+    openLinkedFile,
     fitFilePreview,
     pinFilePreview,
     pinDrag,
@@ -409,6 +410,7 @@ export function Canvas({
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,
+    openLinkedFile,
     fitFilePreview,
     pinFilePreview,
   });

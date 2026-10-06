@@ -1,7 +1,13 @@
 import { useCallback, useMemo, useRef } from "react";
 import { draftKey } from "../canvas/nodes/preview/draft";
 import type { CardSeed } from "../lib/cardWindow";
-import { drawn, type FilePreviewRequest, openingView, previewView } from "../lib/filePreview";
+import {
+  drawn,
+  type FilePreviewRequest,
+  type FilePreviewView,
+  openingView,
+  previewView,
+} from "../lib/filePreview";
 import { keepFrontValue, useFrontState } from "../shell/state";
 
 export function useFileDrops() {
@@ -31,14 +37,17 @@ export function useFileDrops() {
     ]);
   }, []);
 
-  // One preview per file: a second press is answered by the card already standing.
-  const previewFile = useCallback((path: string, beside: number) => {
+  // One preview per file: a second press is answered by the card already standing. A view asked
+  // for by name is held to that view alone.
+  const previewFile = useCallback((path: string, beside: number, asked?: FilePreviewView) => {
     const id = nextFilePreview.current++;
-    const view = previewView(path);
+    const view = asked ?? previewView(path);
     setFilePreviews((current) =>
-      current.some(
-        (preview) => preview.path === path && drawn(preview.view ?? openingView(preview.path)),
-      )
+      current.some((preview) => {
+        if (preview.path !== path) return false;
+        const standing = preview.view ?? openingView(preview.path);
+        return asked ? standing === asked : drawn(standing);
+      })
         ? current
         : [...current, { id, path, at: null, view, beside }],
     );

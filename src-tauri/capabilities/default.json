@@ -6,7 +6,7 @@
   "permissions": [
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "http://*" }, { "url": "https://*" }]
+      "allow": [{ "url": "http://*" }, { "url": "https://*" }, { "url": "mailto:*" }]
     },
     "core:default",
     "clipboard-manager:allow-write-text",

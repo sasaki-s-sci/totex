@@ -308,7 +308,11 @@ export function FilePage({
       {ready && data.view === "markdown" && (
         <div className="file-preview__markdown" ref={sheet}>
           {Markdown ? (
-            <Markdown text={reading ?? ""} />
+            <Markdown
+              text={reading ?? ""}
+              path={data.path}
+              onOpenFile={(path) => actions.openLinkedFile(data.requestId, path)}
+            />
           ) : (
             <p className="file-preview__message">{t("filePreview.loading")}</p>
           )}

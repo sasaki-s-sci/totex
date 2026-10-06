@@ -2,7 +2,7 @@ import type { Folder } from "../hooks/useWorkspace";
 import type { Ask } from "../lib/ask";
 import type { CardSeed } from "../lib/cardWindow";
 import type { Doing } from "../lib/doing";
-import type { FilePreviewRequest } from "../lib/filePreview";
+import type { FilePreviewRequest, FilePreviewView } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
 import type { Report } from "../lib/mcp";
 import type { Session } from "../lib/session";
@@ -80,7 +80,7 @@ export type CanvasProps = {
 
   filePreviews: readonly FilePreviewRequest[];
 
-  onPreviewFile: (path: string, beside: number) => void;
+  onPreviewFile: (path: string, beside: number, view?: FilePreviewView) => void;
   onCloseFilePreview: (requestId: number) => void;
 
   onOpenPinned: (seed: CardSeed, at: { x: number; y: number }) => void;

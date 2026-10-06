@@ -3,7 +3,7 @@ import { writeFile } from "../../folder/api";
 import { refreshChanges } from "../../folder/changes";
 import { settingsDocument, writeSettingsText } from "../../lib/appSettings";
 import type { CardSeed } from "../../lib/cardWindow";
-import { drawn, previewable } from "../../lib/filePreview";
+import { drawn, type FilePreviewView, openingView, previewable } from "../../lib/filePreview";
 import type { FilePreviewFlowNode } from "../../lib/graph";
 import { gridNow, sizeOnGrid, upToGrid } from "../../lib/grid";
 import type { FileReading } from "../../page/actions";
@@ -20,7 +20,7 @@ export type CardTraffic = {
 
 export function useFilePreviewCard(
   { host, instance, standing, nodes, setNodes }: PageCanvas,
-  previewFile: (path: string, beside: number) => void,
+  previewFile: (path: string, beside: number, view?: FilePreviewView) => void,
   windows: CardTraffic,
 ) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
@@ -112,6 +112,17 @@ export function useFilePreviewCard(
       if (!node || drawn(node.data.view) || !previewable(node.data.path)) return;
       previewFile(node.data.path, requestId);
     },
+    [previewFile],
+  );
+
+  // A markdown file stays a reading; anything else opens the way it would from the sidebar.
+  const openLinkedFile = useCallback(
+    (requestId: number, path: string) =>
+      previewFile(
+        path,
+        requestId,
+        /\.(md|markdown|mdx)$/i.test(path) ? "markdown" : openingView(path),
+      ),
     [previewFile],
   );
 
@@ -221,6 +232,7 @@ export function useFilePreviewCard(
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,
+    openLinkedFile,
     fitFilePreview,
     pinFilePreview,
     pinDrag,

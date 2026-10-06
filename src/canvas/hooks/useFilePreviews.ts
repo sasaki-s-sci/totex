@@ -1,6 +1,6 @@
 import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import type { RefObject } from "react";
-import type { FilePreviewRequest } from "../../lib/filePreview";
+import type { FilePreviewRequest, FilePreviewView } from "../../lib/filePreview";
 import type { AppNode } from "../../lib/graph";
 import { type CardTraffic, useFilePreviewCard } from "./useFilePreviewCard";
 import { useFilePreviewPlacing } from "./useFilePreviewPlacing";
@@ -20,7 +20,7 @@ export type PageCanvas = {
 export function useFilePreviews(
   requests: readonly FilePreviewRequest[],
   canvas: PageCanvas,
-  previewFile: (path: string, beside: number) => void,
+  previewFile: (path: string, beside: number, view?: FilePreviewView) => void,
   windows: CardTraffic,
 ) {
   useFilePreviewPlacing(requests, canvas);

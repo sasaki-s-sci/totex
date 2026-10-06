@@ -184,6 +184,8 @@ export function CardWindow() {
   const actions = useMemo<FilePageActions>(
     () => ({
       previewFilePreview: () => {},
+      // A torn-off card has no canvas to put another card on.
+      openLinkedFile: () => {},
       closeFilePreview: () => void here.close().catch(() => undefined),
       saveFilePreview: async (_requestId, text, expected) => {
         if (!data || data.size === null || data.truncated) return false;
