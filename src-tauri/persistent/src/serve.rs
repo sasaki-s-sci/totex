@@ -128,6 +128,14 @@ pub fn stand(held: Arc<Persistent>, home: &Path, ending: Ending) -> Result<Arc<S
         });
     }));
 
+    let activity = Arc::clone(&serving);
+    held.monitor.follow(Arc::new(move |changed| {
+        activity.broadcast(&Told::Activity {
+            id: changed.id.clone(),
+            activity: changed.activity,
+        });
+    }));
+
     write_address(
         home,
         &Address {
@@ -317,6 +325,7 @@ fn answer(
             Ok(Value::Null)
         }
         "door_reports" => said(held.door.reports()),
+        "monitor_activities" => said(held.monitor.activities()),
         "door_setups" => said(held.door.setups()),
         "door_install" => {
             read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))

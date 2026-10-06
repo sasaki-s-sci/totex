@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::door::Report;
+use crate::monitor::ActivityState;
 use crate::session::Event;
 
 /// The file this program writes saying where it is, beside the store.
@@ -69,6 +70,7 @@ pub const ANSWERS: &[&str] = &[
     "door_serve",
     "door_stop",
     "door_reports",
+    "monitor_activities",
     "door_setups",
     "door_install",
     "store_get",
@@ -139,6 +141,10 @@ pub enum Told {
     /// How much of a release has come down, said as it arrives. Cumulative
     /// rather than a chunk at a time, so that a window which missed one
     /// message draws the same ring as one that missed none.
+    Activity {
+        id: String,
+        activity: Option<ActivityState>,
+    },
     Coming {
         taken: u64,
         length: Option<u64>,
@@ -181,7 +187,7 @@ impl Told {
                 },
             ),
             Told::Ended { id } => (id, Event::Ended),
-            Told::Report { .. } | Told::Coming { .. } => return None,
+            Told::Report { .. } | Told::Activity { .. } | Told::Coming { .. } => return None,
         })
     }
 }
@@ -211,6 +217,31 @@ mod tests {
         assert!(told.event().is_none());
         let line = serde_json::to_string(&told).expect("json");
         assert!(line.contains("\"event\":\"report\""), "{line}");
+    }
+
+    #[test]
+    fn lifecycle_states_and_clears_survive_the_wire() {
+        for activity in [
+            Some(ActivityState::Working),
+            Some(ActivityState::Agent),
+            Some(ActivityState::Idle),
+            None,
+        ] {
+            let told = Told::Activity {
+                id: "s1".to_string(),
+                activity,
+            };
+            let line = serde_json::to_string(&told).expect("json");
+            let restored: Told = serde_json::from_str(&line).expect("restore");
+            assert!(restored.event().is_none());
+            match restored {
+                Told::Activity { id, activity: back } => {
+                    assert_eq!(id, "s1");
+                    assert_eq!(back, activity);
+                }
+                _ => panic!("wrong event"),
+            }
+        }
     }
 
     #[test]

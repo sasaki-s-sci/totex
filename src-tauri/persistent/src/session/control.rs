@@ -25,6 +25,7 @@ impl Sessions {
                 rows: session.rows,
                 cols: session.cols,
                 meta: session.meta.clone(),
+                pid: session.child.process_id(),
             })
             .collect()
     }

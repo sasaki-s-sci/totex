@@ -10,6 +10,7 @@
 //! identity, not that number.
 
 pub mod door;
+pub mod monitor;
 pub mod serve;
 pub mod session;
 pub mod store;
@@ -74,6 +75,7 @@ pub fn line_of(version: &str) -> Option<u32> {
 pub struct Persistent {
     pub sessions: Arc<Sessions>,
     pub door: Arc<Door>,
+    pub monitor: Arc<monitor::Monitor>,
     pub store: Store,
     /// Where the store keeps its documents, or nothing on a machine with no
     /// data directory — which is a machine where nothing is remembered past
@@ -86,10 +88,12 @@ impl Persistent {
     pub fn new(home: Option<PathBuf>) -> Arc<Self> {
         let sessions = Arc::new(Sessions::default());
         let door = Door::new(Arc::clone(&sessions));
+        let monitor = monitor::Monitor::new(Arc::clone(&sessions));
         let store = Store::at(home.as_ref().map(|home| home.join("store")));
         Arc::new(Self {
             sessions,
             door,
+            monitor,
             store,
             home,
         })

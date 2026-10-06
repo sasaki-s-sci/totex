@@ -1,6 +1,7 @@
 //! What the sessions are driven with: a mock app, a program holding shells
 //! at the other end of a real socket, and the boxes an agent draws.
 
+mod activity;
 mod naming;
 mod session;
 mod typing;

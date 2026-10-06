@@ -18,6 +18,7 @@ use serde_json::{Value, json};
 use totex_host::sync::lock;
 
 use crate::door::Reporter;
+use crate::monitor::ActivityReporter;
 use crate::session::{Event, Follower};
 use crate::wire::{Address, Told};
 
@@ -72,6 +73,7 @@ pub struct Link {
     gone: Arc<AtomicBool>,
     following: Arc<Mutex<Vec<Follower>>>,
     reporting: Arc<Mutex<Vec<Reporter>>>,
+    activity_reporting: Arc<Mutex<Vec<ActivityReporter>>>,
     /// The sessions this side has been told about and not yet told have ended,
     /// so that a program which goes away can be read as every one of them
     /// ending.
@@ -120,6 +122,8 @@ impl Link {
         let gone = Arc::new(AtomicBool::new(false));
         let following: Arc<Mutex<Vec<Follower>>> = Arc::new(Mutex::new(Vec::new()));
         let reporting: Arc<Mutex<Vec<Reporter>>> = Arc::new(Mutex::new(Vec::new()));
+        let activity_reporting: Arc<Mutex<Vec<ActivityReporter>>> =
+            Arc::new(Mutex::new(Vec::new()));
         let known: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
         let coming: Arc<Mutex<Option<Coming>>> = Arc::new(Mutex::new(None));
 
@@ -129,11 +133,20 @@ impl Link {
             let gone = Arc::clone(&gone);
             let following = Arc::clone(&following);
             let reporting = Arc::clone(&reporting);
+            let activity_reporting = Arc::clone(&activity_reporting);
             let known = Arc::clone(&known);
             let coming = Arc::clone(&coming);
             std::thread::spawn(move || {
                 read(
-                    stream, said, waiting, gone, following, reporting, known, coming,
+                    stream,
+                    said,
+                    waiting,
+                    gone,
+                    following,
+                    reporting,
+                    activity_reporting,
+                    known,
+                    coming,
                 )
             });
         }
@@ -168,6 +181,7 @@ impl Link {
             gone,
             following,
             reporting,
+            activity_reporting,
             known,
             relaunching: AtomicBool::new(false),
             coming,
@@ -256,6 +270,11 @@ impl Link {
     /// Adds something that is told every report through the door.
     pub fn report_to(&self, reporter: Reporter) {
         lock(&self.reporting).push(reporter);
+    }
+
+    /// Adds something that follows the tools’ native lifecycle events.
+    pub fn activity_to(&self, reporter: ActivityReporter) {
+        lock(&self.activity_reporting).push(reporter);
     }
 
     /// Asks, and waits for the answer.
@@ -395,11 +414,21 @@ fn read(
     gone: Arc<AtomicBool>,
     following: Arc<Mutex<Vec<Follower>>>,
     reporting: Arc<Mutex<Vec<Reporter>>>,
+    activity_reporting: Arc<Mutex<Vec<ActivityReporter>>>,
     known: Arc<Mutex<HashSet<String>>>,
     coming: Arc<Mutex<Option<Coming>>>,
 ) {
     let (telling, told) = std::sync::mpsc::channel::<Told>();
-    std::thread::spawn(move || tell_each(told, following, reporting, known, coming));
+    std::thread::spawn(move || {
+        tell_each(
+            told,
+            following,
+            reporting,
+            activity_reporting,
+            known,
+            coming,
+        )
+    });
 
     let mut lines = BufReader::new(stream).lines();
     if let Some(Ok(line)) = lines.next()
@@ -444,6 +473,7 @@ fn tell_each(
     told: std::sync::mpsc::Receiver<Told>,
     following: Arc<Mutex<Vec<Follower>>>,
     reporting: Arc<Mutex<Vec<Reporter>>>,
+    activity_reporting: Arc<Mutex<Vec<ActivityReporter>>>,
     known: Arc<Mutex<HashSet<String>>>,
     coming: Arc<Mutex<Option<Coming>>>,
 ) {
@@ -452,6 +482,15 @@ fn tell_each(
             Told::Coming { taken, length } => {
                 if let Some(watching) = lock(&coming).as_ref() {
                     watching(*taken, *length);
+                }
+            }
+            Told::Activity { id, activity } => {
+                let changed = crate::monitor::Activity {
+                    id: id.clone(),
+                    activity: *activity,
+                };
+                for reporter in lock(&activity_reporting).clone() {
+                    reporter(&changed);
                 }
             }
             Told::Report { id, report } => {
@@ -543,6 +582,41 @@ impl Link {
 #[cfg(test)]
 mod kept {
     use super::*;
+
+    #[test]
+    fn native_activity_is_delivered_without_terminal_output() {
+        let (sent, received) = std::sync::mpsc::channel();
+        let (reported, reports) = std::sync::mpsc::channel();
+        let native: ActivityReporter = Arc::new(move |activity| {
+            reported.send(activity.clone()).expect("report");
+        });
+        sent.send(Told::Activity {
+            id: "native-only".to_string(),
+            activity: Some(crate::monitor::ActivityState::Working),
+        })
+        .expect("queue activity");
+        sent.send(Told::Activity {
+            id: "native-only".to_string(),
+            activity: None,
+        })
+        .expect("queue clear");
+        drop(sent);
+        tell_each(
+            received,
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(Vec::new())),
+            Arc::new(Mutex::new(vec![native])),
+            Arc::new(Mutex::new(HashSet::new())),
+            Arc::new(Mutex::new(None)),
+        );
+        let working = reports.try_recv().expect("working delivered");
+        assert_eq!(working.id, "native-only");
+        assert_eq!(
+            working.activity,
+            Some(crate::monitor::ActivityState::Working)
+        );
+        assert_eq!(reports.try_recv().expect("clear delivered").activity, None);
+    }
 
     #[test]
     fn a_program_on_this_line_is_kept_and_one_off_it_is_not() {

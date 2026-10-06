@@ -26,6 +26,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+use totex_persistent::monitor::Activity;
 
 use crate::pty::{self, Event};
 
@@ -71,7 +72,7 @@ pub struct Typed {
     said: String,
 }
 
-/// One screen per running session, and nothing that is not on one.
+/// A screen and the native activity being followed for each running session.
 #[derive(Default)]
 pub struct AskState {
     watching: Mutex<HashMap<String, Watcher>>,
@@ -138,13 +139,60 @@ fn pressed<R: Runtime>(
 /// that something is following and never what it is for.
 pub fn attend<R: Runtime>(app: &AppHandle<R>) {
     let handle = app.clone();
+    crate::persistent::link(app).activity_to(Arc::new(move |changed| {
+        let turned = {
+            let state = handle.state::<AskState>();
+            let mut watching = state.lock();
+            watching.get_mut(&changed.id).and_then(|watcher| {
+                watcher.activity(changed.activity);
+                watcher.turned()
+            })
+        };
+        crate::overseer::noticed(&handle, &changed.id, turned, None);
+        if let Some(doing) = turned {
+            let _ = handle.emit(
+                DOING_EVENT,
+                Doings {
+                    id: changed.id.clone(),
+                    doing,
+                },
+            );
+        }
+    }));
+    let handle = app.clone();
     crate::persistent::link(app).follow(Arc::new(move |id, event| {
         let state = handle.state::<AskState>();
         match event {
             Event::Opened { rows, cols } => {
-                state
+                // Monitoring can notice the process between session insertion
+                // and this event. Seed its current activity even if that first
+                // notification reached us before there was a watcher. Later
+                // notifications stay queued on this same callback thread.
+                let activities: Vec<Activity> = crate::persistent::link(&handle)
+                    .asked("monitor_activities", serde_json::json!({}))
+                    .unwrap_or_default();
+                let turned = state
                     .lock()
-                    .insert(id.to_string(), Watcher::new(rows, cols));
+                    .entry(id.to_string())
+                    .or_insert_with(|| {
+                        let mut watcher = Watcher::new(rows, cols);
+                        if let Some(activity) = activities.iter().find(|activity| activity.id == id)
+                        {
+                            watcher.activity(activity.activity);
+                        }
+                        watcher
+                    })
+                    .turned();
+                crate::overseer::noticed(&handle, id, turned, None);
+                if let Some(doing) = turned {
+                    let _ = handle.emit(
+                        DOING_EVENT,
+                        Doings {
+                            id: id.to_string(),
+                            doing,
+                        },
+                    );
+                }
             }
             Event::Said { data, at } => {
                 // Read under the lock and told outside it: telling crosses to
@@ -225,6 +273,13 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AskState>();
     let standing = {
         let mut watching = state.lock();
+        // Hold the map while requesting the snapshot: live callbacks queue on
+        // this lock and apply after rebuilding, so a transition cannot land on
+        // a watcher which is about to be discarded. Socket answers are read
+        // separately from callbacks and do not need this lock.
+        let activities: Vec<Activity> = crate::persistent::link(app)
+            .asked("monitor_activities", serde_json::json!({}))
+            .unwrap_or_default();
         watching.clear();
         for session in running {
             // Gone between being listed and being read: nothing to read.
@@ -239,6 +294,10 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
                 watcher.resume(taken);
             }
             watcher.replay(&held.text, held.upto);
+            if let Some(activity) = activities.iter().find(|activity| activity.id == session.id) {
+                watcher.activity(activity.activity);
+                watcher.turned();
+            }
             watching.insert(session.id, watcher);
         }
         taken::standing(&watching)

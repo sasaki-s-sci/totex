@@ -38,6 +38,8 @@ pub struct Running {
     pub rows: u16,
     pub cols: u16,
     pub meta: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pid: Option<u32>,
 }
 
 /// What the sessions do, for whatever is following them — the things the other
