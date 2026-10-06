@@ -1,16 +1,17 @@
-import { type CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { type DiffRun, type FileDiff, fileDiff } from "../../../folder/api";
 import { changesIn, watchChanges } from "../../../folder/changes";
 import { baseName, folderOf } from "../../../folder/format";
 
 const NOTHING: FileDiff = { standing: "unknown", patch: "", truncated: false, runs: [] };
 
-// git is asked only once the folder's change poll says the file moved; `reading` is a
-// dependency so a save refreshes the patch.
+// git is asked only once the folder's change poll says the file moved; a new reading asks again so
+// a save refreshes the patch. The watch is held across readings: letting go of it drops the
+// folder's held answer, and the marks would blink out until the poll answered again.
 export function useFileDiff(path: string | null, reading: string | null): FileDiff {
   const [diff, setDiff] = useState<FileDiff>(NOTHING);
+  const ask = useRef<(() => void) | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the reading is waited on rather than read — a card that has just written its file is a patch that moved without git having anything new to say about the file
   useEffect(() => {
     if (path === null) return;
     const folder = folderOf(path);
@@ -31,12 +32,25 @@ export function useFileDiff(path: string | null, reading: string | null): FileDi
     };
 
     read();
+    ask.current = read;
     const stop = watchChanges(folder, read);
     return () => {
       alive = false;
+      ask.current = null;
       stop();
     };
-  }, [path, reading]);
+  }, [path]);
+
+  const first = useRef(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the reading is waited on rather than read — a card that has just written its file is a patch that moved without git having anything new to say about the file
+  useEffect(() => {
+    // The watch's own first read already covers the reading it mounted with.
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    ask.current?.();
+  }, [reading]);
 
   return diff;
 }

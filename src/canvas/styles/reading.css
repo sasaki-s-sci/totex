@@ -62,8 +62,8 @@
 .file-preview__mark {
   position: absolute;
   right: 2px;
-  width: 3px;
-  border-radius: 2px;
+  width: 2px;
+  border-radius: 1px;
 }
 
 .file-preview__mark.is-added {
@@ -77,10 +77,10 @@
 .file-preview__mark.is-deleted {
   width: 0;
   height: 0;
-  margin-top: -3px;
-  border-top: 3px solid transparent;
-  border-right: 4px solid var(--mui-palette-error-main);
-  border-bottom: 3px solid transparent;
+  margin-top: -2px;
+  border-top: 2px solid transparent;
+  border-right: 3px solid var(--mui-palette-error-main);
+  border-bottom: 2px solid transparent;
   background: none;
 }
 
