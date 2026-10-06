@@ -62,7 +62,6 @@ export interface RepoPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
-  onMinimize: () => void;
   onClose: () => void;
   /** Picks the pane up by its header, or by its one row when it has no header. */
   grip?: PaneGrip;
@@ -96,7 +95,6 @@ export function RepoPane({
   naming,
   onNameDone,
   onNameCancel,
-  onMinimize,
   onClose,
   grip,
 }: RepoPaneProps) {
@@ -124,6 +122,10 @@ export function RepoPane({
             pt: 0.5,
             pl: 1,
             pr: 0.5,
+            "&:hover .pane__close, &:focus-within .pane__close": {
+              opacity: 1,
+              pointerEvents: "auto",
+            },
           }}
         >
           <Box
@@ -150,16 +152,13 @@ export function RepoPane({
               {name}
             </Typography>
           </Box>
-          <MarkButton label={t("repository.minimize")} onClick={onMinimize}>
-            <Frame>
-              <path d="M6 12h12" />
-            </Frame>
-          </MarkButton>
-          <MarkButton label={t("repository.remove")} onClick={onClose}>
-            <Frame>
-              <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
-            </Frame>
-          </MarkButton>
+          <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
+            <MarkButton label={t("repository.remove")} onClick={onClose}>
+              <Frame>
+                <path d="M6 6l12 12M18 6L6 18" />
+              </Frame>
+            </MarkButton>
+          </Box>
         </Stack>
       )}
 
@@ -184,7 +183,16 @@ export function RepoPane({
                   {...(alone ? grip : null)}
                   data-repo-row={`${id}:${repository.path}`}
                   {...{ [DROP_INTO]: reading }}
-                  sx={{ pl: alone ? 1 : ROW_INDENT, pr: 0.5, gap: 0.5, ...mark }}
+                  sx={{
+                    pl: alone ? 1 : ROW_INDENT,
+                    pr: 0.5,
+                    gap: 0.5,
+                    ...mark,
+                    "&:hover .pane__close, &:focus-within .pane__close": {
+                      opacity: 1,
+                      pointerEvents: "auto",
+                    },
+                  }}
                   onContextMenu={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -264,30 +272,19 @@ export function RepoPane({
                       <GraphRepoMark on={graphed.includes(repository.path)} />
                     </MarkButton>
                     {alone && (
-                      <MarkButton
-                        label={t("repository.minimize")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onMinimize();
-                        }}
-                      >
-                        <Frame>
-                          <path d="M6 12h12" />
-                        </Frame>
-                      </MarkButton>
-                    )}
-                    {alone && (
-                      <MarkButton
-                        label={t("repository.remove")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onClose();
-                        }}
-                      >
-                        <Frame>
-                          <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
-                        </Frame>
-                      </MarkButton>
+                      <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
+                        <MarkButton
+                          label={t("repository.remove")}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onClose();
+                          }}
+                        >
+                          <Frame>
+                            <path d="M6 6l12 12M18 6L6 18" />
+                          </Frame>
+                        </MarkButton>
+                      </Box>
                     )}
                   </Stack>
                 </ListItemButton>

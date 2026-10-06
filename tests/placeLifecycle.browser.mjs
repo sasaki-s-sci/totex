@@ -118,46 +118,63 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   await page.goto(`${base}/tests/fixtures/place-lifecycle.html`);
   const canvasFolder = page.locator(".react-flow__node-folder");
   const canvasRepo = page.locator(".react-flow__node-repository");
-  await canvasFolder.getByRole("button", { name: "Minimize folder", exact: true }).waitFor();
-  await canvasRepo.getByRole("button", { name: "Minimize repository", exact: true }).waitFor();
+  const sidebar = page.locator("#folder-sidebar");
+  const folderLabel = "Remove folder and end its terminals";
+  const repoLabel = "Remove repository and end its terminals";
+  const removeRepo = canvasRepo.locator(`[aria-label="${repoLabel}"]`);
+  const removeFolder = canvasFolder.locator(`[aria-label="${folderLabel}"]`);
+  await removeRepo.waitFor({ state: "attached" });
+  await removeFolder.waitFor({ state: "attached" });
   const terminal = page.locator('[data-terminal="repo-cli"]');
   await terminal.locator(".xterm-screen").waitFor();
-  await page.evaluate(() => {
-    window.retainedPlaceTerminal = document.querySelector('[data-terminal="repo-cli"]');
-  });
-  const tray = page.getByRole("region", { name: "Minimized", exact: true });
+  // Move the fixture's top-edge folder heading below the window drag region.
+  await page.mouse.move(1300, 600);
+  await page.mouse.down();
+  await page.mouse.move(1300, 800, { steps: 10 });
+  await page.mouse.up();
 
-  await canvasRepo.getByRole("button", { name: "Minimize repository", exact: true }).click();
-  await tray.getByRole("button", { name: "Restore repository", exact: true }).waitFor();
-  await page.waitForFunction(() => !document.querySelector(".react-flow__node-repository"));
-  assert.equal(await terminal.isVisible(), false);
+  // Controls must appear on hover, including the sidebar's folder header.
+  async function assertControlShown(control, shown) {
+    const handle = await control.elementHandle();
+    await page.waitForFunction(
+      ({ button, shown }) => {
+        let visible = button.getBoundingClientRect().width > 0;
+        for (let element = button; element; element = element.parentElement) {
+          const style = getComputedStyle(element);
+          if (style.opacity === "0" || style.visibility === "hidden" || style.display === "none")
+            visible = false;
+        }
+        return visible === shown;
+      },
+      { button: handle, shown },
+    );
+    await handle.dispose();
+  }
+  await page.mouse.move(1590, 990);
+  await assertControlShown(removeRepo, false);
+  await assertControlShown(removeFolder, false);
+  const sidebarFolderClose = sidebar.locator(`[aria-label="${folderLabel}"]`).first();
+  await assertControlShown(sidebarFolderClose, false);
+  await sidebarFolderClose.locator("../..").hover();
+  await assertControlShown(sidebarFolderClose, true);
+  await canvasRepo.locator(".band__name").hover();
+  await assertControlShown(removeRepo, true);
+  await canvasFolder.locator(".folder__heading").hover();
+  await assertControlShown(removeFolder, true);
+  await assertControlShown(removeRepo, false);
+  await assertControlShown(sidebarFolderClose, false);
+  await page.mouse.move(1590, 990);
+  await assertControlShown(removeFolder, false);
+  assert.equal(
+    await page.getByRole("button", { name: /^Minimize (folder|repository)$/ }).count(),
+    0,
+  );
+  assert.equal(await page.getByRole("region", { name: "Minimized", exact: true }).count(), 0);
   assert.equal(
     await page.evaluate(() => window.placeCalls.filter(({ cmd }) => cmd === "pty_close").length),
     0,
   );
-  await tray.getByRole("button", { name: "Restore repository", exact: true }).click();
-  await canvasRepo.waitFor();
-  assert.equal(
-    await page.evaluate(
-      () => window.retainedPlaceTerminal === document.querySelector('[data-terminal="repo-cli"]'),
-    ),
-    true,
-  );
-  assert.equal(await terminal.isVisible(), true);
 
-  // Pane minimization also hides its graph, but retains scan ownership.
-  const sidebar = page.locator("#folder-sidebar");
-  await sidebar.getByRole("button", { name: "Minimize folder", exact: true }).click();
-  await tray.getByRole("button", { name: "Restore folder", exact: true }).waitFor();
-  await page.waitForFunction(() => !document.querySelector(".react-flow__node-folder"));
-  assert.equal(
-    await page.evaluate(() => window.placeCalls.filter(({ cmd }) => cmd === "pty_close").length),
-    0,
-  );
-  await tray.getByRole("button", { name: "Restore folder", exact: true }).click();
-  await canvasFolder.waitFor();
-
-  await canvasRepo.getByRole("button", { name: "Minimize repository", exact: true }).click();
   await page.evaluate(() => {
     window.nativePlaces.push({
       id: "invisible-worktree",
@@ -168,15 +185,20 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     });
     window.refusePlaceClose = true;
   });
-  const removeRepo = tray.getByRole("button", {
-    name: "Remove repository and end its terminals",
-    exact: true,
-  });
+  await canvasRepo.locator(".band__name").hover();
   await removeRepo.click();
-  await sidebar.getByText("Could not end all terminals. Try removing again.").waitFor();
+  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
+  assert.equal(await canvasRepo.count(), 1);
+  assert.equal(await terminal.isVisible(), true);
   assert.equal(
-    await tray.getByRole("button", { name: "Restore repository", exact: true }).count(),
-    1,
+    await page.evaluate(() => window.nativePlaces.some(({ id }) => id === "repo-cli")),
+    true,
+  );
+  assert.equal(
+    await page.evaluate(async () =>
+      (await window.placeSnapshot()).values["sessions.list"].some(({ id }) => id === "repo-cli"),
+    ),
+    true,
   );
   await page.evaluate(() => {
     window.refusePlaceClose = false;
@@ -193,10 +215,17 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     async () =>
       !(await window.placeSnapshot()).values["sessions.list"].some(({ id }) => id === "repo-cli"),
   );
-  await canvasFolder
-    .getByRole("button", { name: "Remove folder and end its terminals", exact: true })
-    .click();
+  await page.waitForFunction(() => !document.querySelector(".react-flow__node-repository"));
+  assert.equal(await terminal.count(), 0);
+  // Closing through the folder pane must also dispose its graph and PTY.
+  await sidebarFolderClose.locator("../..").hover();
+  await sidebarFolderClose.click();
   await page.waitForFunction(() => window.nativePlaces.length === 0);
+  await page.waitForFunction(
+    async () => (await window.placeSnapshot()).values["sessions.list"].length === 0,
+  );
+  await page.waitForFunction(() => !document.querySelector(".react-flow__node-folder"));
+  assert.equal(await page.getByRole("region", { name: "Minimized", exact: true }).count(), 0);
   assert.equal(
     await page.evaluate(() =>
       window.placeCalls.some(({ cmd }) => cmd === "fs_delete_folder" || cmd === "fs_delete_file"),
@@ -205,8 +234,9 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   );
   assert.deepEqual(errors, []);
   return {
-    terminalPreserved: true,
-    minimizedRestored: true,
+    hoverOnlyClose: true,
+    frontendAndNativeTerminalsEnded: true,
+    noMinimizedTray: true,
     invisibleWorktreeEnded: true,
     failedCloseRetryable: true,
     errors,

@@ -42,7 +42,6 @@ import {
 import type { Repository } from "../types/git";
 import { SshPassword } from "./SshPassword";
 import { useFolderRoots } from "./useFolderRoots";
-import { useMinimizedPlaces } from "./useMinimizedPlaces";
 import { useWindowBoot } from "./useWindowBoot";
 import { useWindowMenus } from "./useWindowMenus";
 import { WindowBand } from "./WindowBand";
@@ -58,10 +57,6 @@ export function Window() {
   const [destination, setDestination] = useState<FolderDestination | null>(null);
   const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
   const [removeFailed, setRemoveFailed] = useState(false);
-  const [minimizedPanes, setMinimizedPanes] = useFrontState<readonly Graphed[]>(
-    "window.minimizedPanes.v1",
-    [],
-  );
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
@@ -97,21 +92,12 @@ export function Window() {
   useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops();
   const drops = useDrops(canvasHost, files.openFiles);
-  const places = useMinimizedPlaces(workspace, graphed, minimizedPanes);
-  const hiddenSessions = useMemo(() => {
-    const hidden = sessionsInPlaces(
-      [...places.minimized, ...minimizedPanes],
-      workspace?.repositories ?? [],
-    );
-    return new Set(sessions.sessions.filter(hidden).map((session) => session.id));
-  }, [places.minimized, minimizedPanes, workspace, sessions.sessions]);
   const deletePlace = useCallback(
     async (place: Graphed) => {
       await sessions.endMatching(sessionsInPlaces([place], workspace?.repositories ?? []));
-      places.restore(place);
       setUngraph({ root: place.root, kind: place.kind });
     },
-    [sessions.endMatching, workspace, places.restore],
+    [sessions.endMatching, workspace],
   );
   const deletePane = useCallback(
     async (pane: Pane) => {
@@ -120,38 +106,23 @@ export function Window() {
         ...pane.graphed.map((root) => ({ kind: pane.kind, root })),
       ];
       await sessions.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? []));
-      for (const place of places.minimized) {
-        if (owned.some((root) => root.kind === place.kind && root.root === place.root))
-          places.restore(place);
-      }
     },
-    [sessions.endMatching, workspace, places.minimized, places.restore],
+    [sessions.endMatching, workspace],
   );
   const closeRepository = useCallback(
     (repository: Repository) => {
-      void deletePlace(places.repositoryPlace(repository)).catch(() => setRemoveFailed(true));
+      const root =
+        graphed.find((folder) => folder.repositories.includes(repository.id))?.root ??
+        repository.path;
+      void deletePlace({ kind: "repository", root }).catch(() => setRemoveFailed(true));
     },
-    [deletePlace, places.repositoryPlace],
+    [deletePlace, graphed],
   );
   const closeFolder = useCallback(
     (root: string) => {
       void deletePlace({ kind: "folder", root }).catch(() => setRemoveFailed(true));
     },
     [deletePlace],
-  );
-  const minimizeRepository = useCallback(
-    (repository: Repository) => {
-      places.minimizeRepository(repository);
-      setLeftOpen(true);
-    },
-    [places.minimizeRepository],
-  );
-  const minimizeFolder = useCallback(
-    (root: string) => {
-      places.minimizeFolder(root);
-      setLeftOpen(true);
-    },
-    [places.minimizeFolder],
   );
   useWindowBoot(workspace);
 
@@ -217,11 +188,7 @@ export function Window() {
           ungraph={ungraph}
           homes={homes}
           branches={branches}
-          minimized={places.minimized}
-          onRestorePlace={places.restore}
-          onDeletePlace={deletePlace}
           onDeletePane={deletePane}
-          onMinimizedPanesChange={setMinimizedPanes}
         />
 
         <Box
@@ -243,13 +210,12 @@ export function Window() {
           <WindowBand />
           {Canvas && (
             <Canvas
-              workspace={places.drawn ?? EMPTY_WORKSPACE}
-              folders={places.drawnFolders}
+              workspace={workspace ?? EMPTY_WORKSPACE}
+              folders={graphed}
               browsing={folders.browsing}
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
-              hiddenSessions={hiddenSessions}
               asks={overseen ? NO_ASKS : asks.asks}
               reports={reports}
               overseen={overseen}
@@ -267,8 +233,6 @@ export function Window() {
               onPickBranch={menus.setWorktree}
               onCloseRepository={closeRepository}
               onCloseFolder={closeFolder}
-              onMinimizeRepository={minimizeRepository}
-              onMinimizeFolder={minimizeFolder}
               onMerge={work.merge}
               onSync={work.sync}
               onFetch={work.fetch}

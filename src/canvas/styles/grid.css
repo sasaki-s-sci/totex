@@ -26,12 +26,13 @@
   position: absolute;
   box-sizing: border-box;
   overflow: hidden;
+  pointer-events: all;
 }
 
 /*
- * Two lines over four columns. The lower line is the trunk's: the mark against the fold, with the
+ * Two lines over three columns. The lower line is the trunk's: the mark against the fold, with the
  * name over the terminal column instead. The line above carries the rail with its count, and what
- * minimizes or removes the repository over the mark.
+ * closes the repository over the mark.
  */
 .band__heading {
   display: grid;
@@ -39,9 +40,9 @@
   width: 100%;
   height: 100%;
   grid-template-areas:
-    "length shown minimize remove"
-    ". . . grip";
-  grid-template-columns: minmax(0, 1fr) auto var(--square) var(--square);
+    "length shown remove"
+    ". . grip";
+  grid-template-columns: minmax(0, 1fr) auto var(--square);
   grid-template-rows: minmax(0, 1fr) var(--line);
   align-items: center;
   padding-left: 6px;
@@ -77,10 +78,6 @@
   grid-area: shown;
 }
 
-.band__action--minimize {
-  grid-area: minimize;
-}
-
 .band__action--remove {
   grid-area: remove;
 }
@@ -104,17 +101,20 @@
   border: none;
   background: none;
   color: var(--mui-palette-text-secondary);
-  opacity: 0.65;
+  opacity: 0;
   cursor: pointer;
-  pointer-events: all;
+  pointer-events: none;
   transition:
     opacity var(--reveal),
     color var(--reveal);
 }
 
 .band__name:hover .band__action,
-.band__name:focus-within .band__action {
+.band__name:focus-within .band__action,
+.band--repository:has(.row__name:hover) .band__action,
+.band--repository:has(.row__name:focus-within) .band__action {
   opacity: 1;
+  pointer-events: all;
 }
 
 .band__name .band__action:hover,

@@ -32,9 +32,9 @@ test("ownership uses path components and platform casing", () => {
   assert.equal(underPlace("/", "/projects/app"), true);
 });
 
-test("minimized panes persist while legacy and invalid flags keep their original shape", () => {
+test("legacy minimized flags are ignored so saved panes return to view", () => {
   assert.deepEqual(readSeeds([{ kind: "folder", path: "/x", minimized: true }]), [
-    { kind: "folder", path: "/x", minimized: true },
+    { kind: "folder", path: "/x" },
   ]);
   assert.deepEqual(readSeeds(["/x", { kind: "repository", path: "/repo", minimized: "yes" }]), [
     { kind: "folder", path: "/x" },

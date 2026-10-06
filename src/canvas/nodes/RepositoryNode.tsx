@@ -15,12 +15,12 @@ const NAME_FONT = 13;
 export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
   const { t } = useTranslation();
   const { repository, label, name } = data;
-  const { minimizeRepository, closeRepository, foldRepository } = useGraphActions();
+  const { closeRepository, foldRepository } = useGraphActions();
   // What its worktrees come to, as the column colours a repository's name.
   const change = useChanges().repositories.get(repository.id);
 
   return (
-    <div className="band">
+    <div className="band band--repository">
       <div
         className="band__name"
         style={{ left: label.x, top: label.y, width: label.width, height: label.height }}
@@ -38,21 +38,6 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
           <HistoryLength repository={repository} />
           <button
             type="button"
-            className="band__action band__action--minimize nopan"
-            aria-label={t("repository.minimize")}
-            title={t("repository.minimize")}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              minimizeRepository(repository);
-            }}
-          >
-            <Frame>
-              <path d="M5 12 H19" />
-            </Frame>
-          </button>
-          <button
-            type="button"
             className="band__action band__action--remove nopan"
             aria-label={t("repository.remove")}
             title={t("repository.remove")}
@@ -63,7 +48,7 @@ export function RepositoryNode({ data }: NodeProps<RepositoryFlowNode>) {
             }}
           >
             <Frame>
-              <path d="M4 7 H20 M9 7 V4 H15 V7 M6 7 L7 20 H17 L18 7 M10 10 V17 M14 10 V17" />
+              <path d="M6 6 L18 18 M18 6 L6 18" />
             </Frame>
           </button>
           {/* What the repository is moved by: it stands on its own, with no row above to take hold of. */}

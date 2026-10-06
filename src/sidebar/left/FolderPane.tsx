@@ -48,7 +48,6 @@ export interface FolderPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
-  onMinimize: () => void;
   onClose: () => void;
   /** Picks the pane up by its header, to put it elsewhere in the column. */
   grip?: PaneGrip;
@@ -75,7 +74,6 @@ export function FolderPane({
   naming,
   onNameDone,
   onNameCancel,
-  onMinimize,
   onClose,
   grip,
 }: FolderPaneProps) {
@@ -138,6 +136,10 @@ export function FolderPane({
           pt: 0.5,
           pl: 1,
           pr: 0.5,
+          "&:hover .pane__close, &:focus-within .pane__close": {
+            opacity: 1,
+            pointerEvents: "auto",
+          },
           ...(path === dropping ? TAKING_DROP : path === refused ? REFUSED_DROP : null),
         }}
       >
@@ -186,16 +188,13 @@ export function FolderPane({
             {name}
           </Typography>
         </Box>
-        <MarkButton label={t("folder.minimize")} onClick={onMinimize}>
-          <Frame>
-            <path d="M6 12h12" />
-          </Frame>
-        </MarkButton>
-        <MarkButton label={t("folder.remove")} onClick={onClose}>
-          <Frame>
-            <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 10v7M14 10v7" />
-          </Frame>
-        </MarkButton>
+        <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
+          <MarkButton label={t("folder.remove")} onClick={onClose}>
+            <Frame>
+              <path d="M6 6l12 12M18 6L6 18" />
+            </Frame>
+          </MarkButton>
+        </Box>
         {standing && (
           <MarkButton
             label={t("folder.door", { space: baseName(standing.space) })}

@@ -48,13 +48,7 @@ export type GraphActions = FilePageActions & {
 
   fetchBranch: (request: FetchRequest) => void;
 
-  /** Hide the repository while preserving its terminal sessions. */
-  minimizeRepository: (repository: Repository) => void;
-
   closeRepository: (repository: Repository) => void;
-
-  /** Hide the folder while preserving its terminal sessions. */
-  minimizeFolder: (root: string) => void;
 
   /** Removes the folder and ends its terminal sessions. */
   closeFolder: (root: string) => void;
@@ -102,9 +96,7 @@ export const NO_ACTIONS: GraphActions = {
   pickBranch: () => {},
   dragBranch: () => {},
   fetchBranch: () => {},
-  minimizeRepository: () => {},
   closeRepository: () => {},
-  minimizeFolder: () => {},
   closeFolder: () => {},
   openRepository: () => {},
   foldRepository: () => {},

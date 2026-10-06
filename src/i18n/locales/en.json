@@ -40,10 +40,7 @@
     "listRepositories": "List the repositories in it",
     "gitMode": "Switch to git",
     "takeOff": "Take off the canvas",
-    "minimize": "Minimize folder",
     "remove": "Remove folder and end its terminals",
-    "restore": "Restore folder",
-    "minimized": "Minimized",
     "removeFailed": "Could not end all terminals. Try removing again."
   },
   "ssh": {
@@ -93,9 +90,7 @@
     "home": "Back to its own folder",
     "showing": "Showing {{branch}}",
     "folderMode": "Switch to folder",
-    "minimize": "Minimize repository",
-    "remove": "Remove repository and end its terminals",
-    "restore": "Restore repository"
+    "remove": "Remove repository and end its terminals"
   },
   "branch": {
     "head": "{{name}}",

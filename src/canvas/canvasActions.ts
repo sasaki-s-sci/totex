@@ -8,9 +8,7 @@ export function useCanvasActions({
   onPickBranch,
   dragBranch,
   onFetch,
-  onMinimizeRepository,
   onCloseRepository,
-  onMinimizeFolder,
   onCloseFolder,
   openRepository,
   foldRepository,
@@ -45,9 +43,7 @@ export function useCanvasActions({
   onPickBranch: GraphActions["pickBranch"];
   dragBranch: GraphActions["dragBranch"];
   onFetch: GraphActions["fetchBranch"];
-  onMinimizeRepository: GraphActions["minimizeRepository"];
   onCloseRepository: GraphActions["closeRepository"];
-  onMinimizeFolder: GraphActions["minimizeFolder"];
   onCloseFolder: GraphActions["closeFolder"];
   openRepository: GraphActions["openRepository"];
   foldRepository: GraphActions["foldRepository"];
@@ -85,9 +81,7 @@ export function useCanvasActions({
       pickBranch: onPickBranch,
       dragBranch,
       fetchBranch: onFetch,
-      minimizeRepository: onMinimizeRepository,
       closeRepository: onCloseRepository,
-      minimizeFolder: onMinimizeFolder,
       closeFolder: onCloseFolder,
       openRepository,
       foldRepository,
@@ -123,9 +117,7 @@ export function useCanvasActions({
       onPickBranch,
       dragBranch,
       onFetch,
-      onMinimizeRepository,
       onCloseRepository,
-      onMinimizeFolder,
       onCloseFolder,
       openRepository,
       foldRepository,
