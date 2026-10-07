@@ -15,7 +15,7 @@ const HEADER_LIMIT: usize = 64;
 /// The most a message may be. A report is a sentence and a short list, and
 /// reading a hundred times that into memory because somebody said it was coming
 /// is the one thing a listener must not do.
-const BODY_LIMIT: usize = 256 * 1024;
+const BODY_LIMIT: usize = 2 * 1024 * 1024;
 
 /// What is being asked, out of one request.
 pub(super) struct Request {
@@ -130,6 +130,23 @@ pub(super) fn timed_out(error: &std::io::Error) -> bool {
 pub(super) fn route(door: &Door, request: &Request) -> (&'static str, Option<Vec<u8>>) {
     if request.from_page {
         return ("403 Forbidden", None);
+    }
+
+    if request.target == "/hooks/claude" {
+        if request.method != "POST" {
+            return ("405 Method Not Allowed", None);
+        }
+        if request.bearer.as_deref() != Some(door.hook_token().as_str()) {
+            return ("401 Unauthorized", None);
+        }
+        let Ok(body) = serde_json::from_slice(&request.body) else {
+            return ("400 Bad Request", None);
+        };
+        return if totex_host::sync::lock(&door.hooks).receive(&body) {
+            ("200 OK", None)
+        } else {
+            ("400 Bad Request", None)
+        };
     }
 
     let Some(token) = named(request) else {

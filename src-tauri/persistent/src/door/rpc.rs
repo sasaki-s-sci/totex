@@ -139,6 +139,7 @@ fn call(door: &Door, session: &str, params: &Value) -> Value {
 
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
     let report = Report {
+        reply: None,
         doing: line(arguments.get("doing").and_then(Value::as_str).unwrap_or("")),
         steps: steps(arguments.get("steps")),
     };

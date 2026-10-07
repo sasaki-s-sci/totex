@@ -10,15 +10,27 @@ use reqwest::Url;
 use serde_json::Value;
 
 use super::{Process, Target};
-use crate::monitor::ActivityState;
+use crate::monitor::{ActivityState, Reply, ReplyStatus};
 
-pub(super) fn read(targets: &[Target]) -> HashMap<String, ActivityState> {
-    read_with(targets, super::http_json)
+pub(super) fn read_replies(
+    targets: &[Target],
+    report: impl FnMut(&str, Reply),
+) -> HashMap<String, ActivityState> {
+    read_detailed(targets, super::http_json, report)
 }
 
+#[cfg(test)]
 fn read_with(
     targets: &[Target],
+    get: impl FnMut(&str, &str, &str, Option<(&str, &str)>) -> Option<Value>,
+) -> HashMap<String, ActivityState> {
+    read_detailed(targets, get, |_, _| {})
+}
+
+fn read_detailed(
+    targets: &[Target],
     mut get: impl FnMut(&str, &str, &str, Option<(&str, &str)>) -> Option<Value>,
+    mut report: impl FnMut(&str, Reply),
 ) -> HashMap<String, ActivityState> {
     let mut result = HashMap::new();
     for target in targets {
@@ -75,6 +87,36 @@ fn read_with(
                     }
                     get(&base, path, directory, auth)
                 });
+                if state.is_some() && Instant::now() < deadline {
+                    // Transcript ownership must be exact even when this process's
+                    // backend contains multiple historical roots.
+                    let exact = if let Some(id) = session {
+                        Some(id.to_string())
+                    } else {
+                        get(&base, "/session", directory, auth).and_then(|sessions| {
+                            let roots: Vec<_> = sessions
+                                .as_array()?
+                                .iter()
+                                .filter(|s| {
+                                    s["directory"] == directory && !s["parentID"].is_string()
+                                })
+                                .filter_map(|s| s["id"].as_str().map(str::to_string))
+                                .collect();
+                            (roots.len() == 1).then(|| roots[0].clone())
+                        })
+                    };
+                    if let Some(session) = exact
+                        && let Some(messages) = get(
+                            &base,
+                            &format!("/session/{session}/message?limit=128"),
+                            directory,
+                            auth,
+                        )
+                        && let Some(reply) = reply(&session, &messages)
+                    {
+                        report(&target.id, reply);
+                    }
+                }
                 if let Some(state) = state {
                     result
                         .entry(target.id.clone())
@@ -258,6 +300,71 @@ fn poll(
         }
     }
     Some(ActivityState::Agent)
+}
+
+fn reply(session: &str, messages: &Value) -> Option<Reply> {
+    let messages = messages.as_array()?;
+    let newest = |role: &str| {
+        messages
+            .iter()
+            .filter(|m| m["info"]["role"] == role)
+            .max_by_key(|m| {
+                (
+                    m["info"]["time"]["created"].as_u64().unwrap_or(0),
+                    m["info"]["id"].as_str().unwrap_or(""),
+                )
+            })
+    };
+    let user = newest("user")?;
+    let user_id = user["info"]["id"].as_str()?;
+    let Some(message) = newest("assistant").filter(|m| m["info"]["parentID"] == user_id) else {
+        return Some(Reply::new(
+            "opencode",
+            session,
+            user_id,
+            ReplyStatus::InProgress,
+            "",
+        ));
+    };
+    let info = &message["info"];
+    // Tools completing and permission waits are not assistant turn completions.
+    let status = if info["summary"] == true {
+        ReplyStatus::InProgress
+    } else if info["error"].is_object() {
+        if info["error"]["name"] == "MessageAbortedError" {
+            ReplyStatus::Interrupted
+        } else {
+            ReplyStatus::Failed
+        }
+    } else if info["time"]["completed"].is_number() && info["finish"] == "stop" {
+        ReplyStatus::Completed
+    } else if info["time"]["completed"].is_number() && info["finish"] == "length" {
+        ReplyStatus::Failed
+    } else {
+        ReplyStatus::InProgress
+    };
+    let text = if status == ReplyStatus::InProgress {
+        String::new()
+    } else {
+        message["parts"]
+            .as_array()?
+            .iter()
+            .filter(|part| {
+                part["type"] == "text" && part["synthetic"] != true && part["ignored"] != true
+            })
+            .filter_map(|part| part["text"].as_str())
+            .collect::<Vec<_>>()
+            .join("\n\n")
+    };
+    let text = if status == ReplyStatus::Failed && text.is_empty() {
+        info["error"]["data"]["message"]
+            .as_str()
+            .unwrap_or("")
+            .to_string()
+    } else {
+        text
+    };
+    Some(Reply::new("opencode", session, user_id, status, &text))
 }
 
 #[cfg(test)]
@@ -461,5 +568,98 @@ mod tests {
         assert!(local_url("http://192.168.1.5:4096").is_none());
         assert!(local_url("http://localhost.example.com:4096").is_none());
         assert!(local_url("http://secret@localhost:4096").is_none());
+    }
+
+    #[test]
+    fn body_poll_maps_exact_session_and_does_not_read_ambiguous_transcripts() {
+        let targets = [Target {
+            id: "terminal".into(),
+            cwd: "/work".into(),
+            processes: vec![Process {
+                pid: 1,
+                parent: 0,
+                args: vec!["opencode".into()],
+                cwd: Some("/work".into()),
+                env: HashMap::new(),
+                listening: vec![10001],
+                open_files: vec![],
+            }],
+        }];
+        let mut data = fixture(json!({}), json!([]));
+        data.insert("/session/ses_root/message?limit=128", json!([
+            {"info":{"id":"u","role":"user","time":{"created":1}}},
+            {"info":{"id":"a","role":"assistant","parentID":"u","time":{"created":2,"completed":3},"finish":"stop"},
+             "parts":[{"type":"text","text":"本文"}]}
+        ]));
+        let mut replies = Vec::new();
+        read_detailed(
+            &targets,
+            |_, path, directory, _| {
+                assert_eq!(directory, "/work");
+                data.get(path).cloned()
+            },
+            |id, reply| replies.push((id.to_string(), reply)),
+        );
+        assert_eq!(replies.len(), 1);
+        assert_eq!(replies[0].0, "terminal");
+        assert_eq!(replies[0].1.session_id, "ses_root");
+        assert_eq!(replies[0].1.text, "本文");
+        data.get_mut("/session")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id":"other","directory":"/work"}));
+        read_detailed(
+            &targets,
+            |_, path, _, _| {
+                assert!(!path.contains("/message"));
+                data.get(path).cloned()
+            },
+            |_, _| panic!("ambiguous reply must not be published"),
+        );
+    }
+    #[test]
+    fn reply_requires_latest_user_parent_and_final_stop_not_tool_completion() {
+        let mut messages = json!([
+            {"info":{"id":"u","role":"user","time":{"created":10}}},
+            {"info":{"id":"a","role":"assistant","parentID":"u","time":{"created":11,"completed":12},"finish":"tool-calls"},
+             "parts":[{"type":"tool","state":{"output":"not a reply"}},{"type":"text","text":"途中"}]}
+        ]);
+        assert_eq!(
+            reply("s", &messages).unwrap().status,
+            ReplyStatus::InProgress
+        );
+        messages[1]["info"]["finish"] = json!("stop");
+        messages[1]["parts"] = json!([
+            {"type":"reasoning","text":"private"},{"type":"text","text":"最終返信\n本文"},
+            {"type":"text","synthetic":true,"text":"injected"},
+            {"type":"text","ignored":true,"text":"ignored"}
+        ]);
+        let result = reply("s", &messages).unwrap();
+        assert_eq!(result.status, ReplyStatus::Completed);
+        assert_eq!(result.text, "最終返信\n本文");
+        messages[1]["info"]["summary"] = json!(true);
+        assert_eq!(
+            reply("s", &messages).unwrap().status,
+            ReplyStatus::InProgress
+        );
+        assert!(reply("s", &messages).unwrap().text.is_empty());
+        messages[1]["info"]["summary"] = json!(false);
+        messages
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"info":{"id":"new","role":"user","time":{"created":20}}}));
+        assert_eq!(
+            reply("s", &messages).unwrap().status,
+            ReplyStatus::InProgress
+        );
+        messages[1]["info"]["parentID"] = json!("new");
+        messages[1]["info"]["error"] = json!({"name":"MessageAbortedError"});
+        assert_eq!(
+            reply("s", &messages).unwrap().status,
+            ReplyStatus::Interrupted
+        );
+        messages[1]["info"]["error"] = json!({"name":"APIError"});
+        assert_eq!(reply("s", &messages).unwrap().status, ReplyStatus::Failed);
     }
 }

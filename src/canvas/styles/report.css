@@ -102,3 +102,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.report__reply {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mui-palette-primary-main);
+  font: inherit;
+  font-size: 11px;
+  line-height: 18px;
+  cursor: pointer;
+}

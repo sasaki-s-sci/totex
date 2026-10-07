@@ -9,9 +9,21 @@ export type Step = {
   done: boolean;
 };
 
+export type AgentReply = {
+  key: string;
+  agent: string;
+  sessionId: string;
+  turnId: string;
+  status: "inProgress" | "completed" | "failed" | "interrupted";
+  text: string;
+  truncated: boolean;
+};
+
 export type Report = {
   doing: string;
   steps: Step[];
+  reply?: AgentReply;
+  replyKey?: string;
   /** Never sent by an agent: the overseer's line, drawn in place of whatever the agent said. */
   overseen?: true;
 };

@@ -18,6 +18,7 @@
 //! which is why it is held here, beside the sessions, and not in the window.
 
 mod address;
+pub mod hooks;
 mod http;
 pub mod install;
 mod report;
@@ -88,13 +89,15 @@ pub struct Report {
     /// The plan that line is a step of, in order, or nothing where there is no
     /// plan — which is most of the time, and is a card with one line on it.
     pub steps: Vec<Step>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply: Option<crate::monitor::Reply>,
 }
 
 impl Report {
     /// Nothing to show, which is how a session says it has stopped rather than
     /// leaving the last thing it was doing standing on the graph forever.
     fn empty(&self) -> bool {
-        self.doing.is_empty() && self.steps.is_empty()
+        self.doing.is_empty() && self.steps.is_empty() && self.reply.is_none()
     }
 }
 
@@ -141,6 +144,7 @@ pub struct Door {
     /// whether an address is anybody's.
     sessions: Arc<Sessions>,
     reporting: Mutex<Vec<Reporter>>,
+    pub(crate) hooks: Mutex<hooks::Hooks>,
 }
 
 impl Door {
@@ -153,6 +157,7 @@ impl Door {
     /// no longer exists, which is worse than nothing.
     pub fn new(sessions: Arc<Sessions>) -> Arc<Self> {
         let door = Arc::new(Self {
+            hooks: Mutex::new(hooks::Hooks::default()),
             keys: RandomState::new(),
             last: AtomicU16::new(0),
             standing: Mutex::new(None),
@@ -192,6 +197,10 @@ impl Door {
 
     fn said(&self) -> MutexGuard<'_, HashMap<String, Report>> {
         lock(&self.said)
+    }
+
+    pub fn reply(&self, id: &str, reply: crate::monitor::Reply) {
+        report::reply(self, id, reply);
     }
 
     /// Adds something that is told every report, for the life of the program.

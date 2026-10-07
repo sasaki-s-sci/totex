@@ -182,3 +182,49 @@ fn the_one_door_answers_for_the_session_the_request_names() {
     held.sessions.close(id);
     held.door.unserve();
 }
+
+#[cfg(unix)]
+#[test]
+fn api_replies_are_deduplicated_preserved_across_mcp_reports_and_removed_on_exit() {
+    use crate::monitor::{Reply, ReplyStatus};
+    let held = held();
+    session(&held, "reply-terminal");
+    let (sender, receiver) = mpsc::channel();
+    held.door.follow(std::sync::Arc::new(move |report| {
+        sender.send(report.clone()).unwrap();
+    }));
+    let reply = Reply::new(
+        "codex",
+        "thread",
+        "turn",
+        ReplyStatus::Completed,
+        "reply body",
+    );
+    held.door.reply("reply-terminal", reply.clone());
+    assert_eq!(
+        receiver
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .report
+            .unwrap()
+            .reply,
+        Some(reply.clone())
+    );
+    held.door.reply("reply-terminal", reply.clone());
+    assert!(receiver.try_recv().is_err());
+    super::super::report::keep(
+        &held.door,
+        "reply-terminal",
+        Report {
+            doing: String::new(),
+            steps: vec![],
+            reply: None,
+        },
+    );
+    assert_eq!(
+        reported(&held.door, "reply-terminal").unwrap().reply,
+        Some(reply)
+    );
+    held.sessions.close("reply-terminal");
+    assert!(reported(&held.door, "reply-terminal").is_none());
+}

@@ -52,7 +52,7 @@ impl Sight for Window {
         })
     }
 
-    fn describe(&self, id: &str, status: Option<String>) -> Result<(), String> {
+    fn describe(&self, id: &str, status: Option<String>, _: Option<&str>) -> Result<(), String> {
         if id == OWN {
             return Err("that is your own terminal".to_string());
         }

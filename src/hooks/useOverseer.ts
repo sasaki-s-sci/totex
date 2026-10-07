@@ -17,10 +17,15 @@ export function useOverseer() {
   const [session, setSession] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<ReadonlyMap<string, Report>>(NOTHING);
 
-  const put = useCallback((id: string, status: string | null) => {
+  const put = useCallback((id: string, status: string | null, replyKey?: string | null) => {
     setStatuses((current) => {
-      const report = overseenReport(status);
-      if (current.get(id)?.doing === report?.doing) return current;
+      const line = overseenReport(status);
+      const report = line ? { ...line, replyKey: replyKey ?? undefined } : null;
+      if (
+        current.get(id)?.doing === report?.doing &&
+        current.get(id)?.replyKey === report?.replyKey
+      )
+        return current;
       const next = new Map(current);
       if (report) next.set(id, report);
       else if (!next.delete(id)) return current;
@@ -47,7 +52,7 @@ export function useOverseer() {
     () =>
       watchReadings(
         { listen: onStatus, read: statusesNow, exit: onShellExit },
-        ({ id, status }) => put(id, status),
+        ({ id, status, replyKey }) => put(id, status, replyKey),
         (id) => put(id, null),
       ),
     [put],

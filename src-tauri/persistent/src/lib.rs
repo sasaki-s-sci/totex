@@ -88,7 +88,17 @@ impl Persistent {
     pub fn new(home: Option<PathBuf>) -> Arc<Self> {
         let sessions = Arc::new(Sessions::default());
         let door = Door::new(Arc::clone(&sessions));
+        if let Some(home) = &home {
+            door.load_hook_token(home);
+        }
         let monitor = monitor::Monitor::new(Arc::clone(&sessions));
+        monitor.claude_hooks(Arc::downgrade(&door));
+        let reports = Arc::downgrade(&door);
+        monitor.reply_to(Arc::new(move |id, reply| {
+            if let Some(door) = reports.upgrade() {
+                door.reply(id, reply);
+            }
+        }));
         let store = Store::at(home.as_ref().map(|home| home.join("store")));
         Arc::new(Self {
             sessions,

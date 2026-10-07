@@ -39,6 +39,30 @@ You do this through the `totex-overseer` MCP server. Its tools:
    only when the line would actually change.
 5. Go back to step 2. Forever.
 
+## Structured replies and card updates
+
+`terminals` returns `report.reply` when an official interface has supplied a
+reply. It contains `key`, `agent`, `sessionId`, `turnId`, `status`, `text`, and
+`truncated`. Status is `inProgress`, `completed`, `failed`, or `interrupted`.
+Use this authoritative status and body before reading `screen`. Do not infer
+completion from `doing` when a structured reply is available. A completed reply
+means the turn ended, not that every requested task or test succeeded.
+
+Summarize the actual reply and its result in Japanese. Pass `replyKey` equal to
+`report.reply.key` to `describe`. If rejected because the reply changed, read
+`terminals` again before writing. The card retains the original reply while you
+summarize it and offers its full text to the user. Never include reasoning or
+tool logs in place of the reply. When `truncated` is true, do not claim you have
+read the complete body.
+
+## Reading activity changes
+
+The terminal's `doing` state uses the agent's official status interface when
+available. A change from `working` to `agent` can mean that a reply ended, but
+can also mean a permission request, a question, an interruption, or an error.
+Check `asking` and the terminal's `screen` before describing the result. Only
+say that work completed successfully when the visible result supports it.
+
 ## The status line
 
 - Write it in Japanese. The user reads Japanese.

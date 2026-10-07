@@ -151,11 +151,27 @@
   },
   "overseer": {
     "terminal": "Overseer",
-    "says": "overseer"
+    "says": "overseer",
+    "monitoring": "Agent monitoring",
+    "control": "Monitoring agent",
+    "start": "Start monitoring",
+    "stop": "Stop monitoring",
+    "starting": "Starting…",
+    "stopping": "Stopping…",
+    "active": "Monitoring",
+    "inactive": "Stopped",
+    "help": "A Claude Code monitoring agent checks terminal state changes and displays their status. Claude Code must be installed and signed in. Starting monitoring configures official reply hooks; restart existing Claude sessions to load them.",
+    "failed": "Could not control the monitoring agent."
   },
   "report": {
     "open": "Open the terminal",
-    "working": "is working"
+    "working": "is working",
+    "inProgress": "Responding",
+    "completed": "Reply complete",
+    "failed": "Failed",
+    "interrupted": "Interrupted",
+    "readReply": "Read reply",
+    "truncated": "Part of this long reply has been omitted."
   },
   "settings": {
     "canvas": "Canvas",

@@ -63,6 +63,7 @@ const NAME: &str = "overseer";
 pub struct Status {
     id: String,
     status: Option<String>,
+    reply_key: Option<String>,
 }
 
 /// What has to outlive a window: the overseer it is still talking to and how
@@ -81,6 +82,8 @@ struct Kept {
     port: Option<u16>,
     #[serde(default)]
     statuses: HashMap<String, String>,
+    #[serde(default)]
+    status_keys: HashMap<String, String>,
 }
 
 #[derive(Default)]
@@ -96,6 +99,7 @@ struct Held {
 /// The overseer, as this window holds it.
 #[derive(Default)]
 pub struct Overseer {
+    control: Mutex<()>,
     held: Mutex<Held>,
     journal: Journal,
 }
@@ -178,16 +182,8 @@ pub fn attend<R: Runtime>(app: &AppHandle<R>) {
         }
     }));
 
-    if !rise(app, &overseer) {
-        // Off the setup thread: opening a shell waits on the persistent half,
-        // and the window should not wait on it to come up.
-        let handle = app.clone();
-        // Nothing to say where it fails: with no overseer the canvas draws
-        // what the agents say for themselves, as it did before there was one.
-        std::thread::spawn(move || {
-            let _ = summon(&handle, &overseer);
-        });
-    }
+    // Reconnect an existing overseer, but starting a new one is a Settings action.
+    let _ = rise(app, &overseer);
 }
 
 /// Takes back what an earlier window kept, as far as it is still true, and
@@ -207,6 +203,7 @@ fn rise<R: Runtime>(app: &AppHandle<R>, overseer: &Arc<Overseer>) -> bool {
     let before = kept.clone();
     kept.session = kept.session.filter(|id| running.contains(id));
     kept.statuses.retain(|id, _| running.contains(id));
+    kept.status_keys.retain(|id, _| running.contains(id));
     let alive = kept.session.is_some();
     overseer.lock().kept = kept.clone();
     if kept != before {
@@ -222,8 +219,10 @@ fn ended<R: Runtime>(app: &AppHandle<R>, overseer: &Overseer, id: &str) {
     let (gone, kept, own) = {
         let mut held = overseer.lock();
         held.asking.remove(id);
+        held.kept.status_keys.remove(id);
         if held.kept.session.as_deref() == Some(id) {
             held.kept.session = None;
+            held.kept.status_keys.clear();
             let gone: Vec<String> = held.kept.statuses.drain().map(|(id, _)| id).collect();
             (gone, held.kept.clone(), true)
         } else {
@@ -240,6 +239,7 @@ fn ended<R: Runtime>(app: &AppHandle<R>, overseer: &Overseer, id: &str) {
             Status {
                 id: id.clone(),
                 status: None,
+                reply_key: None,
             },
         );
     }
@@ -376,7 +376,12 @@ impl<R: Runtime> Sight for Seen<R> {
         })
     }
 
-    fn describe(&self, id: &str, status: Option<String>) -> Result<(), String> {
+    fn describe(
+        &self,
+        id: &str,
+        status: Option<String>,
+        reply_key: Option<&str>,
+    ) -> Result<(), String> {
         if self.overseer.is_own(id) {
             return Err("that is your own terminal; describe the others".to_string());
         }
@@ -386,13 +391,33 @@ impl<R: Runtime> Sight for Seen<R> {
         {
             return Err(format!("there is no terminal {id}"));
         }
+        let reports =
+            crate::persistent::link(&self.app).asked::<Vec<Reported>>("door_reports", json!({}))?;
+        let current_key = reports
+            .iter()
+            .find(|report| report.id == id)
+            .and_then(|report| report.report.as_ref())
+            .and_then(|report| report.reply.as_ref())
+            .map(|reply| reply.key.as_str());
+        if status.is_some() && current_key != reply_key {
+            return Err(
+                "The reply changed. Read terminals again and pass report.reply.key as replyKey."
+                    .into(),
+            );
+        }
         let kept = {
             let mut held = self.overseer.lock();
+            let old_key = held.kept.status_keys.get(id).cloned();
+            if let Some(key) = reply_key.filter(|_| status.is_some()) {
+                held.kept.status_keys.insert(id.into(), key.into());
+            } else {
+                held.kept.status_keys.remove(id);
+            }
             let before = match &status {
                 Some(status) => held.kept.statuses.insert(id.to_string(), status.clone()),
                 None => held.kept.statuses.remove(id),
             };
-            (before != status).then(|| held.kept.clone())
+            (before != status || old_key.as_deref() != reply_key).then(|| held.kept.clone())
         };
         let Some(kept) = kept else {
             return Ok(());
@@ -402,6 +427,7 @@ impl<R: Runtime> Sight for Seen<R> {
             Status {
                 id: id.to_string(),
                 status,
+                reply_key: reply_key.map(str::to_string),
             },
         );
         keep(&self.app, kept);
@@ -457,19 +483,56 @@ fn summon<R: Runtime>(app: &AppHandle<R>, overseer: &Arc<Overseer>) -> Result<()
     )?;
     link.know(&id);
 
+    // A failed write must not leave a terminal presented as a running overseer.
+    if let Err(error) = link.ask("write", json!({ "id": id, "data": launch::command() })) {
+        let _ = link.ask("close", json!({ "id": id }));
+        return Err(error);
+    }
     let kept = {
         let mut held = overseer.lock();
         held.kept.session = Some(id.clone());
         held.kept.statuses.clear();
+        held.kept.status_keys.clear();
         held.asking.clear();
         held.kept.clone()
     };
     keep(app, kept);
-    let _ = app.emit(SESSION_EVENT, Some(id.clone()));
+    let _ = app.emit(SESSION_EVENT, Some(id));
+    Ok(())
+}
 
-    // Typed at once: the terminal holds it until the shell comes to read it.
-    link.ask("write", json!({ "id": id, "data": launch::command() }))
-        .map(|_| ())
+/// Starts one overseer from Settings. Repeated starts share the same session.
+#[tauri::command(async)]
+pub fn overseer_start<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
+    let overseer = app.state::<Arc<Overseer>>();
+    let _control = crate::sync::lock(&overseer.control);
+    if let Some(id) = overseer_session(app.clone()) {
+        return Ok(id);
+    }
+    // Claude needs its official HTTP hooks to deliver final replies.
+    crate::persistent::link(&app).ask(
+        "door_install",
+        json!({ "agent": "claude", "replyHooks": true }),
+    )?;
+    summon(&app, &overseer)?;
+    overseer
+        .own()
+        .ok_or_else(|| "The overseer ended while starting".to_string())
+}
+
+/// Stops the overseer's own terminal and clears its status lines.
+#[tauri::command(async)]
+pub fn overseer_stop<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let overseer = app.state::<Arc<Overseer>>();
+    let _control = crate::sync::lock(&overseer.control);
+    let Some(id) = overseer.own() else {
+        return Ok(());
+    };
+    crate::persistent::link(&app).ask("close", json!({ "id": id }))?;
+    if overseer.is_own(&id) {
+        ended(&app, &overseer, &id);
+    }
+    Ok(())
 }
 
 /// The overseer's session, where there is one and it is still running.
@@ -485,14 +548,15 @@ pub fn overseer_session<R: Runtime>(app: AppHandle<R>) -> Option<String> {
 /// Every line the overseer has written, for a window that has just come up.
 #[tauri::command(async)]
 pub fn overseer_statuses<R: Runtime>(app: AppHandle<R>) -> Vec<Status> {
-    app.state::<Arc<Overseer>>()
-        .lock()
-        .kept
+    let overseer = app.state::<Arc<Overseer>>();
+    let held = overseer.lock();
+    held.kept
         .statuses
         .iter()
         .map(|(id, status)| Status {
             id: id.clone(),
             status: Some(status.clone()),
+            reply_key: held.kept.status_keys.get(id).cloned(),
         })
         .collect()
 }

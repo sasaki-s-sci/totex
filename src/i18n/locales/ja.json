@@ -151,11 +151,27 @@
   },
   "overseer": {
     "terminal": "Overseer",
-    "says": "overseer より"
+    "says": "overseer より",
+    "monitoring": "Agentの監視",
+    "control": "監視agent",
+    "start": "監視開始",
+    "stop": "監視停止",
+    "starting": "起動中…",
+    "stopping": "停止中…",
+    "active": "監視中",
+    "inactive": "停止中",
+    "help": "Claude Codeの監視agentが、各端末の状態変化を確認し、状況を表示します。Claude Codeのインストールとログインが必要です。監視開始時に公式の返信取得hookを設定します。既存のClaudeセッションは再起動して反映してください。",
+    "failed": "監視agentの操作に失敗しました。"
   },
   "report": {
     "open": "ターミナルを開く",
-    "working": "作業中"
+    "working": "作業中",
+    "inProgress": "応答中",
+    "completed": "返信完了",
+    "failed": "失敗",
+    "interrupted": "中断",
+    "readReply": "返信本文を読む",
+    "truncated": "長い返信のため、本文の一部を省略しています。"
   },
   "settings": {
     "canvas": "キャンバス",

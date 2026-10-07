@@ -40,6 +40,7 @@ tokio = { version = "1.53.1", default-features = false, features = ["rt"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.189"
+tungstenite = { version = "0.29.0", default-features = false, features = ["handshake"] }
 
 [dev-dependencies]
 # Signing a release of this test's own, for the one test that runs a release

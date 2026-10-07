@@ -9,6 +9,7 @@ import { GridRows } from "./GridRows";
 import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
 import { MarkSizeRows } from "./MarkSizeRows";
+import { OverseerRow } from "./OverseerRow";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
@@ -69,6 +70,9 @@ export function SettingsContent() {
           </Group>
         </Section>
         <Section name={t("settings.terminal")}>
+          <Callout parts={["said"]} name={t("overseer.monitoring")}>
+            <OverseerRow />
+          </Callout>
           <Callout parts={["terminal"]} name={t("settings.terminalView")}>
             <WheelRow place="cli" />
           </Callout>

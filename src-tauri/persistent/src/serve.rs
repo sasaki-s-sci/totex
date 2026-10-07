@@ -327,9 +327,13 @@ fn answer(
         "door_reports" => said(held.door.reports()),
         "monitor_activities" => said(held.monitor.activities()),
         "door_setups" => said(held.door.setups()),
-        "door_install" => {
-            read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))
-        }
+        "door_install" => read::<Installing>(with).and_then(|at| {
+            if at.reply_hooks && at.agent == door::Agent::Claude {
+                held.door.install_reply_hooks(&serving.home).and_then(said)
+            } else {
+                held.door.install(at.agent).and_then(said)
+            }
+        }),
         "store_get" => read::<Stored>(with).and_then(|at| said(held.store.get(&at.name)?)),
         "store_put" => read::<Putting>(with)
             .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
@@ -402,6 +406,8 @@ struct Resized {
 #[derive(Deserialize)]
 struct Installing {
     agent: door::Agent,
+    #[serde(default, rename = "replyHooks")]
+    reply_hooks: bool,
 }
 
 #[derive(Deserialize)]

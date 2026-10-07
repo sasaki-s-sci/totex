@@ -1,4 +1,6 @@
+import { Dialog, DialogContent, DialogTitle, Typography } from "@mui/material";
 import type { NodeProps } from "@xyflow/react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ReportFlowNode } from "../../lib/graph";
@@ -6,6 +8,7 @@ import { useGraphActions } from "../graphActions";
 
 export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
   const { t } = useTranslation();
+  const [reading, setReading] = useState<string | null>(null);
   const { session, report, card } = data;
   const { showSession } = useGraphActions();
 
@@ -23,7 +26,9 @@ export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
       >
         <span className="report__who">{session.branch}</span>
         <span className="report__count">
-          {card.count ?? (report.overseen ? t("overseer.says") : t("report.working"))}
+          {report.reply
+            ? t(`report.${report.reply.status}`)
+            : (card.count ?? (report.overseen ? t("overseer.says") : t("report.working")))}
         </span>
       </button>
 
@@ -44,6 +49,48 @@ export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
             </div>
           ))}
         </div>
+      )}
+      {report.reply?.text && (
+        <>
+          <button
+            type="button"
+            className="report__reply nodrag nopan"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              setReading(report.reply?.key ?? null);
+            }}
+          >
+            {t("report.readReply")}
+          </button>
+          <Dialog
+            open={reading === report.reply.key}
+            onClose={() => setReading(null)}
+            fullWidth
+            maxWidth="md"
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <DialogTitle>
+              {report.reply.agent} · {t(`report.${report.reply.status}`)}
+            </DialogTitle>
+            <DialogContent>
+              {report.reply.truncated && (
+                <Typography color="warning.main">{t("report.truncated")}</Typography>
+              )}
+              <Typography
+                component="pre"
+                sx={{
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                  fontFamily: "inherit",
+                  m: 0,
+                }}
+              >
+                {report.reply.text}
+              </Typography>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </div>
   );

@@ -9,8 +9,11 @@ use serde_json::Value;
 use super::{Process, Target, command_json};
 use crate::monitor::ActivityState;
 
-pub(super) fn read(targets: &[Target]) -> HashMap<String, ActivityState> {
-    read_with(targets, command_json)
+pub(super) fn read_replies(
+    targets: &[Target],
+    report: impl FnMut(&str, &str),
+) -> HashMap<String, ActivityState> {
+    read_detailed(targets, command_json, report)
 }
 
 fn is_claude(process: &Process) -> bool {
@@ -22,9 +25,18 @@ fn is_claude(process: &Process) -> bool {
     })
 }
 
+#[cfg(test)]
 fn read_with(
     targets: &[Target],
+    command: impl FnMut(&str, &[&str], &HashMap<String, String>) -> Result<Value, String>,
+) -> HashMap<String, ActivityState> {
+    read_detailed(targets, command, |_, _| {})
+}
+
+fn read_detailed(
+    targets: &[Target],
     mut command: impl FnMut(&str, &[&str], &HashMap<String, String>) -> Result<Value, String>,
+    mut report: impl FnMut(&str, &str),
 ) -> HashMap<String, ActivityState> {
     // Each configuration home has its own session registry. Query it once,
     // regardless of how many terminals contain Claude processes.
@@ -86,6 +98,9 @@ fn read_with(
             for &(id, process) in &processes {
                 if process.pid != pid {
                     continue;
+                }
+                if let Some(session) = session["sessionId"].as_str() {
+                    report(id, session);
                 }
                 activities
                     .entry(id.to_string())
@@ -190,5 +205,20 @@ mod tests {
         ] {
             assert!(read_with(&[target("one", 101)], |_, _, _| reading.clone()).is_empty());
         }
+    }
+    #[test]
+    fn replies_map_only_by_live_pid_and_exact_session_uuid() {
+        let mut seen = Vec::new();
+        read_detailed(
+            &[target("terminal", 101)],
+            |_, _, _| {
+                Ok(json!([
+                    {"pid":101,"status":"idle","sessionId":"owned"},
+                    {"pid":999,"status":"idle","sessionId":"other","cwd":"/same/project"}
+                ]))
+            },
+            |id, session| seen.push((id.to_string(), session.to_string())),
+        );
+        assert_eq!(seen, [("terminal".into(), "owned".into())]);
     }
 }

@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 
 /** Real Window, React Flow, file editors and xterm; only native IPC is replaced. */
-export async function verifyPages(page, base = "http://127.0.0.1:18422") {
+export async function verifyPages(page, base = "http://127.0.0.1:18422", monitoringOnly = false) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
     localStorage.setItem("totex.language", "en");
     let serial = 0;
     const callbacks = new Map();
+    const listeners = new Map();
+    let overseer = null;
     window.pageCalls = [];
     window.pageWriteRefused = false;
     window.pageClipboard = "日本語\nsecond line";
@@ -23,10 +25,43 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       async invoke(cmd, args) {
         window.pageCalls.push({ cmd, args });
         if (cmd === "plugin:clipboard-manager|read_text") return window.pageClipboard;
-        if (cmd === "plugin:event|listen") return ++serial;
+        if (cmd === "plugin:event|listen") {
+          const id = ++serial;
+          listeners.set(id, { event: args.event, callback: args.handler });
+          return id;
+        }
+        if (cmd === "plugin:event|unlisten") {
+          listeners.delete(args.eventId);
+          return;
+        }
+        if (cmd === "overseer_session") return overseer;
+        if (cmd === "overseer_statuses") return [];
+        if (cmd === "overseer_start" || cmd === "overseer_stop") {
+          if (window.overseerRefused) throw new Error("Monitor unavailable");
+          const ended = overseer;
+          overseer = cmd === "overseer_start" ? "monitor-agent" : null;
+          for (const [id, listener] of listeners) {
+            if (listener.event === "overseer:session")
+              callbacks.get(listener.callback)?.({ event: listener.event, id, payload: overseer });
+            if (cmd === "overseer_stop" && listener.event === "pty:exit")
+              callbacks.get(listener.callback)?.({ event: listener.event, id, payload: ended });
+          }
+          return overseer;
+        }
         if (cmd === "pty_sessions")
           return [
             { id: "terminal-one", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"main"}' },
+            ...(overseer
+              ? [
+                  {
+                    id: overseer,
+                    cwd: "/tmp/monitor",
+                    rows: 24,
+                    cols: 80,
+                    meta: '{"branch":"","overseer":true}',
+                  },
+                ]
+              : []),
           ];
         if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
         if (
@@ -71,6 +106,34 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   await page.getByRole("textbox", { name: "note.txt", exact: true }).waitFor();
   await page.locator('[data-terminal="terminal-one"] .xterm-screen').waitFor();
   await page.locator(".settings-page input").first().waitFor();
+  if (monitoringOnly) {
+    const settings = page.locator(".settings-page");
+    await page.evaluate(() => {
+      window.overseerRefused = true;
+    });
+    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
+    await settings.getByRole("alert").filter({ hasText: "Monitor unavailable" }).waitFor();
+    await page.evaluate(() => {
+      window.overseerRefused = false;
+    });
+    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
+    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).waitFor();
+    assert.equal(
+      await settings.getByRole("alert").filter({ hasText: "Monitor unavailable" }).count(),
+      0,
+    );
+    await page.locator('[data-terminal="monitor-agent"]').waitFor({ state: "attached" });
+    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).click();
+    await settings.getByRole("button", { name: "Start monitoring", exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(
+        () => window.pageCalls.filter(({ cmd }) => cmd === "overseer_stop").length,
+      ),
+      1,
+    );
+    assert.equal(errors.length, 0, errors.join("\n"));
+    return { passed: "Settings monitoring start, stop, failed start and retry", errors };
+  }
   const sidebar = page.locator("#cli-sidebar");
   const terminal = page.locator('[data-terminal="terminal-one"]');
   const note = page.getByRole("textbox", { name: "note.txt", exact: true });
@@ -288,4 +351,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       "terminal identity, collapse, file/settings docking, failed saves, host capabilities, hiding, pinning, dragging, snapshot, close",
     errors,
   };
+}
+
+export async function verifyMonitoring(page, base = "http://127.0.0.1:18422") {
+  return verifyPages(page, base, true);
 }

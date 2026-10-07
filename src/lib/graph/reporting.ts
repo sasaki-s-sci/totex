@@ -44,24 +44,27 @@ export type ReportNodeData = {
 export type ReportFlowNode = Node<ReportNodeData, "report">;
 
 export function reportCard(report: Report): ReportCard {
-  const doing = clamp(wrap(report.doing, DOING_CELLS), DOING_LINES);
+  const body = report.reply && !report.overseen ? report.reply.text : report.doing;
+  const doing = clamp(wrap(body, DOING_CELLS), DOING_LINES);
 
-  const working = report.steps.findIndex((step) => !step.done);
+  const plan = report.reply && report.reply.status !== "inProgress" ? [] : report.steps;
+  const working = plan.findIndex((step) => !step.done);
   const first = from(report);
-  const steps = report.steps.slice(first, first + STEP_ROWS).map((step, at) => ({
+  const steps = plan.slice(first, first + STEP_ROWS).map((step, at) => ({
     at: first + at,
     title: clamp(wrap(step.title, STEP_CELLS), 1)[0] ?? "",
     done: step.done,
     here: first + at === working,
   }));
 
-  const done = report.steps.filter((step) => step.done).length;
-  const count = report.steps.length > 0 ? `${done}/${report.steps.length}` : null;
+  const done = plan.filter((step) => step.done).length;
+  const count = plan.length > 0 ? `${done}/${plan.length}` : null;
 
   let height = BORDER + PAD + HEAD + PAD;
   if (doing.length > 0) height += SPLIT + doing.length * DOING_LINE;
   if (steps.length > 0) height += SPLIT + steps.length * STEP_LINE;
 
+  if (report.reply?.text) height += 24;
   return { doing, steps, count, height };
 }
 

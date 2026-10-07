@@ -26,9 +26,11 @@ pub fn session_of(door: &Door, offered: &str) -> Option<String> {
 /// Keeps what a session said, and tells whoever is listening. An empty report
 /// is a session saying there is nothing to show, which is the same thing to a
 /// window as never having said anything.
-pub fn keep(door: &Door, id: &str, report: Report) {
+pub fn keep(door: &Door, id: &str, mut report: Report) {
     let report = {
         let mut said = door.said();
+        // A voluntary MCP report cannot erase an authoritative API reply.
+        report.reply = said.get(id).and_then(|old| old.reply.clone());
         if report.empty() {
             said.remove(id);
             None
@@ -44,6 +46,35 @@ pub fn keep(door: &Door, id: &str, report: Report) {
     door.tell(&Reported {
         id: id.to_string(),
         report,
+    });
+}
+
+/// Publish only actual changes; repeated polls never redraw unchanged cards.
+pub fn reply(door: &Door, id: &str, reply: crate::monitor::Reply) {
+    if !door
+        .sessions
+        .running()
+        .iter()
+        .any(|session| session.id == id)
+    {
+        return;
+    }
+    let report = {
+        let mut said = door.said();
+        let report = said.entry(id.into()).or_insert_with(|| Report {
+            doing: String::new(),
+            steps: Vec::new(),
+            reply: None,
+        });
+        if report.reply.as_ref() == Some(&reply) {
+            return;
+        }
+        report.reply = Some(reply);
+        report.clone()
+    };
+    door.tell(&Reported {
+        id: id.into(),
+        report: Some(report),
     });
 }
 

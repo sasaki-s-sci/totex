@@ -4,6 +4,8 @@ mod claude;
 mod codex;
 mod opencode;
 mod process;
+mod reply;
+pub use reply::{Reply, ReplyStatus};
 
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
@@ -31,6 +33,8 @@ pub struct Activity {
     pub activity: Option<ActivityState>,
 }
 
+pub type ReplyReporter = Arc<dyn Fn(&str, Reply) + Send + Sync>;
+
 pub type ActivityReporter = Arc<dyn Fn(&Activity) + Send + Sync>;
 
 pub(super) struct Target {
@@ -52,6 +56,8 @@ pub(super) struct Process {
 pub struct Monitor {
     states: Mutex<HashMap<String, ActivityState>>,
     reporting: Mutex<Vec<ActivityReporter>>,
+    replies: Mutex<Vec<ReplyReporter>>,
+    claude: Mutex<Option<std::sync::Weak<crate::door::Door>>>,
 }
 
 impl Monitor {
@@ -59,6 +65,8 @@ impl Monitor {
         let monitor = Arc::new(Self {
             states: Mutex::new(HashMap::new()),
             reporting: Mutex::new(Vec::new()),
+            replies: Mutex::new(Vec::new()),
+            claude: Mutex::new(None),
         });
         let weak = Arc::downgrade(&monitor);
         // The worker never keeps the runtime alive after its owner goes away.
@@ -68,9 +76,22 @@ impl Monitor {
                 let Some(monitor) = weak.upgrade() else { break };
                 let targets = process::targets(&sessions);
                 let states = std::thread::scope(|scope| {
-                    let claude = scope.spawn(|| claude::read(&targets));
-                    let opencode = scope.spawn(|| opencode::read(&targets));
-                    let mut states = codex.read(&targets);
+                    let claude = scope.spawn(|| {
+                        let door = lock(&monitor.claude)
+                            .as_ref()
+                            .and_then(std::sync::Weak::upgrade);
+                        claude::read_replies(&targets, |id, session| {
+                            if let Some(reply) =
+                                door.as_ref().and_then(|door| door.claude_reply(session))
+                            {
+                                monitor.reply(id, reply);
+                            }
+                        })
+                    });
+                    let opencode = scope.spawn(|| {
+                        opencode::read_replies(&targets, |id, reply| monitor.reply(id, reply))
+                    });
+                    let mut states = codex.read(&targets, |id, reply| monitor.reply(id, reply));
                     for state in [claude.join(), opencode.join()].into_iter().flatten() {
                         for (id, next) in state {
                             states
@@ -91,6 +112,20 @@ impl Monitor {
             }
         });
         monitor
+    }
+
+    pub fn claude_hooks(&self, door: std::sync::Weak<crate::door::Door>) {
+        *lock(&self.claude) = Some(door);
+    }
+
+    pub fn reply_to(&self, reporter: ReplyReporter) {
+        lock(&self.replies).push(reporter);
+    }
+
+    fn reply(&self, id: &str, reply: Reply) {
+        for reporter in lock(&self.replies).clone() {
+            reporter(id, reply.clone());
+        }
     }
 
     pub fn follow(&self, reporter: ActivityReporter) {
@@ -132,10 +167,19 @@ impl Monitor {
     }
 }
 
-fn command_json(
+pub(crate) fn command_json(
     program: &str,
     args: &[&str],
     env: &HashMap<String, String>,
+) -> Result<Value, String> {
+    command_json_timeout(program, args, env, Duration::from_millis(1500))
+}
+
+pub(crate) fn command_json_timeout(
+    program: &str,
+    args: &[&str],
+    env: &HashMap<String, String>,
+    timeout: Duration,
 ) -> Result<Value, String> {
     let mut command = Command::new(program);
     command
@@ -151,11 +195,11 @@ fn command_json(
     let reader = std::thread::spawn(move || {
         let mut data = Vec::new();
         stdout
-            .take(256 * 1024 + 1)
+            .take(2 * 1024 * 1024 + 1)
             .read_to_end(&mut data)
             .map(|_| data)
     });
-    let deadline = Instant::now() + Duration::from_millis(1500);
+    let deadline = Instant::now() + timeout;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break Some(status),
@@ -181,7 +225,7 @@ fn command_json(
         .join()
         .map_err(|_| "status reader failed")?
         .map_err(|error| error.to_string())?;
-    if data.len() > 256 * 1024 {
+    if data.len() > 2 * 1024 * 1024 {
         return Err("status too large".into());
     }
     serde_json::from_slice(&data).map_err(|error| error.to_string())
@@ -216,14 +260,14 @@ fn http_json(base: &str, path: &str, directory: &str, auth: Option<(&str, &str)>
         let response = request.send().await.ok()?.error_for_status().ok()?;
         if response
             .content_length()
-            .is_some_and(|length| length > 256 * 1024)
+            .is_some_and(|length| length > 2 * 1024 * 1024)
         {
             return None;
         }
         let mut response = response;
         let mut data = Vec::new();
         while let Some(chunk) = response.chunk().await.ok()? {
-            if data.len() + chunk.len() > 256 * 1024 {
+            if data.len() + chunk.len() > 2 * 1024 * 1024 {
                 return None;
             }
             data.extend_from_slice(&chunk);
@@ -241,6 +285,8 @@ mod tests {
         let monitor = Monitor {
             states: Mutex::default(),
             reporting: Mutex::default(),
+            replies: Mutex::default(),
+            claude: Mutex::default(),
         };
         let seen = Arc::new(Mutex::new(Vec::new()));
         let capture = Arc::clone(&seen);

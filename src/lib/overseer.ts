@@ -8,6 +8,7 @@ export type Overseen = {
   id: string;
   /** One line about that terminal, written by the overseer; null once it has nothing to say. */
   status: string | null;
+  replyKey?: string | null;
 };
 
 export function overseerNow(): Promise<string | null> {
@@ -24,4 +25,12 @@ export function statusesNow(): Promise<Overseen[]> {
 
 export function onStatus(next: (overseen: Overseen) => void): Promise<UnlistenFn> {
   return listen<Overseen>(STATUS_EVENT, (event) => next(event.payload));
+}
+
+export function startOverseer(): Promise<string> {
+  return invoke<string>("overseer_start");
+}
+
+export function stopOverseer(): Promise<void> {
+  return invoke<void>("overseer_stop");
 }

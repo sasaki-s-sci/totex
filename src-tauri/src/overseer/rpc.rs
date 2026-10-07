@@ -60,7 +60,12 @@ pub trait Sight: Send + Sync {
     /// no such session or it is the overseer's own.
     fn screen(&self, id: &str) -> Option<Vec<String>>;
     /// Sets or clears the line drawn beside a session, or says why not.
-    fn describe(&self, id: &str, status: Option<String>) -> Result<(), String>;
+    fn describe(
+        &self,
+        id: &str,
+        status: Option<String>,
+        reply_key: Option<&str>,
+    ) -> Result<(), String>;
     fn journal(&self) -> &Journal;
     /// The overseer's own session, which is never in what it is told.
     fn own(&self) -> Option<String>;
@@ -186,6 +191,7 @@ fn tools() -> Value {
                 "properties": {
                     "id": { "type": "string" },
                     "status": { "type": "string" },
+                    "replyKey": { "type": "string", "description": "Copy report.reply.key from terminals when summarizing a reply; stale summaries are rejected." },
                 },
                 "required": ["id", "status"],
             },
@@ -262,7 +268,7 @@ fn describe(sight: &dyn Sight, arguments: &Value) -> Value {
             .unwrap_or(""),
     );
     let shown = (!status.is_empty()).then(|| status.clone());
-    match sight.describe(id, shown) {
+    match sight.describe(id, shown, arguments.get("replyKey").and_then(Value::as_str)) {
         Ok(()) if status.is_empty() => text_of(format!("Cleared the status of {id}.")),
         Ok(()) => text_of(format!("Shown beside {id}: {status}")),
         Err(why) => refused(&why),

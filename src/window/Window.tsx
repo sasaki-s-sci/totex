@@ -20,6 +20,7 @@ import type { Ask } from "../lib/ask";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
 import { useEver } from "../lib/onDemand";
+import { mergedReports } from "../lib/overseen";
 import { sessionsInPlaces } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
@@ -70,7 +71,10 @@ export function Window() {
   // While the overseer runs, everything beside a terminal is its line: the agents' own reports and
   // questions reach the person through it.
   const overseen = overseer.session !== null;
-  const reports = overseen ? overseer.statuses : said;
+  const reports = useMemo(
+    () => mergedReports(said, overseer.statuses, overseen),
+    [said, overseer.statuses, overseen],
+  );
   // The host opens the overseer's shell itself, maybe after this window listed what was running.
   const { pickUp } = sessions;
   const overseerKnown = sessions.sessions.some(({ id }) => id === overseer.session);
