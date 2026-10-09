@@ -52,6 +52,18 @@ the previous reply is cleared and marked in progress with an unknown turn ID.
 OpenCode compaction summaries are never displayed as final replies.
 
 Start or stop the monitoring agent in Settings → Terminal → Agent monitoring.
+On Windows, choose **Run monitoring in → WSL: <distribution>** to run the
+overseer using that distribution's Claude installation and login. Its private
+working directory is `~/.local/share/totex/windows-overseer` inside WSL, and the
+terminal is opened through `wsl.exe`. Windows does not need Claude installed for
+this mode. The selected distribution must use mirrored networking so it can
+reach the app's loopback MCP listener. Configure `[wsl2]` with
+`networkingMode=mirrored` in `%UserProfile%/.wslconfig`, then restart WSL before
+starting monitoring. See [Microsoft's networking documentation](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking).
+WSL terminals retain screen activity detection. WSL mode skips local reply-hook
+installation because the Windows process provider cannot map Linux Claude PIDs;
+it does not provide structured Claude replies from WSL sessions.
+
 Starting launches Claude Code in a dedicated overseer terminal; Claude Code must
 be installed and signed in. The overseer waits on the journal of API activity,
 questions, and reports, reads the changed terminal, and updates its status line.
@@ -59,7 +71,7 @@ Stopping closes only that overseer terminal and clears its lines. The status
 adapters continue to run. The app restores an existing overseer after reopening
 its window, but does not launch a new one automatically.
 
-Starting monitoring also installs the local `totex-replies` Claude plugin using
+Starting monitoring on this machine also installs the local `totex-replies` Claude plugin using
 Claude's official plugin CLI. Its authenticated HTTP `UserPromptSubmit`, `Stop`,
 and `StopFailure` hooks supply the lifecycle and `last_assistant_message`, without
 reading transcript files. Existing Claude sessions must restart to load the

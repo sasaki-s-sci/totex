@@ -27,8 +27,12 @@ export function onStatus(next: (overseen: Overseen) => void): Promise<UnlistenFn
   return listen<Overseen>(STATUS_EVENT, (event) => next(event.payload));
 }
 
-export function startOverseer(): Promise<string> {
-  return invoke<string>("overseer_start");
+export function overseerDistros(): Promise<string[]> {
+  return invoke<string[]>("overseer_distros");
+}
+
+export function startOverseer(distro: string | null = null): Promise<string> {
+  return invoke<string>("overseer_start", { distro });
 }
 
 export function stopOverseer(): Promise<void> {

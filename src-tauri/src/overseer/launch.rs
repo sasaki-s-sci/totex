@@ -14,6 +14,42 @@ use serde_json::json;
 
 use crate::host::Host;
 
+/// Prepare a private Linux directory, using the distribution's login PATH.
+/// The MCP listener stays on Windows loopback, so mirrored networking is
+/// required. Fail before opening a terminal if the CLI or route is unavailable.
+pub fn wsl_directory(distro: &str) -> Result<String, String> {
+    let output = crate::wsl::exec(distro, None, &[], &["bash", "-lc", WSL_PREPARE])?;
+    wsl_directory_output(distro, output)
+}
+
+const WSL_PREPARE: &str = r#"
+command -v claude >/dev/null || { echo 'Claude Code was not found in the WSL login PATH. Install and sign in inside this distribution.' >&2; exit 1; }
+test "$(wslinfo --networking-mode 2>/dev/null)" = mirrored || { echo 'WSL monitoring requires mirrored networking. Set networkingMode=mirrored under [wsl2] in %UserProfile%/.wslconfig, then restart WSL.' >&2; exit 1; }
+test -n "$HOME" && test "${HOME#/}" != "$HOME" || exit 1
+dir="$HOME/.local/share/totex/windows-overseer"
+mkdir -p -- "$dir" && chmod 700 -- "$dir" || exit 1
+printf '%s' "$dir"
+"#;
+
+fn wsl_directory_output(distro: &str, output: crate::remote::Output) -> Result<String, String> {
+    if !output.ok() {
+        let message = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!(
+            "{distro}: {}",
+            if message.is_empty() {
+                "Could not prepare WSL monitoring"
+            } else {
+                &message
+            }
+        ));
+    }
+    let native = output.text();
+    if !native.starts_with('/') || native.contains(['\n', '\r', '\0']) {
+        return Err(format!("{distro}: Invalid WSL monitoring directory"));
+    }
+    Ok(crate::wsl::unc(distro, &native))
+}
+
 /// Where under the folder the files go.
 pub const DIR: &str = "overseer";
 
@@ -82,4 +118,54 @@ pub fn write(cwd: &str, port: u16, token: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod wsl_tests {
+    use super::*;
+
+    #[test]
+    fn linux_directory_routes_the_terminal_and_files_to_the_selected_distribution() {
+        let cwd = wsl_directory_output(
+            "Ubuntu",
+            crate::remote::Output {
+                code: 0,
+                stdout: b"/home/a user/.local/share/totex/windows-overseer".to_vec(),
+                stderr: vec![],
+            },
+        )
+        .unwrap();
+        assert_eq!(Host::of_str(&cwd), Host::Wsl("Ubuntu".into()));
+        assert_eq!(
+            Host::of_str(&cwd).native(Path::new(&cwd)),
+            "/home/a user/.local/share/totex/windows-overseer"
+        );
+    }
+
+    #[test]
+    fn missing_cli_or_networking_does_not_become_a_directory() {
+        let error = wsl_directory_output(
+            "Ubuntu",
+            crate::remote::Output {
+                code: 1,
+                stdout: vec![],
+                stderr: b"Claude Code was not found".to_vec(),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, "Ubuntu: Claude Code was not found");
+        for path in ["", "C:\\Users\\a", "login banner\n/home/a", "/home/a\n"] {
+            assert!(
+                wsl_directory_output(
+                    "Ubuntu",
+                    crate::remote::Output {
+                        code: 0,
+                        stdout: path.as_bytes().to_vec(),
+                        stderr: vec![],
+                    }
+                )
+                .is_err()
+            );
+        }
+    }
 }

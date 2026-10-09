@@ -35,11 +35,17 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
           return;
         }
         if (cmd === "overseer_session") return overseer;
+        if (cmd === "overseer_distros") return ["Ubuntu", "Debian"];
         if (cmd === "overseer_statuses") return [];
         if (cmd === "overseer_start" || cmd === "overseer_stop") {
           if (window.overseerRefused) throw new Error("Monitor unavailable");
           const ended = overseer;
-          overseer = cmd === "overseer_start" ? "monitor-agent" : null;
+          overseer =
+            cmd === "overseer_start"
+              ? args?.distro
+                ? `\\\\wsl.localhost\\${args.distro}\\home\\a\\monitor overseer`
+                : "monitor-agent"
+              : null;
           for (const [id, listener] of listeners) {
             if (listener.event === "overseer:session")
               callbacks.get(listener.callback)?.({ event: listener.event, id, payload: overseer });
@@ -131,8 +137,34 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
       ),
       1,
     );
+    await settings.getByRole("combobox", { name: "Run monitoring in" }).click();
+    await page.getByRole("option", { name: "WSL: Ubuntu", exact: true }).click();
+    await settings.getByText(/official reply hooks are not configured/).waitFor();
+    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
+    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).waitFor();
+    assert.deepEqual(
+      await page.evaluate(
+        () => window.pageCalls.filter(({ cmd }) => cmd === "overseer_start").at(-1).args,
+      ),
+      { distro: "Ubuntu" },
+    );
+    assert.equal(
+      await settings.getByRole("combobox", { name: "Run monitoring in" }).textContent(),
+      "WSL: Ubuntu",
+    );
+    assert.equal(
+      await settings
+        .getByRole("combobox", { name: "Run monitoring in" })
+        .getAttribute("aria-disabled"),
+      "true",
+    );
+    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).click();
+    await settings.getByRole("button", { name: "Start monitoring", exact: true }).waitFor();
     assert.equal(errors.length, 0, errors.join("\n"));
-    return { passed: "Settings monitoring start, stop, failed start and retry", errors };
+    return {
+      passed: "Settings local and WSL monitoring start, stop, failed start and retry",
+      errors,
+    };
   }
   const sidebar = page.locator("#cli-sidebar");
   const terminal = page.locator('[data-terminal="terminal-one"]');

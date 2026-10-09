@@ -458,16 +458,13 @@ fn branch(meta: Option<&str>) -> Option<String> {
 /// nobody's to commit. Everything else that makes it the overseer is the same
 /// as for any agent somebody starts by hand: the line that starts it typed at
 /// the prompt.
-fn summon<R: Runtime>(app: &AppHandle<R>, overseer: &Arc<Overseer>) -> Result<(), String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join(launch::DIR);
-    std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
-    let cwd = dir.to_string_lossy().into_owned();
+fn summon<R: Runtime>(
+    app: &AppHandle<R>,
+    overseer: &Arc<Overseer>,
+    cwd: &str,
+) -> Result<(), String> {
     let (port, token) = stand(app, overseer)?;
-    launch::write(&cwd, port, &token)?;
+    launch::write(cwd, port, &token)?;
 
     let id = format!("{cwd} overseer");
     let link = crate::persistent::link(app);
@@ -503,21 +500,53 @@ fn summon<R: Runtime>(app: &AppHandle<R>, overseer: &Arc<Overseer>) -> Result<()
 
 /// Starts one overseer from Settings. Repeated starts share the same session.
 #[tauri::command(async)]
-pub fn overseer_start<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
+pub fn overseer_start<R: Runtime>(
+    app: AppHandle<R>,
+    distro: Option<String>,
+) -> Result<String, String> {
     let overseer = app.state::<Arc<Overseer>>();
     let _control = crate::sync::lock(&overseer.control);
     if let Some(id) = overseer_session(app.clone()) {
         return Ok(id);
     }
-    // Claude needs its official HTTP hooks to deliver final replies.
-    crate::persistent::link(&app).ask(
-        "door_install",
-        json!({ "agent": "claude", "replyHooks": true }),
-    )?;
-    summon(&app, &overseer)?;
+    let cwd = match distro.as_deref() {
+        Some(distro) => {
+            if !cfg!(windows) || !crate::wsl::distros().iter().any(|name| name == distro) {
+                return Err(format!("WSL distribution unavailable: {distro}"));
+            }
+            launch::wsl_directory(distro)?
+        }
+        None => {
+            // Local official hooks require a local Claude installation. WSL
+            // terminals use screen detection; their Linux PIDs cannot be
+            // mapped by the Windows process provider.
+            crate::persistent::link(&app).ask(
+                "door_install",
+                json!({ "agent": "claude", "replyHooks": true }),
+            )?;
+            let dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| error.to_string())?
+                .join(launch::DIR);
+            std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+            dir.to_string_lossy().into_owned()
+        }
+    };
+    summon(&app, &overseer, &cwd)?;
     overseer
         .own()
         .ok_or_else(|| "The overseer ended while starting".to_string())
+}
+
+/// Only Windows builds offer running the overseer in a WSL distribution.
+#[tauri::command(async)]
+pub fn overseer_distros() -> Vec<String> {
+    if cfg!(windows) {
+        crate::wsl::distros()
+    } else {
+        Vec::new()
+    }
 }
 
 /// Stops the overseer's own terminal and clears its status lines.

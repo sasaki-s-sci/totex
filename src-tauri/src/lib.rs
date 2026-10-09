@@ -307,6 +307,7 @@ pub fn run() {
             mcp::mcp_stop,
             mcp::mcp_reports,
             overseer::overseer_start,
+            overseer::overseer_distros,
             overseer::overseer_stop,
             overseer::overseer_session,
             overseer::overseer_statuses,
