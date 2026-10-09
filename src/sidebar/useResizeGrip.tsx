@@ -95,7 +95,7 @@ type GripProps = {
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 };
 
-/** Only thickens the edge already there: a tinted bar or a focus ring reads as selection. */
+/** A transparent resize target along the panel's edge. */
 export function ResizeGrip({ label, side, onPointerDown, onKeyDown }: GripProps) {
   return (
     <Box
@@ -115,7 +115,6 @@ export function ResizeGrip({ label, side, onPointerDown, onKeyDown }: GripProps)
         zIndex: 1,
         userSelect: "none",
         outline: "none",
-        "&:hover, &:focus-visible": { bgcolor: "divider" },
       }}
     />
   );
