@@ -18,9 +18,7 @@ const nodeTypes = { report: ReportNode };
 function Fixture() {
   const reports = useReports();
   const overseer = useOverseer();
-  const report = mergedReports(reports, overseer.statuses, overseer.session !== null).get(
-    "terminal",
-  );
+  const report = mergedReports(reports, overseer.statuses, overseer.covers).get("terminal");
   const card = report ? reportCard(report) : null;
   const nodes =
     report && card

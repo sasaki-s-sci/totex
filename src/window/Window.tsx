@@ -16,7 +16,6 @@ import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
-import type { Ask } from "../lib/ask";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
 import { useEver } from "../lib/onDemand";
@@ -49,9 +48,6 @@ import { WindowBand } from "./WindowBand";
 import { HEADER_INSET, WindowControls } from "./WindowControls";
 
 /** LeftSidebar | Canvas | RightSidebar, and the menus drawn over them. */
-// One map for every render: a fresh empty one would redraw the canvas each time.
-const NO_ASKS: ReadonlyMap<string, Ask> = new Map();
-
 export function Window() {
   const { t } = useTranslation();
   const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", false);
@@ -68,19 +64,26 @@ export function Window() {
   const asks = useAsks();
   const said = useReports();
   const overseer = useOverseer();
-  // While the overseer runs, everything beside a terminal is its line: the agents' own reports and
-  // questions reach the person through it.
-  const overseen = overseer.session !== null;
+  // Where an overseer runs, everything beside its terminals is its line: the agents' own reports
+  // and questions reach the person through it. Each environment has its own overseer, so this is
+  // decided terminal by terminal.
+  const overseen = overseer.covers;
   const reports = useMemo(
     () => mergedReports(said, overseer.statuses, overseen),
     [said, overseer.statuses, overseen],
   );
-  // The host opens the overseer's shell itself, maybe after this window listed what was running.
+  const shownAsks = useMemo(() => {
+    const kept = [...asks.asks].filter(([id]) => !overseen(id));
+    return kept.length === asks.asks.size ? asks.asks : new Map(kept);
+  }, [asks.asks, overseen]);
+  // The host opens an overseer's shell itself, maybe after this window listed what was running.
   const { pickUp } = sessions;
-  const overseerKnown = sessions.sessions.some(({ id }) => id === overseer.session);
+  const overseerUnknown = overseer.sessions.some(
+    (id) => !sessions.sessions.some((session) => session.id === id),
+  );
   useEffect(() => {
-    if (overseen && !overseerKnown) pickUp();
-  }, [overseen, overseerKnown, pickUp]);
+    if (overseerUnknown) pickUp();
+  }, [overseerUnknown, pickUp]);
   const doings = useDoings();
   useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
   const tasks = useTaskKeys({
@@ -220,7 +223,7 @@ export function Window() {
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
-              asks={overseen ? NO_ASKS : asks.asks}
+              asks={shownAsks}
               reports={reports}
               overseen={overseen}
               doings={doings}

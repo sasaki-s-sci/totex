@@ -28,14 +28,26 @@ test("raw reply appears immediately and late summaries cannot replace the new re
   const stale = new Map([
     ["terminal", { doing: "old summary", steps: [], overseen: true, replyKey: "old" }],
   ]);
-  assert.equal(mergedReports(reports, stale, true).get("terminal"), native);
+  assert.equal(mergedReports(reports, stale, () => true).get("terminal"), native);
   const current = new Map([
     ["terminal", { doing: "new summary", steps: [], overseen: true, replyKey: "new" }],
   ]);
-  const result = mergedReports(reports, current, true).get("terminal");
+  const result = mergedReports(reports, current, () => true).get("terminal");
   assert.equal(result.doing, "new summary");
   assert.equal(result.reply, reply);
-  assert.equal(mergedReports(reports, current, false), reports);
+  assert.equal(mergedReports(reports, current, () => false).get("terminal"), native);
+});
+
+test("only terminals an overseer covers take its lines", () => {
+  const other = { doing: "agent's own report", steps: [] };
+  const reports = new Map([["windows", other]]);
+  const summaries = new Map([
+    ["wsl", { doing: "wsl summary", steps: [], overseen: true }],
+    ["windows", { doing: "stale line", steps: [], overseen: true }],
+  ]);
+  const merged = mergedReports(reports, summaries, (id) => id === "wsl");
+  assert.equal(merged.get("wsl").doing, "wsl summary");
+  assert.equal(merged.get("windows"), other);
 });
 
 test("card uses the extracted body and removes old steps after completion", () => {

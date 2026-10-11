@@ -6,14 +6,14 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{Process, Target, command_json};
+use super::{Process, Target, agent_json};
 use crate::monitor::ActivityState;
 
 pub(super) fn read_replies(
     targets: &[Target],
     report: impl FnMut(&str, &str),
 ) -> HashMap<String, ActivityState> {
-    read_detailed(targets, command_json, report)
+    read_detailed(targets, agent_json, report)
 }
 
 fn is_claude(process: &Process) -> bool {
@@ -28,22 +28,34 @@ fn is_claude(process: &Process) -> bool {
 #[cfg(test)]
 fn read_with(
     targets: &[Target],
-    command: impl FnMut(&str, &[&str], &HashMap<String, String>) -> Result<Value, String>,
+    mut command: impl FnMut(&str, &[&str], &HashMap<String, String>) -> Result<Value, String>,
 ) -> HashMap<String, ActivityState> {
-    read_detailed(targets, command, |_, _| {})
+    read_detailed(
+        targets,
+        |_, program, args, env| command(program, args, env),
+        |_, _| {},
+    )
 }
 
 fn read_detailed(
     targets: &[Target],
-    mut command: impl FnMut(&str, &[&str], &HashMap<String, String>) -> Result<Value, String>,
+    mut command: impl FnMut(
+        Option<&str>,
+        &str,
+        &[&str],
+        &HashMap<String, String>,
+    ) -> Result<Value, String>,
     mut report: impl FnMut(&str, &str),
 ) -> HashMap<String, ActivityState> {
     // Each configuration home has its own session registry. Query it once,
-    // regardless of how many terminals contain Claude processes.
-    let mut groups = HashMap::<(Option<String>, Option<String>), Vec<(&str, &Process)>>::new();
+    // regardless of how many terminals contain Claude processes. A home inside
+    // a distribution is another machine's, even when it is spelled the same.
+    type Home = (Option<String>, Option<String>, Option<String>);
+    let mut groups = HashMap::<Home, Vec<(&str, &Process)>>::new();
     for target in targets {
         for process in target.processes.iter().filter(|process| is_claude(process)) {
             let key = (
+                target.distro.clone(),
                 process.env.get("HOME").cloned(),
                 process.env.get("CLAUDE_CONFIG_DIR").cloned(),
             );
@@ -51,7 +63,7 @@ fn read_detailed(
         }
     }
     let mut activities = HashMap::new();
-    for processes in groups.into_values() {
+    for ((distro, _, _), processes) in groups {
         let process = processes[0].1;
         let env = ["PATH", "HOME", "CLAUDE_CONFIG_DIR"]
             .into_iter()
@@ -75,7 +87,7 @@ fn read_detailed(
             })
             .map(String::as_str)
             .unwrap_or("claude");
-        let Ok(list) = command(program, &["agents", "--json"], &env) else {
+        let Ok(list) = command(distro.as_deref(), program, &["agents", "--json"], &env) else {
             continue;
         };
         let Some(list) = list.as_array() else {
@@ -125,6 +137,7 @@ mod tests {
         Target {
             id: id.into(),
             cwd: "/same/project".into(),
+            distro: None,
             processes: vec![Process {
                 pid,
                 parent: 1,
@@ -211,7 +224,7 @@ mod tests {
         let mut seen = Vec::new();
         read_detailed(
             &[target("terminal", 101)],
-            |_, _, _| {
+            |_, _, _, _| {
                 Ok(json!([
                     {"pid":101,"status":"idle","sessionId":"owned"},
                     {"pid":999,"status":"idle","sessionId":"other","cwd":"/same/project"}

@@ -9,7 +9,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
     let serial = 0;
     const callbacks = new Map();
     const listeners = new Map();
-    let overseer = null;
+    const overseers = new Map();
     window.pageCalls = [];
     window.pageWriteRefused = false;
     window.pageClipboard = "日本語\nsecond line";
@@ -34,40 +34,38 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
           listeners.delete(args.eventId);
           return;
         }
-        if (cmd === "overseer_session") return overseer;
+        if (cmd === "overseer_sessions") return [...overseers.values()];
         if (cmd === "overseer_distros") return ["Ubuntu", "Debian"];
         if (cmd === "overseer_statuses") return [];
         if (cmd === "overseer_start" || cmd === "overseer_stop") {
           if (window.overseerRefused) throw new Error("Monitor unavailable");
-          const ended = overseer;
-          overseer =
-            cmd === "overseer_start"
-              ? args?.distro
-                ? `\\\\wsl.localhost\\${args.distro}\\home\\a\\monitor overseer`
-                : "monitor-agent"
-              : null;
+          const scope = args?.distro ?? "";
+          const ended = overseers.get(scope);
+          if (cmd === "overseer_start")
+            overseers.set(
+              scope,
+              scope ? `\\\\wsl.localhost\\${scope}\\home\\a\\monitor overseer` : "monitor-agent",
+            );
+          else overseers.delete(scope);
+          const payload = [...overseers.values()];
           for (const [id, listener] of listeners) {
             if (listener.event === "overseer:session")
-              callbacks.get(listener.callback)?.({ event: listener.event, id, payload: overseer });
-            if (cmd === "overseer_stop" && listener.event === "pty:exit")
+              callbacks.get(listener.callback)?.({ event: listener.event, id, payload });
+            if (cmd === "overseer_stop" && ended && listener.event === "pty:exit")
               callbacks.get(listener.callback)?.({ event: listener.event, id, payload: ended });
           }
-          return overseer;
+          return cmd === "overseer_start" ? overseers.get(scope) : null;
         }
         if (cmd === "pty_sessions")
           return [
             { id: "terminal-one", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"main"}' },
-            ...(overseer
-              ? [
-                  {
-                    id: overseer,
-                    cwd: "/tmp/monitor",
-                    rows: 24,
-                    cols: 80,
-                    meta: '{"branch":"","overseer":true}',
-                  },
-                ]
-              : []),
+            ...[...overseers.values()].map((id) => ({
+              id,
+              cwd: id === "monitor-agent" ? "/tmp/monitor" : id.replace(/ overseer$/, ""),
+              rows: 24,
+              cols: 80,
+              meta: '{"branch":"","overseer":true}',
+            })),
           ];
         if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
         if (
@@ -114,55 +112,61 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
   await page.locator(".settings-page input").first().waitFor();
   if (monitoringOnly) {
     const settings = page.locator(".settings-page");
+    const local = settings.getByRole("checkbox", { name: "Monitor this machine's terminals" });
+    const ubuntu = settings.getByRole("checkbox", { name: "Monitor WSL: Ubuntu terminals" });
+    const debian = settings.getByRole("checkbox", { name: "Monitor WSL: Debian terminals" });
+    await settings.getByText(/needs mirrored networking/).waitFor();
     await page.evaluate(() => {
       window.overseerRefused = true;
     });
-    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
+    await local.click();
     await settings.getByRole("alert").filter({ hasText: "Monitor unavailable" }).waitFor();
+    assert.equal(await local.isChecked(), false);
     await page.evaluate(() => {
       window.overseerRefused = false;
     });
-    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
-    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).waitFor();
+    await local.click();
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Monitor this machine\'s terminals"]')?.checked,
+    );
     assert.equal(
       await settings.getByRole("alert").filter({ hasText: "Monitor unavailable" }).count(),
       0,
     );
     await page.locator('[data-terminal="monitor-agent"]').waitFor({ state: "attached" });
-    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).click();
-    await settings.getByRole("button", { name: "Start monitoring", exact: true }).waitFor();
-    assert.equal(
-      await page.evaluate(
-        () => window.pageCalls.filter(({ cmd }) => cmd === "overseer_stop").length,
-      ),
-      1,
+    // A second environment runs beside the first rather than replacing it.
+    await ubuntu.click();
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Monitor WSL: Ubuntu terminals"]')?.checked,
     );
-    await settings.getByRole("combobox", { name: "Run monitoring in" }).click();
-    await page.getByRole("option", { name: "WSL: Ubuntu", exact: true }).click();
-    await settings.getByText(/official reply hooks are not configured/).waitFor();
-    await settings.getByRole("button", { name: "Start monitoring", exact: true }).click();
-    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).waitFor();
     assert.deepEqual(
       await page.evaluate(
         () => window.pageCalls.filter(({ cmd }) => cmd === "overseer_start").at(-1).args,
       ),
       { distro: "Ubuntu" },
     );
-    assert.equal(
-      await settings.getByRole("combobox", { name: "Run monitoring in" }).textContent(),
-      "WSL: Ubuntu",
+    assert.equal(await local.isChecked(), true);
+    assert.equal(await debian.isChecked(), false);
+    // Stopping one stops only that one.
+    await local.click();
+    await page.waitForFunction(
+      () => !document.querySelector('[aria-label="Monitor this machine\'s terminals"]')?.checked,
     );
-    assert.equal(
-      await settings
-        .getByRole("combobox", { name: "Run monitoring in" })
-        .getAttribute("aria-disabled"),
-      "true",
+    assert.deepEqual(
+      await page.evaluate(() =>
+        window.pageCalls.filter(({ cmd }) => cmd === "overseer_stop").map(({ args }) => args),
+      ),
+      [{ distro: null }],
     );
-    await settings.getByRole("button", { name: "Stop monitoring", exact: true }).click();
-    await settings.getByRole("button", { name: "Start monitoring", exact: true }).waitFor();
+    assert.equal(await ubuntu.isChecked(), true);
+    await ubuntu.click();
+    await page.waitForFunction(
+      () => !document.querySelector('[aria-label="Monitor WSL: Ubuntu terminals"]')?.checked,
+    );
     assert.equal(errors.length, 0, errors.join("\n"));
     return {
-      passed: "Settings local and WSL monitoring start, stop, failed start and retry",
+      passed:
+        "Settings per-environment monitoring: start, stop, side by side, failed start and retry",
       errors,
     };
   }

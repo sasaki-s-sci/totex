@@ -329,7 +329,13 @@ fn answer(
         "door_setups" => said(held.door.setups()),
         "door_install" => read::<Installing>(with).and_then(|at| {
             if at.reply_hooks && at.agent == door::Agent::Claude {
-                held.door.install_reply_hooks(&serving.home).and_then(said)
+                match at.distro.as_deref() {
+                    Some(distro) => held
+                        .door
+                        .install_reply_hooks_wsl(&serving.home, distro)
+                        .and_then(said),
+                    None => held.door.install_reply_hooks(&serving.home).and_then(said),
+                }
             } else {
                 held.door.install(at.agent).and_then(said)
             }
@@ -408,6 +414,10 @@ struct Installing {
     agent: door::Agent,
     #[serde(default, rename = "replyHooks")]
     reply_hooks: bool,
+    /// A WSL distribution whose own Claude Code takes the reply hooks, in
+    /// place of the one on this machine.
+    #[serde(default)]
+    distro: Option<String>,
 }
 
 #[derive(Deserialize)]

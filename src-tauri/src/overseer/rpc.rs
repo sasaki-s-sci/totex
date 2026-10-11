@@ -38,7 +38,8 @@ const STATUS_LIMIT: usize = 200;
 const INSTRUCTIONS: &str = "\
 You are the overseer of a totex window: a canvas of git repositories and the \
 terminals working in them. Through this server you can see every other \
-terminal in the window — what is running in it, whether it is asking the \
+terminal in the window that runs where you run — on this machine, or in your \
+own WSL distribution — what is running in it, whether it is asking the \
 person something, what its agent says it is doing, and its screen — and you \
 can write one short status line per terminal, which is drawn beside that \
 terminal on the canvas. It is the only thing drawn there: the agents' own \
@@ -69,6 +70,11 @@ pub trait Sight: Send + Sync {
     fn journal(&self) -> &Journal;
     /// The overseer's own session, which is never in what it is told.
     fn own(&self) -> Option<String>;
+    /// Whether a change to the session `id` is this overseer's to hear about:
+    /// an overseer started for one environment hears nothing of another's.
+    fn sees(&self, _id: &str) -> bool {
+        true
+    }
 }
 
 /// One session, as the overseer is shown it.
@@ -252,7 +258,7 @@ fn wait(sight: &dyn Sight, arguments: &Value) -> Value {
         since,
         Duration::from_secs(timeout),
         LINGER,
-        |change: &Change| own.as_deref() != Some(change.id.as_str()),
+        |change: &Change| own.as_deref() != Some(change.id.as_str()) && sight.sees(&change.id),
     );
     text(&serde_json::to_value(caught).unwrap_or(Value::Null))
 }

@@ -36,3 +36,13 @@ test("a blank status is no report", () => {
     overseen: true,
   });
 });
+
+test("a terminal's overseer is its WSL distribution's, or this machine's", async () => {
+  const { scopeOf } = await import("../src/lib/overseer.ts");
+  assert.equal(scopeOf("\\\\wsl.localhost\\Ubuntu-24.04\\home\\a\\repo cli 3"), "Ubuntu-24.04");
+  assert.equal(scopeOf("\\\\WSL$\\Debian\\srv overseer"), "Debian");
+  assert.equal(scopeOf("//wsl.localhost/Ubuntu/home"), "Ubuntu");
+  assert.equal(scopeOf("C:\\Users\\a\\repo cli 1"), null);
+  assert.equal(scopeOf("/home/a/repo cli 1"), null);
+  assert.equal(scopeOf("ssh://box/home/a cli 2"), null);
+});

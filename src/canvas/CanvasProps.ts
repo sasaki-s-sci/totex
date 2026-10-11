@@ -40,8 +40,8 @@ export type CanvasProps = {
 
   reports: ReadonlyMap<string, Report>;
 
-  /** The overseer is running: its lines are all that stands beside the terminals, so no typed line either. */
-  overseen: boolean;
+  /** Whether a terminal's overseer is running: its line is all that stands beside it, so no typed line either. */
+  overseen: (id: string) => boolean;
 
   doings: ReadonlyMap<string, Doing>;
 

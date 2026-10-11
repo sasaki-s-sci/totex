@@ -11,12 +11,23 @@ export type Overseen = {
   replyKey?: string | null;
 };
 
-export function overseerNow(): Promise<string | null> {
-  return invoke<string | null>("overseer_session");
+const WSL = /^[\\/]{2}wsl(?:\.localhost|\$)[\\/]([^\\/]+)/i;
+
+/**
+ * Which overseer a terminal belongs to: the WSL distribution its folder is in, or null for this
+ * machine. Session ids begin with their folder, so an id answers the same as its cwd.
+ */
+export function scopeOf(pathOrId: string): string | null {
+  return WSL.exec(pathOrId)?.[1] ?? null;
 }
 
-export function onOverseer(next: (id: string | null) => void): Promise<UnlistenFn> {
-  return listen<string | null>(SESSION_EVENT, (event) => next(event.payload));
+/** Every running overseer's session, one per environment at most. */
+export function overseerSessions(): Promise<string[]> {
+  return invoke<string[]>("overseer_sessions");
+}
+
+export function onOverseer(next: (ids: string[]) => void): Promise<UnlistenFn> {
+  return listen<string[]>(SESSION_EVENT, (event) => next(event.payload));
 }
 
 export function statusesNow(): Promise<Overseen[]> {
@@ -35,6 +46,6 @@ export function startOverseer(distro: string | null = null): Promise<string> {
   return invoke<string>("overseer_start", { distro });
 }
 
-export function stopOverseer(): Promise<void> {
-  return invoke<void>("overseer_stop");
+export function stopOverseer(distro: string | null = null): Promise<void> {
+  return invoke<void>("overseer_stop", { distro });
 }

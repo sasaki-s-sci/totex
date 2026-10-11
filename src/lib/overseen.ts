@@ -6,15 +6,23 @@ export function overseenReport(status: string | null): Report | null {
   return doing ? { doing, steps: [], overseen: true } : null;
 }
 
-/** A reply remains visible while the overseer catches up. Stale summaries cannot replace it. */
+/**
+ * A covered terminal shows its overseer's line in place of its agent's report; any other keeps
+ * its own. A reply remains visible while the overseer catches up. Stale summaries cannot replace
+ * it.
+ */
 export function mergedReports(
   reports: ReadonlyMap<string, Report>,
   summaries: ReadonlyMap<string, Report>,
-  active: boolean,
+  covers: (id: string) => boolean,
 ): ReadonlyMap<string, Report> {
-  if (!active) return reports;
-  const result = new Map(summaries);
+  const result = new Map<string, Report>();
+  for (const [id, summary] of summaries) if (covers(id)) result.set(id, summary);
   for (const [id, report] of reports) {
+    if (!covers(id)) {
+      result.set(id, report);
+      continue;
+    }
     if (!report.reply) continue;
     const summary = summaries.get(id);
     result.set(

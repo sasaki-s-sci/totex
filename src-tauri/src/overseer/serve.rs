@@ -1,7 +1,7 @@
 //! The overseer's listener: one loopback socket, and a thread per connection.
 //!
 //! Stood up the first time an overseer is started and left standing for the
-//! life of the window. There is one overseer, it holds one or two connections,
+//! life of the window, one per overseer. Each holds one or two connections,
 //! and the thread on the far side of a `wait` is asleep for minutes at a time —
 //! which is what a thread is for.
 

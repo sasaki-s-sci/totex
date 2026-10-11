@@ -1,32 +1,119 @@
-//! Local process ownership and endpoint discovery. Never inspect other users'
-//! session contents; enrich only descendants of totex's own local PTYs.
+//! Process ownership and endpoint discovery. Never inspect other users'
+//! session contents; enrich only processes belonging to totex's own PTYs:
+//! descendants of a local shell, read straight from `/proc`, or processes
+//! inside a WSL distribution that carry a terminal's [`MARK`].
+
+use std::collections::HashMap;
+
+use totex_host::host::Host;
 
 use super::Target;
 use crate::session::Sessions;
 
+mod wsl;
+
+/// The variable a terminal opened in a WSL distribution is started with,
+/// holding the terminal's id. Windows cannot tell which Linux processes are
+/// behind a `wsl.exe`, so the processes themselves say which terminal they
+/// are in, and everything started from that shell inherits it.
+pub(super) const MARK: &str = "TOTEX_TERMINAL";
+
 pub(super) fn targets(sessions: &Sessions) -> Vec<Target> {
+    let running = sessions.running();
+    let mut targets = Vec::new();
+    let mut distros = HashMap::<String, Vec<(String, String)>>::new();
     #[cfg(target_os = "linux")]
-    {
-        use totex_host::host::Host;
-        let roots = sessions
-            .running()
-            .into_iter()
-            .filter_map(|session| {
-                if !matches!(Host::of_str(&session.cwd), Host::Local) {
-                    return None;
+    let mut roots = Vec::new();
+    for session in running {
+        match Host::of_str(&session.cwd) {
+            #[cfg(target_os = "linux")]
+            Host::Local => {
+                if let Some(pid) = session.pid {
+                    roots.push((session.id, session.cwd, pid));
                 }
-                Some((session.id, session.cwd, session.pid?))
-            })
-            .collect();
-        linux::targets_at(std::path::Path::new("/proc"), roots)
+            }
+            Host::Wsl(distro) => {
+                let cwd = Host::Wsl(distro.clone()).native(std::path::Path::new(&session.cwd));
+                distros.entry(distro).or_default().push((session.id, cwd));
+            }
+            // Other platforms have no reliable ownership/environment/socket
+            // provider for local shells yet, and another machine's processes
+            // are out of reach; those keep the terminal detector.
+            _ => {}
+        }
     }
-    #[cfg(not(target_os = "linux"))]
-    {
-        // No reliable ownership/environment/socket provider is installed on
-        // these platforms yet. Keep the terminal detector as the fallback.
-        let _ = sessions;
-        Vec::new()
+    #[cfg(target_os = "linux")]
+    targets.extend(linux::targets_at(std::path::Path::new("/proc"), roots));
+    for (distro, sessions) in distros {
+        targets.extend(wsl::targets(&distro, sessions));
     }
+    targets
+}
+
+const ENV_KEYS: &[&str] = &[
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "CODEX_HOME",
+    "CODEX_THREAD_ID",
+    "CLAUDE_CONFIG_DIR",
+    "XDG_CONFIG_HOME",
+    "OPENCODE_SERVER_PASSWORD",
+    "OPENCODE_SERVER_USERNAME",
+];
+
+fn parent(stat: &[u8]) -> Option<u32> {
+    // `comm` can itself contain spaces and parentheses. ppid follows the
+    // final closing parenthesis and the process-state field.
+    let stat = std::str::from_utf8(stat).ok()?;
+    stat.rsplit_once(')')?
+        .1
+        .split_whitespace()
+        .nth(1)?
+        .parse()
+        .ok()
+}
+
+#[cfg(target_os = "linux")]
+fn environment(bytes: &[u8]) -> HashMap<String, String> {
+    bytes
+        .split(|byte| *byte == 0)
+        .filter_map(|entry| {
+            let entry = std::str::from_utf8(entry).ok()?;
+            let (name, value) = entry.split_once('=')?;
+            ENV_KEYS
+                .contains(&name)
+                .then(|| (name.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+fn listeners(text: &str, ipv6: bool) -> HashMap<String, u16> {
+    text.lines()
+        .filter_map(|line| {
+            let fields: Vec<_> = line.split_whitespace().collect();
+            if fields.get(3)? != &"0A" {
+                return None;
+            }
+            let (address, port) = fields.get(1)?.split_once(':')?;
+            let local = if ipv6 {
+                matches!(
+                    address,
+                    "00000000000000000000000000000000" | "00000000000000000000000001000000"
+                )
+            } else {
+                address == "00000000" || (address.len() == 8 && address.ends_with("7F"))
+            };
+            if !local {
+                return None;
+            }
+            let port = u16::from_str_radix(port, 16).ok()?;
+            if port == 0 {
+                return None;
+            }
+            Some((fields.get(9)?.to_string(), port))
+        })
+        .collect()
 }
 
 #[cfg(target_os = "linux")]
@@ -37,18 +124,7 @@ mod linux {
     use std::path::Path;
 
     use super::super::{Process, Target};
-
-    const ENV_KEYS: &[&str] = &[
-        "PATH",
-        "HOME",
-        "USERPROFILE",
-        "CODEX_HOME",
-        "CODEX_THREAD_ID",
-        "CLAUDE_CONFIG_DIR",
-        "XDG_CONFIG_HOME",
-        "OPENCODE_SERVER_PASSWORD",
-        "OPENCODE_SERVER_USERNAME",
-    ];
+    use super::{environment, listeners, parent};
 
     fn read(path: &Path, limit: u64) -> Option<Vec<u8>> {
         let mut bytes = Vec::new();
@@ -58,18 +134,6 @@ mod linux {
             .read_to_end(&mut bytes)
             .ok()?;
         Some(bytes)
-    }
-
-    fn parent(stat: &[u8]) -> Option<u32> {
-        // `comm` can itself contain spaces and parentheses. ppid follows the
-        // final closing parenthesis and the process-state field.
-        let stat = std::str::from_utf8(stat).ok()?;
-        stat.rsplit_once(')')?
-            .1
-            .split_whitespace()
-            .nth(1)?
-            .parse()
-            .ok()
     }
 
     fn started(stat: &[u8]) -> Option<u64> {
@@ -93,47 +157,6 @@ mod linux {
         let mut found: Vec<_> = seen.into_iter().collect();
         found.sort_unstable();
         found
-    }
-
-    fn environment(bytes: &[u8]) -> HashMap<String, String> {
-        bytes
-            .split(|byte| *byte == 0)
-            .filter_map(|entry| {
-                let entry = std::str::from_utf8(entry).ok()?;
-                let (name, value) = entry.split_once('=')?;
-                ENV_KEYS
-                    .contains(&name)
-                    .then(|| (name.to_string(), value.to_string()))
-            })
-            .collect()
-    }
-
-    fn listeners(text: &str, ipv6: bool) -> HashMap<String, u16> {
-        text.lines()
-            .filter_map(|line| {
-                let fields: Vec<_> = line.split_whitespace().collect();
-                if fields.get(3)? != &"0A" {
-                    return None;
-                }
-                let (address, port) = fields.get(1)?.split_once(':')?;
-                let local = if ipv6 {
-                    matches!(
-                        address,
-                        "00000000000000000000000000000000" | "00000000000000000000000001000000"
-                    )
-                } else {
-                    address == "00000000" || (address.len() == 8 && address.ends_with("7F"))
-                };
-                if !local {
-                    return None;
-                }
-                let port = u16::from_str_radix(port, 16).ok()?;
-                if port == 0 {
-                    return None;
-                }
-                Some((fields.get(9)?.to_string(), port))
-            })
-            .collect()
     }
 
     pub(super) fn targets_at(proc: &Path, roots: Vec<(String, String, u32)>) -> Vec<Target> {
@@ -238,7 +261,12 @@ mod linux {
                         })
                     })
                     .collect();
-                Some(Target { id, cwd, processes })
+                Some(Target {
+                    id,
+                    cwd,
+                    distro: None,
+                    processes,
+                })
             })
             .collect()
     }

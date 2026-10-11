@@ -475,6 +475,7 @@ mod tests {
         let targets = vec![Target {
             id: "terminal".into(),
             cwd: "/work".into(),
+            distro: None,
             processes,
         }];
         let idle = fixture(json!({}), json!([]));
@@ -575,6 +576,7 @@ mod tests {
         let targets = [Target {
             id: "terminal".into(),
             cwd: "/work".into(),
+            distro: None,
             processes: vec![Process {
                 pid: 1,
                 parent: 0,

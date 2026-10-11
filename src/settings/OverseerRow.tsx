@@ -1,21 +1,24 @@
-import { Alert, MenuItem, Select, Stack, Typography } from "@mui/material";
+import { Alert, Checkbox, Stack, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useOverseer } from "../hooks/useOverseer";
-import { overseerDistros, startOverseer, stopOverseer } from "../lib/overseer";
-import { PageButton, PICK_SX, Row } from "./Row";
+import { overseerDistros, scopeOf, startOverseer, stopOverseer } from "../lib/overseer";
+import { Row, TICK_SX } from "./Row";
 
+/** This machine is the empty name, so a scope can key state and pass straight to the commands. */
+const LOCAL = "";
+
+/**
+ * One box per environment: this machine, and each WSL distribution. A ticked box runs a monitoring
+ * agent inside that environment, watching that environment's terminals and no others.
+ */
 export function OverseerRow() {
   const { t } = useTranslation();
-  const { session } = useOverseer();
-  const [busy, setBusy] = useState<"starting" | "stopping" | null>(null);
+  const { sessions } = useOverseer();
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [distros, setDistros] = useState<string[]>([]);
-  const [distro, setDistro] = useState("");
-  const active = session !== null;
-  const selectedDistro = active
-    ? /^\\\\wsl\.localhost\\([^\\]+)\\/i.exec(session)?.[1] || ""
-    : distro;
+  const running = new Set(sessions.map((id) => scopeOf(id) ?? LOCAL));
 
   useEffect(() => {
     let alive = true;
@@ -32,52 +35,58 @@ export function OverseerRow() {
     };
   }, []);
 
-  async function change() {
-    if (busy) return;
-    setBusy(active ? "stopping" : "starting");
+  async function change(scope: string, on: boolean) {
+    if (busy.has(scope)) return;
+    setBusy((current) => new Set(current).add(scope));
     setError(null);
     try {
-      if (active) await stopOverseer();
-      else await startOverseer(distro || null);
+      if (on) await startOverseer(scope || null);
+      else await stopOverseer(scope || null);
     } catch (reason) {
       setError(String(reason));
     } finally {
-      setBusy(null);
+      setBusy((current) => {
+        const next = new Set(current);
+        next.delete(scope);
+        return next;
+      });
     }
   }
 
+  const scopes = [LOCAL, ...distros];
   return (
     <Stack sx={{ gap: 0.5 }}>
-      {distros.length > 0 && (
-        <Row label={t("overseer.location")}>
-          <Select
-            size="small"
-            value={selectedDistro}
-            disabled={active || busy !== null}
-            onChange={(event) => setDistro(event.target.value)}
-            inputProps={{ "aria-label": t("overseer.location") }}
-            sx={PICK_SX}
-          >
-            <MenuItem value="">{t("overseer.local")}</MenuItem>
-            {distros.map((name) => (
-              <MenuItem key={name} value={name}>
-                WSL: {name}
-              </MenuItem>
-            ))}
-          </Select>
-        </Row>
-      )}
-      <Row label={t("overseer.control")}>
-        <Typography variant="caption" role="status">
-          {t(active ? "overseer.active" : "overseer.inactive")}
-        </Typography>
-        <PageButton disabled={busy !== null} onClick={() => void change()}>
-          {t(busy ? `overseer.${busy}` : active ? "overseer.stop" : "overseer.start")}
-        </PageButton>
-      </Row>
+      {scopes.map((scope) => {
+        const label = scope ? t("overseer.wsl", { name: scope }) : t("overseer.local");
+        const on = running.has(scope);
+        return (
+          <Row key={scope} label={label}>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 0.5 }}>
+              <Typography variant="caption" role="status">
+                {busy.has(scope)
+                  ? t(on ? "overseer.stopping" : "overseer.starting")
+                  : t(on ? "overseer.active" : "overseer.inactive")}
+              </Typography>
+              <Checkbox
+                size="small"
+                sx={TICK_SX}
+                checked={on}
+                disabled={busy.has(scope)}
+                onChange={(event) => void change(scope, event.target.checked)}
+                slotProps={{ input: { "aria-label": label } }}
+              />
+            </Stack>
+          </Row>
+        );
+      })}
       <Typography variant="caption" color="text.secondary">
-        {t(selectedDistro ? "overseer.wslHelp" : "overseer.help")}
+        {t("overseer.help")}
       </Typography>
+      {distros.length > 0 && (
+        <Typography variant="caption" color="text.secondary">
+          {t("overseer.wslHelp")}
+        </Typography>
+      )}
       {error && (
         <Alert severity="error">
           {t("overseer.failed")} {error}

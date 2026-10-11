@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use super::http::{Request, route};
 use super::journal::{HELD, Journal, What};
 use super::rpc::{Sight, Terminal, answer};
-use super::{Overseer, launch, serve};
+use super::{Kept, Overseer, launch, rpc, scope_of, serve};
 use crate::ask::{Ask, Choice, Doing, Taking};
 
 const TOKEN: &str = "0123456789abcdef0123456789abcdef";
@@ -342,7 +342,13 @@ fn asking(question: &str, on: usize) -> Ask {
 #[test]
 fn a_question_is_noted_when_it_comes_and_goes_and_not_as_its_mark_moves() {
     let overseer = Overseer::default();
-    overseer.lock().kept.session = Some(OWN.to_string());
+    overseer
+        .lock()
+        .kept
+        .watches
+        .entry(String::new())
+        .or_default()
+        .session = Some(OWN.to_string());
 
     overseer.noticed("a", None, Some(&Some(asking("Proceed?", 0))));
     overseer.noticed("a", None, Some(&Some(asking("Proceed?", 1))));
@@ -507,4 +513,90 @@ fn the_files_are_written_and_written_over() {
         "*\n"
     );
     let _ = std::fs::remove_dir_all(&cwd);
+}
+
+#[test]
+fn a_terminal_belongs_to_the_distribution_its_folder_is_in_and_otherwise_to_this_machine() {
+    assert_eq!(
+        scope_of(r"\\wsl.localhost\Ubuntu\home\a\repo cli 3"),
+        "Ubuntu"
+    );
+    assert_eq!(scope_of(r"\\wsl$\Debian\srv"), "Debian");
+    assert_eq!(scope_of(r"C:\Users\a\repo cli 1"), "");
+    assert_eq!(scope_of("/home/a/repo cli 1"), "");
+    assert_eq!(scope_of("ssh://box/home/a cli 2"), "");
+}
+
+#[test]
+fn the_single_overseer_of_an_earlier_version_is_kept_under_its_scope() {
+    let earlier: Kept = serde_json::from_value(json!({
+        "token": "t",
+        "session": r"\\wsl.localhost\Ubuntu\home\a\.local\share\totex\windows-overseer overseer",
+        "port": 26375,
+        "statuses": { "x": "working" },
+        "statusKeys": { "x": "k" },
+    }))
+    .unwrap();
+    let mut kept = earlier.clone();
+    kept.fold();
+    assert_ne!(kept, earlier);
+    let watch = &kept.watches["Ubuntu"];
+    assert_eq!(watch.token.as_deref(), Some("t"));
+    assert_eq!(watch.port, Some(26375));
+    assert_eq!(watch.statuses["x"], "working");
+    assert_eq!(watch.status_keys["x"], "k");
+    assert!(kept.session.is_none() && kept.token.is_none());
+    // What is written back has no trace of the old shape.
+    let written = serde_json::to_value(&kept).unwrap();
+    assert!(written.get("session").is_none());
+    let mut again = kept.clone();
+    again.fold();
+    assert_eq!(again, kept);
+}
+
+#[test]
+fn an_overseer_waits_only_on_terminals_of_its_own_scope() {
+    struct Scoped(Journal);
+    impl Sight for Scoped {
+        fn terminals(&self) -> Vec<Terminal> {
+            Vec::new()
+        }
+        fn screen(&self, _: &str) -> Option<Vec<String>> {
+            None
+        }
+        fn describe(&self, _: &str, _: Option<String>, _: Option<&str>) -> Result<(), String> {
+            Ok(())
+        }
+        fn journal(&self) -> &Journal {
+            &self.0
+        }
+        fn own(&self) -> Option<String> {
+            None
+        }
+        fn sees(&self, id: &str) -> bool {
+            scope_of(id) == "Ubuntu"
+        }
+    }
+    let scoped = Scoped(Journal::default());
+    scoped.0.note(r"C:\repo cli 1", What::Opened);
+    scoped
+        .0
+        .note(r"\\wsl.localhost\Ubuntu\repo cli 2", What::Opened);
+    let answered = rpc::answer(
+        &scoped,
+        json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": { "name": "wait", "arguments": { "since": 0, "timeout_seconds": 1 } } })
+        .to_string()
+        .as_bytes(),
+    )
+    .unwrap();
+    let text = answered["result"]["content"][0]["text"].as_str().unwrap();
+    let caught: Value = serde_json::from_str(text).unwrap();
+    let ids: Vec<&str> = caught["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|change| change["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, [r"\\wsl.localhost\Ubuntu\repo cli 2"]);
 }

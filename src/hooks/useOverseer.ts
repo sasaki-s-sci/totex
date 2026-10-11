@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { Report } from "../lib/mcp";
 import { overseenReport } from "../lib/overseen";
-import { onOverseer, onStatus, overseerNow, statusesNow } from "../lib/overseer";
+import { onOverseer, onStatus, overseerSessions, scopeOf, statusesNow } from "../lib/overseer";
 import { onShellExit } from "../lib/pty";
 import { watchReadings } from "../lib/watchReadings";
 
 const NOTHING: ReadonlyMap<string, Report> = new Map();
+const NONE: readonly string[] = [];
 
 /**
- * The overseer's session, and its line on every other terminal, already as reports so they can
- * stand in for the agents' own. Each line is built once when it arrives: a card keeps its report
- * while another terminal's line changes.
+ * Every running overseer's session — one per environment — and their lines on the terminals they
+ * cover, already as reports so they can stand in for the agents' own. Each line is built once when
+ * it arrives: a card keeps its report while another terminal's line changes.
  */
 export function useOverseer() {
-  const [session, setSession] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<readonly string[]>(NONE);
   const [statuses, setStatuses] = useState<ReadonlyMap<string, Report>>(NOTHING);
 
   const put = useCallback((id: string, status: string | null, replyKey?: string | null) => {
@@ -36,17 +37,31 @@ export function useOverseer() {
   useEffect(
     () =>
       watchReadings(
-        { listen: onOverseer, read: () => overseerNow().then((id) => [id]), exit: onShellExit },
-        setSession,
-        (id) => setSession((current) => (current === id ? null : current)),
+        {
+          listen: onOverseer,
+          read: () => overseerSessions().then((ids) => [ids]),
+          exit: onShellExit,
+        },
+        setSessions,
+        (id) =>
+          setSessions((current) =>
+            current.includes(id) ? current.filter((other) => other !== id) : current,
+          ),
       ),
     [],
   );
 
+  const scopes = useMemo(() => new Set(sessions.map(scopeOf)), [sessions]);
+  /** Whether a terminal's environment has an overseer writing its line. */
+  const covers = useCallback((id: string) => scopes.has(scopeOf(id)), [scopes]);
+
   // Lines left by an overseer that is gone would read as current.
   useEffect(() => {
-    if (session === null) setStatuses(NOTHING);
-  }, [session]);
+    setStatuses((current) => {
+      const kept = [...current].filter(([id]) => covers(id));
+      return kept.length === current.size ? current : new Map(kept);
+    });
+  }, [covers]);
 
   useEffect(
     () =>
@@ -58,5 +73,5 @@ export function useOverseer() {
     [put],
   );
 
-  return { session, statuses };
+  return { sessions, statuses, covers };
 }

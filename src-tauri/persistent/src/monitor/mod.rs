@@ -40,6 +40,9 @@ pub type ActivityReporter = Arc<dyn Fn(&Activity) + Send + Sync>;
 pub(super) struct Target {
     id: String,
     cwd: String,
+    /// The WSL distribution the processes are in, which is also where any
+    /// command asking about them has to run. `None` for this machine.
+    distro: Option<String>,
     processes: Vec<Process>,
 }
 
@@ -68,6 +71,14 @@ impl Monitor {
             replies: Mutex::new(Vec::new()),
             claude: Mutex::new(None),
         });
+        // A terminal in a distribution is told its own id, which is the only
+        // way its Linux processes can later be told apart from Windows.
+        sessions.dress(Arc::new(|id, cwd| {
+            match totex_host::host::Host::of_str(cwd) {
+                totex_host::host::Host::Wsl(_) => vec![(process::MARK.to_string(), id.to_string())],
+                _ => Vec::new(),
+            }
+        }));
         let weak = Arc::downgrade(&monitor);
         // The worker never keeps the runtime alive after its owner goes away.
         std::thread::spawn(move || {
@@ -173,6 +184,38 @@ pub(crate) fn command_json(
     env: &HashMap<String, String>,
 ) -> Result<Value, String> {
     command_json_timeout(program, args, env, Duration::from_millis(1500))
+}
+
+/// [`command_json`], run wherever the queried process is: on this machine, or
+/// inside its WSL distribution through a channel already held open there.
+/// `timeout` bounds it inside the distribution, because a channel cannot be
+/// abandoned halfway through an answer the way a child process can be killed.
+fn agent_json(
+    distro: Option<&str>,
+    program: &str,
+    args: &[&str],
+    env: &HashMap<String, String>,
+) -> Result<Value, String> {
+    let Some(distro) = distro else {
+        return command_json(program, args, env);
+    };
+    let mut env: Vec<_> = env
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect();
+    env.sort();
+    let mut argv = vec!["timeout", "1.5", "env", "-u", "CLAUDE_CONFIG_DIR"];
+    argv.extend(env.iter().map(String::as_str));
+    argv.push(program);
+    argv.extend_from_slice(args);
+    let output = totex_host::wsl::exec(distro, None, &[], &argv)?;
+    if !output.ok() {
+        return Err("status unavailable".into());
+    }
+    if output.stdout.len() > 2 * 1024 * 1024 {
+        return Err("status too large".into());
+    }
+    serde_json::from_slice(&output.stdout).map_err(|error| error.to_string())
 }
 
 pub(crate) fn command_json_timeout(

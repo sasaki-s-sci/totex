@@ -309,7 +309,7 @@ pub fn run() {
             overseer::overseer_start,
             overseer::overseer_distros,
             overseer::overseer_stop,
-            overseer::overseer_session,
+            overseer::overseer_sessions,
             overseer::overseer_statuses,
             persistent::persistent_get,
             persistent::persistent_put,
