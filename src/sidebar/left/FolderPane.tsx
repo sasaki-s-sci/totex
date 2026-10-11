@@ -1,7 +1,5 @@
 import { Box, Stack, Typography } from "@mui/material";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Listing } from "../../folder/api";
 import { useDirectoryChanges } from "../../folder/changes";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName } from "../../folder/format";
@@ -21,8 +19,9 @@ import { Level } from "./FolderLevel";
 import { useHolding } from "./holding";
 import type { Naming } from "./NameField";
 import type { PaneGrip } from "./paneOrder";
-import { CHANGE_COLOUR, REFUSED_DROP, TAKING_DROP } from "./rows";
+import { CHANGE_COLOUR, PANE_ROW, REFUSED_DROP, TAKING_DROP } from "./rows";
 import { useSelection } from "./selection";
+import { usePaneRoot } from "./usePaneRoot";
 
 export interface FolderPaneProps {
   /** Two panes can show one folder, so a row is named by pane as well as path. */
@@ -78,7 +77,7 @@ export function FolderPane({
   grip,
 }: FolderPaneProps) {
   const { t } = useTranslation();
-  const [root, setRoot] = useState<Listing | null>(null);
+  const root = usePaneRoot(path);
   const { selected, pick, point } = useSelection();
   // The space this pane stands in, which is rarely this folder: a pane inside a checkout stands in
   // the space at its root.
@@ -134,7 +133,7 @@ export function FolderPane({
           bgcolor: "background.paper",
           alignItems: "center",
           gap: 0.25,
-          pt: 0.5,
+          ...PANE_ROW,
           pl: 1,
           pr: 0.5,
           "&:hover .pane__close, &:focus-within .pane__close": {
@@ -176,7 +175,7 @@ export function FolderPane({
             alignItems: "center",
             gap: 0.75,
             px: 0,
-            py: 0.5,
+            py: 0,
             border: "none",
             background: "none",
             color: "text.primary",
@@ -239,7 +238,6 @@ export function FolderPane({
           naming={naming}
           onNameDone={onNameDone}
           onNameCancel={onNameCancel}
-          onListing={setRoot}
         />
       )}
     </Box>

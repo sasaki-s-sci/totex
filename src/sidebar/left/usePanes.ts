@@ -275,8 +275,8 @@ export function usePanes(
   }
 
   /**
-   * A folder pane standing in a checkout turns into the repository pane for it, the row opened out
-   * to its files. The folder on the canvas goes on as the repository; anything else the pane put
+   * A folder pane standing in a checkout turns into the repository pane for it, keeping whether
+   * its files are expanded. The folder on the canvas goes on as the repository; anything else the pane put
    * there leaves with the folder pane, as it would were the pane closed.
    */
   function toRepository(id: number) {
@@ -286,9 +286,9 @@ export function usePanes(
           ? {
               ...pane,
               kind: "repository",
-              open: true,
+              open: pane.open,
               graphed: pane.graphed.includes(pane.path) ? [pane.path] : [],
-              expanded: [pane.path],
+              expanded: pane.open ? [pane.path] : [],
               shown: {},
             }
           : pane,
@@ -307,7 +307,7 @@ export function usePanes(
           ? {
               ...pane,
               kind: "folder",
-              open: true,
+              open: pane.expanded.includes(pane.path),
               graphed: pane.graphed.includes(pane.path) ? [pane.path] : [],
               expanded: [],
               shown: {},

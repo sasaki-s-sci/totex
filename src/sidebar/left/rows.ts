@@ -2,6 +2,9 @@ import type { Change } from "../../folder/api";
 
 export const ICON = { minWidth: 22, color: "text.secondary" } as const;
 
+/** Folder and repository modes share one header height, including their action buttons. */
+export const PANE_ROW = { height: 32, boxSizing: "border-box", py: 0.5 } as const;
+
 /**
  * The graph's three rim colours, so column and canvas answer alike. A folder takes what everything
  * under it comes to, which is how a deleted file is seen at all.

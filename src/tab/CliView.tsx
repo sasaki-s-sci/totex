@@ -72,6 +72,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       cursor: palette.primary.main,
       cursorAccent: opaque,
       selectionBackground: palette.action.selected,
+      // The ruler under the scrollbar draws a 1px line down its left edge in this colour.
+      overviewRulerBorder: "transparent",
       ...look.ansi,
     }),
     [

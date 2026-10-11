@@ -3,7 +3,6 @@ import {
   LinearProgress,
   ListItemButton,
   ListItemIcon,
-  ListItemText,
   Stack,
   Typography,
 } from "@mui/material";
@@ -17,7 +16,7 @@ import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
 import type { PaneGrip } from "./paneOrder";
-import { ICON, REFUSED_DROP, ROW_INDENT, TAKING_DROP } from "./rows";
+import { ICON, PANE_ROW, REFUSED_DROP, ROW_INDENT, TAKING_DROP } from "./rows";
 import { useSelection } from "./selection";
 import { useRepositoryList } from "./useRepositoryList";
 
@@ -109,7 +108,7 @@ export function RepoPane({
   const alone = rows.length === 1 && rows[0].path === path;
 
   return (
-    <Box component="section" sx={{ pb: 0.5 }}>
+    <Box component="section" sx={{ position: "relative", pb: 0.5 }}>
       {!alone && (
         <Stack
           direction="row"
@@ -121,7 +120,7 @@ export function RepoPane({
             bgcolor: "background.paper",
             alignItems: "center",
             gap: 0.25,
-            pt: 0.5,
+            ...PANE_ROW,
             pl: 1,
             pr: 0.5,
             "&:hover .pane__close, &:focus-within .pane__close": {
@@ -152,7 +151,7 @@ export function RepoPane({
               alignItems: "center",
               gap: 0.75,
               px: 0,
-              py: 0.5,
+              py: 0,
               border: "none",
               background: "none",
               color: "text.primary",
@@ -174,11 +173,32 @@ export function RepoPane({
         </Stack>
       )}
 
-      {/* Never a blank: the rows found so far are drawn under the bar while the walk goes on. */}
+      {/* Overlay the header's lower edge so a walk does not change the pane's height. */}
       {listing ? (
-        <LinearProgress aria-label={t("repository.listing")} sx={{ mx: 1, my: 0.5, height: 2 }} />
+        <LinearProgress
+          aria-label={t("repository.listing")}
+          sx={{
+            position: "absolute",
+            top: PANE_ROW.height - 2,
+            left: 8,
+            right: 8,
+            zIndex: 3,
+            height: 2,
+          }}
+        />
       ) : failed ? (
-        <Box sx={{ mx: 1, my: 0.5, height: 2, borderRadius: 1, bgcolor: "error.main" }} />
+        <Box
+          sx={{
+            position: "absolute",
+            top: PANE_ROW.height - 2,
+            left: 8,
+            right: 8,
+            zIndex: 3,
+            height: 2,
+            borderRadius: 1,
+            bgcolor: "error.main",
+          }}
+        />
       ) : null}
 
       {(showing || alone) && (
@@ -199,6 +219,7 @@ export function RepoPane({
                     pl: alone ? 1 : ROW_INDENT,
                     pr: 0.5,
                     gap: 0.5,
+                    ...(alone ? PANE_ROW : null),
                     ...mark,
                     "&:hover .pane__close, &:focus-within .pane__close": {
                       opacity: 1,
@@ -241,26 +262,20 @@ export function RepoPane({
                       <GitMark on={opened} />
                     )}
                   </ListItemIcon>
-                  {/* The name alone: where under the root it is, the pointer tells. */}
-                  <ListItemText
-                    primary={repository.name}
-                    secondary={
-                      <BranchCaption
-                        path={reading}
-                        known={branches.get(reading)}
-                        swapped={swapped}
-                      />
-                    }
-                    sx={{ my: 0, minWidth: 0 }}
-                    slotProps={{
-                      primary: {
-                        variant: "body2",
-                        noWrap: true,
-                        title: displayPath(repository.path),
-                      },
-                      secondary: { component: "div" },
-                    }}
-                  />
+                  <Stack
+                    direction="row"
+                    sx={{ flex: 1, minWidth: 0, alignItems: "baseline", gap: 0.75 }}
+                  >
+                    <Typography
+                      variant="body2"
+                      noWrap
+                      title={displayPath(repository.path)}
+                      sx={{ minWidth: 0 }}
+                    >
+                      {repository.name}
+                    </Typography>
+                    <BranchCaption path={reading} known={branches.get(reading)} swapped={swapped} />
+                  </Stack>
                   <Stack
                     direction="row"
                     sx={{ ml: "auto", flex: "none", alignItems: "center", gap: 0.25 }}
@@ -356,7 +371,7 @@ export function RepoPane({
 const HEAD_REF = /^ref: refs\/heads\/(.+)$/m;
 
 /**
- * The branch checked out at `path`, small under the row's name. The window knows it for a
+ * The branch checked out at `path`, small beside the row's name. The window knows it for a
  * repository on the canvas; for the rest the checkout's `HEAD` is read, which costs no git. A
  * detached or unreadable `HEAD` leaves the caption out, unless the row shows a worktree: that one
  * goes by its folder.
@@ -388,15 +403,16 @@ function BranchCaption({
     };
   }, [path, known]);
 
-  const branch =
+  const reference =
     known ?? (read?.path === path ? read.branch : undefined) ?? (swapped ? baseName(path) : null);
+  const branch = reference?.replace(/^refs\/heads\//, "");
   if (!branch) return null;
   return (
     <Typography
       variant="caption"
       noWrap
       title={swapped ? t("repository.showing", { branch }) : branch}
-      sx={{ display: "block", color: "text.secondary", fontSize: "0.68rem", lineHeight: 1.2 }}
+      sx={{ minWidth: 0, color: "text.secondary", fontSize: "0.68rem", lineHeight: 1.2 }}
     >
       {branch}
     </Typography>
