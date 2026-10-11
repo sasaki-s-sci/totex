@@ -12,16 +12,7 @@ import { useTranslation } from "react-i18next";
 import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
-import {
-  Frame,
-  GitMark,
-  GraphRepoMark,
-  MarkButton,
-  PaneFolderMark,
-  PaneRepoMark,
-  SIZE,
-  UpMark,
-} from "../../marks";
+import { Frame, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
@@ -66,6 +57,17 @@ export interface RepoPaneProps {
   /** Picks the pane up by its header, or by its one row when it has no header. */
   grip?: PaneGrip;
 }
+
+/** A mark that is a button and looks like none: it keeps the colour of whatever holds it. */
+const BARE_BUTTON = {
+  flex: "none",
+  display: "flex",
+  p: 0,
+  border: "none",
+  background: "none",
+  color: "inherit",
+  cursor: "pointer",
+} as const;
 
 /** A row's level can put nothing on the canvas: the row is what goes there. */
 const NOTHING_GRAPHED: readonly string[] = [];
@@ -128,6 +130,17 @@ export function RepoPane({
             },
           }}
         >
+          {/* The mark is the way back, as the folder pane's checkout mark is the way here. */}
+          <Box
+            component="button"
+            type="button"
+            aria-label={t("repository.folderMode")}
+            title={t("repository.folderMode")}
+            onClick={onFolderMode}
+            sx={{ ...BARE_BUTTON, mr: 0.75, color: "text.primary" }}
+          >
+            <PaneRepoMark />
+          </Box>
           <Box
             component="button"
             type="button"
@@ -147,7 +160,6 @@ export function RepoPane({
               textAlign: "left",
             }}
           >
-            <PaneRepoMark />
             <Typography variant="body2" noWrap title={displayPath(path)}>
               {name}
             </Typography>
@@ -210,7 +222,24 @@ export function RepoPane({
                   onClick={() => onToggleExpanded(repository.path)}
                 >
                   <ListItemIcon sx={ICON}>
-                    <GitMark on={opened} />
+                    {/* Alone, the row stands for the header, and its mark for the header's. */}
+                    {alone ? (
+                      <Box
+                        component="button"
+                        type="button"
+                        aria-label={t("repository.folderMode")}
+                        title={t("repository.folderMode")}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onFolderMode();
+                        }}
+                        sx={BARE_BUTTON}
+                      >
+                        <GitMark on={opened} />
+                      </Box>
+                    ) : (
+                      <GitMark on={opened} />
+                    )}
                   </ListItemIcon>
                   {/* The name alone: where under the root it is, the pointer tells. */}
                   <ListItemText
@@ -245,17 +274,6 @@ export function RepoPane({
                         }}
                       >
                         <UpMark />
-                      </MarkButton>
-                    )}
-                    {alone && (
-                      <MarkButton
-                        label={t("repository.folderMode")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onFolderMode();
-                        }}
-                      >
-                        <PaneFolderMark size={SIZE} />
                       </MarkButton>
                     )}
                     <MarkButton
