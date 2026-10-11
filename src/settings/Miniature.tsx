@@ -1,10 +1,21 @@
 import { useTheme } from "@mui/material/styles";
-import { useLayoutEffect } from "react";
+import { type ReactNode, useId, useLayoutEffect } from "react";
 import { useMarkSizes } from "../canvas/markSizes";
 import { useAppSettings } from "../lib/appSettings";
 import { HISTORY_ALL } from "../lib/appSettingsModel";
 import { GRID_OFF } from "../lib/grid";
 import { useSaid } from "../lib/said";
+import {
+  AddMark,
+  AgentMark,
+  CliMark,
+  FolderMark,
+  GraphRepoMark,
+  PaneFolderMark,
+  PaneRepoMark,
+  SettingsMark,
+  SIZE,
+} from "../marks";
 import { type Part, useSettingsMap } from "./SettingsMap";
 
 /** The window in the miniature's own units; the drawing scales to whatever column holds it. */
@@ -28,6 +39,7 @@ const TERMINAL_LINES = [60, 72, 0, 50, 66, 40, 0, 56]
  * parts redraw with the settings so a change shows here as it lands on the real canvas.
  */
 export function Miniature() {
+  const gridId = useId();
   const theme = useTheme();
   const palette = (theme.vars ?? theme).palette;
   const map = useSettingsMap();
@@ -72,9 +84,9 @@ export function Miniature() {
   const fitted = said.fitting;
   const saidLines = fitted ? 2 : Math.min(said.lines, 4);
   const saidLeft = bands[0].tip + 2 * cli + 8;
-  const saidWidth = Math.min(
-    PANEL.left - 4 - saidLeft,
-    fitted ? 40 : Math.max(8, said.width * 0.07),
+  const saidWidth = Math.max(
+    1,
+    Math.min(PANEL.left - 4 - saidLeft, fitted ? 40 : Math.max(8, said.width * 0.07)),
   );
   const saidThick = 1 + said.size * 0.1;
   const title = settings.fileTitle === "path" ? "~/repo/notes/README.md" : "README.md";
@@ -89,7 +101,7 @@ export function Miniature() {
       <defs>
         {dotStep !== null && (
           <pattern
-            id="miniature-grid"
+            id={gridId}
             width={dotStep}
             height={dotStep}
             patternUnits="userSpaceOnUse"
@@ -134,7 +146,7 @@ export function Miniature() {
           y={1}
           width={PANEL.left - SIDEBAR.right}
           height={MINIATURE.height - 2}
-          fill="url(#miniature-grid)"
+          fill={`url(#${gridId})`}
           pointerEvents="none"
         />
       )}
@@ -149,22 +161,11 @@ export function Miniature() {
         <circle data-anchor="grid" cx={186} cy={9} r={0.5} fill="none" />
       </g>
 
-      {/* The folder sidebar. */}
+      {/* The panes share the window background and use the same marks as the real sidebar. */}
       <g {...hook("sidebar")}>
-        <rect
-          x={SIDEBAR.left + 0.5}
-          y={0.5}
-          width={SIDEBAR.right - 0.5}
-          height={MINIATURE.height - 1}
-          rx={5}
-          fill={palette.background.paper}
-        />
-        <rect
-          x={SIDEBAR.right - 6}
-          y={0.5}
-          width={6}
-          height={MINIATURE.height - 1}
-          fill={palette.background.paper}
+        <path
+          d={`M0.5 0.5 H${SIDEBAR.right} V${MINIATURE.height - 0.5} H0.5 Z`}
+          fill={palette.background.default}
         />
         <line
           x1={SIDEBAR.right}
@@ -173,35 +174,75 @@ export function Miniature() {
           y2={MINIATURE.height - 0.5}
           stroke={palette.divider}
         />
-        <path d="M5 7.5 H10 M7.5 5 V10" stroke={palette.text.secondary} strokeWidth={0.8} />
-        <circle
-          cx={16}
-          cy={7.5}
-          r={2}
-          fill="none"
-          stroke={palette.text.secondary}
-          strokeWidth={0.8}
+        <Mark x={4} y={4} color={ink("sidebar")}>
+          <AddMark />
+        </Mark>
+        <Mark x={14} y={4} color={ink("sidebar")}>
+          <SettingsMark />
+        </Mark>
+        <path d="M58 5 l-3 3 3 3" fill="none" stroke={ink("sidebar")} strokeWidth={0.8} />
+        <Mark x={4} y={19} color={ink("sidebar", palette.warning.main)}>
+          <PaneFolderMark size={SIZE} />
+        </Mark>
+        <rect
+          x={14}
+          y={21}
+          width={29}
+          height={2.5}
+          rx={1}
+          fill={ink("sidebar", palette.text.primary)}
         />
-        {[0, 1, 2, 3, 4, 5].map((row) => (
+        {[0, 1, 2].map((row) => (
           <g key={row}>
+            <Mark x={9} y={30 + row * 10} size={6} color={ink("sidebar")}>
+              <FolderMark on={row === 0} size={SIZE} />
+            </Mark>
             <rect
-              x={row ? 7 : 4}
-              y={18 + row * 10}
-              width={5}
-              height={4}
-              rx={0.8}
-              fill="none"
-              stroke={ink("sidebar")}
-              strokeWidth={0.7}
-            />
-            <rect
-              x={row ? 15 : 12}
-              y={19 + row * 10}
-              width={[30, 14, 26, 20, 24, 18][row]}
+              x={18}
+              y={32 + row * 10}
+              width={[23, 30, 18][row]}
               height={2}
               rx={1}
-              fill={ink("sidebar", row ? palette.text.disabled : palette.text.secondary)}
+              fill={ink("sidebar", palette.text.secondary)}
             />
+          </g>
+        ))}
+        <line x1={1} y1={63} x2={SIDEBAR.right} y2={63} stroke={palette.divider} />
+        <Mark x={4} y={69} color={ink("sidebar")}>
+          <PaneRepoMark size={SIZE} />
+        </Mark>
+        <rect
+          x={14}
+          y={71}
+          width={26}
+          height={2.5}
+          rx={1}
+          fill={ink("sidebar", palette.text.primary)}
+        />
+        {[0, 1].map((row) => (
+          <g key={row}>
+            <Mark x={9} y={82 + row * 17} color={ink("sidebar")}>
+              <PaneRepoMark size={SIZE} />
+            </Mark>
+            <rect
+              x={19}
+              y={83 + row * 17}
+              width={row ? 19 : 25}
+              height={2}
+              rx={1}
+              fill={ink("sidebar")}
+            />
+            <rect
+              x={19}
+              y={88 + row * 17}
+              width={row ? 13 : 18}
+              height={1.5}
+              rx={0.7}
+              fill={palette.text.disabled}
+            />
+            <Mark x={53} y={82 + row * 17} size={6} color={ink("sidebar")}>
+              <GraphRepoMark on />
+            </Mark>
           </g>
         ))}
         <circle data-anchor="sidebar" cx={30} cy={40} r={0.5} fill="none" />
@@ -511,14 +552,14 @@ export function Miniature() {
           width={PANEL.right - PANEL.left - 0.5}
           height={MINIATURE.height - 1}
           rx={5}
-          fill={palette.background.paper}
+          fill={palette.background.default}
         />
         <rect
           x={PANEL.left}
           y={0.5}
           width={6}
           height={MINIATURE.height - 1}
-          fill={palette.background.paper}
+          fill={palette.background.default}
         />
         <line
           x1={PANEL.left}
@@ -527,6 +568,36 @@ export function Miniature() {
           y2={MINIATURE.height - 0.5}
           stroke={palette.divider}
         />
+        {/* Terminal groups and window controls occupy one shared header. */}
+        <g color={ink("terminal")}>
+          <rect x={PANEL.left + 5} y={4} width={17} height={1.5} rx={0.7} fill="currentColor" />
+          <Mark x={PANEL.left + 5} y={8} size={5} color={palette.primary.main}>
+            <AgentMark />
+          </Mark>
+          <text x={PANEL.left + 11} y={13} fontSize={5} fill={palette.primary.main}>
+            1
+          </text>
+          <Mark x={PANEL.left + 16} y={8} size={5} color={palette.text.disabled}>
+            <CliMark />
+          </Mark>
+          <text x={PANEL.left + 22} y={13} fontSize={5} fill={palette.text.disabled}>
+            2
+          </text>
+          <line x1={PANEL.left + 28} y1={4} x2={PANEL.left + 28} y2={14} stroke={palette.divider} />
+          <rect x={PANEL.left + 32} y={4} width={12} height={1.5} rx={0.7} fill="currentColor" />
+          <Mark x={PANEL.left + 32} y={8} size={5} color={palette.text.disabled}>
+            <CliMark />
+          </Mark>
+          <text x={PANEL.left + 38} y={13} fontSize={5} fill={palette.text.disabled}>
+            3
+          </text>
+          <path
+            d="M254 12 V6 H260 M256 10 l4 -4 M260 9 V6 H257 M264 6 l3 3 -3 3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={0.7}
+          />
+        </g>
         {TERMINAL_LINES.map(({ y, width }) => (
           <rect
             key={y}
@@ -573,4 +644,33 @@ function cliPath(x: number, y: number, size: number): string {
 
 function diamond(x: number, y: number, r: number): string {
   return `M${x} ${y - r} l${r} ${r} l${-r} ${r} l${-r} ${-r} Z`;
+}
+
+/** Reuse the application's marks while keeping their stroke proportions at miniature scale. */
+function Mark({
+  x,
+  y,
+  size = 7,
+  color,
+  children,
+}: {
+  x: number;
+  y: number;
+  size?: number;
+  color: string;
+  children: ReactNode;
+}) {
+  return (
+    <svg
+      aria-hidden="true"
+      x={x}
+      y={y}
+      width={size}
+      height={size}
+      viewBox={`0 0 ${SIZE} ${SIZE}`}
+      color={color}
+    >
+      {children}
+    </svg>
+  );
 }
