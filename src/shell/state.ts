@@ -1,5 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import { useLayoutEffect, useState } from "react";
 import { connection } from "./bridge";
+import { CARRIED, pickCarried, readCarried } from "./carried";
 import type { Snapshot } from "./protocol";
 
 // Keys and value schemas are an explicit frontend handoff contract, independent of hook order.
@@ -27,6 +29,35 @@ export async function snapshot(): Promise<Snapshot> {
   for (const [key, read] of readers) values[key] = await read();
   return { schema: 1, values: structuredClone(values) };
 }
+/** Hands the graph to the service before a program update ends this process; see `carried`. */
+export async function carryAcrossRestart(): Promise<void> {
+  await invoke("persistent_put", { name: CARRIED, value: pickCarried(values) });
+}
+
+/** Forgets what was carried, so an ordinary launch never starts from it. */
+export async function dropCarried(): Promise<void> {
+  await invoke("persistent_put", { name: CARRIED, value: null }).catch(() => undefined);
+}
+
+/**
+ * Takes back what the program before this one carried, once, before anything renders. A frame
+ * handed state by the shell already holds the newer values.
+ */
+export async function takeCarried(): Promise<void> {
+  if (connection?.snapshot) return;
+  let kept: unknown;
+  try {
+    kept = await invoke<unknown>("persistent_get", { name: CARRIED });
+  } catch {
+    return;
+  }
+  if (kept === null || kept === undefined) return;
+  await dropCarried();
+  for (const [key, value] of Object.entries(readCarried(kept))) {
+    if (!Object.hasOwn(values, key)) values[key] = value;
+  }
+}
+
 export function useFrontState<T>(key: string, initial: T | (() => T)) {
   const state = useState<T>(() =>
     Object.hasOwn(values, key)

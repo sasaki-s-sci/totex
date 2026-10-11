@@ -15,7 +15,7 @@ import {
 } from "./parts";
 import { connection, disconnect, retire, settled } from "./shell/bridge";
 import { captureFocus, restoreFocus } from "./shell/focus";
-import { snapshot } from "./shell/state";
+import { snapshot, takeCarried } from "./shell/state";
 // Side effect: settles the language before anything calls `useTranslation`.
 import "./i18n";
 import {
@@ -73,6 +73,7 @@ connection?.install({
 
 Promise.all([
   prime(),
+  isCardWindow() ? undefined : takeCarried(),
   loadSettings(),
   loadThemes(),
   swapEphemeral(),

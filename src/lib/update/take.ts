@@ -1,6 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ephemeralIdentity, swapEphemeral } from "../../ephemeral/runtime";
 import { connection } from "../../shell/bridge";
+import { carryAcrossRestart, dropCarried } from "../../shell/state";
 import type { Layer, UpdateStage } from "./model";
 import { wanted } from "./reading";
 import { askStanding, settlePress, state } from "./store";
@@ -45,8 +46,15 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
         undo = undefined;
         settlePress(layer, { stage: "swapped", progress: null });
       } else {
-        // The installed bundle contains both the new host and the views built for it.
-        await invoke("update_restart");
+        // The installed bundle contains both the new host and the views built for it. Its page
+        // starts in a new process, so the graph goes ahead of it through the service.
+        await carryAcrossRestart().catch(() => undefined);
+        try {
+          await invoke("update_restart");
+        } catch (reason) {
+          await dropCarried();
+          throw reason;
+        }
         settlePress(layer, { stage: "ready", progress: null });
       }
     } else {
