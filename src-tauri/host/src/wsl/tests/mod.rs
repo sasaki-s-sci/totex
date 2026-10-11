@@ -3,5 +3,7 @@
 //! through a held-open shell are `crate::remote`'s tests, which run over a
 //! distribution when there is one to reach.
 
+#[cfg(target_os = "linux")]
+mod bridge;
 mod list;
 mod paths;

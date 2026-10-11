@@ -24,7 +24,7 @@ mod tests;
 
 use std::process::Command;
 
-pub use channel::{Output, exec, script};
+pub use channel::{Output, exec, exec_input, script};
 pub use watch::{Poll, watch};
 
 use crate::{ssh, wsl};

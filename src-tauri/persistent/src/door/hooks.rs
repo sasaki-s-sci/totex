@@ -112,7 +112,7 @@ impl Door {
         std::fs::create_dir_all(root.join(".claude-plugin")).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(plugin.join(".claude-plugin")).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(plugin.join("hooks")).map_err(|e| e.to_string())?;
-        let [marketplace, manifest, hooks] = plugin_files(port, &token);
+        let [marketplace, manifest, hooks] = plugin_files(http_hook(port, &token));
         let installed = root.join("installed.json");
         if std::fs::read(&installed)
             .ok()
@@ -173,8 +173,9 @@ impl Door {
     /// The files are written inside the distribution rather than on the
     /// Windows side: a marketplace on `/mnt/c` would tie the distribution's
     /// configuration to a path that only means something while the drive is
-    /// mounted the same way. The hooks call this runtime's loopback, which a
-    /// distribution under mirrored networking shares. Every start reinstalls,
+    /// mounted the same way. The hooks reach this runtime's loopback through
+    /// Windows' own curl, see `windows_curl`, which works whatever networking
+    /// the distribution has. Every start reinstalls,
     /// because the record of what was installed would otherwise have to live
     /// in a place this side cannot cheaply read.
     pub(crate) fn install_reply_hooks_wsl(
@@ -184,7 +185,8 @@ impl Door {
     ) -> Result<String, String> {
         let port = self.serve()?;
         let token = self.keep_hook_token(home)?;
-        let [marketplace, manifest, hooks] = plugin_files(port, &token);
+        let curl = totex_host::wsl::windows_curl(distro)?;
+        let [marketplace, manifest, hooks] = plugin_files(curl_hook(&curl, port, &token));
         let mut contents = Vec::new();
         for value in [marketplace, manifest, hooks] {
             contents.push(serde_json::to_string_pretty(&value).map_err(|e| e.to_string())?);
@@ -248,7 +250,7 @@ claude plugin update totex-replies@totex-local --json >/dev/null
 /// The marketplace, the plugin manifest and its hooks, in that order. The
 /// version changes on every install so Claude's CLI picks up a new port or
 /// token even when the plugin is already installed.
-fn plugin_files(port: u16, token: &str) -> [Value; 3] {
+fn plugin_files(hook: Value) -> [Value; 3] {
     let version = format!(
         "0.1.{}",
         std::time::SystemTime::now()
@@ -259,13 +261,34 @@ fn plugin_files(port: u16, token: &str) -> [Value; 3] {
     [
         json!({"name":"totex-local","owner":{"name":"totex"},"plugins":[{"name":"totex-replies","source":"./plugin","version":version}]}),
         json!({"name":"totex-replies","version":version,"description":"Send reply lifecycle events to totex over HTTP"}),
-        hook_config(port, token),
+        hook_config(hook),
     ]
 }
 
-fn hook_config(port: u16, token: &str) -> Value {
-    let hook = json!({"type":"http","url":format!("http://127.0.0.1:{port}/hooks/claude"),
-        "headers":{"Authorization":format!("Bearer {token}")},"timeout":5});
+fn http_hook(port: u16, token: &str) -> Value {
+    json!({"type":"http","url":format!("http://127.0.0.1:{port}/hooks/claude"),
+        "headers":{"Authorization":format!("Bearer {token}")},"timeout":5})
+}
+
+/// The same request, made by the Windows `curl` at `curl` with the hook's
+/// input as the body.
+fn curl_hook(curl: &str, port: u16, token: &str) -> Value {
+    let command = format!(
+        "{} -s -m 5 -H {} -H {} --data-binary @- {} >/dev/null",
+        quote(curl),
+        quote(&format!("Authorization: Bearer {token}")),
+        quote("Content-Type: application/json"),
+        quote(&format!("http://127.0.0.1:{port}/hooks/claude")),
+    );
+    json!({"type":"command","command":command,"timeout":10})
+}
+
+/// One shell word, whatever is in it.
+fn quote(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
+}
+
+fn hook_config(hook: Value) -> Value {
     json!({"hooks":{
         "UserPromptSubmit":[{"hooks":[hook.clone()]}],
         "Stop":[{"hooks":[hook.clone()]}],
@@ -278,12 +301,35 @@ mod tests {
     use super::*;
     #[test]
     fn plugin_files_agree_on_version_and_point_hooks_at_this_door() {
-        let [marketplace, manifest, hooks] = plugin_files(4242, "secret");
+        let [marketplace, manifest, hooks] = plugin_files(http_hook(4242, "secret"));
         assert_eq!(marketplace["plugins"][0]["version"], manifest["version"]);
         assert_eq!(marketplace["plugins"][0]["name"], manifest["name"]);
         let hook = &hooks["hooks"]["Stop"][0]["hooks"][0];
         assert_eq!(hook["url"], "http://127.0.0.1:4242/hooks/claude");
         assert_eq!(hook["headers"]["Authorization"], "Bearer secret");
+    }
+
+    /// The command a distribution runs posts its input to the same door, with
+    /// every word quoted for the shell it runs in.
+    #[cfg(unix)]
+    #[test]
+    fn curl_hook_posts_its_input_to_this_door() {
+        let hook = curl_hook("/mnt/c/it's/curl.exe", 4242, "secret");
+        let command = hook["command"].as_str().unwrap();
+        let said = std::process::Command::new("sh")
+            .args([
+                "-c",
+                &format!(
+                    "set -- {}; printf '%s\\n' \"$@\"",
+                    command.trim_end_matches(" >/dev/null")
+                ),
+            ])
+            .output()
+            .unwrap();
+        assert_eq!(
+            String::from_utf8(said.stdout).unwrap(),
+            "/mnt/c/it's/curl.exe\n-s\n-m\n5\n-H\nAuthorization: Bearer secret\n-H\nContent-Type: application/json\n--data-binary\n@-\nhttp://127.0.0.1:4242/hooks/claude\n"
+        );
     }
 
     /// The distribution's half, run against a stand-in `claude` on this

@@ -54,6 +54,8 @@
   position: relative;
   min-height: 0;
   flex: 1;
+  /* React Flow sets user-select: none on every node; what a page shows can be selected and copied. */
+  user-select: text;
 }
 
 .page__footer {

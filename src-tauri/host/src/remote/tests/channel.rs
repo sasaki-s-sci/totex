@@ -1,7 +1,7 @@
 //! The protocol a held-open shell speaks, and the commands that go down it.
 
 use super::super::channel::parse_header;
-use super::super::{Reach, exec, line, quote, script};
+use super::super::{Reach, exec, exec_input, line, quote, script};
 use super::reachable;
 
 #[test]
@@ -93,6 +93,28 @@ fn the_shell_is_still_there_for_the_next_command() {
             "{reach:?}: a held-open shell took {:?}",
             started.elapsed()
         );
+    }
+}
+
+/// What a command reads arrives whole, past the size one argument may be,
+/// and with every byte it had.
+#[test]
+fn a_command_reads_the_input_it_was_given() {
+    let mut input = b"it's \0 $HOME\n".to_vec();
+    input.resize(300 * 1024, b'x');
+    for reach in reachable() {
+        let output = exec_input(
+            &reach,
+            Some("/"),
+            &[("TOTEX_SAID", "y")],
+            &["sh", "-c", "pwd; printf %s \"$TOTEX_SAID\"; cat"],
+            &input,
+        )
+        .expect("a shell");
+        assert!(output.ok(), "{reach:?}: {:?}", output.stderr);
+        let mut expected = b"/\ny".to_vec();
+        expected.extend_from_slice(&input);
+        assert_eq!(output.stdout, expected, "{reach:?}");
     }
 }
 

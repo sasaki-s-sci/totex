@@ -197,7 +197,33 @@ pub fn exec(
     env: &[(&str, &str)],
     argv: &[&str],
 ) -> Result<Output, String> {
-    let command = line(cwd, env, argv);
+    run(reach, &line(cwd, env, argv))
+}
+
+/// [`exec`], with `input` as what the command reads. The bytes travel inside
+/// the command line, as base64 handed to the shell's own `printf`, so they meet
+/// no limit on the length of an argument the way an argument to a program does.
+pub fn exec_input(
+    reach: &Reach,
+    cwd: Option<&str>,
+    env: &[(&str, &str)],
+    argv: &[&str],
+    input: &[u8],
+) -> Result<Output, String> {
+    let mut command = String::new();
+    if let Some(cwd) = cwd {
+        command.push_str(&format!("cd {} && ", super::quote(cwd)));
+    }
+    command.push_str(&format!(
+        "printf %s {} | base64 -d | {}",
+        super::quote(&encode(input)),
+        line(None, env, argv)
+    ));
+    run(reach, &command)
+}
+
+/// One command line down a channel of `reach`'s.
+fn run(reach: &Reach, command: &str) -> Result<Output, String> {
     let key = reach.key();
     let mut last = None;
     for _ in 0..2 {
@@ -205,7 +231,7 @@ pub fn exec(
             Some(channel) => channel,
             None => Channel::open(reach)?,
         };
-        match channel.request(&command) {
+        match channel.request(command) {
             Ok(output) => {
                 give(&key, channel);
                 return Ok(output);

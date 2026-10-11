@@ -155,8 +155,6 @@
     "monitoring": "Agent monitoring",
     "local": "Monitor this machine's terminals",
     "wsl": "Monitor WSL: {{name}} terminals",
-    "help": "Each ticked environment runs its own Claude Code monitoring agent there, which watches only that environment's terminals and displays their status. Claude Code must be installed and signed in where it runs. Starting configures official reply hooks in that Claude Code; restart existing Claude sessions to load them.",
-    "wslHelp": "A WSL agent runs in that distribution's Claude Code and needs mirrored networking to connect to the app.",
     "starting": "Starting…",
     "stopping": "Stopping…",
     "active": "Monitoring",

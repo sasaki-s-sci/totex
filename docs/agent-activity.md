@@ -25,10 +25,12 @@ charge. Processes are assigned to terminals by the marker alone.
 - Claude Code: `claude agents --json` runs inside the distribution, through
   `wsl.exe`, with the Claude process's own `PATH`, `HOME` and
   `CLAUDE_CONFIG_DIR`.
-- OpenCode: its HTTP server is reached on the shared loopback, which requires
-  mirrored networking.
-- Codex: its daemon socket is a Unix socket inside the distribution that a
-  Windows process cannot connect to, so Codex in WSL stays on screen detection.
+- OpenCode and Codex: read inside the distribution by the Linux build of
+  `totex-persistent` (`totex-persistent probe`), which the Windows installer
+  carries as `totex-persistent-linux` and copies to
+  `~/.local/share/totex/wsl/<version>/` on first use. Its HTTP server and
+  daemon socket are reached from inside the distribution, so neither depends
+  on how WSL networking is configured.
 
 Terminals opened before this version have no marker and stay on screen
 detection until they are reopened.
@@ -87,14 +89,16 @@ the address it was given, not by anything it says.
 A WSL overseer uses that distribution's Claude installation and login. Its private
 working directory is `~/.local/share/totex/windows-overseer` inside WSL, and the
 terminal is opened through `wsl.exe`. Windows does not need Claude installed for
-this mode. The distribution must use mirrored networking so it can
-reach the app's loopback MCP listener. Configure `[wsl2]` with
-`networkingMode=mirrored` in `%UserProfile%/.wslconfig`, then restart WSL before
-starting monitoring. See [Microsoft's networking documentation](https://learn.microsoft.com/en-us/windows/wsl/networking#mirrored-mode-networking).
+this mode, and neither does the distribution's networking mode: the overseer
+reaches the app's loopback MCP listener through a stdio bridge,
+`.totex/overseer/bridge.sh`, that posts every message with Windows' own
+`curl.exe`, which runs on Windows through WSL interop whatever networking the
+distribution has. WSL interop must be enabled.
 Starting a WSL overseer installs the `totex-replies` plugin (below) into
 that distribution's Claude Code. Its files are written to
 `~/.local/share/totex/claude-replies` inside the distribution, and its hooks
-call the app's loopback listener over mirrored networking. Replies from WSL
+are command hooks that post to the app's loopback listener through the same
+Windows `curl.exe`. Replies from WSL
 sessions are mapped to terminals the same way as local ones, through the Linux
 PID that `claude agents --json` reports inside the distribution.
 

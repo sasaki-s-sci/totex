@@ -31,6 +31,11 @@ pub use store::Store;
 /// The version of this program, which is the app's own.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The name the Linux build of this program is carried under, beside the
+/// Windows one, for reading agents inside a WSL distribution from inside it —
+/// see `monitor::wsl`.
+pub const WSL_HELPER: &str = "totex-persistent-linux";
+
 /// The line this program is on: `major.minor` of [`VERSION`], as one number.
 ///
 /// What the two ends of the socket have to agree on. A window and a program

@@ -115,7 +115,6 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422", monitor
     const local = settings.getByRole("checkbox", { name: "Monitor this machine's terminals" });
     const ubuntu = settings.getByRole("checkbox", { name: "Monitor WSL: Ubuntu terminals" });
     const debian = settings.getByRole("checkbox", { name: "Monitor WSL: Debian terminals" });
-    await settings.getByText(/needs mirrored networking/).waitFor();
     await page.evaluate(() => {
       window.overseerRefused = true;
     });

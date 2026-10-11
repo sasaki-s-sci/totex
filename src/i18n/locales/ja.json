@@ -155,8 +155,6 @@
     "monitoring": "Agentの監視",
     "local": "このPCの端末を監視",
     "wsl": "WSL: {{name}} の端末を監視",
-    "help": "チェックした環境ごとに、その環境のClaude Codeで監視agentを起動します。各agentは自分の環境の端末だけを確認し、状況を表示します。起動先にClaude Codeのインストールとログインが必要です。監視開始時にそのClaude Codeへ公式の返信取得hookを設定します。既存のClaudeセッションは再起動して反映してください。",
-    "wslHelp": "WSLの監視agentはそのWSL内のClaude Codeで動き、アプリへの接続にmirrored networkingが必要です。",
     "starting": "起動中…",
     "stopping": "停止中…",
     "active": "監視中",

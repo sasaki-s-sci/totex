@@ -61,8 +61,7 @@ pub(super) struct Shell {
     then: char,
 }
 
-/// A POSIX shell — the one this window runs through everywhere but Windows, and
-/// a distribution's own shell wherever the window is running.
+/// A POSIX shell — the one this window runs through everywhere but Windows.
 pub(super) const POSIX: Shell = Shell {
     quote: '\'',
     then: ';',
@@ -129,10 +128,9 @@ pub fn setups(port: u16) -> Vec<Setup> {
 ///
 /// Both sides of the machine where there are two: the agent that matters is the
 /// one that will be running in the terminals, and a terminal in a WSL
-/// distribution runs that distribution's own copy. Only the distributions whose
-/// loopback is this machine's are asked — the others cannot reach the server at
-/// all, so registering there would be setting up a connection that can only
-/// fail.
+/// distribution runs that distribution's own copy — registered there with the
+/// bridge, see [`bridged_line`], so that what networking the distribution has
+/// does not matter.
 pub fn into_agent(agent: Agent, port: u16) -> Result<String, String> {
     let mut taken: Vec<String> = Vec::new();
     let mut refused: Vec<String> = Vec::new();
@@ -143,10 +141,7 @@ pub fn into_agent(agent: Agent, port: u16) -> Result<String, String> {
     }
 
     for distro in wsl::distros() {
-        if !super::address::shares_loopback(&distro) {
-            continue;
-        }
-        match inside(&distro, &line(agent, POSIX, port)) {
+        match inside(&distro, &bridged_line(agent)) {
             Ok(()) => taken.push(distro),
             Err(why) => refused.push(format!("{distro}: {why}")),
         }
@@ -189,9 +184,35 @@ fn here(line: &str) -> Result<(), String> {
     Err(complaint(&said.stderr, &said.stdout))
 }
 
+/// The setup inside a distribution, run with the bridge's path as `$1` and
+/// Windows' curl as `$2`: the agent starts the bridge as a server of its own,
+/// and the bridge finds the session's address in the terminal's environment —
+/// see `wsl::MCP_BRIDGE`. The same line for every session, as with the
+/// variable on this side.
+pub(super) fn bridged_line(agent: Agent) -> String {
+    match agent {
+        Agent::Claude => format!(
+            "claude mcp remove --scope user {NAME} ; \
+             claude mcp add --scope user {NAME} -- sh \"$1\" \"$2\""
+        ),
+        Agent::Codex => format!("codex mcp add {NAME} -- sh \"$1\" \"$2\""),
+    }
+}
+
+/// Writes the bridge into the distribution's own data directory and runs the
+/// setup `$3` there, through a login shell for the agent's PATH. The bridge
+/// arrives as `$1` and Windows' curl as `$2`, never as part of the script.
+pub(super) const WSL_SETUP: &str = r#"
+test -n "$HOME" && test "${HOME#/}" != "$HOME" || exit 1
+dir="$HOME/.local/share/totex"
+mkdir -p -- "$dir" && printf '%s' "$1" > "$dir/mcp-bridge.sh" || exit 1
+exec sh -lc "$3" totex "$dir/mcp-bridge.sh" "$2"
+"#;
+
 /// And inside a distribution, where its own copy of the agent is.
 fn inside(distro: &str, line: &str) -> Result<(), String> {
-    let said = wsl::exec(distro, None, &[], &["sh", "-lc", line])?;
+    let curl = wsl::windows_curl(distro)?;
+    let said = wsl::script(distro, None, WSL_SETUP, &[wsl::MCP_BRIDGE, &curl, line])?;
     if said.ok() {
         return Ok(());
     }

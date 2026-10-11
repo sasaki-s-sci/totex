@@ -5,6 +5,7 @@ mod codex;
 mod opencode;
 mod process;
 mod reply;
+pub mod wsl;
 pub use reply::{Reply, ReplyStatus};
 
 use std::collections::{HashMap, HashSet};
@@ -37,6 +38,7 @@ pub type ReplyReporter = Arc<dyn Fn(&str, Reply) + Send + Sync>;
 
 pub type ActivityReporter = Arc<dyn Fn(&Activity) + Send + Sync>;
 
+#[derive(Clone, Deserialize, Serialize)]
 pub(super) struct Target {
     id: String,
     cwd: String,
@@ -46,6 +48,7 @@ pub(super) struct Target {
     processes: Vec<Process>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
 pub(super) struct Process {
     pid: u32,
     parent: u32,
@@ -83,9 +86,18 @@ impl Monitor {
         // The worker never keeps the runtime alive after its owner goes away.
         std::thread::spawn(move || {
             let mut codex = codex::Codex::default();
+            let mut probes = wsl::Probes::default();
             loop {
                 let Some(monitor) = weak.upgrade() else { break };
                 let targets = process::targets(&sessions);
+                // This machine's own agents are read from here; a WSL
+                // distribution's from inside it — see `wsl`. Claude is asked
+                // through its own CLI, which already runs where its process is.
+                let local: Vec<_> = targets
+                    .iter()
+                    .filter(|target| target.distro.is_none())
+                    .cloned()
+                    .collect();
                 let states = std::thread::scope(|scope| {
                     let claude = scope.spawn(|| {
                         let door = lock(&monitor.claude)
@@ -100,20 +112,16 @@ impl Monitor {
                         })
                     });
                     let opencode = scope.spawn(|| {
-                        opencode::read_replies(&targets, |id, reply| monitor.reply(id, reply))
+                        opencode::read_replies(&local, |id, reply| monitor.reply(id, reply))
                     });
-                    let mut states = codex.read(&targets, |id, reply| monitor.reply(id, reply));
-                    for state in [claude.join(), opencode.join()].into_iter().flatten() {
-                        for (id, next) in state {
-                            states
-                                .entry(id)
-                                .and_modify(|before| {
-                                    if next == ActivityState::Working {
-                                        *before = next;
-                                    }
-                                })
-                                .or_insert(next);
-                        }
+                    let distros =
+                        scope.spawn(|| probes.read(&targets, |id, reply| monitor.reply(id, reply)));
+                    let mut states = codex.read(&local, |id, reply| monitor.reply(id, reply));
+                    for state in [claude.join(), opencode.join(), distros.join()]
+                        .into_iter()
+                        .flatten()
+                    {
+                        merge(&mut states, state);
                     }
                     states
                 });
@@ -175,6 +183,21 @@ impl Monitor {
                 listener(&changed);
             }
         }
+    }
+}
+
+/// Adds one reader's states to another's: a terminal one of them saw working
+/// is working.
+fn merge(states: &mut HashMap<String, ActivityState>, more: HashMap<String, ActivityState>) {
+    for (id, next) in more {
+        states
+            .entry(id)
+            .and_modify(|before| {
+                if next == ActivityState::Working {
+                    *before = next;
+                }
+            })
+            .or_insert(next);
     }
 }
 
@@ -322,6 +345,26 @@ fn http_json(base: &str, path: &str, directory: &str, auth: Option<(&str, &str)>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A distribution's probe adds to what was read here the way any reader
+    /// does: a terminal one of them saw working is working, and one only one of
+    /// them saw keeps what that one said.
+    #[test]
+    fn readers_merge_with_working_winning() {
+        use ActivityState::*;
+        let mut states = HashMap::from([("a".to_string(), Agent), ("b".to_string(), Working)]);
+        merge(
+            &mut states,
+            HashMap::from([
+                ("a".to_string(), Working),
+                ("b".to_string(), Idle),
+                ("c".to_string(), Agent),
+            ]),
+        );
+        assert_eq!(states["a"], Working);
+        assert_eq!(states["b"], Working);
+        assert_eq!(states["c"], Agent);
+    }
 
     #[test]
     fn publishes_only_changes_and_clears_missing_status() {

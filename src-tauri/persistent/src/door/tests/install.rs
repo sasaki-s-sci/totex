@@ -73,3 +73,59 @@ fn the_page_is_given_a_line_for_each_agent() {
     assert_eq!(named, vec![Agent::Claude, Agent::Codex]);
     assert!(setups.iter().all(|setup| !setup.line.is_empty()));
 }
+
+/// Inside a distribution, against a stand-in for each agent: the bridge is
+/// written where the registration points, verbatim, and each agent is told to
+/// start it with the curl it was given.
+#[cfg(unix)]
+#[test]
+fn a_distribution_registers_the_bridge_it_was_handed() {
+    use std::os::unix::fs::PermissionsExt;
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root =
+        std::env::temp_dir().join(format!("totex-wsl-setup-{}-{unique}", std::process::id()));
+    let bin = root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let log = root.join("calls");
+    for agent in ["claude", "codex"] {
+        let fake = bin.join(agent);
+        std::fs::write(
+            &fake,
+            format!("#!/bin/sh\necho \"{agent} $*\" >> '{}'\n", log.display()),
+        )
+        .unwrap();
+        std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let bridge = "it's \"$(not run)\"";
+    let curl = "/mnt/c/Windows/System32/curl.exe";
+    for agent in [Agent::Claude, Agent::Codex] {
+        let said = std::process::Command::new("sh")
+            .args(["-c", install::WSL_SETUP, "totex", bridge, curl])
+            .arg(install::bridged_line(agent))
+            .env("HOME", &root)
+            .env(
+                "PATH",
+                format!("{}:{}", bin.display(), std::env::var("PATH").unwrap()),
+            )
+            .output()
+            .unwrap();
+        assert!(said.status.success(), "{said:?}");
+    }
+    let path = root.join(".local/share/totex/mcp-bridge.sh");
+    let written = std::fs::read_to_string(&path).unwrap();
+    let calls = std::fs::read_to_string(&log).unwrap();
+    std::fs::remove_dir_all(&root).unwrap();
+    assert_eq!(written, bridge);
+    let path = path.display();
+    assert_eq!(
+        calls,
+        format!(
+            "claude mcp remove --scope user totex\n\
+             claude mcp add --scope user totex -- sh {path} {curl}\n\
+             codex mcp add totex -- sh {path} {curl}\n"
+        )
+    );
+}

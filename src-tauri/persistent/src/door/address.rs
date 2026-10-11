@@ -1,14 +1,11 @@
 //! A session's own door, and whether it can reach it at all.
 
-use std::collections::HashMap;
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
 
 use totex_host::host::Host;
-use totex_host::sync::lock;
-use totex_host::{space, wsl};
+use totex_host::space;
 
 use super::{Door, LOOPBACK};
 
@@ -64,39 +61,17 @@ pub(super) fn token(keys: &RandomState, id: &str) -> String {
 /// The address a session working in `cwd` can reach this server at, or nothing
 /// where it cannot reach it at all.
 ///
-/// A session in a WSL distribution is the one case where loopback may or may
-/// not be one place. Under the networking WSL starts with, a distribution's
-/// `127.0.0.1` is its own and the way across is refused by the firewall — so
-/// the honest answer there is that there is no address. Under mirrored
-/// networking the two loopbacks are one. A session on a machine reached over
-/// ssh is never in doubt: that machine's loopback is its own, and this server
-/// listens on nothing else.
+/// A session in a WSL distribution is handed the same loopback address. Its
+/// agent does not dial it from the distribution, whose loopback is this
+/// machine's only under mirrored networking: it is registered there with a
+/// bridge that posts through Windows' own curl — see `install` — which is on
+/// this machine's loopback whatever networking the distribution has. A
+/// session on a machine reached over ssh is never in doubt: that machine's
+/// loopback is its own, and this server listens on nothing else.
 fn reachable(cwd: &str) -> Option<&'static str> {
     match Host::of_str(cwd) {
-        Host::Local => Some(LOOPBACK),
-        Host::Wsl(distro) => shares_loopback(&distro).then_some(LOOPBACK),
+        Host::Local | Host::Wsl(_) => Some(LOOPBACK),
         // Another machine cannot reach this server's loopback.
         Host::Ssh(_) => None,
     }
-}
-
-/// Whether a distribution's loopback is the same one this server is on. Asked
-/// once and remembered: it is a setting of the machine's, it cannot change while
-/// a distribution is running, and the question is otherwise asked every time a
-/// terminal is opened.
-pub(super) fn shares_loopback(distro: &str) -> bool {
-    static KNOWN: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
-    let known = KNOWN.get_or_init(Mutex::default);
-
-    if let Some(answer) = lock(known).get(distro) {
-        return *answer;
-    }
-
-    // Anything that cannot answer is a no: an older distribution without
-    // `wslinfo` is one from before mirrored networking existed.
-    let answer = wsl::exec(distro, None, &[], &["wslinfo", "--networking-mode"])
-        .map(|said| said.ok() && said.text().trim() == "mirrored")
-        .unwrap_or(false);
-    lock(known).insert(distro.to_string(), answer);
-    answer
 }

@@ -18,7 +18,7 @@ use crate::monitor::{ActivityState, Reply, ReplyStatus};
 pub(super) struct Codex {
     // Keep an exact child-discovered identity when the tool child exits. The
     // process snapshot retains the live Codex PID; exiting removes this entry.
-    known: HashMap<u32, String>,
+    pub(super) known: HashMap<u32, String>,
 }
 
 impl Codex {

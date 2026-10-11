@@ -45,6 +45,61 @@ pub fn script(
     remote::script(&Reach::Wsl(distro.to_string()), cwd, body, args)
 }
 
+/// Where Windows' own `curl.exe` is, spelled as `distro` sees it.
+///
+/// A program started from a distribution through interop runs on Windows, so
+/// it reaches Windows' loopback whatever networking the distribution has. That
+/// is the way across for anything in a distribution that has to call this
+/// program's loopback servers: under the networking WSL starts with, the
+/// distribution's own `127.0.0.1` is not this machine's.
+pub fn windows_curl(distro: &str) -> Result<String, String> {
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+    let windows = format!(r"{root}\System32\curl.exe");
+    let said = script(
+        distro,
+        None,
+        r#"p=$(wslpath -u "$1" 2>/dev/null) && test -x "$p" && printf '%s' "$p""#,
+        &[&windows],
+    )
+    .map_err(|error| format!("{distro}: {error}"))?;
+    let path = said.text();
+    if !said.ok() || !path.starts_with('/') || path.contains(['\n', '\r', '\0']) {
+        return Err(format!(
+            "{distro}: Windows curl.exe cannot be run from this distribution. Enable WSL interop."
+        ));
+    }
+    Ok(path)
+}
+
+/// An MCP server over stdio for an agent in a distribution, run as
+/// `sh <this> <curl>` with the path [`windows_curl`] gave: one message a line,
+/// each posted through that curl, and each answer — the servers here answer in
+/// plain JSON on one line, or with nothing for a notification — written back
+/// as a line.
+///
+/// Where to post is `$TOTEX_URL`, with `$TOTEX_TOKEN` as the bearer where
+/// there is one. Without it, the session's own address the terminal was
+/// started with, `$TOTEX_MCP_URL`: from this environment, or, for an agent
+/// that starts its servers with only an environment of its own choosing, from
+/// the nearest ancestor that has it.
+pub const MCP_BRIDGE: &str = r#"curl=$1
+url=${TOTEX_URL:-$TOTEX_MCP_URL}
+pid=$PPID
+while [ -z "$url" ] && [ "${pid:-0}" -gt 1 ]; do
+  url=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^TOTEX_MCP_URL=//p' | head -n 1)
+  set -- $(sed 's/.*) //' "/proc/$pid/stat" 2>/dev/null)
+  pid=$2
+done
+[ -n "$url" ] || { echo 'No totex address in this terminal.' >&2; exit 1; }
+auth="X-Totex: 1"
+[ -z "$TOTEX_TOKEN" ] || auth="Authorization: Bearer $TOTEX_TOKEN"
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -n "$line" ] || continue
+  said=$(printf '%s' "$line" | "$curl" -s -H "$auth" -H 'Content-Type: application/json' --data-binary @- "$url")
+  [ -z "$said" ] || printf '%s\n' "$said"
+done
+"#;
+
 /// The prefix Windows publishes a distribution's filesystem under, and the one
 /// older builds published it under before that.
 const PREFIXES: [&str; 2] = [r"\\wsl.localhost\", r"\\wsl$\"];
@@ -135,4 +190,10 @@ impl Location {
             .map(str::to_string)
             .unwrap_or_else(|| self.distro.clone())
     }
+}
+
+/// Runs one command inside `distro` with `input` as what it reads — see
+/// [`remote::exec_input`].
+pub fn exec_input(distro: &str, argv: &[&str], input: &[u8]) -> Result<Output, String> {
+    remote::exec_input(&Reach::Wsl(distro.to_string()), None, &[], argv, input)
 }

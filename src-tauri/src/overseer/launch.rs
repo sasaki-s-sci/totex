@@ -15,8 +15,7 @@ use serde_json::json;
 use crate::host::Host;
 
 /// Prepare a private Linux directory, using the distribution's login PATH.
-/// The MCP listener stays on Windows loopback, so mirrored networking is
-/// required. Fail before opening a terminal if the CLI or route is unavailable.
+/// Fail before opening a terminal if the CLI is unavailable.
 pub fn wsl_directory(distro: &str) -> Result<String, String> {
     let output = crate::wsl::exec(distro, None, &[], &["bash", "-lc", WSL_PREPARE])?;
     wsl_directory_output(distro, output)
@@ -24,7 +23,6 @@ pub fn wsl_directory(distro: &str) -> Result<String, String> {
 
 const WSL_PREPARE: &str = r#"
 command -v claude >/dev/null || { echo 'Claude Code was not found in the WSL login PATH. Install and sign in inside this distribution.' >&2; exit 1; }
-test "$(wslinfo --networking-mode 2>/dev/null)" = mirrored || { echo 'WSL monitoring requires mirrored networking. Set networkingMode=mirrored under [wsl2] in %UserProfile%/.wslconfig, then restart WSL.' >&2; exit 1; }
 test -n "$HOME" && test "${HOME#/}" != "$HOME" || exit 1
 dir="$HOME/.local/share/totex/windows-overseer"
 mkdir -p -- "$dir" && chmod 700 -- "$dir" || exit 1
@@ -82,15 +80,43 @@ pub fn command() -> String {
 
 /// How the agent is to reach the server.
 pub fn config(port: u16, token: &str) -> String {
-    let config = json!({
+    pretty(json!({
         "mcpServers": {
             SERVER: {
                 "type": "http",
-                "url": format!("http://127.0.0.1:{port}/mcp"),
+                "url": url(port),
                 "headers": { "Authorization": format!("Bearer {token}") },
             }
         }
-    });
+    }))
+}
+
+fn url(port: u16) -> String {
+    format!("http://127.0.0.1:{port}/mcp")
+}
+
+/// How an agent in a WSL distribution is to reach it: through the bridge at
+/// `bridge`, which hands every message to Windows' `curl` at `curl` — see
+/// `wsl::MCP_BRIDGE`. The server is on Windows' loopback, which the
+/// distribution's own is not unless it has mirrored networking; a Windows
+/// program it starts is on Windows'.
+pub fn bridged_config(bridge: &str, curl: &str, port: u16, token: &str) -> String {
+    pretty(json!({
+        "mcpServers": {
+            SERVER: {
+                "type": "stdio",
+                "command": "sh",
+                "args": [bridge, curl],
+                "env": {
+                    "TOTEX_URL": url(port),
+                    "TOTEX_TOKEN": token,
+                },
+            }
+        }
+    }))
+}
+
+fn pretty(config: serde_json::Value) -> String {
     let mut text = serde_json::to_string_pretty(&config).unwrap_or_default();
     text.push('\n');
     text
@@ -106,11 +132,20 @@ pub fn write(cwd: &str, port: u16, token: &str) -> Result<(), String> {
     let space = host.join(Path::new(cwd), totex_host::space::DIR);
     let dir = host.join(&space, DIR);
     host.create_dir_all(&dir)?;
-    for (name, text) in [
+    let mut files = vec![
         (".gitignore", "*\n".to_string()),
-        ("mcp.json", config(port, token)),
         ("prompt.md", PROMPT.to_string()),
-    ] {
+    ];
+    match &host {
+        Host::Wsl(distro) => {
+            let curl = crate::wsl::windows_curl(distro)?;
+            let bridge = host.native(&host.join(&dir, "bridge.sh"));
+            files.push(("bridge.sh", crate::wsl::MCP_BRIDGE.to_string()));
+            files.push(("mcp.json", bridged_config(&bridge, &curl, port, token)));
+        }
+        _ => files.push(("mcp.json", config(port, token))),
+    }
+    for (name, text) in files {
         let file = host.join(&dir, name);
         match host.stat(&file) {
             Some(stat) => host.write(&file, &text, stat.size).map(|_| ())?,
@@ -123,6 +158,19 @@ pub fn write(cwd: &str, port: u16, token: &str) -> Result<(), String> {
 #[cfg(test)]
 mod wsl_tests {
     use super::*;
+
+    #[test]
+    fn bridged_config_runs_the_bridge_with_the_route_in_its_environment() {
+        let config: serde_json::Value =
+            serde_json::from_str(&bridged_config("/h/bridge.sh", "/mnt/c/curl.exe", 7, "k"))
+                .unwrap();
+        let server = &config["mcpServers"][SERVER];
+        assert_eq!(server["type"], "stdio");
+        assert_eq!(server["args"][0], "/h/bridge.sh");
+        assert_eq!(server["args"][1], "/mnt/c/curl.exe");
+        assert_eq!(server["env"]["TOTEX_URL"], "http://127.0.0.1:7/mcp");
+        assert_eq!(server["env"]["TOTEX_TOKEN"], "k");
+    }
 
     #[test]
     fn linux_directory_routes_the_terminal_and_files_to_the_selected_distribution() {

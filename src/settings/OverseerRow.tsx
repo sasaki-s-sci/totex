@@ -79,14 +79,6 @@ export function OverseerRow() {
           </Row>
         );
       })}
-      <Typography variant="caption" color="text.secondary">
-        {t("overseer.help")}
-      </Typography>
-      {distros.length > 0 && (
-        <Typography variant="caption" color="text.secondary">
-          {t("overseer.wslHelp")}
-        </Typography>
-      )}
       {error && (
         <Alert severity="error">
           {t("overseer.failed")} {error}
