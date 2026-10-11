@@ -8,6 +8,7 @@
 //! same moment. Asked of a directory rather than of a repository, because that
 //! is the unit the column draws.
 
+mod above;
 mod ignored;
 
 #[cfg(test)]
@@ -19,6 +20,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use above::read_above;
 use ignored::read_ignored;
 
 use super::cmd;
@@ -91,14 +93,23 @@ pub fn directory_changes(paths: Vec<String>) -> HashMap<String, Answer> {
 /// folders down is answered for by the one folder in this listing that leads to
 /// it.
 ///
-/// `None` is a directory git would not answer for — one outside a repository,
-/// most of the time — which the column draws in the colour of everything else.
+/// A directory outside every repository is answered for by the checkouts
+/// under it instead, so a row leading down to one that has moved wears its
+/// colour; see [`above`]. `None` is a directory with neither — one git would
+/// not answer for — which the column draws in the colour of everything else.
 fn read_answer(dir: &Path) -> Option<Answer> {
     // Asked first because it is the question that fails when this is not a
     // repository at all. A repository with no commit in it yet has no HEAD to
     // diff against and everything in it is untracked anyway, so the diff below
     // is allowed to say nothing.
-    let untracked = cmd::try_run(dir, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    let Some(untracked) = cmd::try_run(dir, &["ls-files", "--others", "--exclude-standard", "-z"])
+    else {
+        return read_above(dir).map(|changed| Answer {
+            changed,
+            ignored: Vec::new(),
+            all_ignored: false,
+        });
+    };
 
     let mut changed = HashMap::new();
     if let Some(listing) = cmd::try_run(dir, &["diff", "HEAD", "--name-status", "-z", "--relative"])

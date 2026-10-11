@@ -130,6 +130,32 @@ fn a_row_on_the_ignore_list_is_named_as_one() {
     }
 }
 
+/// A folder outside every repository is coloured by the checkouts under it,
+/// by the row that leads down to each, however far down it is.
+#[test]
+fn a_folder_above_a_repository_wears_what_it_comes_to() {
+    let temp = TempDir::new("changes-above");
+    let repo = repository(&temp);
+    std::fs::create_dir_all(temp.path().join("quiet")).expect("create dir");
+
+    // A checkout with nothing moved still answers, so a colour can clear.
+    assert!(changes(temp.path()).is_empty());
+
+    std::fs::write(repo.join("sub/deep/down.txt"), "rewritten").expect("write");
+    std::fs::write(repo.join("arrived.txt"), "new").expect("write");
+    let above = changes(temp.path());
+    assert_eq!(above.get("repo"), Some(&Change::Modified));
+    assert_eq!(above.get("quiet"), None);
+}
+
+/// A folder with no checkout under it is still one git will not answer for.
+#[test]
+fn a_folder_with_no_repository_under_it_has_no_answer() {
+    let temp = TempDir::new("changes-none");
+    std::fs::create_dir_all(temp.path().join("plain/deeper")).expect("create dir");
+    assert!(read_answer(temp.path()).is_none());
+}
+
 #[test]
 fn a_rename_is_a_name_that_left_and_a_name_that_arrived() {
     let mut changes = HashMap::new();

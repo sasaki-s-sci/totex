@@ -74,7 +74,7 @@ export function FolderNode({ data }: NodeProps<FolderFlowNode>) {
         </button>
         {/* The mark is the drag handle and deliberately not a button: a button would fire on every drag that came to nothing. */}
         <div
-          className={`${GRIP} nopan`}
+          className={`${GRIP} nopan${changeClass(change)}`}
           title={t("folder.move")}
           style={{ width: hold, height: hold }}
         >

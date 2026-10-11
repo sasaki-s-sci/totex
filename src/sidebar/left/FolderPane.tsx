@@ -93,7 +93,8 @@ export function FolderPane({
   // to a pane with no row in it.
   const isRepository =
     root?.path === path && root.entries.some((entry) => entry.name === ".git" && entry.isDir);
-  const changes = isRepository ? Object.values(answer.changed) : [];
+  // What its rows come to: a checkout's files, or the checkouts under a folder that is not one.
+  const changes = Object.values(answer.changed);
   const change = changes.reduce<(typeof changes)[number] | undefined>(
     (held, next) => (held === undefined || held === next ? next : "modified"),
     undefined,
