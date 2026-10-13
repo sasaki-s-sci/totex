@@ -149,27 +149,9 @@
     "pick": "Take this one too",
     "take": "Answer"
   },
-  "overseer": {
-    "terminal": "Overseer",
-    "says": "overseer",
-    "monitoring": "Agent monitoring",
-    "local": "Monitor this machine's terminals",
-    "wsl": "Monitor WSL: {{name}} terminals",
-    "starting": "Starting…",
-    "stopping": "Stopping…",
-    "active": "Monitoring",
-    "inactive": "Stopped",
-    "failed": "Could not control the monitoring agent."
-  },
   "report": {
     "open": "Open the terminal",
-    "working": "is working",
-    "inProgress": "Responding",
-    "completed": "Reply complete",
-    "failed": "Failed",
-    "interrupted": "Interrupted",
-    "readReply": "Read reply",
-    "truncated": "Part of this long reply has been omitted."
+    "working": "is working"
   },
   "settings": {
     "canvas": "Canvas",
@@ -323,5 +305,57 @@
   "said": {
     "terminal": "The terminal's",
     "window": "The window's"
+  },
+  "monitor": {
+    "title": "Monitor",
+    "enabled": "Enabled",
+    "agent": "Agent",
+    "command": "ACP command",
+    "args": "Arguments (JSON)",
+    "model": "Model",
+    "default": "Agent default",
+    "interval": "Interval (sec)",
+    "features": "Features",
+    "status": "Status",
+    "agents": "Agents",
+    "taskSummary": "Current task",
+    "requestSummary": "User request",
+    "estimate": "Time estimate",
+    "goal": "Goal",
+    "argsInvalid": "Use a JSON array of strings",
+    "commandRequired": "Set an ACP command to start monitoring.",
+    "refresh": "Refresh",
+    "waiting": "Waiting",
+    "unknown": "Unknown",
+    "inferred": "Inferred",
+    "observed": "Observed",
+    "updated": "Updated",
+    "estimateValue": "≈ {{minutes}} min · {{confidence}} confidence",
+    "states": {
+      "unknown": "Unknown",
+      "running": "Running",
+      "permission": "Permission",
+      "stopped": "Stopped",
+      "success": "Success",
+      "failure": "Failed"
+    },
+    "goals": {
+      "active": "Active",
+      "paused": "Paused",
+      "blocked": "Blocked",
+      "complete": "Complete"
+    },
+    "observer": {
+      "disabled": "Off",
+      "idle": "Idle",
+      "running": "Running",
+      "failure": "Failed",
+      "permission": "Permission"
+    },
+    "confidence": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    }
   }
 }

@@ -128,14 +128,6 @@ pub fn stand(held: Arc<Persistent>, home: &Path, ending: Ending) -> Result<Arc<S
         });
     }));
 
-    let activity = Arc::clone(&serving);
-    held.monitor.follow(Arc::new(move |changed| {
-        activity.broadcast(&Told::Activity {
-            id: changed.id.clone(),
-            activity: changed.activity,
-        });
-    }));
-
     write_address(
         home,
         &Address {
@@ -306,6 +298,12 @@ fn answer(
                 .map(|()| Value::Null)
         }),
         "sessions" => said(held.sessions.running()),
+        "monitor_configure" => read::<MonitorConfig>(with)
+            .and_then(|at| held.monitor.configure(at.config).map(|()| Value::Null)),
+        "monitor_snapshots" => said(held.monitor.snapshots()),
+        "monitor_refresh" => {
+            read::<Named>(with).and_then(|at| held.monitor.refresh(&at.id).map(|()| Value::Null))
+        }
         "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
         "write" => read::<Written>(with)
             .and_then(|at| held.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
@@ -325,21 +323,10 @@ fn answer(
             Ok(Value::Null)
         }
         "door_reports" => said(held.door.reports()),
-        "monitor_activities" => said(held.monitor.activities()),
         "door_setups" => said(held.door.setups()),
-        "door_install" => read::<Installing>(with).and_then(|at| {
-            if at.reply_hooks && at.agent == door::Agent::Claude {
-                match at.distro.as_deref() {
-                    Some(distro) => held
-                        .door
-                        .install_reply_hooks_wsl(&serving.home, distro)
-                        .and_then(said),
-                    None => held.door.install_reply_hooks(&serving.home).and_then(said),
-                }
-            } else {
-                held.door.install(at.agent).and_then(said)
-            }
-        }),
+        "door_install" => {
+            read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))
+        }
         "store_get" => read::<Stored>(with).and_then(|at| said(held.store.get(&at.name)?)),
         "store_put" => read::<Putting>(with)
             .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
@@ -360,6 +347,7 @@ fn answer(
             // it was heard, and a socket closed by a process that has exited is
             // not an answer.
             let then: Then = Box::new(|serving| {
+                serving.held.monitor.stop();
                 serving.held.sessions.close_all();
                 serving.held.door.unserve();
                 (serving.ending)();
@@ -379,6 +367,11 @@ fn read<T: for<'a> Deserialize<'a>>(with: Value) -> Result<T, String> {
 /// One answer, on its way back as JSON.
 fn said<T: serde::Serialize>(answer: T) -> Result<Value, String> {
     serde_json::to_value(answer).map_err(|error| format!("cannot say that: {error}"))
+}
+
+#[derive(Deserialize)]
+struct MonitorConfig {
+    config: crate::monitor::Config,
 }
 
 #[derive(Deserialize)]
@@ -412,12 +405,6 @@ struct Resized {
 #[derive(Deserialize)]
 struct Installing {
     agent: door::Agent,
-    #[serde(default, rename = "replyHooks")]
-    reply_hooks: bool,
-    /// A WSL distribution whose own Claude Code takes the reply hooks, in
-    /// place of the one on this machine.
-    #[serde(default)]
-    distro: Option<String>,
 }
 
 #[derive(Deserialize)]

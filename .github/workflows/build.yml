@@ -233,57 +233,10 @@ jobs:
           path: src-tauri/target/cargo-timings/
           retention-days: 7
 
-  wsl-helper:
-    name: WSL helper
-    # The program that holds the terminals, built for Linux, for a Windows
-    # bundle to carry: what runs inside a WSL distribution to ask about the
-    # agents there from where they are -- see scripts/persistent-sidecar.mjs.
-    # musl, so that it runs in any distribution whatever its libc; built here,
-    # because the C in `ring` needs a compiler for Linux that a Windows runner
-    # does not have.
-    needs: scope
-    if: needs.scope.outputs.native == 'true'
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-          targets: x86_64-unknown-linux-musl
-
-      - name: Install a C compiler for musl
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y musl-tools
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          key: wsl-helper
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build it
-        run: |
-          cargo build --locked --manifest-path src-tauri/Cargo.toml -p totex-persistent \
-            --release --target x86_64-unknown-linux-musl
-          file src-tauri/target/x86_64-unknown-linux-musl/release/totex-persistent
-
-      - name: Upload it
-        uses: actions/upload-artifact@v7
-        with:
-          name: wsl-helper
-          path: src-tauri/target/x86_64-unknown-linux-musl/release/totex-persistent
-          retention-days: 7
-          if-no-files-found: error
-
   build:
     name: ${{ matrix.name }}
-    # Start native work immediately; sharing dist delayed every platform in
-    # measurements. The one wait is for the WSL helper, which is small and
-    # which the Windows bundle carries.
-    needs: [scope, wsl-helper]
+    # Start native work immediately; sharing dist delayed every platform in measurements.
+    needs: scope
     if: needs.scope.outputs.native == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -425,25 +378,12 @@ jobs:
       - name: Install npm dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Take the program built for WSL
-        if: runner.os == 'Windows'
-        uses: actions/download-artifact@v7
-        with:
-          name: wsl-helper
-          path: wsl-helper
-
       - name: Build the program that holds the terminals
         # A crate of its own beside the app -- see src-tauri/persistent -- carried
         # into every bundle beside the app's own binary. `tauri build` does not
         # build it, and it is named on the command line below rather than in
         # tauri.conf.json: see scripts/persistent-sidecar.mjs for why.
-        #
-        # A Windows bundle carries the same program built for Linux as well,
-        # which this runner cannot build -- see the WSL helper job -- so it is
-        # brought over from there and named to the script.
         shell: bash
-        env:
-          TOTEX_WSL_HELPER: ${{ runner.os == 'Windows' && 'wsl-helper/totex-persistent' || '' }}
         run: node scripts/persistent-sidecar.mjs --release --target ${{ matrix.target }}
 
       - name: Build the installers
@@ -459,7 +399,7 @@ jobs:
           sign=""
           [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] || sign="--no-sign"
           pnpm tauri build --target ${{ matrix.target }} $sign \
-            --config "$(cat src-tauri/binaries/bundle.json)" \
+            --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}' \
             -- --locked --timings
 
       - name: Collect the installers under names that do not move
@@ -544,11 +484,10 @@ jobs:
         # installer that hands over to another installer is two programs
         # deciding where the app goes, and only one of them was asked.
         #
-        # Only Windows has one, because only Windows has that installer. Only
-        # this one file is copied here: the sidecars NSIS lays down beside it --
-        # the program that holds the terminals and its Linux copy, see
-        # scripts/persistent-sidecar.mjs -- are not part of what that installer
-        # puts on the machine.
+        # Only Windows has one, because only Windows has that installer. The
+        # bundle is this one file: nothing is configured under `bundle.resources`
+        # in src-tauri/tauri.conf.json, so what NSIS lays down beside its own
+        # uninstaller is exactly what is copied here.
         #
         # Uncompressed on purpose. Everything setup/ does it does with what
         # Windows already has -- the window, the download, the install -- and

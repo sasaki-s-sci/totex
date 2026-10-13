@@ -1,7 +1,6 @@
 //! One session's screen, and the question standing on it.
 
 use serde::{Deserialize, Serialize};
-use totex_persistent::monitor::ActivityState;
 
 use super::super::{Ask, Doing, Reading, Screen, doing_as, read, typed};
 
@@ -67,7 +66,7 @@ pub struct Watcher {
     /// one thing that says the agent has gone. Kept outside the window with
     /// `started` for the same reason it is.
     agent: bool,
-    /// What the session is doing, with native monitoring taking precedence.
+    /// What the session is doing, as its screen stands.
     ///
     /// Kept rather than read when asked for, because this one is *sent*: the
     /// mark on the canvas is drawn from it, and a window that had to ask would
@@ -75,8 +74,6 @@ pub struct Watcher {
     /// as the output arrives, and what crosses to the window is the moments it
     /// changed — which for a shell somebody is typing at is twice a command.
     doing: Doing,
-    /// Tool lifecycle state takes priority over terminal text.
-    native: Option<ActivityState>,
     /// Whether that has changed since anybody was told, which is what keeps a
     /// session drawing its own output from saying `running` a thousand times.
     turned: bool,
@@ -104,7 +101,6 @@ impl Watcher {
             // A shell that has not printed its prompt yet is a shell nobody
             // can type at, which is what starting up is.
             doing: Doing::Running,
-            native: None,
             turned: false,
             noted: None,
             fed: 0,
@@ -171,12 +167,6 @@ impl Watcher {
         self.screen.resize(rows, cols);
     }
 
-    /// Every row of the screen as it stands, for somebody reading it rather
-    /// than reading a question off it — see `overseer`.
-    pub fn lines(&self) -> Vec<String> {
-        self.screen.lines()
-    }
-
     pub fn asking(&self) -> Option<&Ask> {
         self.asking.as_ref()
     }
@@ -219,24 +209,13 @@ impl Watcher {
         if !self.screen.standing().taken {
             self.agent = false;
         }
-        let doing = match self.native {
-            Some(ActivityState::Agent) => Doing::Agent,
-            Some(ActivityState::Working) => Doing::Working,
-            Some(ActivityState::Idle) => Doing::Idle,
-            None => doing_as(&self.screen, self.started.as_deref(), self.agent),
-        };
+        let doing = doing_as(&self.screen, self.started.as_deref(), self.agent);
         self.agent = matches!(doing, Doing::Agent | Doing::Working);
         if doing == self.doing {
             return;
         }
         self.doing = doing;
         self.turned = true;
-    }
-
-    /// Receives authoritative activity from the agent monitor.
-    pub(super) fn activity(&mut self, activity: Option<ActivityState>) {
-        self.native = activity;
-        self.reckon();
     }
 
     /// What the session is doing, for a window asking after the lot of them.

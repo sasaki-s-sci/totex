@@ -149,27 +149,9 @@
     "pick": "これも選ぶ",
     "take": "確定"
   },
-  "overseer": {
-    "terminal": "Overseer",
-    "says": "overseer より",
-    "monitoring": "Agentの監視",
-    "local": "このPCの端末を監視",
-    "wsl": "WSL: {{name}} の端末を監視",
-    "starting": "起動中…",
-    "stopping": "停止中…",
-    "active": "監視中",
-    "inactive": "停止中",
-    "failed": "監視agentの操作に失敗しました。"
-  },
   "report": {
     "open": "ターミナルを開く",
-    "working": "作業中",
-    "inProgress": "応答中",
-    "completed": "返信完了",
-    "failed": "失敗",
-    "interrupted": "中断",
-    "readReply": "返信本文を読む",
-    "truncated": "長い返信のため、本文の一部を省略しています。"
+    "working": "作業中"
   },
   "settings": {
     "canvas": "キャンバス",
@@ -323,5 +305,57 @@
   "said": {
     "terminal": "ターミナルのフォント",
     "window": "ウィンドウのフォント"
+  },
+  "monitor": {
+    "title": "Monitor",
+    "enabled": "有効",
+    "agent": "エージェント",
+    "command": "ACP コマンド",
+    "args": "引数 (JSON)",
+    "model": "モデル",
+    "default": "エージェント既定",
+    "interval": "間隔 (秒)",
+    "features": "機能",
+    "status": "ステータス",
+    "agents": "エージェント",
+    "taskSummary": "現在のタスク",
+    "requestSummary": "ユーザーの依頼",
+    "estimate": "時間の推定",
+    "goal": "ゴール",
+    "argsInvalid": "文字列の JSON 配列を指定",
+    "commandRequired": "ACP コマンドを設定すると監視を開始します。",
+    "refresh": "更新",
+    "waiting": "待機中",
+    "unknown": "不明",
+    "inferred": "推定",
+    "observed": "観測",
+    "updated": "更新",
+    "estimateValue": "約 {{minutes}} 分 · 確度 {{confidence}}",
+    "states": {
+      "unknown": "不明",
+      "running": "実行中",
+      "permission": "承認待ち",
+      "stopped": "停止",
+      "success": "成功",
+      "failure": "失敗"
+    },
+    "goals": {
+      "active": "進行中",
+      "paused": "一時停止",
+      "blocked": "ブロック",
+      "complete": "達成"
+    },
+    "observer": {
+      "disabled": "無効",
+      "idle": "待機",
+      "running": "実行中",
+      "failure": "失敗",
+      "permission": "承認待ち"
+    },
+    "confidence": {
+      "low": "低",
+      "medium": "中",
+      "high": "高"
+    }
   }
 }

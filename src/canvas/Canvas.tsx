@@ -73,7 +73,6 @@ export function Canvas({
   paged,
   asks,
   reports,
-  overseen,
   doings,
   onAnswer,
   onReply,
@@ -356,7 +355,7 @@ export function Canvas({
 
   const jumps = useMemo(() => ({ numbers }), [numbers]);
 
-  const typed = useCliTyped(showing, asks, reports, overseen);
+  const typed = useCliTyped(showing, asks, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,

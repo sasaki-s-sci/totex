@@ -13,8 +13,6 @@ export type Session = {
    * the terminal stands by the row that opened it.
    */
   folder?: boolean;
-  /** Opened for the overseer: the agent in it watches every other terminal and says how each is doing. */
-  overseer?: true;
 };
 
 let started = 0;
@@ -23,14 +21,12 @@ let started = 0;
 type Kept = {
   branch: string;
   folder?: boolean;
-  overseer?: true;
 };
 
 export function sessionMeta(session: Session): string {
   return JSON.stringify({
     branch: session.branch,
     ...(session.folder ? { folder: true } : null),
-    ...(session.overseer ? { overseer: true } : null),
   } satisfies Kept);
 }
 
@@ -53,15 +49,11 @@ export function restored(running: readonly Running[]): Session[] {
   });
 }
 
-function kept(meta: string | null): Pick<Session, "branch" | "folder" | "overseer"> {
+function kept(meta: string | null): Pick<Session, "branch" | "folder"> {
   if (!meta) return { branch: "" };
   try {
-    const { branch, folder, overseer } = JSON.parse(meta) as Partial<Kept>;
-    return {
-      branch: branch ?? "",
-      ...(folder === true ? { folder: true } : null),
-      ...(overseer === true ? { overseer: true } : null),
-    };
+    const { branch, folder } = JSON.parse(meta) as Partial<Kept>;
+    return { branch: branch ?? "", ...(folder === true ? { folder: true } : null) };
   } catch {
     return { branch: "" };
   }

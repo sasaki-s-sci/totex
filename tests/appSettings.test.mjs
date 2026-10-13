@@ -23,6 +23,7 @@ test("migrates all existing user preferences, including line size one", () => {
   assert.deepEqual(
     legacySettings((key) => values.get(key) ?? null),
     {
+      monitor: DEFAULT_SETTINGS.monitor,
       theme: "dark",
       appearance: { colors: "classic", style: "default", effects: "none" },
       language: "ja",
@@ -90,4 +91,16 @@ test("a partial appearance keeps the other layers at their defaults", () => {
     style: "default",
     effects: "none",
   });
+});
+
+test("monitor feature patches preserve independent defaults", () => {
+  const settings = settingsFrom({
+    monitor: { enabled: true, features: { estimate: true, agents: false } },
+  });
+  assert.equal(settings.monitor.enabled, true);
+  assert.equal(settings.monitor.features.status, true);
+  assert.equal(settings.monitor.features.estimate, true);
+  assert.equal(settings.monitor.features.agents, false);
+  assert.equal(DEFAULT_SETTINGS.monitor.enabled, false);
+  assert.equal(DEFAULT_SETTINGS.monitor.features.agents, true);
 });

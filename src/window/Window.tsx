@@ -1,5 +1,5 @@
 import { Alert, Box, Snackbar } from "@mui/material";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAsks } from "../hooks/useAsks";
 import { useAutoFollow } from "../hooks/useAutoFollow";
@@ -8,7 +8,6 @@ import { useDoings } from "../hooks/useDoings";
 import { useDrops } from "../hooks/useDrops";
 import { useFileDrops } from "../hooks/useFileDrops";
 import { useMarks } from "../hooks/useMarks";
-import { useOverseer } from "../hooks/useOverseer";
 import { useReports } from "../hooks/useReports";
 import { useServing } from "../hooks/useServing";
 import { useSessionKeys } from "../hooks/useSessionKeys";
@@ -19,10 +18,10 @@ import { useWorkspaces } from "../hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
 import { useEver } from "../lib/onDemand";
-import { mergedReports } from "../lib/overseen";
 import { sessionsInPlaces } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
+import { useMonitorRuntime } from "../monitor/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
 import {
   canvasPart,
@@ -57,33 +56,13 @@ export function Window() {
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
+  useMonitorRuntime();
   const canvasHost = useRef<HTMLElement>(null);
   const { marks, fail, hold, release } = useMarks();
 
   const sessions = useSessions();
   const asks = useAsks();
-  const said = useReports();
-  const overseer = useOverseer();
-  // Where an overseer runs, everything beside its terminals is its line: the agents' own reports
-  // and questions reach the person through it. Each environment has its own overseer, so this is
-  // decided terminal by terminal.
-  const overseen = overseer.covers;
-  const reports = useMemo(
-    () => mergedReports(said, overseer.statuses, overseen),
-    [said, overseer.statuses, overseen],
-  );
-  const shownAsks = useMemo(() => {
-    const kept = [...asks.asks].filter(([id]) => !overseen(id));
-    return kept.length === asks.asks.size ? asks.asks : new Map(kept);
-  }, [asks.asks, overseen]);
-  // The host opens an overseer's shell itself, maybe after this window listed what was running.
-  const { pickUp } = sessions;
-  const overseerUnknown = overseer.sessions.some(
-    (id) => !sessions.sessions.some((session) => session.id === id),
-  );
-  useEffect(() => {
-    if (overseerUnknown) pickUp();
-  }, [overseerUnknown, pickUp]);
+  const reports = useReports();
   const doings = useDoings();
   useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
   const tasks = useTaskKeys({
@@ -223,9 +202,8 @@ export function Window() {
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
-              asks={shownAsks}
+              asks={asks.asks}
               reports={reports}
-              overseen={overseen}
               doings={doings}
               onAnswer={asks.answer}
               onReply={asks.reply}

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import {
   type AppSettings,
   legacySettings,
+  mergeMonitor,
   type SettingsPatch,
   settingsFrom,
 } from "./appSettingsModel";
@@ -42,6 +43,15 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
   return {
     ...one,
     ...two,
+    ...(one.monitor || two.monitor
+      ? {
+          monitor: {
+            ...one.monitor,
+            ...two.monitor,
+            features: { ...one.monitor?.features, ...two.monitor?.features },
+          },
+        }
+      : {}),
     ...(one.said || two.said ? { said: { ...one.said, ...two.said } } : {}),
     ...(one.appearance || two.appearance
       ? { appearance: { ...one.appearance, ...two.appearance } }
@@ -53,6 +63,7 @@ function accept(next: SettingsDocument) {
   settings = settingsFrom({
     ...next.value,
     ...pending,
+    monitor: mergeMonitor(next.value.monitor, pending.monitor),
     appearance: { ...next.value.appearance, ...pending.appearance },
     said: { ...next.value.said, ...pending.said },
   });
@@ -93,6 +104,7 @@ export function updateSettings(patch: SettingsPatch): void {
   settings = settingsFrom({
     ...settings,
     ...patch,
+    monitor: mergeMonitor(settings.monitor, patch.monitor),
     appearance: { ...settings.appearance, ...patch.appearance },
     said: { ...settings.said, ...patch.said },
   });

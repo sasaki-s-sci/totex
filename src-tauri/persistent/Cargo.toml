@@ -36,11 +36,11 @@ minisign-verify = "0.2.5"
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 tar = "0.4.46"
-tokio = { version = "1.53.1", default-features = false, features = ["rt"] }
+tokio = { version = "1.53.1", default-features = false, features = ["rt", "time", "macros", "process"] }
+agent-client-protocol = { version = "3.3.0", features = ["process"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.189"
-tungstenite = { version = "0.29.0", default-features = false, features = ["handshake"] }
 
 [dev-dependencies]
 # Signing a release of this test's own, for the one test that runs a release

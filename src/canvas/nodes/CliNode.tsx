@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
 import { CliGlyph } from "../../marks";
+import { MonitorBadge } from "../../monitor/MonitorBadge";
 import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
 import { useTypedLine } from "../cliTyped";
@@ -19,8 +20,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const said = useTypedLine(session.id);
   const doing = useCliDoing(session.id);
 
-  const kind = session.overseer ? t("overseer.terminal") : t("cli.shell");
-  const name = ordinal ? `${kind} ${ordinal}` : kind;
+  const name = ordinal ? `${t("cli.shell")} ${ordinal}` : t("cli.shell");
 
   return (
     <div className="cell cli">
@@ -36,7 +36,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             showSession(session);
           }}
         >
-          <CliGlyph doing={doing} jump={jump} overseer={session.overseer} size={marks.cli} />
+          <CliGlyph doing={doing} jump={jump} size={marks.cli} />
         </button>
 
         <button
@@ -52,6 +52,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
           <CloseIcon sx={{ fontSize: 9 }} />
         </button>
 
+        <MonitorBadge id={session.id} canvas />
         {said === null ? null : (
           <span
             className="cli__said"

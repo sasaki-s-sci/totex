@@ -19,28 +19,11 @@
  * `target/<profile>/` beside the app's own development binary, which is where
  * the app looks for it first -- see src-tauri/src/persistent.rs.
  *
- * A Windows build carries a second copy of the same program, built for Linux:
- * what runs inside a WSL distribution to ask about the agents there from
- * where they are, rather than across whatever networking the distribution
- * has. It is built here for x86_64-unknown-linux-musl, so that it runs in any
- * distribution whatever its libc -- or, where `TOTEX_WSL_HELPER` names one
- * already built, that one is taken instead. That is how CI does it: a Windows
- * runner has no C compiler for Linux, and the C in `ring` needs one, so an
- * Ubuntu job builds it and hands it over -- see .github/workflows/build.yml.
- * It lands under `binaries/` for the bundler and, without `--target`, beside
- * the development binary too.
- *
- * What the bundler is to carry is written to `binaries/bundle.json`, which
- * `tauri build --config` is pointed at: the program always, the Linux copy
- * where there is one. A build in CI without the Linux copy fails; anywhere
- * else it goes on without one, and only WSL monitoring of codex and opencode
- * is missing from what it makes.
- *
  * Usage: node scripts/persistent-sidecar.mjs [--release] [--target <triple>]
  */
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
@@ -76,31 +59,6 @@ if (target === "universal-apple-darwin") {
   process.stdout.write(`${named}\n`);
 }
 
-/** The name the Windows program looks for beside itself -- `WSL_HELPER` in src-tauri/persistent/src/lib.rs. */
-const HELPER = "totex-persistent-linux";
-const HELPER_TARGET = "x86_64-unknown-linux-musl";
-
-const bundle = { externalBin: ["binaries/totex-persistent"] };
-const windows = target ? target.includes("windows") : process.platform === "win32";
-if (windows) {
-  const helper = linuxHelper();
-  if (helper) {
-    copyFileSync(helper, join(binaries, HELPER));
-    if (!target) copyFileSync(helper, join("src-tauri", "target", profile, HELPER));
-    // Beside the app in the install directory, which is where a Windows
-    // bundle puts its resources and where src-tauri/src/persistent.rs looks.
-    bundle.resources = { [`binaries/${HELPER}`]: HELPER };
-    process.stdout.write(`${join(binaries, HELPER)}\n`);
-  } else if (process.env.CI) {
-    fail(`a Windows build in CI must carry ${HELPER}: set TOTEX_WSL_HELPER`);
-  } else {
-    process.stderr.write(
-      `warning: building without ${HELPER}; WSL agents are monitored only through claude\n`,
-    );
-  }
-}
-writeFileSync(join(binaries, "bundle.json"), `${JSON.stringify({ bundle })}\n`);
-
 /** Builds the program for one target, or for this machine, and says where it is. */
 function build(triple) {
   const flags = ["build", "--manifest-path", manifest, "-p", "totex-persistent"];
@@ -112,18 +70,6 @@ function build(triple) {
     ? join("src-tauri", "target", triple, profile)
     : join("src-tauri", "target", profile);
   return join(dir, `totex-persistent${exe(triple)}`);
-}
-
-/** The Linux copy of the program: the one named, or one built here, or none where this machine cannot. */
-function linuxHelper() {
-  const named = process.env.TOTEX_WSL_HELPER;
-  if (named) return named;
-  try {
-    return build(HELPER_TARGET);
-  } catch {
-    if (process.env.CI) fail(`could not build ${HELPER} for ${HELPER_TARGET}`);
-    return null;
-  }
 }
 
 /** The triple this machine's compiler builds for when it is not told one. */

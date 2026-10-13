@@ -6,14 +6,13 @@ import { sessionsInPlaces, underPlace } from "../src/lib/placeSessions.ts";
 const session = (cwd, more = {}) => ({ id: cwd, cwd, branch: "main", ...more });
 const repo = { path: "/projects/app", worktrees: [{ path: "/worktrees/feature" }] };
 
-test("removing a repo covers all terminals and external worktrees without killing a sibling or overseer", () => {
+test("removing a repo covers all terminals and external worktrees without killing a sibling", () => {
   const matches = sessionsInPlaces([{ kind: "repository", root: repo.path }], [repo]);
   assert.equal(matches(session("/projects/app")), true);
   assert.equal(matches(session("/projects/app/src")), true);
   assert.equal(matches(session("/worktrees/feature/build")), true);
   assert.equal(matches(session("/projects/app-other")), false);
   assert.equal(matches(session("/worktrees/other")), false);
-  assert.equal(matches(session("/projects/app", { overseer: true })), false);
 });
 
 test("folder deletion includes repositories beneath it and their worktrees", () => {

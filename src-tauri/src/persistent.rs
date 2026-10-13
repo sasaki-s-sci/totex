@@ -128,32 +128,17 @@ fn placed(home: &Path) -> Result<PathBuf, String> {
 
     let dir = home.join(totex_persistent::VERSION);
     let placed = dir.join(PROGRAM);
-    // Its Linux copy goes with it where this window brought one -- only a
-    // Windows bundle does -- and first, so that a program found in place
-    // always has the copy beside it that it was brought with.
-    if let Some(helper) = beside
-        .parent()
-        .map(|from| from.join(totex_persistent::WSL_HELPER))
-        .filter(|helper| helper.is_file())
-    {
-        place(&helper, &dir, totex_persistent::WSL_HELPER)?;
+    if !placed.is_file() {
+        std::fs::create_dir_all(&dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+        // Written beside where it goes and moved into place, so that a copy is
+        // either the whole program or not there.
+        let placing = dir.join(format!("{PROGRAM}.placing"));
+        std::fs::copy(&beside, &placing)
+            .map_err(|error| format!("{}: {error}", placing.display()))?;
+        std::fs::rename(&placing, &placed)
+            .map_err(|error| format!("{}: {error}", placed.display()))?;
     }
-    place(&beside, &dir, PROGRAM)?;
     Ok(placed)
-}
-
-/// Copies `from` into `dir` under `name`, unless something is there already.
-fn place(from: &Path, dir: &Path, name: &str) -> Result<(), String> {
-    let placed = dir.join(name);
-    if placed.is_file() {
-        return Ok(());
-    }
-    std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
-    // Written beside where it goes and moved into place, so that a copy is
-    // either the whole program or not there.
-    let placing = dir.join(format!("{name}.placing"));
-    std::fs::copy(from, &placing).map_err(|error| format!("{}: {error}", placing.display()))?;
-    std::fs::rename(&placing, &placed).map_err(|error| format!("{}: {error}", placed.display()))
 }
 
 /// The program of one version, where this machine holds it and it is on this
@@ -325,26 +310,6 @@ mod tests {
         assert!(held_at(&home, &on_line(1)).is_some());
         assert!(held_at(&home, &off_line()).is_none());
         assert!(held_at(&home, &on_line(3)).is_none());
-        let _ = std::fs::remove_dir_all(&home);
-    }
-
-    #[test]
-    fn a_placed_copy_is_whole_and_left_alone_once_there() {
-        let home = temp();
-        let from = home.join("from");
-        std::fs::write(&from, b"the helper").expect("source");
-        let dir = home.join("0.0.0");
-        place(&from, &dir, totex_persistent::WSL_HELPER).expect("placed");
-        let placed = dir.join(totex_persistent::WSL_HELPER);
-        assert_eq!(std::fs::read(&placed).expect("read"), b"the helper");
-        assert!(
-            !dir.join(format!("{}.placing", totex_persistent::WSL_HELPER))
-                .exists()
-        );
-
-        std::fs::write(&from, b"another").expect("source again");
-        place(&from, &dir, totex_persistent::WSL_HELPER).expect("placed again");
-        assert_eq!(std::fs::read(&placed).expect("read"), b"the helper");
         let _ = std::fs::remove_dir_all(&home);
     }
 }

@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
+import { monitor } from "./monitor.mjs";
 import { writeReport } from "./report.mjs";
 import { checkRunning, freePort, launch, stop, stopPersistent, waitFor } from "./runtime.mjs";
 import { smoke } from "./smoke.mjs";
@@ -48,7 +49,7 @@ controller.signal.addEventListener("abort", () => {
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.once(signal, () => controller.abort(new Error(`Interrupted by ${signal}`)));
 }
-const watchdog = setTimeout(() => controller.abort(new Error("E2E exceeded 180 seconds")), 180000);
+const watchdog = setTimeout(() => controller.abort(new Error("E2E exceeded 300 seconds")), 300000);
 
 async function step(name, action) {
   controller.signal.throwIfAborted();
@@ -77,7 +78,7 @@ async function step(name, action) {
 
 async function run() {
   if (process.platform !== "linux") throw new Error("Video E2E currently requires Linux.");
-  for (const tool of ["Xvfb", "ffmpeg", "ffprobe", "WebKitWebDriver", "tauri-driver"]) {
+  for (const tool of ["Xvfb", "ffmpeg", "ffprobe", "WebKitWebDriver", "tauri-driver", "python3"]) {
     execFileSync("which", [tool], { stdio: "pipe" });
   }
   const binary = join(root, "src-tauri/target/debug/totex");
@@ -103,7 +104,32 @@ async function run() {
   mkdirSync(runtime, { mode: 0o700 });
   writeFileSync(
     join(privateHome, ".totex", "totex.json"),
-    JSON.stringify({ language: "en", theme: "light", follow: false, mcpServing: false }),
+    JSON.stringify({
+      language: "en",
+      theme: "light",
+      follow: false,
+      mcpServing: false,
+      monitor: {
+        enabled: false,
+        command: "python3",
+        args: [
+          "-u",
+          join(root, "tests/e2e/fixtures/monitor-agent.py"),
+          join(output, "monitor-agent.jsonl"),
+          join(temporary, "monitor-control"),
+        ],
+        model: "e2e-model",
+        intervalSecs: 3600,
+        features: {
+          status: true,
+          agents: true,
+          taskSummary: true,
+          requestSummary: true,
+          estimate: true,
+          goal: true,
+        },
+      },
+    }),
   );
   // Only app/driver children receive this private user environment. The developer's
   // environment and build toolchain remain untouched; no existing sessions are reused.
@@ -211,6 +237,11 @@ async function run() {
     capabilities: { "tauri:options": { application: binary } },
   });
   await smoke(browser, repository, step);
+  await monitor(browser, step, {
+    log: join(output, "monitor-agent.jsonl"),
+    control: join(temporary, "monitor-control"),
+    settings: join(privateHome, ".totex/totex.json"),
+  });
   checkRunning(recorder, "FFmpeg");
 }
 
@@ -226,7 +257,10 @@ try {
   clearTimeout(watchdog);
   if (browser && !controller.signal.aborted) {
     try {
-      writeFileSync(join(output, "page.html"), await browser.getPageSource());
+      writeFileSync(
+        join(output, "page.html"),
+        await browser.execute(() => document.documentElement.outerHTML),
+      );
       await browser.deleteSession();
     } catch (error) {
       result.cleanupError = String(error);

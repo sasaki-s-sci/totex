@@ -4,6 +4,7 @@ import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import type { FilePreviewNodeData } from "../lib/graph";
 import type { Session } from "../lib/session";
+import { MonitorBadge } from "../monitor/MonitorBadge";
 import { terminalPart } from "../parts";
 import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
@@ -57,7 +58,10 @@ function TerminalPage({
       keepMounted
       heading={placement === "sidebar" ? terminalList : undefined}
       tools={
-        <PageTools name={name} placement={placement} collapsed={collapsed} controls={controls} />
+        <>
+          <MonitorBadge id={session.id} />
+          <PageTools name={name} placement={placement} collapsed={collapsed} controls={controls} />
+        </>
       }
     >
       <div className="cli-page__terminal nodrag nopan nowheel">

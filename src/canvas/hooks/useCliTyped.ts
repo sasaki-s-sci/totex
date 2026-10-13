@@ -10,7 +10,6 @@ export function useCliTyped(
   showing: string | null,
   asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
-  overseen: (id: string) => boolean,
 ): CliTyped {
   const kept = useShowingSaid();
   const [said, setSaid] = useState<CliTyped>(null);
@@ -38,10 +37,8 @@ export function useCliTyped(
     if (!said) return null;
     const lines = new Map<string, string>();
     for (const [session, line] of said) {
-      // An overseer's line says what was typed when it matters, in its words.
-      if (!asks.has(session) && !reports.has(session) && !overseen(session))
-        lines.set(session, line);
+      if (!asks.has(session) && !reports.has(session)) lines.set(session, line);
     }
     return lines;
-  }, [said, asks, reports, overseen]);
+  }, [said, asks, reports]);
 }

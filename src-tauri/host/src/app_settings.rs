@@ -42,6 +42,9 @@ fn validate(value: &Value) -> Result<(), String> {
     range(value, "undoDepth", 10, 1000)?;
     range(value, "cliWheel", 25, 400)?;
     range(value, "graphWheel", 25, 400)?;
+    if let Some(monitor) = object.get("monitor") {
+        validate_monitor(monitor)?;
+    }
     if let Some(said) = object.get("said") {
         let fields = said.as_object().ok_or("said must be an object")?;
         for key in ["showing", "fitting"] {
@@ -70,6 +73,51 @@ fn validate(value: &Value) -> Result<(), String> {
                 .is_some_and(|v| v.as_str().is_none_or(|s| s.is_empty()))
             {
                 return Err(format!("Invalid appearance.{key}"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_monitor(value: &Value) -> Result<(), String> {
+    let fields = value.as_object().ok_or("monitor must be an object")?;
+    if fields.get("enabled").is_some_and(|v| !v.is_boolean()) {
+        return Err("Invalid monitor.enabled".into());
+    }
+    for key in ["command", "model"] {
+        if fields.get(key).is_some_and(|v| {
+            v.as_str()
+                .is_none_or(|s| s.len() > 4096 || s.contains('\0'))
+        }) {
+            return Err(format!("Invalid monitor.{key}"));
+        }
+    }
+    if fields.get("args").is_some_and(|v| {
+        v.as_array().is_none_or(|args| {
+            args.len() > 128
+                || args.iter().any(|arg| {
+                    arg.as_str()
+                        .is_none_or(|s| s.len() > 4096 || s.contains('\0'))
+                })
+        })
+    }) {
+        return Err("Invalid monitor.args".into());
+    }
+    range(value, "intervalSecs", 10, 3600)?;
+    if let Some(features) = fields.get("features") {
+        let features = features
+            .as_object()
+            .ok_or("monitor.features must be an object")?;
+        for key in [
+            "status",
+            "agents",
+            "taskSummary",
+            "requestSummary",
+            "estimate",
+            "goal",
+        ] {
+            if features.get(key).is_some_and(|v| !v.is_boolean()) {
+                return Err(format!("Invalid monitor.features.{key}"));
             }
         }
     }
@@ -189,6 +237,39 @@ mod tests {
         assert_eq!(next.value["custom"], initial["custom"]);
         assert_eq!(next.value["theme"], "dark");
         assert_eq!(read(&temp.0, &json!({})).unwrap().value, next.value);
+    }
+    #[test]
+    fn monitor_features_merge_and_invalid_commands_do_not_overwrite_settings() {
+        let temp = Temp::new();
+        read(
+            &temp.0,
+            &json!({"monitor": {
+                "enabled": false, "command": "agent-acp", "args": ["--stdio"],
+                "features": {"agents": true, "estimate": true}
+            }}),
+        )
+        .unwrap();
+        let next = patch(
+            &temp.0,
+            &json!({"monitor": {
+                "features": {"estimate": false}
+            }}),
+        )
+        .unwrap();
+        assert_eq!(next.value["monitor"]["features"]["agents"], true);
+        assert_eq!(next.value["monitor"]["features"]["estimate"], false);
+        for invalid in [
+            json!({"monitor": []}),
+            json!({"monitor": {"enabled": "yes"}}),
+            json!({"monitor": {"command": "bad\u{0}command"}}),
+            json!({"monitor": {"args": "--stdio"}}),
+            json!({"monitor": {"args": [false]}}),
+            json!({"monitor": {"intervalSecs": 0}}),
+            json!({"monitor": {"features": {"status": "yes"}}}),
+        ] {
+            assert!(patch(&temp.0, &invalid).is_err());
+            assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), next.text);
+        }
     }
     #[test]
     fn rejects_invalid_settings_without_overwriting() {

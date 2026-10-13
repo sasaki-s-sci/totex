@@ -40,9 +40,6 @@ export type CanvasProps = {
 
   reports: ReadonlyMap<string, Report>;
 
-  /** Whether a terminal's overseer is running: its line is all that stands beside it, so no typed line either. */
-  overseen: (id: string) => boolean;
-
   doings: ReadonlyMap<string, Doing>;
 
   onAnswer: (session: Session, ask: Ask, key: string) => void;

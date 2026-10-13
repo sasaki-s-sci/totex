@@ -1,397 +1,702 @@
-//! Read-only status monitoring of agent processes owned by local terminals.
+//! Optional observers, separate from the shells they describe.
+//! Reports are inference over terminal output; observer lifecycle is measured.
+mod acp;
 
-mod claude;
-mod codex;
-mod opencode;
-mod process;
-mod reply;
-pub mod wsl;
-pub use reply::{Reply, ReplyStatus};
-
-use std::collections::{HashMap, HashSet};
-use std::io::Read;
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
+use crate::{Sessions, session::Running};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use totex_host::sync::lock;
+use std::collections::HashMap;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use totex_host::{host::Host, sync::lock};
 
-use crate::Sessions;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ActivityState {
-    Agent,
-    Working,
-    Idle,
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Features {
+    pub status: bool,
+    pub agents: bool,
+    pub task_summary: bool,
+    pub request_summary: bool,
+    pub estimate: bool,
+    pub goal: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Activity {
+#[serde(rename_all = "camelCase")]
+pub struct Config {
+    pub enabled: bool,
+    pub command: String,
+    pub args: Vec<String>,
+    pub model: String,
+    pub interval_secs: u64,
+    pub features: Features,
+}
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            command: String::new(),
+            args: vec![],
+            model: String::new(),
+            interval_secs: 30,
+            features: Features::default(),
+        }
+    }
+}
+impl Features {
+    fn any(&self) -> bool {
+        self.status
+            || self.agents
+            || self.task_summary
+            || self.request_summary
+            || self.estimate
+            || self.goal
+    }
+}
+impl Config {
+    fn validate(&self) -> Result<(), String> {
+        if !(10..=3600).contains(&self.interval_secs) {
+            return Err("Monitor interval must be 10–3600 seconds".into());
+        }
+        if self.enabled && self.command.trim().is_empty() {
+            return Err("Choose an ACP agent command".into());
+        }
+        if self.args.len() > 128
+            || std::iter::once(&self.command)
+                .chain(std::iter::once(&self.model))
+                .chain(self.args.iter())
+                .any(|s| s.len() > 4096 || s.contains('\0'))
+        {
+            return Err("Invalid Monitor command or arguments".into());
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Status {
+    #[default]
+    Unknown,
+    Running,
+    Permission,
+    Stopped,
+    Success,
+    Failure,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GoalStatus {
+    Active,
+    Paused,
+    Blocked,
+    Complete,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Goal {
+    pub status: GoalStatus,
+    pub summary: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Confidence {
+    Low,
+    Medium,
+    High,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Estimate {
+    pub seconds: u64,
+    pub confidence: Confidence,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Kind {
+    Monitor,
+    Shell,
+    Subagent,
+    Background,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Agent {
     pub id: String,
-    pub activity: Option<ActivityState>,
+    pub kind: Kind,
+    pub label: String,
+    pub status: Status,
+    #[serde(default, deserialize_with = "optional_detail")]
+    pub detail: String,
+    #[serde(default)]
+    pub progress: Option<f64>,
+    #[serde(default = "inferred_source")]
+    pub source: String,
 }
 
-pub type ReplyReporter = Arc<dyn Fn(&str, Reply) + Send + Sync>;
-
-pub type ActivityReporter = Arc<dyn Fn(&Activity) + Send + Sync>;
-
-#[derive(Clone, Deserialize, Serialize)]
-pub(super) struct Target {
-    id: String,
-    cwd: String,
-    /// The WSL distribution the processes are in, which is also where any
-    /// command asking about them has to run. `None` for this machine.
-    distro: Option<String>,
-    processes: Vec<Process>,
+fn optional_detail<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
 }
-
-#[derive(Clone, Deserialize, Serialize)]
-pub(super) struct Process {
-    pid: u32,
-    parent: u32,
-    args: Vec<String>,
-    cwd: Option<String>,
-    env: HashMap<String, String>,
-    listening: Vec<u16>,
-    open_files: Vec<String>,
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Report {
+    pub status: Status,
+    pub goal: Option<Goal>,
+    pub task_summary: Option<String>,
+    pub request_summary: Option<String>,
+    pub estimate: Option<Estimate>,
+    pub agents: Vec<Agent>,
 }
-
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Snapshot {
+    pub id: String,
+    pub environment: String,
+    #[serde(flatten)]
+    pub report: Report,
+    pub source: &'static str,
+    pub updated_at: u64,
+    pub error: Option<String>,
+    pub monitor_status: &'static str,
+}
+fn inferred_source() -> String {
+    "inferred".into()
+}
+struct Entry {
+    snapshot: Snapshot,
+    last_seq: Option<usize>,
+    last_attempt: u64,
+    cancel: Option<Arc<AtomicBool>>,
+    generation: u64,
+    refresh: bool,
+}
+#[derive(Default)]
+struct State {
+    config: Config,
+    entries: HashMap<String, Entry>,
+    generation: u64,
+}
 pub struct Monitor {
-    states: Mutex<HashMap<String, ActivityState>>,
-    reporting: Mutex<Vec<ActivityReporter>>,
-    replies: Mutex<Vec<ReplyReporter>>,
-    claude: Mutex<Option<std::sync::Weak<crate::door::Door>>>,
+    sessions: Arc<Sessions>,
+    state: Mutex<State>,
+    workers: AtomicUsize,
+}
+struct Worker<'a>(&'a AtomicUsize);
+impl Drop for Worker<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::Release);
+    }
 }
 
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+fn environment(cwd: &str) -> String {
+    match Host::of_str(cwd) {
+        Host::Local => {
+            if cfg!(windows) {
+                "Windows".into()
+            } else {
+                "Local".into()
+            }
+        }
+        Host::Ssh(host) => format!("SSH · {host}"),
+        Host::Wsl(distro) => format!("WSL · {distro}"),
+    }
+}
 impl Monitor {
     pub fn new(sessions: Arc<Sessions>) -> Arc<Self> {
         let monitor = Arc::new(Self {
-            states: Mutex::new(HashMap::new()),
-            reporting: Mutex::new(Vec::new()),
-            replies: Mutex::new(Vec::new()),
-            claude: Mutex::new(None),
+            sessions,
+            state: Mutex::new(State::default()),
+            workers: AtomicUsize::new(0),
         });
-        // A terminal in a distribution is told its own id, which is the only
-        // way its Linux processes can later be told apart from Windows.
-        sessions.dress(Arc::new(|id, cwd| {
-            match totex_host::host::Host::of_str(cwd) {
-                totex_host::host::Host::Wsl(_) => vec![(process::MARK.to_string(), id.to_string())],
-                _ => Vec::new(),
-            }
-        }));
         let weak = Arc::downgrade(&monitor);
-        // The worker never keeps the runtime alive after its owner goes away.
         std::thread::spawn(move || {
-            let mut codex = codex::Codex::default();
-            let mut probes = wsl::Probes::default();
             loop {
+                std::thread::sleep(Duration::from_secs(1));
                 let Some(monitor) = weak.upgrade() else { break };
-                let targets = process::targets(&sessions);
-                // This machine's own agents are read from here; a WSL
-                // distribution's from inside it — see `wsl`. Claude is asked
-                // through its own CLI, which already runs where its process is.
-                let local: Vec<_> = targets
-                    .iter()
-                    .filter(|target| target.distro.is_none())
-                    .cloned()
-                    .collect();
-                let states = std::thread::scope(|scope| {
-                    let claude = scope.spawn(|| {
-                        let door = lock(&monitor.claude)
-                            .as_ref()
-                            .and_then(std::sync::Weak::upgrade);
-                        claude::read_replies(&targets, |id, session| {
-                            if let Some(reply) =
-                                door.as_ref().and_then(|door| door.claude_reply(session))
-                            {
-                                monitor.reply(id, reply);
-                            }
-                        })
-                    });
-                    let opencode = scope.spawn(|| {
-                        opencode::read_replies(&local, |id, reply| monitor.reply(id, reply))
-                    });
-                    let distros =
-                        scope.spawn(|| probes.read(&targets, |id, reply| monitor.reply(id, reply)));
-                    let mut states = codex.read(&local, |id, reply| monitor.reply(id, reply));
-                    for state in [claude.join(), opencode.join(), distros.join()]
-                        .into_iter()
-                        .flatten()
-                    {
-                        merge(&mut states, state);
-                    }
-                    states
-                });
-                monitor.publish(states);
-                drop(monitor);
-                std::thread::sleep(Duration::from_millis(750));
+                monitor.tick();
             }
         });
         monitor
     }
-
-    pub fn claude_hooks(&self, door: std::sync::Weak<crate::door::Door>) {
-        *lock(&self.claude) = Some(door);
-    }
-
-    pub fn reply_to(&self, reporter: ReplyReporter) {
-        lock(&self.replies).push(reporter);
-    }
-
-    fn reply(&self, id: &str, reply: Reply) {
-        for reporter in lock(&self.replies).clone() {
-            reporter(id, reply.clone());
+    pub fn configure(&self, config: Config) -> Result<(), String> {
+        config.validate()?;
+        let mut state = lock(&self.state);
+        if serde_json::to_value(&state.config).ok() == serde_json::to_value(&config).ok() {
+            return Ok(());
         }
-    }
-
-    pub fn follow(&self, reporter: ActivityReporter) {
-        lock(&self.reporting).push(reporter);
-    }
-
-    pub fn activities(&self) -> Vec<Activity> {
-        lock(&self.states)
-            .iter()
-            .map(|(id, state)| Activity {
-                id: id.clone(),
-                activity: Some(*state),
-            })
-            .collect()
-    }
-
-    fn publish(&self, next: HashMap<String, ActivityState>) {
-        let changes = {
-            let mut states = lock(&self.states);
-            let ids: HashSet<_> = states.keys().chain(next.keys()).cloned().collect();
-            let changes: Vec<_> = ids
-                .into_iter()
-                .filter_map(|id| {
-                    (states.get(&id) != next.get(&id)).then(|| Activity {
-                        activity: next.get(&id).copied(),
-                        id,
-                    })
-                })
-                .collect();
-            *states = next;
-            changes
-        };
-        let listeners = lock(&self.reporting).clone();
-        for changed in changes {
-            for listener in &listeners {
-                listener(&changed);
+        state.generation += 1;
+        for entry in state.entries.values_mut() {
+            if let Some(cancel) = entry.cancel.take() {
+                cancel.store(true, Ordering::Relaxed);
             }
+            entry.refresh = true;
+            entry.snapshot.report = Report::default();
+            entry.snapshot.error = None;
+            entry.snapshot.updated_at = 0;
+            entry.snapshot.monitor_status = if config.enabled { "idle" } else { "disabled" };
         }
+        state.config = config;
+        Ok(())
     }
-}
-
-/// Adds one reader's states to another's: a terminal one of them saw working
-/// is working.
-fn merge(states: &mut HashMap<String, ActivityState>, more: HashMap<String, ActivityState>) {
-    for (id, next) in more {
-        states
-            .entry(id)
-            .and_modify(|before| {
-                if next == ActivityState::Working {
-                    *before = next;
-                }
-            })
-            .or_insert(next);
-    }
-}
-
-pub(crate) fn command_json(
-    program: &str,
-    args: &[&str],
-    env: &HashMap<String, String>,
-) -> Result<Value, String> {
-    command_json_timeout(program, args, env, Duration::from_millis(1500))
-}
-
-/// [`command_json`], run wherever the queried process is: on this machine, or
-/// inside its WSL distribution through a channel already held open there.
-/// `timeout` bounds it inside the distribution, because a channel cannot be
-/// abandoned halfway through an answer the way a child process can be killed.
-fn agent_json(
-    distro: Option<&str>,
-    program: &str,
-    args: &[&str],
-    env: &HashMap<String, String>,
-) -> Result<Value, String> {
-    let Some(distro) = distro else {
-        return command_json(program, args, env);
-    };
-    let mut env: Vec<_> = env
-        .iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect();
-    env.sort();
-    let mut argv = vec!["timeout", "1.5", "env", "-u", "CLAUDE_CONFIG_DIR"];
-    argv.extend(env.iter().map(String::as_str));
-    argv.push(program);
-    argv.extend_from_slice(args);
-    let output = totex_host::wsl::exec(distro, None, &[], &argv)?;
-    if !output.ok() {
-        return Err("status unavailable".into());
-    }
-    if output.stdout.len() > 2 * 1024 * 1024 {
-        return Err("status too large".into());
-    }
-    serde_json::from_slice(&output.stdout).map_err(|error| error.to_string())
-}
-
-pub(crate) fn command_json_timeout(
-    program: &str,
-    args: &[&str],
-    env: &HashMap<String, String>,
-    timeout: Duration,
-) -> Result<Value, String> {
-    let mut command = Command::new(program);
-    command
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    // The queried process's configuration must win over the monitor's environment.
-    command.env_remove("CLAUDE_CONFIG_DIR");
-    command.envs(env);
-    let mut child = command.spawn().map_err(|error| error.to_string())?;
-    let stdout = child.stdout.take().ok_or("missing stdout")?;
-    let reader = std::thread::spawn(move || {
-        let mut data = Vec::new();
-        stdout
-            .take(2 * 1024 * 1024 + 1)
-            .read_to_end(&mut data)
-            .map(|_| data)
-    });
-    let deadline = Instant::now() + timeout;
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break Some(status),
-            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
-            _ => {
-                let _ = child.kill();
-                let _ = child.wait();
-                break None;
-            }
-        }
-    };
-    // A descendant may hold stdout open; do not wait for that pipe indefinitely.
-    if status.is_none_or(|status| !status.success()) {
-        return Err("status unavailable".into());
-    }
-    while !reader.is_finished() && Instant::now() < deadline {
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    if !reader.is_finished() {
-        return Err("status timeout".into());
-    }
-    let data = reader
-        .join()
-        .map_err(|_| "status reader failed")?
-        .map_err(|error| error.to_string())?;
-    if data.len() > 2 * 1024 * 1024 {
-        return Err("status too large".into());
-    }
-    serde_json::from_slice(&data).map_err(|error| error.to_string())
-}
-
-fn http_json(base: &str, path: &str, directory: &str, auth: Option<(&str, &str)>) -> Option<Value> {
-    static CRYPTO: std::sync::Once = std::sync::Once::new();
-    CRYPTO.call_once(|| {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-    });
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .ok()?;
-    runtime.block_on(async {
-        let client = reqwest::Client::builder()
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_millis(300))
-            .build()
-            .ok()?;
-        let mut url =
-            reqwest::Url::parse(&format!("{}{}", base.trim_end_matches('/'), path)).ok()?;
-        if !directory.is_empty() {
-            url.query_pairs_mut().append_pair("directory", directory);
-        }
-        let mut request = client.get(url);
-
-        if let Some((user, password)) = auth {
-            request = request.basic_auth(user, Some(password));
-        }
-        let response = request.send().await.ok()?.error_for_status().ok()?;
-        if response
-            .content_length()
-            .is_some_and(|length| length > 2 * 1024 * 1024)
+    pub fn stop(&self) {
         {
-            return None;
-        }
-        let mut response = response;
-        let mut data = Vec::new();
-        while let Some(chunk) = response.chunk().await.ok()? {
-            if data.len() + chunk.len() > 2 * 1024 * 1024 {
-                return None;
+            let mut state = lock(&self.state);
+            state.config.enabled = false;
+            state.generation += 1;
+            for entry in state.entries.values_mut() {
+                if let Some(cancel) = entry.cancel.take() {
+                    cancel.store(true, Ordering::Relaxed);
+                }
             }
-            data.extend_from_slice(&chunk);
         }
-        serde_json::from_slice(&data).ok()
-    })
+        // The service exits immediately after stop. Give ACP's cancellation
+        // path time to drop subprocess guards before that process-wide exit.
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while self.workers.load(Ordering::Acquire) > 0 && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    pub fn snapshots(&self) -> Vec<Snapshot> {
+        let state = lock(&self.state);
+        let mut snapshots: Vec<_> = state
+            .entries
+            .values()
+            .map(|e| {
+                let mut s = e.snapshot.clone();
+                if state.config.features.agents && state.config.enabled {
+                    s.report.agents.insert(
+                        0,
+                        Agent {
+                            id: "totex-monitor".into(),
+                            kind: Kind::Monitor,
+                            label: "monitor".into(),
+                            status: match s.monitor_status {
+                                "running" => Status::Running,
+                                "permission" => Status::Permission,
+                                "failure" => Status::Failure,
+                                _ => Status::Stopped,
+                            },
+                            detail: state.config.model.clone(),
+                            progress: None,
+                            source: "observed".into(),
+                        },
+                    );
+                    s.report.agents.insert(
+                        1,
+                        Agent {
+                            id: "totex-shell".into(),
+                            kind: Kind::Shell,
+                            label: "shell".into(),
+                            status: Status::Running,
+                            detail: s.environment.clone(),
+                            progress: None,
+                            source: "observed".into(),
+                        },
+                    );
+                }
+                s
+            })
+            .collect();
+        snapshots.sort_by(|a, b| a.id.cmp(&b.id));
+        snapshots
+    }
+    pub fn refresh(&self, id: &str) -> Result<(), String> {
+        let mut state = lock(&self.state);
+        if !state.config.enabled {
+            return Err("Monitor is disabled".into());
+        }
+        let entry = state.entries.get_mut(id).ok_or("Unknown terminal")?;
+        entry.refresh = true;
+        Ok(())
+    }
+    fn tick(self: &Arc<Self>) {
+        let running = self.sessions.running();
+        let mut state = lock(&self.state);
+        state.entries.retain(|id, entry| {
+            let keep = running.iter().any(|s| &s.id == id);
+            if !keep && let Some(cancel) = &entry.cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
+            keep
+        });
+        if !state.config.enabled {
+            return;
+        }
+        let config = state.config.clone();
+        let generation = state.generation;
+        let mut active = self.workers.load(Ordering::Acquire);
+        for session in running {
+            let entry = state
+                .entries
+                .entry(session.id.clone())
+                .or_insert_with(|| Entry {
+                    snapshot: Snapshot {
+                        id: session.id.clone(),
+                        environment: environment(&session.cwd),
+                        report: Report::default(),
+                        source: "inferred",
+                        updated_at: 0,
+                        error: None,
+                        monitor_status: "idle",
+                    },
+                    last_seq: None,
+                    last_attempt: 0,
+                    cancel: None,
+                    generation,
+                    refresh: true,
+                });
+            if !config.features.any() || entry.cancel.is_some() || active >= 4 {
+                continue;
+            }
+            if !entry.refresh
+                && now().saturating_sub(entry.last_attempt) < config.interval_secs * 1000
+            {
+                continue;
+            }
+            let Some(output) = self.sessions.attach(&session.id) else {
+                continue;
+            };
+            if !entry.refresh && entry.last_seq == Some(output.upto) {
+                continue;
+            }
+            entry.refresh = false;
+            entry.last_attempt = now();
+            entry.last_seq = Some(output.upto);
+            entry.generation = generation;
+            entry.snapshot.monitor_status = "running";
+            entry.snapshot.error = None;
+            let cancel = Arc::new(AtomicBool::new(false));
+            entry.cancel = Some(Arc::clone(&cancel));
+            let monitor = Arc::clone(self);
+            let config = config.clone();
+            let transcript = tail(&output.text, 32_000).to_owned();
+            let previous = (entry.snapshot.updated_at > 0).then(|| {
+                serde_json::json!({
+                    "observedAt": entry.snapshot.updated_at,
+                    "source": "inferred",
+                    "taskSummary": entry.snapshot.report.task_summary,
+                    "requestSummary": entry.snapshot.report.request_summary,
+                    "goal": entry.snapshot.report.goal,
+                })
+            });
+            active += 1;
+            self.workers.fetch_add(1, Ordering::AcqRel);
+            std::thread::spawn(move || {
+                monitor.observe(session, config, transcript, cancel, generation, previous)
+            });
+        }
+    }
+    fn observe(
+        &self,
+        session: Running,
+        config: Config,
+        transcript: String,
+        cancel: Arc<AtomicBool>,
+        generation: u64,
+        previous: Option<serde_json::Value>,
+    ) {
+        let _worker = Worker(&self.workers);
+        let result = check_environment(&session)
+            .and_then(|()| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())
+            })
+            .and_then(|runtime| {
+                runtime.block_on(async {
+                    tokio::time::timeout(
+                        Duration::from_secs(120),
+                        acp::observe(
+                            &config,
+                            &session.cwd,
+                            &transcript,
+                            Arc::clone(&cancel),
+                            previous,
+                        ),
+                    )
+                    .await
+                    .map_err(|_| "Monitor timed out after 120 seconds".to_owned())?
+                })
+            })
+            .and_then(|value| {
+                serde_json::from_value::<Report>(value)
+                    .map_err(|e| format!("Invalid monitor report: {e}"))
+            });
+        cancel.store(true, Ordering::Relaxed);
+        let mut state = lock(&self.state);
+        if state.generation != generation {
+            return;
+        }
+        let Some(entry) = state.entries.get_mut(&session.id) else {
+            return;
+        };
+        if !entry
+            .cancel
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &cancel))
+        {
+            return;
+        }
+        entry.cancel = None;
+        match result {
+            Ok(mut report) => {
+                sanitize(&mut report, &config.features);
+                entry.snapshot.report = report;
+                entry.snapshot.updated_at = now();
+                entry.snapshot.monitor_status = "idle";
+                entry.snapshot.error = None;
+            }
+            Err(error) => {
+                entry.snapshot.monitor_status = if error.starts_with("Permission required:") {
+                    "permission"
+                } else {
+                    "failure"
+                };
+                entry.snapshot.error = Some(error);
+            }
+        }
+    }
+}
+// A shell entered manually over SSH has no target metadata. Refuse to observe
+// it from the original local environment rather than silently crossing hosts.
+#[cfg(target_os = "linux")]
+fn check_environment(session: &Running) -> Result<(), String> {
+    if Host::of_str(&session.cwd).is_remote() {
+        return Ok(());
+    }
+    let Some(root) = session.pid else {
+        return Ok(());
+    };
+    let Ok(entries) = std::fs::read_dir("/proc") else {
+        return Ok(());
+    };
+    let processes: Vec<_> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let pid: u32 = entry.file_name().to_string_lossy().parse().ok()?;
+            let status = std::fs::read_to_string(entry.path().join("status")).ok()?;
+            let parent: u32 = status
+                .lines()
+                .find_map(|line| line.strip_prefix("PPid:"))
+                .and_then(|p| p.trim().parse().ok())?;
+            Some((pid, parent))
+        })
+        .collect();
+    let mut descendants = vec![root];
+    for _ in 0..32 {
+        let next: Vec<_> = processes
+            .iter()
+            .filter(|(pid, parent)| descendants.contains(parent) && !descendants.contains(pid))
+            .map(|(pid, _)| *pid)
+            .collect();
+        if next.is_empty() {
+            break;
+        }
+        descendants.extend(next);
+    }
+    for pid in descendants.into_iter().filter(|pid| *pid != root) {
+        let Ok(command) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+            continue;
+        };
+        let program =
+            String::from_utf8_lossy(command.split(|b| *b == 0).next().unwrap_or_default());
+        let name = program.rsplit('/').next().unwrap_or("");
+        if matches!(name, "ssh" | "wsl" | "wsl.exe") && owns_terminal_input(root, pid) {
+            return Err("Terminal entered a nested remote environment. Open an SSH or WSL terminal through Totex so Monitor can run on that host.".into());
+        }
+    }
+    Ok(())
+}
+#[cfg(target_os = "linux")]
+fn owns_terminal_input(root: u32, pid: u32) -> bool {
+    // Git's SSH transport and background tunnels do not change the terminal's
+    // environment. Only a foreground process reading this terminal does.
+    let Ok(terminal) = std::fs::read_link(format!("/proc/{root}/fd/0")) else {
+        return false;
+    };
+    if std::fs::read_link(format!("/proc/{pid}/fd/0"))
+        .ok()
+        .as_ref()
+        != Some(&terminal)
+    {
+        return false;
+    }
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    let Some((_, fields)) = stat.rsplit_once(") ") else {
+        return false;
+    };
+    let fields: Vec<_> = fields.split_whitespace().take(6).collect();
+    fields.len() == 6 && fields[4] != "0" && fields[2] == fields[5]
+}
+#[cfg(not(target_os = "linux"))]
+fn check_environment(_session: &Running) -> Result<(), String> {
+    Ok(())
+}
+
+fn tail(text: &str, bytes: usize) -> &str {
+    let mut start = text.len().saturating_sub(bytes);
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    &text[start..]
+}
+fn shorten(text: &mut String, length: usize) {
+    if let Some((at, _)) = text.char_indices().nth(length) {
+        text.truncate(at);
+    }
+}
+fn sanitize(report: &mut Report, features: &Features) {
+    if !features.status {
+        report.status = Status::Unknown;
+    }
+    if !features.goal {
+        report.goal = None;
+    }
+    if !features.task_summary {
+        report.task_summary = None;
+    }
+    if !features.request_summary {
+        report.request_summary = None;
+    }
+    if !features.estimate {
+        report.estimate = None;
+    }
+    if !features.agents {
+        report.agents.clear();
+    }
+    for text in [&mut report.task_summary, &mut report.request_summary]
+        .into_iter()
+        .flatten()
+    {
+        shorten(text, 500);
+    }
+    if let Some(goal) = &mut report.goal {
+        shorten(&mut goal.summary, 500);
+    }
+    report
+        .agents
+        .retain(|a| !matches!(a.id.as_str(), "totex-monitor" | "totex-shell"));
+    report.agents.truncate(32);
+    for agent in &mut report.agents {
+        agent.source = "inferred".into();
+        shorten(&mut agent.label, 60);
+        shorten(&mut agent.detail, 180);
+        shorten(&mut agent.id, 100);
+        agent.progress = agent
+            .progress
+            .filter(|p| p.is_finite())
+            .map(|p| p.clamp(0.0, 100.0));
+    }
+    let mut seen = std::collections::HashSet::new();
+    report
+        .agents
+        .retain(|agent| !agent.id.is_empty() && seen.insert(agent.id.clone()));
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// A distribution's probe adds to what was read here the way any reader
-    /// does: a terminal one of them saw working is working, and one only one of
-    /// them saw keeps what that one said.
     #[test]
-    fn readers_merge_with_working_winning() {
-        use ActivityState::*;
-        let mut states = HashMap::from([("a".to_string(), Agent), ("b".to_string(), Working)]);
-        merge(
-            &mut states,
-            HashMap::from([
-                ("a".to_string(), Working),
-                ("b".to_string(), Idle),
-                ("c".to_string(), Agent),
-            ]),
+    fn optional_null_worker_detail_does_not_discard_the_session_report() {
+        let report: Report = serde_json::from_value(serde_json::json!({
+            "status": "running", "taskSummary": "Implementing focus traversal",
+            "agents": [{"id": "build", "kind": "background", "label": "Build",
+                "status": "running", "detail": null, "progress": null}]
+        }))
+        .unwrap();
+        assert_eq!(report.status, Status::Running);
+        assert_eq!(report.agents[0].detail, "");
+        assert_eq!(
+            report.task_summary.as_deref(),
+            Some("Implementing focus traversal")
         );
-        assert_eq!(states["a"], Working);
-        assert_eq!(states["b"], Working);
-        assert_eq!(states["c"], Agent);
     }
-
     #[test]
-    fn publishes_only_changes_and_clears_missing_status() {
-        let monitor = Monitor {
-            states: Mutex::default(),
-            reporting: Mutex::default(),
-            replies: Mutex::default(),
-            claude: Mutex::default(),
-        };
-        let seen = Arc::new(Mutex::new(Vec::new()));
-        let capture = Arc::clone(&seen);
-        monitor.follow(Arc::new(move |activity| {
-            lock(&capture).push(activity.clone())
-        }));
-        monitor.publish(HashMap::from([("terminal".into(), ActivityState::Working)]));
-        monitor.publish(HashMap::from([("terminal".into(), ActivityState::Working)]));
-        monitor.publish(HashMap::from([("terminal".into(), ActivityState::Agent)]));
-        monitor.publish(HashMap::new());
-        let changes = lock(&seen);
-        assert_eq!(changes.len(), 3);
-        assert_eq!(changes[0].activity, Some(ActivityState::Working));
-        assert_eq!(changes[1].activity, Some(ActivityState::Agent));
-        assert_eq!(changes[2].activity, None);
-        assert!(monitor.activities().is_empty());
+    fn feature_gates_remove_unrequested_inferences() {
+        let mut report: Report = serde_json::from_value(serde_json::json!({"status":"running","taskSummary":"task","requestSummary":"ask","goal":{"status":"active","summary":"goal"},"estimate":{"seconds":60,"confidence":"low"},"agents":[{"id":"a","kind":"subagent","label":"test","status":"running"}]})).unwrap();
+        sanitize(&mut report, &Features::default());
+        assert_eq!(report.status, Status::Unknown);
+        assert!(
+            report.goal.is_none()
+                && report.task_summary.is_none()
+                && report.request_summary.is_none()
+                && report.estimate.is_none()
+                && report.agents.is_empty()
+        );
+    }
+    #[test]
+    fn untrusted_report_cannot_spoof_measured_nodes_or_overflow_progress() {
+        let mut report: Report = serde_json::from_value(serde_json::json!({"agents":[{"id":"totex-monitor","kind":"monitor","label":"fake","status":"success"},{"id":"real","kind":"subagent","label":"test","status":"running","progress":500}]})).unwrap();
+        sanitize(
+            &mut report,
+            &Features {
+                agents: true,
+                ..Features::default()
+            },
+        );
+        assert_eq!(report.agents.len(), 1);
+        assert_eq!(report.agents[0].progress, Some(100.0));
+    }
+    #[test]
+    fn disabling_cancels_workers_and_invalidates_inflight_reports() {
+        let monitor = Monitor::new(Arc::new(Sessions::default()));
+        let cancelled = Arc::new(AtomicBool::new(false));
+        {
+            let mut state = lock(&monitor.state);
+            state.config.enabled = true;
+            state.entries.insert(
+                "terminal".into(),
+                Entry {
+                    snapshot: Snapshot {
+                        id: "terminal".into(),
+                        environment: "Local".into(),
+                        report: Report {
+                            task_summary: Some("old task".into()),
+                            ..Report::default()
+                        },
+                        source: "inferred",
+                        updated_at: 1,
+                        error: None,
+                        monitor_status: "running",
+                    },
+                    last_seq: None,
+                    last_attempt: 0,
+                    cancel: Some(cancelled.clone()),
+                    generation: 0,
+                    refresh: false,
+                },
+            );
+        }
+        monitor.configure(Config::default()).unwrap();
+        assert!(cancelled.load(Ordering::Relaxed));
+        assert_eq!(lock(&monitor.state).generation, 1);
+        let snapshot = monitor.snapshots().pop().unwrap();
+        assert_eq!(snapshot.monitor_status, "disabled");
+        assert!(snapshot.report.task_summary.is_none());
+    }
+    #[test]
+    fn child_ids_are_unique_after_bounding() {
+        let mut report: Report = serde_json::from_value(serde_json::json!({"agents":[{"id":"a","kind":"monitor","label":"first","status":"running"},{"id":"a","kind":"shell","label":"duplicate","status":"stopped"}]})).unwrap();
+        sanitize(
+            &mut report,
+            &Features {
+                agents: true,
+                ..Features::default()
+            },
+        );
+        assert_eq!(report.agents.len(), 1);
+        assert_eq!(report.agents[0].source, "inferred");
+    }
+    #[test]
+    fn transcript_tail_preserves_unicode() {
+        assert_eq!(tail("a日本", 4), "本");
     }
 }
-
-#[cfg(all(test, target_os = "linux"))]
-#[path = "tests/claude.rs"]
-mod claude_integration;

@@ -31,11 +31,6 @@ pub use store::Store;
 /// The version of this program, which is the app's own.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// The name the Linux build of this program is carried under, beside the
-/// Windows one, for reading agents inside a WSL distribution from inside it —
-/// see `monitor::wsl`.
-pub const WSL_HELPER: &str = "totex-persistent-linux";
-
 /// The line this program is on: `major.minor` of [`VERSION`], as one number.
 ///
 /// What the two ends of the socket have to agree on. A window and a program
@@ -79,8 +74,8 @@ pub fn line_of(version: &str) -> Option<u32> {
 /// Everything this program holds.
 pub struct Persistent {
     pub sessions: Arc<Sessions>,
-    pub door: Arc<Door>,
     pub monitor: Arc<monitor::Monitor>,
+    pub door: Arc<Door>,
     pub store: Store,
     /// Where the store keeps its documents, or nothing on a machine with no
     /// data directory — which is a machine where nothing is remembered past
@@ -92,23 +87,13 @@ impl Persistent {
     /// Everything, empty, and joined together.
     pub fn new(home: Option<PathBuf>) -> Arc<Self> {
         let sessions = Arc::new(Sessions::default());
-        let door = Door::new(Arc::clone(&sessions));
-        if let Some(home) = &home {
-            door.load_hook_token(home);
-        }
         let monitor = monitor::Monitor::new(Arc::clone(&sessions));
-        monitor.claude_hooks(Arc::downgrade(&door));
-        let reports = Arc::downgrade(&door);
-        monitor.reply_to(Arc::new(move |id, reply| {
-            if let Some(door) = reports.upgrade() {
-                door.reply(id, reply);
-            }
-        }));
+        let door = Door::new(Arc::clone(&sessions));
         let store = Store::at(home.as_ref().map(|home| home.join("store")));
         Arc::new(Self {
             sessions,
-            door,
             monitor,
+            door,
             store,
             home,
         })

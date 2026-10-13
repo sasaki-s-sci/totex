@@ -27,5 +27,5 @@ export function sessionsInPlaces(
       for (const worktree of repository.worktrees) roots.add(worktree.path);
     }
   }
-  return (session) => !session.overseer && [...roots].some((root) => underPlace(root, session.cwd));
+  return (session) => [...roots].some((root) => underPlace(root, session.cwd));
 }

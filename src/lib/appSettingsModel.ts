@@ -1,4 +1,48 @@
+export type MonitorFeatures = {
+  status: boolean;
+  agents: boolean;
+  taskSummary: boolean;
+  requestSummary: boolean;
+  estimate: boolean;
+  goal: boolean;
+};
+export type MonitorSettings = {
+  enabled: boolean;
+  command: string;
+  args: string[];
+  model: string;
+  intervalSecs: number;
+  features: MonitorFeatures;
+};
+export type MonitorPatch = Omit<Partial<MonitorSettings>, "features"> & {
+  features?: Partial<MonitorFeatures>;
+};
+export const DEFAULT_MONITOR: MonitorSettings = {
+  enabled: false,
+  command: "",
+  args: [],
+  model: "",
+  intervalSecs: 30,
+  features: {
+    status: true,
+    agents: true,
+    taskSummary: true,
+    requestSummary: true,
+    estimate: false,
+    goal: true,
+  },
+};
+export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch): MonitorSettings {
+  return {
+    ...DEFAULT_MONITOR,
+    ...one,
+    ...two,
+    features: { ...DEFAULT_MONITOR.features, ...one?.features, ...two?.features },
+  };
+}
+
 export type AppSettings = {
+  monitor: MonitorSettings;
   theme: "system" | "light" | "dark";
   /** Theme ids per layer; see src/theme/declaration.ts. */
   appearance: { colors: string; style: string; effects: string };
@@ -46,7 +90,8 @@ export type AppSettings = {
   };
 };
 
-export type SettingsPatch = Omit<Partial<AppSettings>, "said" | "appearance"> & {
+export type SettingsPatch = Omit<Partial<AppSettings>, "said" | "appearance" | "monitor"> & {
+  monitor?: MonitorPatch;
   said?: Partial<AppSettings["said"]>;
   appearance?: Partial<AppSettings["appearance"]>;
 };
@@ -55,6 +100,7 @@ export type SettingsPatch = Omit<Partial<AppSettings>, "said" | "appearance"> & 
 export const HISTORY_ALL = 300;
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  monitor: DEFAULT_MONITOR,
   theme: "system",
   appearance: { colors: "neon", style: "default", effects: "none" },
   language: "system",
@@ -94,6 +140,7 @@ export function settingsFrom(value: SettingsPatch): AppSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...value,
+    monitor: mergeMonitor(value.monitor),
     appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
     said: { ...DEFAULT_SETTINGS.said, ...value.said },
   };
@@ -109,6 +156,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
       : fallback;
   };
   return {
+    monitor: mergeMonitor(undefined),
     theme: pick("totex.mode", ["system", "light", "dark"], "system"),
     // `totex.preset` was a shipped id or a whole preset in JSON; only an id carries over.
     appearance: {

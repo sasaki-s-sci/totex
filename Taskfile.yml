@@ -93,14 +93,13 @@ tasks:
     internal: true
     cmds:
       # The program that holds the terminals goes into every bundle beside the
-      # app, and a Windows bundle carries its Linux copy as well -- see
-      # scripts/persistent-sidecar.mjs, which writes what to carry into
-      # binaries/bundle.json and says why it is not in tauri.conf.json.
+      # app -- see scripts/persistent-sidecar.mjs, which also says why it is named
+      # here rather than in tauri.conf.json.
       - node scripts/persistent-sidecar.mjs --release {{if .TARGET}}--target {{.TARGET}}{{end}}
       - |
         sign=""
         [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || sign="--no-sign"
-        pnpm tauri build $sign --config "$(cat src-tauri/binaries/bundle.json)" {{.ARGS}}
+        pnpm tauri build $sign --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}' {{.ARGS}}
 
   web:build:
     desc: Type-check and bundle the frontend into dist/
