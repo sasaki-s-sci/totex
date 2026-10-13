@@ -1,6 +1,9 @@
 //! Optional observers, separate from the shells they describe.
 //! Reports are inference over terminal output; observer lifecycle is measured.
 mod acp;
+mod cli;
+mod launch;
+mod prompt;
 
 use crate::{Sessions, session::Running};
 use serde::{Deserialize, Serialize};
@@ -23,10 +26,37 @@ pub struct Features {
     pub goal: bool,
 }
 
+/// Which agent observes. The built-in ones are driven through their own CLI
+/// (Claude Code, Codex) or ACP (OpenCode); `custom` is any ACP executable.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Observer {
+    #[default]
+    Claude,
+    Codex,
+    Opencode,
+    Custom,
+}
+
+impl Observer {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Claude => "claude",
+            Self::Codex => "codex",
+            Self::Opencode => "opencode",
+            Self::Custom => "custom",
+        }
+    }
+}
+
+/// Unknown fields are ignored and missing ones take their defaults, so that a
+/// settings document from another version still configures the monitor.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct Config {
     pub enabled: bool,
+    pub agent: Observer,
+    /// The ACP executable and its arguments, for `custom` only.
     pub command: String,
     pub args: Vec<String>,
     pub model: String,
@@ -37,6 +67,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enabled: false,
+            agent: Observer::default(),
             command: String::new(),
             args: vec![],
             model: String::new(),
@@ -60,19 +91,49 @@ impl Config {
         if !(10..=3600).contains(&self.interval_secs) {
             return Err("Monitor interval must be 10–3600 seconds".into());
         }
-        if self.enabled && self.command.trim().is_empty() {
+        if self.enabled && self.agent == Observer::Custom && self.command.trim().is_empty() {
             return Err("Choose an ACP agent command".into());
         }
-        if self.args.len() > 128
-            || std::iter::once(&self.command)
-                .chain(std::iter::once(&self.model))
-                .chain(self.args.iter())
-                .any(|s| s.len() > 4096 || s.contains('\0'))
-        {
-            return Err("Invalid Monitor command or arguments".into());
-        }
-        Ok(())
+        valid_words(&self.command, &self.args, &self.model)
     }
+
+    /// The ACP launch words, for the agents driven through ACP.
+    fn acp_argv(&self) -> Vec<&str> {
+        match self.agent {
+            Observer::Opencode => vec!["opencode", "acp"],
+            _ => std::iter::once(self.command.trim())
+                .chain(self.args.iter().map(String::as_str))
+                .collect(),
+        }
+    }
+}
+
+fn valid_words(command: &str, args: &[String], model: &str) -> Result<(), String> {
+    if args.len() > 128
+        || [command, model]
+            .into_iter()
+            .chain(args.iter().map(String::as_str))
+            .any(|s| s.len() > 4096 || s.contains('\0'))
+    {
+        return Err("Invalid Monitor command or arguments".into());
+    }
+    Ok(())
+}
+
+/// One model an agent offers, as its model list names it.
+#[derive(Clone, Debug, Serialize)]
+pub struct Model {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// The answer to `monitor_models`: the first host that could list them.
+#[derive(Clone, Debug, Serialize)]
+pub struct Models {
+    pub environment: String,
+    pub models: Vec<Model>,
+    pub current: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -193,8 +254,8 @@ fn now() -> u64 {
         .unwrap_or_default()
         .as_millis() as u64
 }
-fn environment(cwd: &str) -> String {
-    match Host::of_str(cwd) {
+fn environment(host: &Host) -> String {
+    match host {
         Host::Local => {
             if cfg!(windows) {
                 "Windows".into()
@@ -206,6 +267,58 @@ fn environment(cwd: &str) -> String {
         Host::Wsl(distro) => format!("WSL · {distro}"),
     }
 }
+/// One observation on `host` by the configured agent, as the enabled fields
+/// of its report.
+async fn observation(
+    config: &Config,
+    host: &Host,
+    environment: &str,
+    transcript: &str,
+    cancelled: Arc<AtomicBool>,
+    previous: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let prompt = prompt::prompt(&config.features, transcript, previous.as_ref());
+    let schema = prompt::schema(&config.features);
+    let model = config.model.trim();
+    let work = async {
+        let report = match config.agent {
+            Observer::Claude => {
+                cli::claude("claude", model, host, environment, &prompt, &schema).await?
+            }
+            Observer::Codex => {
+                cli::codex("codex", model, host, environment, &prompt, &schema).await?
+            }
+            Observer::Opencode | Observer::Custom => {
+                let text =
+                    acp::observe(&config.acp_argv(), model, host, environment, prompt.clone())
+                        .await?;
+                prompt::final_report(&text)?
+            }
+        };
+        prompt::keep_enabled(report, &config.features)
+    };
+    tokio::select! {
+        result = work => result,
+        _ = launch::flagged(&cancelled) => Err("Monitor cancelled".into()),
+    }
+}
+
+/// The models `config.agent` offers on `host`, and the one it would use.
+async fn listing(config: &Config, host: &Host, environment: &str) -> Result<Models, String> {
+    let (models, current) = match config.agent {
+        Observer::Claude => (cli::claude_models("claude", host, environment).await?, None),
+        Observer::Codex => (cli::codex_models("codex", host, environment).await?, None),
+        Observer::Opencode | Observer::Custom => {
+            acp::models(&config.acp_argv(), host, environment).await?
+        }
+    };
+    Ok(Models {
+        environment: environment.to_owned(),
+        models,
+        current,
+    })
+}
+
 impl Monitor {
     pub fn new(sessions: Arc<Sessions>) -> Arc<Self> {
         let monitor = Arc::new(Self {
@@ -281,7 +394,15 @@ impl Monitor {
                                 "failure" => Status::Failure,
                                 _ => Status::Stopped,
                             },
-                            detail: state.config.model.clone(),
+                            detail: if state.config.model.trim().is_empty() {
+                                state.config.agent.label().into()
+                            } else {
+                                format!(
+                                    "{} · {}",
+                                    state.config.agent.label(),
+                                    state.config.model.trim()
+                                )
+                            },
                             progress: None,
                             source: "observed".into(),
                         },
@@ -314,6 +435,65 @@ impl Monitor {
         entry.refresh = true;
         Ok(())
     }
+    /// Lists the models an agent offers, from the first host that can: the
+    /// hosts of the open terminals first, then this machine. The window waits
+    /// at most `PATIENCE` (120 s) for an answer, so all hosts share a budget
+    /// below that.
+    pub fn models(
+        &self,
+        agent: Observer,
+        command: String,
+        args: Vec<String>,
+    ) -> Result<Models, String> {
+        let config = Config {
+            agent,
+            command,
+            args,
+            ..Config::default()
+        };
+        if agent == Observer::Custom && config.command.trim().is_empty() {
+            return Err("Choose an ACP agent command".into());
+        }
+        valid_words(&config.command, &config.args, "")?;
+        let mut hosts = vec![];
+        for session in self.sessions.running() {
+            let host = Host::of_str(&session.cwd);
+            if !hosts.contains(&host) {
+                hosts.push(host);
+            }
+        }
+        if !hosts.contains(&Host::Local) {
+            hosts.push(Host::Local);
+        }
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| e.to_string())?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(100);
+        let mut failures = vec![];
+        for host in hosts {
+            let environment = environment(&host);
+            let wait = deadline
+                .saturating_duration_since(std::time::Instant::now())
+                .min(Duration::from_secs(60));
+            if wait.is_zero() {
+                failures.push(format!("{environment}: not tried, out of time"));
+                continue;
+            }
+            // The timer is made inside the runtime it needs.
+            match runtime.block_on(async {
+                tokio::time::timeout(wait, listing(&config, &host, &environment)).await
+            }) {
+                Ok(Ok(models)) => return Ok(models),
+                Ok(Err(error)) => failures.push(format!("{environment}: {error}")),
+                Err(_) => failures.push(format!(
+                    "{environment}: timed out after {} seconds",
+                    wait.as_secs()
+                )),
+            }
+        }
+        Err(failures.join("\n"))
+    }
     fn tick(self: &Arc<Self>) {
         let running = self.sessions.running();
         let mut state = lock(&self.state);
@@ -337,7 +517,7 @@ impl Monitor {
                 .or_insert_with(|| Entry {
                     snapshot: Snapshot {
                         id: session.id.clone(),
-                        environment: environment(&session.cwd),
+                        environment: environment(&Host::of_str(&session.cwd)),
                         report: Report::default(),
                         source: "inferred",
                         updated_at: 0,
@@ -401,6 +581,7 @@ impl Monitor {
         previous: Option<serde_json::Value>,
     ) {
         let _worker = Worker(&self.workers);
+        let host = Host::of_str(&session.cwd);
         let result = check_environment(&session)
             .and_then(|()| {
                 tokio::runtime::Builder::new_current_thread()
@@ -412,9 +593,10 @@ impl Monitor {
                 runtime.block_on(async {
                     tokio::time::timeout(
                         Duration::from_secs(120),
-                        acp::observe(
+                        observation(
                             &config,
-                            &session.cwd,
+                            &host,
+                            &environment(&host),
                             &transcript,
                             Arc::clone(&cancel),
                             previous,
@@ -694,6 +876,45 @@ mod tests {
         );
         assert_eq!(report.agents.len(), 1);
         assert_eq!(report.agents[0].source, "inferred");
+    }
+    #[test]
+    fn config_defaults_to_claude_ignores_extra_fields_and_needs_a_custom_command() {
+        let config: Config = serde_json::from_value(serde_json::json!({
+            "enabled": true, "model": "", "intervalSecs": 30,
+            "features": {"status": true}, "somethingNew": 1
+        }))
+        .unwrap();
+        assert_eq!(config.agent, Observer::Claude);
+        assert!(config.validate().is_ok());
+        let custom: Config = serde_json::from_value(serde_json::json!({
+            "enabled": true, "agent": "custom", "command": " ", "args": [],
+            "model": "", "intervalSecs": 30, "features": {}
+        }))
+        .unwrap();
+        assert_eq!(
+            custom.validate().unwrap_err(),
+            "Choose an ACP agent command"
+        );
+        let opencode = Config {
+            agent: Observer::Opencode,
+            command: "ignored".into(),
+            ..custom
+        };
+        assert_eq!(opencode.acp_argv(), ["opencode", "acp"]);
+        assert!(serde_json::from_value::<Config>(serde_json::json!({"agent": "gemini"})).is_err());
+    }
+    #[test]
+    fn models_report_every_host_that_failed() {
+        let monitor = Monitor::new(Arc::new(Sessions::default()));
+        let error = monitor
+            .models(Observer::Custom, "totex-no-such-acp-agent".into(), vec![])
+            .unwrap_err();
+        let here = environment(&Host::Local);
+        assert_eq!(
+            error,
+            format!("{here}: totex-no-such-acp-agent is not installed on {here}")
+        );
+        assert!(monitor.models(Observer::Custom, "".into(), vec![]).is_err());
     }
     #[test]
     fn transcript_tail_preserves_unicode() {

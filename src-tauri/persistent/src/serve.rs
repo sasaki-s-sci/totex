@@ -238,6 +238,16 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
             continue;
         };
         let Asked { id, command, with } = asked;
+        if SLOW.contains(&command.as_str()) {
+            // Answered from a thread of its own, so that the window's other
+            // questions -- keystrokes among them -- are not held behind it.
+            let (serving, client) = (Arc::clone(&serving), Arc::clone(&client));
+            std::thread::spawn(move || {
+                let (answer, _) = answer(&serving, &client, &command, with);
+                let _ = client.say(&answered(id, answer).to_string());
+            });
+            continue;
+        }
         let (answer, then) = answer(&serving, &client, &command, with);
         if client.say(&answered(id, answer).to_string()).is_err() {
             break;
@@ -275,6 +285,9 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
 /// Something to do after an answer has been written.
 type Then = Box<dyn FnOnce(&Serving) + Send>;
 
+/// Questions that start agents on other machines and can take a minute.
+const SLOW: &[&str] = &["monitor_models"];
+
 /// Whether a name is one the table below answers to.
 pub fn answers(command: &str) -> bool {
     crate::wire::ANSWERS.contains(&command)
@@ -304,6 +317,8 @@ fn answer(
         "monitor_refresh" => {
             read::<Named>(with).and_then(|at| held.monitor.refresh(&at.id).map(|()| Value::Null))
         }
+        "monitor_models" => read::<MonitorModels>(with)
+            .and_then(|at| said(held.monitor.models(at.agent, at.command, at.args)?)),
         "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
         "write" => read::<Written>(with)
             .and_then(|at| held.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
@@ -372,6 +387,15 @@ fn said<T: serde::Serialize>(answer: T) -> Result<Value, String> {
 #[derive(Deserialize)]
 struct MonitorConfig {
     config: crate::monitor::Config,
+}
+
+#[derive(Deserialize)]
+struct MonitorModels {
+    agent: crate::monitor::Observer,
+    #[serde(default)]
+    command: String,
+    #[serde(default)]
+    args: Vec<String>,
 }
 
 #[derive(Deserialize)]

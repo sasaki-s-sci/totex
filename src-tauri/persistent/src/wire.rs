@@ -64,6 +64,7 @@ pub const ANSWERS: &[&str] = &[
     "monitor_configure",
     "monitor_snapshots",
     "monitor_refresh",
+    "monitor_models",
     "attach",
     "write",
     "resize",

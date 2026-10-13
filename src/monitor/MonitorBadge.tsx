@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
 import { type AgentStatus, agentCounts, estimateMinutes } from "./model";
+import { agentLabel } from "./models";
 import { useMonitorError, useMonitorSnapshot } from "./runtime";
 import "./monitor.css";
 
@@ -119,6 +120,10 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
               {t("monitor.refresh")}
             </Button>
           </Stack>
+          <Typography variant="caption" color="text.secondary" className="monitor-observer">
+            {agentLabel(monitor.agent, monitor.command.trim() || t("monitor.custom"))} ·{" "}
+            {monitor.model || t("monitor.default")}
+          </Typography>
           <Typography variant="caption" color="text.secondary">
             {snapshot?.environment ?? t("monitor.waiting")} · monitor{" "}
             {t(`monitor.observer.${observer}`)}

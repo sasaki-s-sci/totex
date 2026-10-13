@@ -20,8 +20,8 @@ let value = settingsFrom({
   language: "en",
   monitor: {
     enabled: true,
-    command: "agent-acp",
-    model: "chosen-model",
+    agent: "claude",
+    model: "claude-sonnet",
     features: { estimate: true },
   },
 });
@@ -48,6 +48,25 @@ mockIPC((cmd, payload) => {
     return documentValue();
   }
   if (cmd === "monitor_configure" || cmd === "monitor_refresh") return null;
+  if (cmd === "monitor_models") {
+    const { agent, command } = payload as { agent: string; command: string };
+    // Listing starts the agent CLI, so the answer is never immediate.
+    return new Promise((resolve, reject) =>
+      setTimeout(() => {
+        if (agent === "codex") reject("codex: command not found");
+        else
+          resolve({
+            environment: agent === "custom" ? `SSH · ${command}` : "WSL · Ubuntu-24.04",
+            current: "claude-sonnet",
+            models: [
+              { id: "claude-sonnet", name: "Sonnet", description: "Balanced everyday model" },
+              { id: "claude-opus", name: "Opus", description: "Most capable for long tasks" },
+              { id: "claude-haiku", name: "Haiku", description: null },
+            ],
+          });
+      }, 200),
+    );
+  }
   if (cmd === "monitor_snapshots")
     return ["running", "permission", "failure"].map((status) => ({
       id: status,

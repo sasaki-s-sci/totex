@@ -29,3 +29,13 @@ test("sequential settings edits preserve disabled features and command arguments
   assert.deepEqual(next.args, ["--acp"]);
   assert.equal(next.enabled, true);
 });
+test("stored monitor settings without a known agent fall back to Claude Code", () => {
+  assert.equal(mergeMonitor(undefined).agent, "claude");
+  assert.equal(mergeMonitor({ command: "agent-acp", model: "m" }).agent, "claude");
+  assert.equal(mergeMonitor({ agent: "latest" }).agent, "claude");
+  const custom = mergeMonitor({ agent: "custom", command: "agent-acp", args: ["--acp"] });
+  const next = mergeMonitor(custom, { model: "chosen" });
+  assert.equal(next.agent, "custom");
+  assert.equal(next.command, "agent-acp");
+  assert.equal(mergeMonitor(next, { agent: "codex", model: "" }).model, "");
+});

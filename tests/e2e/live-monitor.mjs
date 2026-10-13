@@ -9,10 +9,13 @@ import { launch, stop, stopPersistent, waitFor } from "./runtime.mjs";
 
 // Explicitly opt in: this test uses the selected agent's existing authentication
 // and can consume provider credits. It never opens a developer's existing PTY.
-const command = process.env.TOTEX_TEST_ACP_COMMAND;
-if (!command) throw new Error("Set TOTEX_TEST_ACP_COMMAND to an installed ACP executable");
-const args = JSON.parse(process.env.TOTEX_TEST_ACP_ARGS ?? '["acp", "--pure"]');
-const model = process.env.TOTEX_TEST_ACP_MODEL ?? "";
+const agent = process.env.TOTEX_TEST_MONITOR_AGENT ?? "custom";
+assert.ok(["claude", "codex", "opencode", "custom"].includes(agent), `Unknown agent ${agent}`);
+const command = process.env.TOTEX_TEST_ACP_COMMAND ?? "";
+if (agent === "custom" && !command)
+  throw new Error("Set TOTEX_TEST_MONITOR_AGENT, or TOTEX_TEST_ACP_COMMAND for a custom ACP agent");
+const args = JSON.parse(process.env.TOTEX_TEST_ACP_ARGS ?? "[]");
+const model = process.env.TOTEX_TEST_MONITOR_MODEL ?? "";
 assert.ok(Array.isArray(args) && args.every((arg) => typeof arg === "string"));
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const temporary = mkdtempSync(join(tmpdir(), "totex-live-monitor-"));
@@ -24,19 +27,19 @@ const output = join(
 );
 mkdirSync(output, { recursive: true });
 const addressPath = join(temporary, "keep", "address.json");
-const result = { status: "failed", started: new Date().toISOString(), command, args, model };
+const result = { status: "failed", started: new Date().toISOString(), agent, command, args, model };
 let service;
 let socket;
 let serial = 0;
 const pending = new Map();
 
-function ask(command, payload = {}) {
+function ask(command, payload = {}, limit = 10000) {
   return new Promise((resolve, reject) => {
     const id = ++serial;
     const timeout = setTimeout(() => {
       pending.delete(id);
       reject(new Error(`Persistent request timed out: ${command}`));
-    }, 10000);
+    }, limit);
     pending.set(id, {
       resolve(value) {
         clearTimeout(timeout);
@@ -97,8 +100,11 @@ try {
     async () => (await ask("attach", { id }))?.text.includes("medium confidence"),
     "terminal evidence",
   );
+  result.models = await ask("monitor_models", { agent, command, args }, 110000);
+  assert.ok(result.models.models.length > 0, "agent lists its models");
   const config = {
     enabled: true,
+    agent,
     command,
     args,
     model,
@@ -121,7 +127,7 @@ try {
       result.snapshot = snapshot;
       return true;
     },
-    "live ACP agent observation",
+    "live agent observation",
     140000,
   );
   assert.equal(result.snapshot.source, "inferred");

@@ -84,6 +84,12 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
     if fields.get("enabled").is_some_and(|v| !v.is_boolean()) {
         return Err("Invalid monitor.enabled".into());
     }
+    if fields.get("agent").is_some_and(|v| {
+        v.as_str()
+            .is_none_or(|s| !["claude", "codex", "opencode", "custom"].contains(&s))
+    }) {
+        return Err("Invalid monitor.agent".into());
+    }
     for key in ["command", "model"] {
         if fields.get(key).is_some_and(|v| {
             v.as_str()
@@ -244,7 +250,7 @@ mod tests {
         read(
             &temp.0,
             &json!({"monitor": {
-                "enabled": false, "command": "agent-acp", "args": ["--stdio"],
+                "enabled": false, "agent": "custom", "command": "agent-acp", "args": ["--stdio"],
                 "features": {"agents": true, "estimate": true}
             }}),
         )
@@ -258,9 +264,16 @@ mod tests {
         .unwrap();
         assert_eq!(next.value["monitor"]["features"]["agents"], true);
         assert_eq!(next.value["monitor"]["features"]["estimate"], false);
+        assert_eq!(next.value["monitor"]["agent"], "custom");
+        for agent in ["claude", "codex", "opencode"] {
+            assert!(patch(&temp.0, &json!({"monitor": {"agent": agent}})).is_ok());
+        }
+        let next = patch(&temp.0, &json!({"monitor": {"agent": "custom"}})).unwrap();
         for invalid in [
             json!({"monitor": []}),
             json!({"monitor": {"enabled": "yes"}}),
+            json!({"monitor": {"agent": "gemini"}}),
+            json!({"monitor": {"agent": 1}}),
             json!({"monitor": {"command": "bad\u{0}command"}}),
             json!({"monitor": {"args": "--stdio"}}),
             json!({"monitor": {"args": [false]}}),

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { waitFor } from "./runtime.mjs";
 
-/** Native app, real PTY, ACP subprocess, and the production stdio MCP server. */
+/** Native app, real PTY and a custom ACP subprocess. */
 export async function monitor(browser, step, { log, control, settings }) {
   const records = () =>
     existsSync(log)
@@ -28,6 +28,10 @@ export async function monitor(browser, step, { log, control, settings }) {
   const openDetail = async () => {
     await badge().waitForDisplayed();
     await badge().click();
+    // getText skips text that is still fading in.
+    await browser.waitUntil(
+      async () => (await browser.$(".MuiPopover-paper").getCSSProperty("opacity")).value === 1,
+    );
   };
   const closeDetail = async () => {
     await browser.keys("Escape");
@@ -72,11 +76,7 @@ export async function monitor(browser, step, { log, control, settings }) {
       { timeout: 30000 },
     );
     assert.ok(records().some((record) => record.event === "model"));
-    assert.ok(
-      records().some(
-        (record) => record.event === "session" && record.transcript.includes("MONITOR_NATIVE_E2E"),
-      ),
-    );
+    assert.ok(records().some((record) => record.event === "prompt" && record.transcript));
   });
 
   await step("Monitor: 要約・Goal・子Agent・進捗・推定時間を表示", async () => {
@@ -97,7 +97,7 @@ export async function monitor(browser, step, { log, control, settings }) {
     assert.equal((await browser.$$(".monitor-agent")).length, 4);
   });
 
-  await step("Monitor: 機能OFFをUI・prompt・MCP toolsに反映", async () => {
+  await step("Monitor: 機能OFFをUI・promptに反映", async () => {
     await closeDetail();
     const start = records().length;
     await openSettings();
@@ -109,12 +109,12 @@ export async function monitor(browser, step, { log, control, settings }) {
         records()
           .slice(start)
           .some((record) => record.event === "report" && !("estimate" in record.report)),
-      "disabled estimate removed from MCP report",
+      "disabled estimate removed from report",
     );
     assert.ok(
       records()
         .slice(start)
-        .some((record) => record.event === "session" && !record.tools.includes("report_estimate")),
+        .some((record) => record.event === "prompt" && !record.fields.includes("estimate")),
     );
     await openDetail();
     assert.ok(!(await browser.$("body").getText()).includes("≈ 3 min"));

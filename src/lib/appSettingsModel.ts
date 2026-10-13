@@ -6,10 +6,16 @@ export type MonitorFeatures = {
   estimate: boolean;
   goal: boolean;
 };
+export const MONITOR_AGENTS = ["claude", "codex", "opencode", "custom"] as const;
+export type MonitorAgent = (typeof MONITOR_AGENTS)[number];
 export type MonitorSettings = {
   enabled: boolean;
+  /** Which coding agent CLI observes the sessions; "custom" runs `command` with `args`. */
+  agent: MonitorAgent;
+  /** Only used when `agent` is "custom": an ACP executable and its arguments. */
   command: string;
   args: string[];
+  /** Empty means the agent's own default model. */
   model: string;
   intervalSecs: number;
   features: MonitorFeatures;
@@ -19,6 +25,7 @@ export type MonitorPatch = Omit<Partial<MonitorSettings>, "features"> & {
 };
 export const DEFAULT_MONITOR: MonitorSettings = {
   enabled: false,
+  agent: "claude",
   command: "",
   args: [],
   model: "",
@@ -33,12 +40,15 @@ export const DEFAULT_MONITOR: MonitorSettings = {
   },
 };
 export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch): MonitorSettings {
-  return {
+  const merged = {
     ...DEFAULT_MONITOR,
     ...one,
     ...two,
     features: { ...DEFAULT_MONITOR.features, ...one?.features, ...two?.features },
   };
+  // A hand-edited or older file may name an agent this build does not know.
+  if (!MONITOR_AGENTS.includes(merged.agent)) merged.agent = DEFAULT_MONITOR.agent;
+  return merged;
 }
 
 export type AppSettings = {

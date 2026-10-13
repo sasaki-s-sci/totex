@@ -111,6 +111,7 @@ async function run() {
       mcpServing: false,
       monitor: {
         enabled: false,
+        agent: "custom",
         command: "python3",
         args: [
           "-u",

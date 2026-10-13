@@ -36,7 +36,7 @@ minisign-verify = "0.2.5"
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23.43", default-features = false, features = ["ring"] }
 tar = "0.4.46"
-tokio = { version = "1.53.1", default-features = false, features = ["rt", "time", "macros", "process"] }
+tokio = { version = "1.53.1", default-features = false, features = ["rt", "time", "macros", "process", "io-util"] }
 agent-client-protocol = { version = "3.3.0", features = ["process"] }
 
 [target.'cfg(unix)'.dependencies]

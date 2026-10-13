@@ -15,6 +15,20 @@ pub fn monitor_snapshots<R: Runtime>(app: AppHandle<R>) -> Result<Value, String>
     crate::persistent::link(&app).asked("monitor_snapshots", json!({}))
 }
 
+/// The models an agent offers, from the first host that can list them.
+#[tauri::command(async)]
+pub fn monitor_models<R: Runtime>(
+    app: AppHandle<R>,
+    agent: String,
+    command: String,
+    args: Vec<String>,
+) -> Result<Value, String> {
+    crate::persistent::link(&app).asked(
+        "monitor_models",
+        json!({ "agent": agent, "command": command, "args": args }),
+    )
+}
+
 #[tauri::command(async)]
 pub fn monitor_refresh<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
     crate::persistent::link(&app)
