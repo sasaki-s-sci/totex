@@ -20,7 +20,7 @@ export type PageCanvas = {
 export function useFilePreviews(
   requests: readonly FilePreviewRequest[],
   canvas: PageCanvas,
-  previewFile: (path: string, beside: number, view?: FilePreviewView) => void,
+  previewFile: (path: string, beside: number, view?: FilePreviewView, again?: boolean) => void,
   windows: CardTraffic,
 ) {
   useFilePreviewPlacing(requests, canvas);

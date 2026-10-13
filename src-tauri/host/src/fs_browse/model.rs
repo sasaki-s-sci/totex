@@ -103,6 +103,15 @@ pub struct FileHead {
     pub truncated: bool,
 }
 
+/// What a page following a file compares to see whether it has moved.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileStamp {
+    pub size: u64,
+    /// Milliseconds since the Unix epoch, where the filesystem says.
+    pub modified_ms: Option<u64>,
+}
+
 /// The whole of one file, for the card that draws a picture of it.
 ///
 /// A reading and a picture are asked for separately because they are read

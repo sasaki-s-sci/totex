@@ -3,7 +3,7 @@
 use std::fs;
 
 use super::super::read::{
-    encode_file_data, read_directory, read_file_data, read_file_head, write_file,
+    encode_file_data, read_directory, read_file_data, read_file_head, stat_file, write_file,
 };
 use super::super::{MAX_FILE_DATA, MAX_FILE_HEAD};
 use super::temp_dir;
@@ -121,6 +121,28 @@ fn binary_files_and_directories_do_not_masquerade_as_text() {
     assert_eq!(head.text, None);
     assert!(!head.truncated);
     assert!(read_file_head(&dir.to_string_lossy()).is_err());
+
+    fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_stamp_moves_with_the_file_and_says_when_it_is_gone() {
+    let dir = temp_dir("stamp");
+    let path = dir.join("note.txt");
+    fs::write(&path, "one").unwrap();
+    let raw = path.to_string_lossy();
+
+    let first = stat_file(&raw).expect("a stamp");
+    assert_eq!(first.size, 3);
+    assert!(first.modified_ms.is_some());
+    fs::write(&path, "three").unwrap();
+    assert_eq!(stat_file(&raw).expect("a stamp").size, 5);
+    assert_eq!(
+        stat_file(&dir.to_string_lossy()).unwrap_err(),
+        "is-a-directory"
+    );
+    fs::remove_file(&path).unwrap();
+    assert_eq!(stat_file(&raw).unwrap_err(), "no-such-file");
 
     fs::remove_dir_all(&dir).unwrap();
 }

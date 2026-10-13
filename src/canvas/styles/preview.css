@@ -27,3 +27,40 @@
 .file-preview__unsaved.is-refused {
   background: var(--mui-palette-error-main);
 }
+
+/* What a page that stopped following its file says about it, with the ways out. */
+.file-standing {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  cursor: default;
+}
+
+.file-standing__mark {
+  padding: 0 5px;
+  border-radius: 3px;
+  color: var(--mui-palette-common-white);
+  background: var(--mui-palette-warning-main);
+  line-height: 15px;
+}
+
+.file-standing.is-gone .file-standing__mark {
+  background: var(--mui-palette-error-main);
+}
+
+.file-standing button {
+  padding: 0 5px;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 3px;
+  color: inherit;
+  background: var(--mui-palette-background-paper);
+  font: inherit;
+  line-height: 13px;
+  cursor: pointer;
+}
+
+.file-standing button:hover {
+  border-color: var(--mui-palette-primary-main);
+}

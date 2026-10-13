@@ -31,6 +31,7 @@ import {
   tablePart,
 } from "../parts";
 import type { FilePageActions } from "./actions";
+import { FileStanding } from "./FileStanding";
 import { FileTools } from "./FileTools";
 import { Page } from "./Page";
 import { usePageWorkspace } from "./PageWorkspace";
@@ -48,10 +49,13 @@ export function FilePage({
   data,
   actions,
   placement = "canvas",
+  zoom = 1,
 }: {
   data: FilePreviewNodeData;
   actions: FilePageActions;
   placement?: PagePlacement;
+  /** The canvas's settled zoom, for a page drawn to pixels that must be redrawn sharper. */
+  zoom?: number;
 }) {
   const workspace = usePageWorkspace();
   const pageId = filePageId(data.requestId);
@@ -76,11 +80,19 @@ export function FilePage({
     railMove,
     railUp,
   } = view;
-  const { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput } = useDraft(
-    data,
-    view,
-    actions,
-  );
+  const {
+    editable,
+    reading,
+    lines,
+    numbers,
+    unsaved,
+    refused,
+    clash,
+    gone,
+    save,
+    typing,
+    onInput,
+  } = useDraft(data, view, actions);
   // A page drawn of a file is not the card asking; the card beside it is.
   const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);
   const runs = fileRuns(diff, lines);
@@ -171,12 +183,12 @@ export function FilePage({
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") {
           event.preventDefault();
-          void save().then((saved) => saved && previewFilePreview(data.requestId));
+          void save().then((saved) => saved && previewFilePreview?.(data.requestId));
           return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
           event.preventDefault();
-          void save();
+          void save("asked");
         }
       }}
       tools={
@@ -188,6 +200,15 @@ export function FilePage({
               aria-label={t(refused ? "filePreview.unwritable" : "filePreview.unsaved", {
                 name: data.name,
               })}
+            />
+          )}
+          {(gone || clash) && (
+            <FileStanding
+              data={data}
+              actions={actions}
+              gone={gone}
+              savable={editable || (data.text !== null && !data.truncated)}
+              save={() => void save("asked")}
             />
           )}
           <FileTools
@@ -363,7 +384,7 @@ export function FilePage({
         isDocument &&
         picture !== null &&
         (data.view === "pdf" && Pdf ? (
-          <Pdf key={picture} source={picture} name={data.name} />
+          <Pdf key={picture} source={picture} name={data.name} zoom={zoom} />
         ) : data.view === "dxf" && Dxf ? (
           <Dxf key={picture} source={picture} name={data.name} />
         ) : (

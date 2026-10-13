@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { readFileHead } from "../../../folder/api";
-import { folderOf } from "../../../folder/format";
 import { useAppSettings } from "../../../lib/appSettings";
 import type { FilePreviewNodeData } from "../../../lib/graph";
 import type { FilePageActions } from "../../../page/actions";
 import { frontValue, readOnSnapshot } from "../../../shell/state";
-import { watchDirectory } from "../../../sidebar/left/watch";
+import { useFollow } from "./follow";
 import {
   type History,
   kindOf,
@@ -25,6 +23,14 @@ type Draft = { text: string; disk: string | null; kept: string | null; dirty: bo
 export function draftKey(requestId: number, path: string): string {
   return `draft.${requestId}.${path}`;
 }
+
+/**
+ * `auto` is the page saving on its own, `quiet` a save on the way to something else (a blur, a
+ * close, a move), `asked` one the person asked for. Only `asked` writes over a file that changed
+ * the same place, or writes a deleted one back: the other two leave a page that has stopped
+ * following its file alone.
+ */
+export type SaveMode = "auto" | "quiet" | "asked";
 
 /** How long typing has to pause before what was typed is written. */
 const AUTO_SAVE_MS = 600;
@@ -89,12 +95,18 @@ export function useDraft(
   const written = useRef<string | null>(null);
   const inputTimer = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
-  const reread = useRef<(() => void) | null>(null);
   // The paper is a new, empty element each time the text view comes back from another view, so
   // what the last one held is kept for it.
   const filled = useRef<HTMLElement | null>(null);
   const left = useRef<string | null>(null);
   const history = useRef<History>(newHistory());
+  // Followed whatever the page draws; the draft is the only thing here that can clash with it.
+  const { gone, look } = useFollow(data, refreshFilePreview, () =>
+    Promise.resolve(writing.current),
+  );
+  const missing = useRef(gone);
+  missing.current = gone;
+  const [clash, setClash] = useState(false);
   const { undoDepth } = useAppSettings();
   const depth = useRef(undoDepth);
   depth.current = undoDepth;
@@ -140,18 +152,25 @@ export function useDraft(
     [cancelInputInspection, cancelSave],
   );
 
-  /** `auto` is the card saving on its own: it leaves a draft that clashed with the file alone. */
   const save = useCallback(
-    async (auto = false) => {
+    async (mode: SaveMode = "quiet") => {
       cancelSave();
       if (writing.current && !(await writing.current)) return false;
-      if (!paper || !editable) return true;
-      if (auto && clashed.current) return false;
+      const held = mode !== "asked" && (clashed.current || missing.current);
+      if (held) return mode !== "auto";
+      // A drawing of a deleted file has no paper; what it was read from is written back.
+      if (!paper || !editable) {
+        if (!missing.current || data.text === null || data.truncated) return true;
+        const went = await saveFilePreview(data.requestId, data.text, undefined, true);
+        if (went) look();
+        return went;
+      }
       cancelInputInspection();
       const draft = draftOf(paper);
       setLines(countLines(draft));
       move(0, 0);
-      if (draft === kept.current) {
+      const create = missing.current;
+      if (draft === kept.current && !create) {
         dirty.current = false;
         setUnsaved(false);
         setRefused(false);
@@ -159,7 +178,7 @@ export function useDraft(
       }
       const text = crlf ? draft.split("\n").join("\r\n") : draft;
       written.current = text;
-      writing.current = saveFilePreview(data.requestId, text, disk.current ?? undefined);
+      writing.current = saveFilePreview(data.requestId, text, disk.current ?? undefined, create);
       const went = await writing.current;
       writing.current = null;
       written.current = null;
@@ -167,12 +186,13 @@ export function useDraft(
         kept.current = draft;
         disk.current = text;
         clashed.current = false;
+        setClash(false);
       }
       dirty.current = !went || draftOf(paper) !== draft;
       setUnsaved(dirty.current);
       setRefused(!went);
-      // Refused because the file moved since it was read: read it now rather than wait to be told.
-      if (!went) reread.current?.();
+      // Refused because the file moved or went since it was read: look now rather than wait.
+      look();
       return went && !dirty.current;
     },
     [
@@ -180,7 +200,10 @@ export function useDraft(
       cancelSave,
       crlf,
       data.requestId,
+      data.text,
+      data.truncated,
       editable,
+      look,
       move,
       paper,
       saveFilePreview,
@@ -191,7 +214,7 @@ export function useDraft(
     cancelSave();
     saveTimer.current = window.setTimeout(() => {
       saveTimer.current = null;
-      void save(true);
+      void save("auto");
     }, AUTO_SAVE_MS);
   }, [cancelSave, save]);
 
@@ -216,6 +239,19 @@ export function useDraft(
       return;
     }
     if (data.text === disk.current) return;
+    // Stopped following: the file moving again leaves the paper alone, until the two agree.
+    if (clashed.current) {
+      kept.current = reading;
+      disk.current = data.text;
+      if (draftOf(paper) === reading) {
+        clashed.current = false;
+        dirty.current = false;
+        setClash(false);
+        setUnsaved(false);
+        setRefused(false);
+      }
+      return;
+    }
     // The card's own write, come back as what the file now holds.
     if (data.text === written.current) {
       kept.current = reading;
@@ -233,6 +269,7 @@ export function useDraft(
     if (carriedOver === null) {
       // Both changed the same place: the draft stays, unwritten, until it is saved over the file.
       clashed.current = true;
+      setClash(true);
       setRefused(true);
       return;
     }
@@ -259,56 +296,6 @@ export function useDraft(
     else move(0, 0);
     if (dirty.current) saveSoon();
   }, [paper, reading, data.text, home, move, saveSoon]);
-
-  // Follows the file: whatever writes it, the card reads it again and takes it up.
-  const followed = data.state === "ready" && data.text !== null ? data.path : null;
-  const known = useRef({ text: data.text, size: data.size });
-  known.current = { text: data.text, size: data.size };
-  const refresh = useRef(refreshFilePreview);
-  refresh.current = refreshFilePreview;
-  const requestId = data.requestId;
-  useEffect(() => {
-    if (!followed) return;
-    const folder = folderOf(followed);
-    if (!folder) return;
-    let gone = false;
-    let busy = false;
-    let again = false;
-    const look = () => {
-      if (busy) {
-        again = true;
-        return;
-      }
-      busy = true;
-      // Never in the middle of the card's own write, which would read half a file.
-      void Promise.resolve(writing.current)
-        .then(() => readFileHead(followed))
-        .then((head) => {
-          if (gone) return;
-          if (head.text === known.current.text && head.size === known.current.size) return;
-          refresh.current(requestId, {
-            text: head.text,
-            size: head.size,
-            truncated: head.truncated,
-          });
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          busy = false;
-          if (again && !gone) {
-            again = false;
-            look();
-          }
-        });
-    };
-    reread.current = look;
-    const stop = watchDirectory(folder, look);
-    return () => {
-      gone = true;
-      reread.current = null;
-      stop();
-    };
-  }, [followed, requestId]);
 
   const typing = editable
     ? ({
@@ -377,5 +364,17 @@ export function useDraft(
     };
   }, [paper, editable, onInput]);
 
-  return { editable, reading, lines, numbers, unsaved, refused, save, typing, onInput };
+  return {
+    editable,
+    reading,
+    lines,
+    numbers,
+    unsaved,
+    refused,
+    clash,
+    gone,
+    save,
+    typing,
+    onInput,
+  };
 }

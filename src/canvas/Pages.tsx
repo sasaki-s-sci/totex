@@ -43,7 +43,13 @@ export function Pages({
             name={name}
             place={placement === "canvas" && node.data.pinnedAt ? "pinned" : placement}
           >
-            <PageView kind="file" data={node.data} actions={actions} placement={placement} />
+            <PageView
+              kind="file"
+              data={node.data}
+              actions={actions}
+              placement={placement}
+              scale={placement === "canvas" ? scale : 1}
+            />
           </PagePortal>
         );
       })}

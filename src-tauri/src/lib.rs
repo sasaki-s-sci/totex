@@ -27,7 +27,7 @@ pub use totex_host::{fs_browse, host, remote, sync, wsl};
 
 use std::sync::Arc;
 
-use fs_browse::{FileData, FileHead, Listing, Place, Root};
+use fs_browse::{FileData, FileHead, FileStamp, Listing, Place, Root};
 
 /// Every place an explorer pane can be started at: the home directory, the
 /// Windows drives, the WSL distributions and the ssh hosts this platform can
@@ -67,6 +67,12 @@ fn read_directory(path: String, show_hidden: bool) -> Result<Listing, String> {
 #[tauri::command(async)]
 fn read_file_head(path: String) -> Result<FileHead, String> {
     fs_browse::read_file_head(&path)
+}
+
+/// How long a file is and when it was written, for a page that follows it.
+#[tauri::command(async)]
+fn stat_file(path: String) -> Result<FileStamp, String> {
+    fs_browse::stat_file(&path)
 }
 
 /// Reads the whole of a file, for a card drawing a picture of it rather than
@@ -236,6 +242,7 @@ pub fn run() {
             themes::themes_read,
             themes::themes_open,
             read_file_head,
+            stat_file,
             read_file_data,
             write_file,
             fs_read_file,

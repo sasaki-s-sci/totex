@@ -1,8 +1,9 @@
 import DifferenceIcon from "@mui/icons-material/Difference";
+import PreviewIcon from "@mui/icons-material/Preview";
 import WrapTextIcon from "@mui/icons-material/WrapText";
 import { useTranslation } from "react-i18next";
 import { useSettingsDocument } from "../lib/appSettings";
-import { drawn } from "../lib/filePreview";
+import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewNodeData } from "../lib/graph";
 import type { FilePageActions } from "./actions";
 import { PageTool } from "./Page";
@@ -38,7 +39,13 @@ export function FileTools({
   const { t } = useTranslation();
   const config = useSettingsDocument();
   const isSettings = config?.path === data.path;
-  const { closeFilePreview, collapseFilePreview, setFilePreviewView, pinFilePreview } = actions;
+  const {
+    closeFilePreview,
+    collapseFilePreview,
+    setFilePreviewView,
+    pinFilePreview,
+    previewFilePreview,
+  } = actions;
 
   const afterSave = (action: () => void) => () => {
     void save().then((saved) => saved && action());
@@ -66,6 +73,16 @@ export function FileTools({
           onClick={onWrap}
         >
           <WrapTextIcon sx={{ fontSize: 12 }} />
+        </PageTool>
+      )}
+      {/* The file drawn as the page it is written to be, beside the file itself — the same as
+          Ctrl, Shift and V. */}
+      {previewFilePreview && !isSettings && !drawn(data.view) && previewable(data.path) && (
+        <PageTool
+          label={t("filePreview.preview", { name: data.name })}
+          onClick={afterSave(() => previewFilePreview(data.requestId))}
+        >
+          <PreviewIcon sx={{ fontSize: 12 }} />
         </PageTool>
       )}
       {!isSettings && !drawn(data.view) && changed && (

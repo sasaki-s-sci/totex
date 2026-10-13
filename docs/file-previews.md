@@ -9,7 +9,7 @@ CSV/TSV and supported binary formats open rendered.
 | PNG/APNG, JPEG/JFIF, GIF, WebP, BMP, ICO, AVIF | Webview image decoder |
 | SVG | Image preview beside editable source |
 | Markdown (`md`, `markdown`, `mdx`) | Sanitized Markdown; MDX components are not executed |
-| PDF | PDF.js |
+| PDF | PDF.js, with selectable text; redrawn sharp at the canvas zoom |
 | DXF | dxf-viewer |
 | MP4/M4V, MOV, WebM | Native video controls |
 | MP3, M4A, AAC, OGG/OGA/Opus, WAV, FLAC | Native audio controls |
@@ -30,6 +30,25 @@ HTML previews retain inline styling but do not execute scripts, submit forms,
 navigate links, or load external resources (including adjacent CSS and images).
 They are isolated from the application in a sandboxed iframe. Use embedded styles
 and data images for a self-contained page.
+
+## Following the file
+
+Every file page follows its file, whatever it draws. A change in the file's folder
+is answered by a stat (`stat_file`); the file is read again only when its size or
+modification time moved, so a PDF or picture is not re-read for a sibling's change.
+Returning to the window looks again, for changes a watcher missed.
+
+A text page merges a change made elsewhere into what was typed and not yet saved.
+When both changed the same place, the header shows **Conflict** and the page stops
+following: further changes on disk leave it alone, and it is neither saved on its
+own nor on blur, close, move or pin. **Save over** writes it over the file;
+**Open beside** opens the file as it now stands in a second page to compare against.
+The conflict clears once the page and the file agree.
+
+When the file is deleted, the header shows **Deleted**. **Save** writes the page
+back to the same path (pages holding only bytes, such as PDF, cannot), and
+**Close** closes it without writing. Nothing is saved on its own meanwhile.
+`tests/fileFollow.browser.mjs` drives these against the real Window with IPC mocked.
 
 ## Tables
 

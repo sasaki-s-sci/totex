@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use super::model::{Entry, FileData, FileHead, Listing};
+use super::model::{Entry, FileData, FileHead, FileStamp, Listing};
 use super::path::resolve;
 use super::{MAX_ENTRIES, MAX_FILE_DATA, MAX_FILE_HEAD};
 use crate::host::Host;
@@ -52,6 +52,20 @@ pub fn read_file_head(raw_path: &str) -> Result<FileHead, String> {
         text: as_text(&bytes, truncated),
         size,
         truncated,
+    })
+}
+
+/// The size and time of `raw_path`, without reading it: a page watching a folder asks this on
+/// every change in it and reads the file only when these moved. `no-such-file` once it is gone.
+pub fn stat_file(raw_path: &str) -> Result<FileStamp, String> {
+    let (host, path) = resolve(raw_path)?;
+    let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
+    if stat.is_dir {
+        return Err("is-a-directory".to_string());
+    }
+    Ok(FileStamp {
+        size: stat.size,
+        modified_ms: stat.modified_ms,
     })
 }
 

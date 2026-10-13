@@ -77,7 +77,7 @@ export type CanvasProps = {
 
   filePreviews: readonly FilePreviewRequest[];
 
-  onPreviewFile: (path: string, beside: number, view?: FilePreviewView) => void;
+  onPreviewFile: (path: string, beside: number, view?: FilePreviewView, again?: boolean) => void;
   onCloseFilePreview: (requestId: number) => void;
 
   onOpenPinned: (seed: CardSeed, at: { x: number; y: number }) => void;

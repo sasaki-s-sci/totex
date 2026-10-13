@@ -38,20 +38,25 @@ export function useFileDrops() {
   }, []);
 
   // One preview per file: a second press is answered by the card already standing. A view asked
-  // for by name is held to that view alone.
-  const previewFile = useCallback((path: string, beside: number, asked?: FilePreviewView) => {
-    const id = nextFilePreview.current++;
-    const view = asked ?? previewView(path);
-    setFilePreviews((current) =>
-      current.some((preview) => {
-        if (preview.path !== path) return false;
-        const standing = preview.view ?? openingView(preview.path);
-        return asked ? standing === asked : drawn(standing);
-      })
-        ? current
-        : [...current, { id, path, at: null, view, beside }],
-    );
-  }, []);
+  // for by name is held to that view alone. `again` opens one more whatever stands, to be read
+  // against a page that has stopped following the file.
+  const previewFile = useCallback(
+    (path: string, beside: number, asked?: FilePreviewView, again = false) => {
+      const id = nextFilePreview.current++;
+      const view = asked ?? previewView(path);
+      setFilePreviews((current) =>
+        !again &&
+        current.some((preview) => {
+          if (preview.path !== path) return false;
+          const standing = preview.view ?? openingView(preview.path);
+          return asked ? standing === asked : drawn(standing);
+        })
+          ? current
+          : [...current, { id, path, at: null, view, beside }],
+      );
+    },
+    [],
+  );
 
   // A new id: the draft is put where the new card looks before it is placed.
   const openPinned = useCallback((seed: CardSeed, at: { x: number; y: number }) => {

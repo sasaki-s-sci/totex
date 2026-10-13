@@ -13,7 +13,7 @@ import { type PageControls, PageTools } from "./PageTools";
 import { type PagePlacement, terminalPageId } from "./placement";
 
 type Props = { placement: PagePlacement } & (
-  | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions }
+  | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions; scale: number }
   | {
       kind: "terminal";
       session: Session;
@@ -29,7 +29,14 @@ type Props = { placement: PagePlacement } & (
 /** Both hosts render exactly the same content and header; only layout capabilities differ. */
 export function PageView(props: Props) {
   if (props.kind === "file")
-    return <FilePage data={props.data} actions={props.actions} placement={props.placement} />;
+    return (
+      <FilePage
+        data={props.data}
+        actions={props.actions}
+        placement={props.placement}
+        zoom={props.scale}
+      />
+    );
   return <TerminalPage {...props} />;
 }
 

@@ -1,12 +1,30 @@
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy } from "pdfjs-dist";
+import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, TextLayer } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { sourceBytes } from "./documentSource";
+import "./pdfReading.css";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
-export function PdfReading({ source, name }: { source: string; name: string }) {
+// Backing-store bounds for one page: wide enough to stay sharp at a high canvas zoom, small
+// enough that a tall page at that zoom does not exhaust the webview's canvas memory.
+const MOST_SIDE = 8192;
+const MOST_AREA = 2 ** 24;
+
+/**
+ * `zoom` is the canvas's, and only redraws the page when it settles: the scale drawn at is
+ * measured from the screen, which also covers a pinned card and a torn-off window.
+ */
+export function PdfReading({
+  source,
+  name,
+  zoom: canvasZoom = 1,
+}: {
+  source: string;
+  name: string;
+  zoom?: number;
+}) {
   const { t } = useTranslation();
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
@@ -41,6 +59,8 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     return () => {
       active = false;
       void task.destroy();
+      // The text layer measures on a hidden canvas it puts in the body, left there between pages.
+      TextLayer.cleanup();
     };
   }, [source]);
 
@@ -52,13 +72,17 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     return () => observer.disconnect();
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the canvas's zoom is a trigger; the scale drawn at is measured
   useEffect(() => {
     const container = paper.current;
     if (!pdf || !container || width <= 0) return;
     let active = true;
     let render: ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]> | undefined;
+    let text: TextLayer | undefined;
     // Drawn off the page and swapped in once done: a blank canvas in its place would shrink the
     // scroller for a frame, and the page shown until then would blink out.
+    const sheet = document.createElement("div");
+    sheet.className = "pdf-reading__sheet";
     const canvas = document.createElement("canvas");
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", `${name} — ${page}`);
@@ -66,23 +90,42 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     setFailed(false);
     void pdf
       .getPage(page)
-      .then(async (sheet) => {
+      .then(async (leaf) => {
         if (!active) return;
-        const original = sheet.getViewport({ scale: 1 });
+        const original = leaf.getViewport({ scale: 1 });
         const scale = (Math.max(1, width - 24) / original.width) * zoom;
-        const view = sheet.getViewport({ scale });
+        const view = leaf.getViewport({ scale });
+        const element = viewport.current;
+        const onScreen =
+          element && element.offsetWidth > 0
+            ? element.getBoundingClientRect().width / element.offsetWidth
+            : 1;
         const ratio = Math.min(
-          window.devicePixelRatio || 1,
-          4096 / Math.max(view.width, view.height),
+          (window.devicePixelRatio || 1) * Math.max(1, onScreen),
+          MOST_SIDE / Math.max(view.width, view.height),
+          Math.sqrt(MOST_AREA / (view.width * view.height)),
         );
         canvas.width = Math.max(1, Math.floor(view.width * ratio));
         canvas.height = Math.max(1, Math.floor(view.height * ratio));
         canvas.style.width = `${view.width}px`;
         canvas.style.height = `${view.height}px`;
-        render = sheet.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] });
-        await render.promise;
+        sheet.style.width = `${view.width}px`;
+        sheet.style.height = `${view.height}px`;
+        render = leaf.render({ canvas, viewport: view, transform: [ratio, 0, 0, ratio, 0, 0] });
+        // Transparent spans laid over the drawing, so the page's words can be selected and copied.
+        const words = document.createElement("div");
+        words.className = "textLayer";
+        words.style.setProperty("--total-scale-factor", `${view.scale * view.userUnit}`);
+        sheet.append(canvas, words);
+        text = new TextLayer({
+          textContentSource: leaf.streamTextContent(),
+          container: words,
+          viewport: view,
+        });
+        await Promise.all([render.promise, text.render()]);
+        TextLayer.cleanup();
         if (!active) return;
-        container.replaceChildren(canvas);
+        container.replaceChildren(sheet);
         setRendering(false);
       })
       .catch(() => {
@@ -94,8 +137,9 @@ export function PdfReading({ source, name }: { source: string; name: string }) {
     return () => {
       active = false;
       render?.cancel();
+      text?.cancel();
     };
-  }, [pdf, page, zoom, width, name]);
+  }, [pdf, page, zoom, width, name, canvasZoom]);
 
   return (
     <div className="file-preview__document">

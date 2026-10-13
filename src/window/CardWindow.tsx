@@ -16,7 +16,7 @@ import {
 } from "react";
 import { readFilePreview } from "../canvas/hooks/useFilePreviewPlacing";
 import { draftKey } from "../canvas/nodes/preview/draft";
-import { writeFile } from "../folder/api";
+import { writeAnew, writeFile } from "../folder/api";
 import { refreshChanges } from "../folder/changes";
 import { baseName } from "../folder/format";
 import { settingsDocument, writeSettingsText } from "../lib/appSettings";
@@ -183,18 +183,19 @@ export function CardWindow() {
 
   const actions = useMemo<FilePageActions>(
     () => ({
-      previewFilePreview: () => {},
       // A torn-off card has no canvas to put another card on.
       openLinkedFile: () => {},
       closeFilePreview: () => void here.close().catch(() => undefined),
-      saveFilePreview: async (_requestId, text, expected) => {
+      saveFilePreview: async (_requestId, text, expected, create) => {
         if (!data || data.size === null || data.truncated) return false;
         try {
           const config = settingsDocument();
           const size =
             config?.path === data.path
               ? await writeSettingsText(text, expected ?? data.text ?? "")
-              : await writeFile(data.path, text, data.size);
+              : create
+                ? await writeAnew(data.path, text)
+                : await writeFile(data.path, text, data.size);
           setData((held) => held && { ...held, text, size });
           refreshChanges();
           return true;

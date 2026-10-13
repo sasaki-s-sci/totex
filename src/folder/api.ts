@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { baseName, folderOf } from "./format";
 
 export type RootKind =
   | "home"
@@ -85,6 +86,16 @@ export function readFileHead(path: string): Promise<FileHead> {
   return invoke<FileHead>("read_file_head", { path });
 }
 
+export interface FileStamp {
+  size: number;
+  modifiedMs: number | null;
+}
+
+/** Fails with `no-such-file` once the file is gone. */
+export function statFile(path: string): Promise<FileStamp> {
+  return invoke<FileStamp>("stat_file", { path });
+}
+
 export function readFileData(path: string): Promise<FileData> {
   return invoke<FileData>("read_file_data", { path });
 }
@@ -94,6 +105,14 @@ export function readFileData(path: string): Promise<FileData> {
  */
 export function writeFile(path: string, text: string, expectSize: number): Promise<number> {
   return invoke<number>("write_file", { path, text, expectSize });
+}
+
+/** A deleted file written back where it stood; refused if something has taken the name since. */
+export async function writeAnew(path: string, text: string): Promise<number> {
+  const folder = folderOf(path);
+  if (!folder) throw new Error("no-parent");
+  const made = await createEntry(folder, baseName(path), false);
+  return writeFile(made, text, 0);
 }
 
 export function readFile(path: string): Promise<number[]> {

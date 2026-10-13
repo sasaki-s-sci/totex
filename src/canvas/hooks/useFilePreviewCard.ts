@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { writeFile } from "../../folder/api";
+import { writeAnew, writeFile } from "../../folder/api";
 import { refreshChanges } from "../../folder/changes";
 import { settingsDocument, writeSettingsText } from "../../lib/appSettings";
 import type { CardSeed } from "../../lib/cardWindow";
@@ -20,12 +20,12 @@ export type CardTraffic = {
 
 export function useFilePreviewCard(
   { host, instance, standing, nodes, setNodes }: PageCanvas,
-  previewFile: (path: string, beside: number, view?: FilePreviewView) => void,
+  previewFile: (path: string, beside: number, view?: FilePreviewView, again?: boolean) => void,
   windows: CardTraffic,
 ) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
   const saveFilePreview = useCallback(
-    async (requestId: number, text: string, expected?: string) => {
+    async (requestId: number, text: string, expected?: string, create = false) => {
       const node = standing.current.find(
         (candidate): candidate is FilePreviewFlowNode =>
           candidate.type === "file-preview" && candidate.data.requestId === requestId,
@@ -37,7 +37,9 @@ export function useFilePreviewCard(
         const size =
           config?.path === node.data.path
             ? await writeSettingsText(text, expected ?? node.data.text ?? "")
-            : await writeFile(node.data.path, text, node.data.size);
+            : create
+              ? await writeAnew(node.data.path, text)
+              : await writeFile(node.data.path, text, node.data.size);
 
         setNodes((current) =>
           current.map((one) =>
@@ -111,6 +113,19 @@ export function useFilePreviewCard(
       );
       if (!node || drawn(node.data.view) || !previewable(node.data.path)) return;
       previewFile(node.data.path, requestId);
+    },
+    [previewFile],
+  );
+
+  // The file as it now stands on disk, beside a page that has stopped following it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the refs are the canvas's own and never change identity
+  const openFileAgain = useCallback(
+    (requestId: number) => {
+      const node = standing.current.find(
+        (candidate): candidate is FilePreviewFlowNode =>
+          candidate.type === "file-preview" && candidate.data.requestId === requestId,
+      );
+      if (node) previewFile(node.data.path, requestId, "text", true);
     },
     [previewFile],
   );
@@ -232,6 +247,7 @@ export function useFilePreviewCard(
     collapseFilePreview,
     setFilePreviewView,
     previewFilePreview,
+    openFileAgain,
     openLinkedFile,
     fitFilePreview,
     pinFilePreview,
