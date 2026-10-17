@@ -43,6 +43,13 @@ jobs:
     #
     # A tag always runs everything. Nothing is published that was not built and
     # tested as the thing being published, whatever the change that led to it.
+    #
+    # And a push to main never builds the bundles. Its Build is what Release
+    # waits on, and the tag Release cuts from it builds all three again with
+    # only the version changed -- so building them here as well only delayed
+    # every release by a whole platform build. A bundle that breaks is found
+    # by the tag's Build instead, which leaves the tag unpublished, and the
+    # next push cuts the same number again.
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,7 +81,8 @@ jobs:
             # on, which holds by induction -- each of those was compared with
             # the one before it. A release's own build counts, or the version
             # it wrote into the manifests would be a native change in every
-            # push that follows it.
+            # push that follows it. Main never builds the bundles, so this base
+            # only decides the frontend and Rust checks here.
             base=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
               -f status=success -f per_page=50 |
               jq -r --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[] |
@@ -85,13 +93,20 @@ jobs:
               git fetch --quiet --depth=1 origin "$base" || base=""
             fi
           fi
+          main() {
+            if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+              sed 's/^native=true$/native=false/'
+            else
+              cat
+            fi
+          }
           if [ -z "$base" ]; then
             echo "Nothing to compare with, so everything runs." >>"$GITHUB_STEP_SUMMARY"
-            python3 -B scripts/ci-scope.py --all | tee -a "$GITHUB_OUTPUT"
+            python3 -B scripts/ci-scope.py --all | main | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only --no-renames -z "$base" HEAD >"$RUNNER_TEMP/changed"
-          python3 -B scripts/ci-scope.py <"$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT" "$RUNNER_TEMP/scope"
+          python3 -B scripts/ci-scope.py <"$RUNNER_TEMP/changed" | main | tee -a "$GITHUB_OUTPUT" "$RUNNER_TEMP/scope"
           {
             echo "Compared with \`$base\`:"
             echo '```'
