@@ -2,6 +2,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import type { NodeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
+import { useAppSettings } from "../../lib/appSettings";
 import type { CliFlowNode } from "../../lib/graph";
 import { CliGlyph } from "../../marks";
 import { MonitorBadge } from "../../monitor/MonitorBadge";
@@ -19,6 +20,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const jump = useCliJump(id);
   const said = useTypedLine(session.id);
   const doing = useCliDoing(session.id);
+  const { monitor } = useAppSettings();
 
   const name = ordinal ? `${t("cli.shell")} ${ordinal}` : t("cli.shell");
 
@@ -53,7 +55,8 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
         </button>
 
         <MonitorBadge id={session.id} canvas />
-        {said === null ? null : (
+        {/* Monitor's badge takes this place and already carries the typed line. */}
+        {said === null || monitor.enabled ? null : (
           <span
             className="cli__said"
             aria-hidden="true"

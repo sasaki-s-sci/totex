@@ -110,10 +110,19 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
         return Err("Invalid monitor.args".into());
     }
     range(value, "intervalSecs", 10, 3600)?;
-    if let Some(features) = fields.get("features") {
+    if fields.get("previewWidth").is_some_and(|v| {
+        v.as_u64()
+            .is_none_or(|n| ![160, 220, 320, 420].contains(&n))
+    }) {
+        return Err("Invalid monitor.previewWidth".into());
+    }
+    for group in ["features", "preview"] {
+        let Some(features) = fields.get(group) else {
+            continue;
+        };
         let features = features
             .as_object()
-            .ok_or("monitor.features must be an object")?;
+            .ok_or(format!("monitor.{group} must be an object"))?;
         for key in [
             "status",
             "agents",
@@ -123,7 +132,7 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
             "goal",
         ] {
             if features.get(key).is_some_and(|v| !v.is_boolean()) {
-                return Err(format!("Invalid monitor.features.{key}"));
+                return Err(format!("Invalid monitor.{group}.{key}"));
             }
         }
     }
@@ -279,6 +288,8 @@ mod tests {
             json!({"monitor": {"args": [false]}}),
             json!({"monitor": {"intervalSecs": 0}}),
             json!({"monitor": {"features": {"status": "yes"}}}),
+            json!({"monitor": {"preview": {"status": "yes"}}}),
+            json!({"monitor": {"previewWidth": 200}}),
         ] {
             assert!(patch(&temp.0, &invalid).is_err());
             assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), next.text);

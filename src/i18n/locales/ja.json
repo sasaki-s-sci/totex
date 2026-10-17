@@ -346,7 +346,7 @@
     "args": "引数 (JSON)",
     "model": "モデル",
     "default": "エージェント既定",
-    "interval": "間隔 (秒)",
+    "interval": "テキスト更新の間隔 (秒)",
     "features": "機能",
     "status": "ステータス",
     "agents": "エージェント",
@@ -357,19 +357,17 @@
     "argsInvalid": "文字列の JSON 配列を指定",
     "commandRequired": "カスタムエージェントの ACP コマンドを設定すると監視を開始します。",
     "refresh": "更新",
-    "waiting": "待機中",
     "unknown": "不明",
-    "inferred": "推定",
-    "observed": "観測",
-    "updated": "更新",
     "estimateValue": "約 {{minutes}} 分 · 確度 {{confidence}}",
     "states": {
       "unknown": "不明",
       "running": "実行中",
-      "permission": "承認待ち",
+      "permission": "質問中",
       "stopped": "停止",
       "success": "成功",
-      "failure": "失敗"
+      "failure": "失敗",
+      "initial": "未入力",
+      "idle": "待機"
     },
     "goals": {
       "active": "進行中",
@@ -377,17 +375,14 @@
       "blocked": "ブロック",
       "complete": "達成"
     },
-    "observer": {
-      "disabled": "無効",
-      "idle": "待機",
-      "running": "実行中",
-      "failure": "失敗",
-      "permission": "承認待ち"
-    },
     "confidence": {
       "low": "低",
       "medium": "中",
       "high": "高"
-    }
+    },
+    "preview": "プレビューに出す項目",
+    "previewWidth": "プレビューの幅",
+    "typed": "最後に打ったコマンド",
+    "history": "観測の履歴"
   }
 }

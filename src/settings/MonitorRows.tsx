@@ -18,9 +18,11 @@ import { useTranslation } from "react-i18next";
 import { updateSettings, useAppSettings } from "../lib/appSettings";
 import {
   MONITOR_AGENTS,
+  MONITOR_PREVIEW_WIDTHS,
   type MonitorAgent,
   type MonitorFeatures,
   type MonitorPatch,
+  type MonitorPreviewWidth,
 } from "../lib/appSettingsModel";
 import { agentLabel, type MonitorModel, useMonitorModels } from "../monitor/models";
 import { useMonitorError } from "../monitor/runtime";
@@ -126,6 +128,40 @@ export function MonitorRows() {
               checked={monitor.features[feature]}
               onChange={(event) => set({ features: { [feature]: event.target.checked } })}
               slotProps={{ input: { "aria-label": t(`monitor.${feature}`) } }}
+            />
+          </Row>
+        ))}
+      </Group>
+      <Group name={t("monitor.preview")}>
+        <Row label={t("monitor.previewWidth")}>
+          <Select
+            size="small"
+            value={monitor.previewWidth}
+            inputProps={{ "aria-label": t("monitor.previewWidth") }}
+            onChange={(event) =>
+              set({ previewWidth: Number(event.target.value) as MonitorPreviewWidth })
+            }
+            sx={{ ...PICK_SX, width: 90 }}
+          >
+            {MONITOR_PREVIEW_WIDTHS.map((width) => (
+              <MenuItem key={width} value={width}>
+                {width}px
+              </MenuItem>
+            ))}
+          </Select>
+        </Row>
+        {(Object.keys(monitor.preview) as (keyof MonitorFeatures)[]).map((item) => (
+          <Row key={item} label={t(`monitor.${item}`)}>
+            <Checkbox
+              size="small"
+              sx={TICK_SX}
+              // Status is read off the screen, so it can be shown without asking the observer.
+              disabled={item !== "status" && !monitor.features[item]}
+              checked={monitor.preview[item]}
+              onChange={(event) => set({ preview: { [item]: event.target.checked } })}
+              slotProps={{
+                input: { "aria-label": `${t("monitor.preview")} ${t(`monitor.${item}`)}` },
+              }}
             />
           </Row>
         ))}

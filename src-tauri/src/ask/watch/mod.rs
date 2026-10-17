@@ -55,6 +55,17 @@ pub struct Typed {
     said: String,
 }
 
+/// A session as Monitor draws it between observations: what it is doing,
+/// whether it is stopped on a question, and the last thing typed at it.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Glance {
+    id: String,
+    doing: super::Doing,
+    asking: bool,
+    said: Option<String>,
+}
+
 /// One screen per running session, and nothing that is not on one.
 #[derive(Default)]
 pub struct AskState {
@@ -207,6 +218,23 @@ pub fn pty_doing<R: Runtime>(app: AppHandle<R>) -> Vec<Doings> {
         .map(|(id, watcher)| Doings {
             id: id.clone(),
             doing: watcher.doing(),
+        })
+        .collect()
+}
+
+/// Every running session as it stands, polled often by Monitor so its status
+/// comes off the screen rather than waiting on the observer's next report.
+#[tauri::command]
+pub fn pty_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Glance> {
+    let state = app.state::<AskState>();
+    let watching = state.lock();
+    watching
+        .iter()
+        .map(|(id, watcher)| Glance {
+            id: id.clone(),
+            doing: watcher.doing(),
+            asking: watcher.asking(),
+            said: watcher.typed().map(str::to_string),
         })
         .collect()
 }

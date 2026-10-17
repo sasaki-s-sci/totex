@@ -10,6 +10,8 @@ export type MonitorFeatures = {
 };
 export const MONITOR_AGENTS = ["claude", "codex", "opencode", "custom"] as const;
 export type MonitorAgent = (typeof MONITOR_AGENTS)[number];
+export const MONITOR_PREVIEW_WIDTHS = [160, 220, 320, 420] as const;
+export type MonitorPreviewWidth = (typeof MONITOR_PREVIEW_WIDTHS)[number];
 export type MonitorSettings = {
   enabled: boolean;
   /** Which coding agent CLI observes the sessions; "custom" runs `command` with `args`. */
@@ -21,9 +23,13 @@ export type MonitorSettings = {
   model: string;
   intervalSecs: number;
   features: MonitorFeatures;
+  /** What the badge beside a terminal shows, among the enabled features; the popover shows all. */
+  preview: MonitorFeatures;
+  previewWidth: MonitorPreviewWidth;
 };
-export type MonitorPatch = Omit<Partial<MonitorSettings>, "features"> & {
+export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview"> & {
   features?: Partial<MonitorFeatures>;
+  preview?: Partial<MonitorFeatures>;
 };
 export const DEFAULT_MONITOR: MonitorSettings = {
   enabled: false,
@@ -40,6 +46,15 @@ export const DEFAULT_MONITOR: MonitorSettings = {
     estimate: false,
     goal: true,
   },
+  preview: {
+    status: true,
+    agents: true,
+    taskSummary: true,
+    requestSummary: false,
+    estimate: true,
+    goal: false,
+  },
+  previewWidth: 220,
 };
 export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch): MonitorSettings {
   const merged = {
@@ -47,9 +62,12 @@ export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch):
     ...one,
     ...two,
     features: { ...DEFAULT_MONITOR.features, ...one?.features, ...two?.features },
+    preview: { ...DEFAULT_MONITOR.preview, ...one?.preview, ...two?.preview },
   };
   // A hand-edited or older file may name an agent this build does not know.
   if (!MONITOR_AGENTS.includes(merged.agent)) merged.agent = DEFAULT_MONITOR.agent;
+  if (!MONITOR_PREVIEW_WIDTHS.includes(merged.previewWidth))
+    merged.previewWidth = DEFAULT_MONITOR.previewWidth;
   return merged;
 }
 

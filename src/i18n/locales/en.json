@@ -346,7 +346,7 @@
     "args": "Arguments (JSON)",
     "model": "Model",
     "default": "Agent default",
-    "interval": "Interval (sec)",
+    "interval": "Text refresh interval (s)",
     "features": "Features",
     "status": "Status",
     "agents": "Agents",
@@ -357,19 +357,17 @@
     "argsInvalid": "Use a JSON array of strings",
     "commandRequired": "Set an ACP command for the custom agent to start monitoring.",
     "refresh": "Refresh",
-    "waiting": "Waiting",
     "unknown": "Unknown",
-    "inferred": "Inferred",
-    "observed": "Observed",
-    "updated": "Updated",
     "estimateValue": "≈ {{minutes}} min · {{confidence}} confidence",
     "states": {
       "unknown": "Unknown",
       "running": "Running",
-      "permission": "Permission",
+      "permission": "Asking",
       "stopped": "Stopped",
       "success": "Success",
-      "failure": "Failed"
+      "failure": "Failed",
+      "initial": "Initial",
+      "idle": "Idle"
     },
     "goals": {
       "active": "Active",
@@ -377,17 +375,14 @@
       "blocked": "Blocked",
       "complete": "Complete"
     },
-    "observer": {
-      "disabled": "Off",
-      "idle": "Idle",
-      "running": "Running",
-      "failure": "Failed",
-      "permission": "Permission"
-    },
     "confidence": {
       "low": "Low",
       "medium": "Medium",
       "high": "High"
-    }
+    },
+    "preview": "Shown in preview",
+    "previewWidth": "Preview width",
+    "typed": "Last command typed",
+    "history": "Observation history"
   }
 }

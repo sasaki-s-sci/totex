@@ -38,17 +38,6 @@ pub enum Observer {
     Custom,
 }
 
-impl Observer {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Claude => "claude",
-            Self::Codex => "codex",
-            Self::Opencode => "opencode",
-            Self::Custom => "custom",
-        }
-    }
-}
-
 /// Unknown fields are ignored and missing ones take their defaults, so that a
 /// settings document from another version still configures the monitor.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -384,31 +373,6 @@ impl Monitor {
                 if state.config.features.agents && state.config.enabled {
                     s.report.agents.insert(
                         0,
-                        Agent {
-                            id: "totex-monitor".into(),
-                            kind: Kind::Monitor,
-                            label: "monitor".into(),
-                            status: match s.monitor_status {
-                                "running" => Status::Running,
-                                "permission" => Status::Permission,
-                                "failure" => Status::Failure,
-                                _ => Status::Stopped,
-                            },
-                            detail: if state.config.model.trim().is_empty() {
-                                state.config.agent.label().into()
-                            } else {
-                                format!(
-                                    "{} · {}",
-                                    state.config.agent.label(),
-                                    state.config.model.trim()
-                                )
-                            },
-                            progress: None,
-                            source: "observed".into(),
-                        },
-                    );
-                    s.report.agents.insert(
-                        1,
                         Agent {
                             id: "totex-shell".into(),
                             kind: Kind::Shell,

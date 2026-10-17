@@ -3,7 +3,6 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  max-width: 420px;
   overflow: hidden;
   height: 17px;
   padding: 0 4px;
@@ -22,7 +21,6 @@
   top: 50%;
   transform: translateY(-50%);
   width: max-content;
-  max-width: 220px;
 }
 .monitor-badge svg,
 .monitor-state svg,
@@ -47,22 +45,26 @@
 }
 .monitor-badge[data-status="running"],
 .monitor-state[data-status="running"],
-.monitor-agent[data-status="running"] {
+.monitor-agent[data-status="running"],
+.monitor-history__row[data-status="running"] {
   color: var(--mui-palette-info-main);
 }
 .monitor-badge[data-status="permission"],
 .monitor-state[data-status="permission"],
-.monitor-agent[data-status="permission"] {
+.monitor-agent[data-status="permission"],
+.monitor-history__row[data-status="permission"] {
   color: var(--mui-palette-warning-main);
 }
 .monitor-badge[data-status="success"],
 .monitor-state[data-status="success"],
-.monitor-agent[data-status="success"] {
+.monitor-agent[data-status="success"],
+.monitor-history__row[data-status="success"] {
   color: var(--mui-palette-success-main);
 }
 .monitor-badge[data-status="failure"],
 .monitor-state[data-status="failure"],
-.monitor-agent[data-status="failure"] {
+.monitor-agent[data-status="failure"],
+.monitor-history__row[data-status="failure"] {
   color: var(--mui-palette-error-main);
 }
 .monitor-agent {
@@ -92,8 +94,48 @@
   color: var(--mui-palette-text-secondary);
   overflow-wrap: anywhere;
 }
-.cli__row:has(.monitor-badge) .cli__said {
-  margin-left: 240px;
+/* The badge's width is a setting. */
+.monitor-badge[data-width="160"] {
+  max-width: 160px;
+}
+.monitor-badge[data-width="220"] {
+  max-width: 220px;
+}
+.monitor-badge[data-width="320"] {
+  max-width: 320px;
+}
+.monitor-badge[data-width="420"] {
+  max-width: 420px;
+}
+
+.monitor-spin {
+  animation: monitor-spin 0.9s linear infinite;
+}
+@keyframes monitor-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .monitor-spin {
+    animation: none;
+  }
+}
+
+.monitor-history {
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 10px;
+}
+.monitor-history__row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 6px;
+  color: var(--mui-palette-text-secondary);
+}
+.monitor-history__text {
+  overflow-wrap: anywhere;
+  color: var(--mui-palette-text-primary);
 }
 
 .monitor-badge > span {
@@ -125,5 +167,5 @@
   display: none;
 }
 .monitor-badge--canvas .monitor-badge__status {
-  max-width: 48px;
+  max-width: 56px;
 }

@@ -302,6 +302,7 @@ pub fn run() {
             pty::pty_close,
             ask::watch::pty_typed,
             ask::watch::pty_doing,
+            ask::watch::pty_standing,
             mcp::mcp_serving,
             mcp::mcp_serve,
             mcp::mcp_stop,

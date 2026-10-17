@@ -214,6 +214,11 @@ impl Watcher {
         self.turned = true;
     }
 
+    /// Whether an agent's question box stands on the screen right now.
+    pub fn asking(&self) -> bool {
+        read(&self.screen).is_some()
+    }
+
     /// What the session is doing, for a window asking after the lot of them.
     pub fn doing(&self) -> Doing {
         self.doing
