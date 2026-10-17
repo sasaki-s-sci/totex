@@ -66,7 +66,7 @@ function TerminalPage({
       heading={placement === "sidebar" ? terminalList : undefined}
       tools={
         <>
-          <MonitorBadge id={session.id} />
+          {placement !== "sidebar" && <MonitorBadge id={session.id} />}
           <PageTools name={name} placement={placement} collapsed={collapsed} controls={controls} />
         </>
       }

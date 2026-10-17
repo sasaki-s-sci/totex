@@ -220,6 +220,7 @@
     "fetching": "fetch 中…",
     "fetchFailed": "届きませんでした",
     "wheel": "ホイール",
+    "zoomSensitivity": "ズームの感度",
     "moving": "移動",
     "background": "背景",
     "marks": "アイコン",

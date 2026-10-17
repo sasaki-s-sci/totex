@@ -12,7 +12,7 @@ export function WheelRow({ place }: { place: WheelPlace }) {
 
   return (
     <Measure
-      label={t("settings.wheel")}
+      label={t(place === "graph" ? "settings.zoomSensitivity" : "settings.wheel")}
       value={value}
       room={WHEEL}
       step={WHEEL_STEP}

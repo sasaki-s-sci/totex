@@ -5,7 +5,7 @@ export type WheelPlace = "cli" | "graph";
 
 export const WHEEL = { least: 25, most: 400, start: 100 } as const;
 
-export const WHEEL_STEP = 25;
+export const WHEEL_STEP = 1;
 
 const KEYS = { cli: "cliWheel", graph: "graphWheel" } as const;
 
