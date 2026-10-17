@@ -33,16 +33,30 @@ run = [
 [tasks.precommit]
 hide = true
 shell = "bash -o errexit -c"
-description = "Check staged whitespace and run the full local check suite"
-run = [
-  "git diff --cached --check",
-  # Keep Git's selected index for the staged check above, then clear its
-  # hook environment so tests can operate on their own repositories.
-  '''
-  unset $(git rev-parse --local-env-vars)
-  mise run check
-  ''',
-]
+description = "Check staged whitespace, then what the staged paths reach"
+# The halves are the ones CI decides with the same script, so a commit is
+# checked as its Build will be; `mise run check` still runs everything.
+run = '''
+git diff --cached --check
+# Read while Git's selected index is still the one being committed, then clear
+# its hook environment so tests can operate on their own repositories.
+scope=$(git diff --cached --name-only --no-renames -z | python3 -B scripts/ci-scope.py)
+unset $(git rev-parse --local-env-vars)
+echo "$scope" | tr '\n' ' '; echo
+python3 -B scripts/release.py verify
+python3 -B -m unittest discover -s tests -p 'test_*.py'
+if grep -qx front=true <<<"$scope"; then
+  pnpm exec biome format .
+  pnpm exec biome lint .
+  pnpm exec tsc --noEmit
+  pnpm test
+fi
+if grep -qx rust=true <<<"$scope"; then
+  cargo fmt {{vars.cargo}} --all -- --check
+  cargo clippy {{vars.cargo}} {{vars.workspace}} --all-targets --all-features -- -D warnings
+  cargo test {{vars.cargo}} {{vars.workspace}} --no-fail-fast
+fi
+'''
 
 [tasks.dev]
 shell = "bash -o errexit -c"
