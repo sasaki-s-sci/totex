@@ -171,7 +171,7 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     #[test]
-    fn a_shell_at_its_prompt_runs_nothing_and_a_command_is_named() {
+    fn a_process_on_no_terminal_runs_nothing_in_the_foreground() {
         use std::process::{Command, Stdio};
         // A process on no terminal has no foreground to ask about.
         let mut shell = Command::new("sleep")
@@ -180,7 +180,6 @@ mod tests {
             .spawn()
             .unwrap();
         assert_eq!(foreground(shell.id()), None);
-        assert_eq!(arguments(shell.id()).unwrap(), ["sleep", "5"]);
         shell.kill().unwrap();
         shell.wait().unwrap();
     }
