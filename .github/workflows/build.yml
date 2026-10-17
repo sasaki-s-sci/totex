@@ -41,8 +41,10 @@ jobs:
     # changed decides which of the jobs below run -- see scripts/ci-scope.py,
     # which runs everything for any path nobody has said is safe to leave out.
     #
-    # A tag always runs everything. Nothing is published that was not built and
-    # tested as the thing being published, whatever the change that led to it.
+    # A tag is compared with the release before it, and builds the bundles only
+    # when the program in them changed. A release that changes nothing but the
+    # pages carries the program of the release before it -- see the Pages job
+    # -- because that program is the one the new pages were built against.
     #
     # And a push to main never builds the bundles. Its Build is what Release
     # waits on, and the tag Release cuts from it builds all three again with
@@ -58,12 +60,14 @@ jobs:
       front: ${{ steps.scope.outputs.front }}
       rust: ${{ steps.scope.outputs.rust }}
       native: ${{ steps.scope.outputs.native }}
+      previous: ${{ steps.scope.outputs.previous }}
     steps:
       - uses: actions/checkout@v7
         with:
           # A pull request is checked out as its merge into the base, and the
-          # first parent of that merge is the base.
-          fetch-depth: 2
+          # first parent of that merge is the base. A tag needs the release
+          # before it, which is anywhere in the history.
+          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && 0 || 2 }}
 
       - name: Read what changed
         id: scope
@@ -72,8 +76,25 @@ jobs:
         run: |
           set -euo pipefail
           base=""
+          head=HEAD
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
             base=$(git rev-parse HEAD^1)
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Release cuts a tag as one commit that turns the version over, on
+            # top of the main it tested -- so what the release ships beyond
+            # the one before it is the diff from that tag to this one's parent.
+            # A tag that is anything else, or the first one on a new line,
+            # builds everything.
+            previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD^ 2>/dev/null) || previous=""
+            bumped=$(git diff --name-only HEAD^ HEAD | grep -vxF \
+              -e package.json -e src-tauri/tauri.conf.json -e src-tauri/Cargo.toml \
+              -e src-tauri/persistent/Cargo.toml -e src-tauri/Cargo.lock) || true
+            line() { echo "${1#v}" | cut -d. -f1,2; }
+            if [ -n "$previous" ] && [ -z "$bumped" ] && [ "$(line "$previous")" = "$(line "$GITHUB_REF_NAME")" ]; then
+              base=$previous
+              head=HEAD^
+              echo "previous=$previous" >>"$GITHUB_OUTPUT"
+            fi
           elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
             # Not the commit before this push: a newer push cancels the build
             # of an older one, and what that one changed would then never have
@@ -105,7 +126,7 @@ jobs:
             python3 -B scripts/ci-scope.py --all | main | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff --name-only --no-renames -z "$base" HEAD >"$RUNNER_TEMP/changed"
+          git diff --name-only --no-renames -z "$base" "$head" >"$RUNNER_TEMP/changed"
           python3 -B scripts/ci-scope.py <"$RUNNER_TEMP/changed" | main | tee -a "$GITHUB_OUTPUT" "$RUNNER_TEMP/scope"
           {
             echo "Compared with \`$base\`:"
@@ -183,8 +204,9 @@ jobs:
           pnpm exec tsc --noEmit
       - name: Build the pages
         # The platform jobs build these on the way to a bundle. When none of
-        # them runs, this is what says the pages still build at all.
-        if: needs.scope.outputs.native != 'true'
+        # them runs, this is what says the pages still build at all -- on a
+        # tag, the Pages job does.
+        if: needs.scope.outputs.native != 'true' && !startsWith(github.ref, 'refs/tags/')
         run: pnpm exec vite build
 
   check:
@@ -589,14 +611,101 @@ jobs:
           compression-level: 0
           retention-days: 7
 
+  pages:
+    name: Pages
+    # A release of the pages alone: the pages built here, and every other
+    # download carried over from the release before it. Its program is the
+    # one these pages were built against -- nothing it is built from changed,
+    # which is what Scope found -- so an installed copy draws them in place,
+    # and a new install gets that program and is offered these pages on top.
+    needs: scope
+    if: startsWith(github.ref, 'refs/tags/v') && needs.scope.outputs.native == 'false'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Verify the tag names the version being built
+        run: test "$(python3 -B scripts/release.py verify)" = "${GITHUB_REF_NAME#v}"
+
+      - name: Install node and pnpm
+        uses: jdx/mise-action@v4
+
+      - uses: ./.github/actions/pnpm-cache
+
+      - name: Install npm dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build the pages
+        run: pnpm build
+
+      - name: Pack the pages on their own
+        # As the Linux bundle job packs them, and refused outright without a
+        # key: the pages are the whole of this release.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::the TAURI_SIGNING_PRIVATE_KEY secret is unset, so nothing could be signed"
+            exit 1
+          fi
+          mkdir -p dist-release
+          tar -czf dist-release/front.tar.gz -C dist .
+          pnpm tauri signer sign dist-release/front.tar.gz
+
+      - name: Carry the program over from the release before
+        # The release page keeps no signatures beside its downloads -- they
+        # are in its latest.json -- so they are written back out of it, for
+        # scripts/update-manifest.mjs to read as it reads a fresh build's.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS: ${{ needs.scope.outputs.previous }}
+        run: |
+          set -euo pipefail
+          gh release download "$PREVIOUS" --pattern 'totex-*' --dir dist-release
+          gh release download "$PREVIOUS" --pattern latest.json --dir "$RUNNER_TEMP"
+          # A program answers pages built to its own contract and no other,
+          # so these pages are only ever published beside one that does.
+          built=$(jq -r .contract dist/ephemeral.json)
+          carried=$(jq -r .front.runtime "$RUNNER_TEMP/latest.json")
+          if [ "$built" != "$carried" ]; then
+            echo "::error::these pages need runtime $built, and $PREVIOUS carries $carried"
+            exit 1
+          fi
+          jq -r '[.platforms[], .programs[]] | unique[] | "\(.url)\t\(.signature)"' "$RUNNER_TEMP/latest.json" |
+            while IFS=$'\t' read -r url signature; do
+              name=${url##*/}
+              [ -f "dist-release/$name" ] || {
+                echo "::error::$PREVIOUS names $name and does not carry it"
+                exit 1
+              }
+              printf '%s' "$signature" >"dist-release/$name.sig"
+            done
+          ls -l dist-release
+
+      - name: Upload the release
+        uses: actions/upload-artifact@v7
+        with:
+          name: totex-pages
+          path: dist-release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
   release:
     name: Release
     # Only tags publish. A successful main build lets Release compare changes
     # and choose a patch or minor; a major is explicitly requested there.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Every job Scope left out is skipped rather than failed, and that is not
+    # a reason to stop.
+    if: ${{ !cancelled() && !failure() && startsWith(github.ref, 'refs/tags/v') }}
     # Nothing is published that the tests have not been run against: a release
     # is the one moment where finding out later is finding out too late.
-    needs: [policy, frontend, check, build]
+    needs: [policy, frontend, check, build, pages]
     runs-on: ubuntu-latest
     permissions:
       # The one job that writes anything back to the repository.
@@ -684,7 +793,9 @@ jobs:
 
             The files below are what they download, for anybody who would
             rather click. They are this release's per-version installers, one
-            per platform, each holding this release and no other. Their names
+            per platform. A release that changes only the pages carries the
+            installers of the release before it, whose program the pages were
+            built against, and an installed copy draws them in place. Their names
             are the same at every release — no version in any of them — which
             is what makes a link to one worth keeping:
             `https://github.com/${{ github.repository }}/releases/latest/download/totex-macos-universal.dmg`
