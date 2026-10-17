@@ -330,8 +330,6 @@
     "agent": "エージェント",
     "cli": "コーディングエージェント",
     "custom": "カスタム ACP",
-    "refreshModels": "モデル一覧を再取得",
-    "modelsFrom": "{{environment}} から取得",
     "command": "ACP コマンド",
     "args": "引数 (JSON)",
     "model": "モデル",

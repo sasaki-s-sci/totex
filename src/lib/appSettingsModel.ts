@@ -15,6 +15,10 @@ export type MonitorPreview = Omit<MonitorFeatures, "status">;
 /** What the badge says: the agent's own summary, the line typed at the terminal, or nothing. */
 export const MONITOR_TEXTS = ["agent", "stdio", "none"] as const;
 export type MonitorText = (typeof MONITOR_TEXTS)[number];
+/** The model an agent starts on when it is picked; empty leaves the choice to the agent. */
+export function defaultModel(agent: MonitorAgent): string {
+  return agent === "claude" ? "claude-haiku-5-5" : "";
+}
 export const MONITOR_PREVIEW_WIDTHS = [160, 220, 320, 420] as const;
 export type MonitorPreviewWidth = (typeof MONITOR_PREVIEW_WIDTHS)[number];
 export type MonitorSettings = {
@@ -46,7 +50,7 @@ export const DEFAULT_MONITOR: MonitorSettings = {
   agent: "claude",
   command: "",
   args: [],
-  model: "",
+  model: defaultModel("claude"),
   text: "agent",
   intervalSecs: 30,
   features: {

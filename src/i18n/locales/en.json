@@ -330,8 +330,6 @@
     "agent": "Agent",
     "cli": "Coding agent",
     "custom": "Custom ACP",
-    "refreshModels": "Reload models",
-    "modelsFrom": "From {{environment}}",
     "command": "ACP command",
     "args": "Arguments (JSON)",
     "model": "Model",

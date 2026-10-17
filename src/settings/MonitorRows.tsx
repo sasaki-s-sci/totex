@@ -1,12 +1,9 @@
-import RefreshIcon from "@mui/icons-material/Refresh";
 import {
   Alert,
   Autocomplete,
   Box,
   Checkbox,
-  CircularProgress,
   createFilterOptions,
-  IconButton,
   MenuItem,
   Select,
   Stack,
@@ -17,6 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { updateSettings, useAppSettings } from "../lib/appSettings";
 import {
+  defaultModel,
   MONITOR_AGENTS,
   MONITOR_PREVIEW_WIDTHS,
   MONITOR_TEXTS,
@@ -69,7 +67,10 @@ export function MonitorRows() {
             value={monitor.agent}
             inputProps={{ "aria-label": t("monitor.cli") }}
             // A model id belongs to one agent, so switching starts from the new agent's default.
-            onChange={(event) => set({ agent: event.target.value as MonitorAgent, model: "" })}
+            onChange={(event) => {
+              const agent = event.target.value as MonitorAgent;
+              set({ agent, model: defaultModel(agent) });
+            }}
             sx={{ ...PICK_SX, width: FIELD_WIDTH }}
           >
             {MONITOR_AGENTS.map((agent) => (
@@ -229,25 +230,10 @@ function ModelRow() {
     [t, list],
   );
   const value = options.find((option) => option.id === monitor.model) ?? monitor.model;
-  const loading = models.status === "loading";
   return (
     <Stack sx={{ gap: 0.25 }}>
       <Row label={t("monitor.model")}>
         <Stack direction="row" sx={{ alignItems: "center", gap: 0.25 }}>
-          <IconButton
-            size="small"
-            aria-label={t("monitor.refreshModels")}
-            title={t("monitor.refreshModels")}
-            disabled={loading || models.status === "idle"}
-            onClick={models.refresh}
-            sx={{ p: 0.25 }}
-          >
-            {loading ? (
-              <CircularProgress size={14} color="inherit" />
-            ) : (
-              <RefreshIcon sx={{ fontSize: 16 }} />
-            )}
-          </IconButton>
           <Autocomplete<MonitorModel, false, false, true>
             freeSolo
             size="small"
@@ -301,15 +287,13 @@ function ModelRow() {
           />
         </Stack>
       </Row>
-      {(models.status === "ready" || models.status === "failed") && (
+      {models.status === "failed" && (
         <Typography
           variant="caption"
-          color={models.status === "failed" ? "error" : "text.secondary"}
+          color="error"
           sx={{ alignSelf: "flex-end", maxWidth: FIELD_WIDTH + 24, overflowWrap: "anywhere" }}
         >
-          {models.status === "ready"
-            ? t("monitor.modelsFrom", { environment: models.list.environment })
-            : models.error}
+          {models.error}
         </Typography>
       )}
     </Stack>
