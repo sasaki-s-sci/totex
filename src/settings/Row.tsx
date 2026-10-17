@@ -1,4 +1,5 @@
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { Button, ButtonBase, Divider, Stack, Typography } from "@mui/material";
 import { useState } from "react";
 
@@ -53,15 +54,14 @@ export function Section({ name, children }: { name: string; children: React.Reac
         <Typography component="span" variant="subtitle2" sx={{ fontWeight: 600 }}>
           {name}
         </Typography>
-        <ExpandMoreIcon
-          aria-hidden="true"
-          sx={{
-            fontSize: 16,
-            color: "text.secondary",
-            transition: "transform 120ms",
-            transform: open ? undefined : "rotate(-90deg)",
-          }}
-        />
+        {open ? (
+          <KeyboardArrowUpIcon aria-hidden="true" sx={{ fontSize: 16, color: "text.secondary" }} />
+        ) : (
+          <KeyboardArrowDownIcon
+            aria-hidden="true"
+            sx={{ fontSize: 16, color: "text.secondary" }}
+          />
+        )}
       </ButtonBase>
       {open && <Stack sx={NEST_SX}>{children}</Stack>}
     </>

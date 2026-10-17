@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { HISTORY_LIMIT, remember, shownStatus } from "../src/monitor/model.ts";
 
-const glance = (doing, asking = false, said = "claude") => ({ id: "t", doing, asking, said });
+const glance = (doing, asking = false, said = "claude") => ({
+  id: "t",
+  doing,
+  asking,
+  said,
+  running: null,
+});
 const snapshot = (updatedAt, status = "running") => ({
   updatedAt,
   status,

@@ -66,13 +66,23 @@ export const DEFAULT_MONITOR: MonitorSettings = {
   },
   previewWidth: 220,
 };
+/** Whether the badge shows a preview item: its feature is on and its preview is ticked. */
+export function monitorShows(monitor: MonitorSettings, item: keyof MonitorPreview): boolean {
+  return monitor.features[item] && monitor.preview[item];
+}
+/** Only the keys this build knows, so an older or hand-edited file cannot add a dead row. */
+function known<T extends Record<string, boolean>>(defaults: T, values: Partial<T>): T {
+  return Object.fromEntries(
+    Object.keys(defaults).map((key) => [key, values[key] ?? defaults[key]]),
+  ) as T;
+}
 export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch): MonitorSettings {
   const merged = {
     ...DEFAULT_MONITOR,
     ...one,
     ...two,
-    features: { ...DEFAULT_MONITOR.features, ...one?.features, ...two?.features },
-    preview: { ...DEFAULT_MONITOR.preview, ...one?.preview, ...two?.preview },
+    features: known(DEFAULT_MONITOR.features, { ...one?.features, ...two?.features }),
+    preview: known(DEFAULT_MONITOR.preview, { ...one?.preview, ...two?.preview }),
   };
   // A hand-edited or older file may name an agent this build does not know.
   if (!MONITOR_AGENTS.includes(merged.agent)) merged.agent = DEFAULT_MONITOR.agent;

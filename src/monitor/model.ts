@@ -55,7 +55,7 @@ export function shownStatus(glance: Glance | undefined, snapshot?: MonitorSnapsh
   if (!glance.said) return "initial";
   return glance.doing === "agent" ? "stopped" : "idle";
 }
-/** A shell running commands is summed up by what was typed, an agent by the observer. */
+/** A shell running commands is summed up by the process it runs, an agent by the observer. */
 export function isAgent(glance: Glance | undefined) {
   return !glance || glance.asking || glance.doing === "agent" || glance.doing === "working";
 }

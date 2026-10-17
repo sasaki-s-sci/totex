@@ -2,7 +2,7 @@ import { useTheme } from "@mui/material/styles";
 import { type ReactNode, useId, useLayoutEffect } from "react";
 import { useMarkSizes } from "../canvas/markSizes";
 import { useAppSettings } from "../lib/appSettings";
-import { HISTORY_ALL, type MonitorPreview } from "../lib/appSettingsModel";
+import { HISTORY_ALL, monitorShows } from "../lib/appSettingsModel";
 import { GRID_OFF } from "../lib/grid";
 import {
   AddMark,
@@ -82,9 +82,6 @@ export function Miniature() {
   // The badge beside the first terminal, where the line typed there used to be.
   const badgeLeft = bands[0].tip + 2 * cli + 8;
   const monitor = settings.monitor;
-  const monitored = monitor.enabled;
-  // The badge shows an item only when its feature is on and its preview is ticked, as it does live.
-  const slot = (item: keyof MonitorPreview) => monitor.features[item] && monitor.preview[item];
   const badgeWidth = Math.max(
     1,
     Math.min(PANEL.left - 4 - badgeLeft, Math.max(8, monitor.previewWidth * 0.07)),
@@ -92,7 +89,10 @@ export function Miniature() {
   // Each item the badge previews takes a slot off the end of its summary.
   const summaryWidth = Math.max(
     1,
-    badgeWidth - 5 - (slot("agents") ? 4 : 0) - (slot("estimate") ? 3 : 0),
+    badgeWidth -
+      5 -
+      (monitorShows(monitor, "agents") ? 4 : 0) -
+      (monitorShows(monitor, "estimate") ? 3 : 0),
   );
   const title = settings.fileTitle === "path" ? "~/repo/notes/README.md" : "README.md";
 
@@ -429,9 +429,9 @@ export function Miniature() {
           fill="none"
           stroke={ink("monitor", palette.divider)}
           strokeWidth={0.6}
-          strokeDasharray={monitored ? undefined : "1.5 1.5"}
+          strokeDasharray={monitor.enabled ? undefined : "1.5 1.5"}
         />
-        {monitored && (
+        {monitor.enabled && (
           <>
             <circle
               cx={badgeLeft + 1.3}
@@ -449,7 +449,7 @@ export function Miniature() {
                 fill={ink("monitor", palette.text.secondary)}
               />
             )}
-            {slot("agents") && (
+            {monitorShows(monitor, "agents") && (
               <rect
                 x={badgeLeft + badgeWidth - 6}
                 y={bands[0].y - 7.7 - cli}
@@ -461,7 +461,7 @@ export function Miniature() {
                 strokeWidth={0.3}
               />
             )}
-            {slot("estimate") && (
+            {monitorShows(monitor, "estimate") && (
               <rect
                 x={badgeLeft + badgeWidth - 2}
                 y={bands[0].y - 7.7 - cli}

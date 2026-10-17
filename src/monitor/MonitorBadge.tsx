@@ -3,8 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
-import type { MonitorPreview } from "../lib/appSettingsModel";
-import { agentCounts, estimateMinutes, isAgent, shownStatus } from "./model";
+import { type MonitorPreview, type MonitorText, monitorShows } from "../lib/appSettingsModel";
+import {
+  agentCounts,
+  estimateMinutes,
+  type Glance,
+  isAgent,
+  type MonitorSnapshot,
+  shownStatus,
+} from "./model";
 import {
   useMonitorError,
   useMonitorGlance,
@@ -12,6 +19,24 @@ import {
   useMonitorSnapshot,
 } from "./runtime";
 import "./monitor.css";
+
+/** The text beside the badge: the agent's summary or the running command, the line typed, or nothing. */
+function summaryOf(
+  text: MonitorText,
+  glance: Glance | undefined,
+  running: string | null,
+  snapshot: MonitorSnapshot | undefined,
+  shown: (item: keyof MonitorPreview) => boolean,
+): string | null {
+  if (text === "none") return null;
+  if (text === "stdio") return glance?.said || null;
+  return (
+    running ??
+    ((shown("taskSummary") && snapshot?.taskSummary) ||
+      (shown("requestSummary") && snapshot?.requestSummary) ||
+      null)
+  );
+}
 
 /** Running spins, asking asks and failing crosses; the colour comes from `data-status`. */
 function StatusIcon({ status }: { status: string }) {
@@ -77,7 +102,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const { t } = useTranslation();
   if (!monitor.enabled) return null;
   const features = monitor.features;
-  const shown = (item: keyof MonitorPreview) => features[item] && monitor.preview[item];
+  const shown = (item: keyof MonitorPreview) => monitorShows(monitor, item);
   const error = runtimeError ?? snapshot?.error ?? refreshError;
   const status = error ? "failure" : shownStatus(glance, snapshot);
   const agent = isAgent(glance);
@@ -85,16 +110,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const estimate = estimateMinutes(snapshot?.estimate ?? null);
   // A command is summed up by the process running it, never by what was typed or printed.
   const running = agent ? null : glance?.running || null;
-  // The text is the agent's own summary, the line typed at the terminal, or nothing at all.
-  const summary =
-    monitor.text === "none"
-      ? null
-      : monitor.text === "stdio"
-        ? glance?.said || null
-        : (running ??
-          ((shown("taskSummary") && snapshot?.taskSummary) ||
-            (shown("requestSummary") && snapshot?.requestSummary) ||
-            null));
+  const summary = summaryOf(monitor.text, glance, running, snapshot, shown);
   return (
     <>
       <button

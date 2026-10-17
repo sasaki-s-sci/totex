@@ -124,26 +124,39 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
     }) {
         return Err("Invalid monitor.previewWidth".into());
     }
-    for group in ["features", "preview"] {
+    // The badge shows the status as an icon, so only the features can set it.
+    let groups = [
+        (
+            "features",
+            &[
+                "status",
+                "agents",
+                "taskSummary",
+                "requestSummary",
+                "estimate",
+                "goal",
+            ][..],
+        ),
+        (
+            "preview",
+            &[
+                "agents",
+                "taskSummary",
+                "requestSummary",
+                "estimate",
+                "goal",
+            ][..],
+        ),
+    ];
+    for (group, keys) in groups {
         let Some(features) = fields.get(group) else {
             continue;
         };
         let features = features
             .as_object()
             .ok_or(format!("monitor.{group} must be an object"))?;
-        for key in [
-            "status",
-            "agents",
-            "taskSummary",
-            "requestSummary",
-            "estimate",
-            "goal",
-        ] {
-            // The badge shows the status as an icon, so only the features can set it.
-            if group == "preview" && key == "status" {
-                continue;
-            }
-            if features.get(key).is_some_and(|v| !v.is_boolean()) {
+        for key in keys {
+            if features.get(*key).is_some_and(|v| !v.is_boolean()) {
                 return Err(format!("Invalid monitor.{group}.{key}"));
             }
         }
