@@ -66,8 +66,9 @@ jobs:
         with:
           # A pull request is checked out as its merge into the base, and the
           # first parent of that merge is the base. A tag needs the release
-          # before it, which is anywhere in the history.
-          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && 0 || 2 }}
+          # before it, which is anywhere in the history. Quoted, because a bare
+          # 0 is false to `&&` and would fall through to the 2.
+          fetch-depth: ${{ startsWith(github.ref, 'refs/tags/') && '0' || '2' }}
 
       - name: Read what changed
         id: scope
