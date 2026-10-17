@@ -7,7 +7,7 @@ mod prompt;
 
 use crate::{Sessions, session::Running};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -51,6 +51,8 @@ pub struct Config {
     pub model: String,
     pub interval_secs: u64,
     pub features: Features,
+    /// Observe only the sessions the window says are running a coding agent.
+    pub agents_only: bool,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -62,6 +64,7 @@ impl Default for Config {
             model: String::new(),
             interval_secs: 30,
             features: Features::default(),
+            agents_only: false,
         }
     }
 }
@@ -224,6 +227,9 @@ struct State {
     config: Config,
     entries: HashMap<String, Entry>,
     generation: u64,
+    /// The sessions running a coding agent, as the window reads them off the
+    /// screen: this program holds the bytes, not the reading of them.
+    agents: HashSet<String>,
 }
 pub struct Monitor {
     sessions: Arc<Sessions>,
@@ -390,6 +396,11 @@ impl Monitor {
         snapshots.sort_by(|a, b| a.id.cmp(&b.id));
         snapshots
     }
+    /// Which sessions are running a coding agent; kept apart from the config,
+    /// so a change in it never discards an observation.
+    pub fn agents(&self, ids: Vec<String>) {
+        lock(&self.state).agents = ids.into_iter().collect();
+    }
     pub fn refresh(&self, id: &str) -> Result<(), String> {
         let mut state = lock(&self.state);
         if !state.config.enabled {
@@ -475,6 +486,9 @@ impl Monitor {
         let generation = state.generation;
         let mut active = self.workers.load(Ordering::Acquire);
         for session in running {
+            if config.agents_only && !state.agents.contains(&session.id) {
+                continue;
+            }
             let entry = state
                 .entries
                 .entry(session.id.clone())
@@ -790,6 +804,22 @@ mod tests {
         );
         assert_eq!(report.agents.len(), 1);
         assert_eq!(report.agents[0].progress, Some(100.0));
+    }
+    #[test]
+    fn the_agent_sessions_outlive_a_configuration_and_are_replaced_whole() {
+        let monitor = Monitor::new(Arc::new(Sessions::default()));
+        monitor.agents(vec!["one".into(), "two".into()]);
+        monitor
+            .configure(Config {
+                enabled: true,
+                agents_only: true,
+                ..Config::default()
+            })
+            .unwrap();
+        assert!(lock(&monitor.state).agents.contains("two"));
+        monitor.agents(vec!["three".into()]);
+        let state = lock(&monitor.state);
+        assert!(state.agents.contains("three") && !state.agents.contains("one"));
     }
     #[test]
     fn disabling_cancels_workers_and_invalidates_inflight_reports() {

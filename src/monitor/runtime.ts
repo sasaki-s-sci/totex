@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useSyncExternalStore } from "react";
 import { useAppSettings } from "../lib/appSettings";
 import { notifications } from "../lib/notifications";
-import { type Glance, type MonitorSnapshot, type Observation, remember } from "./model";
+import { type Glance, isAgent, type MonitorSnapshot, type Observation, remember } from "./model";
 
 const changes = notifications();
 let snapshots = new Map<string, MonitorSnapshot>();
@@ -33,6 +33,8 @@ export function useMonitorRuntime() {
     let timer: ReturnType<typeof setTimeout>;
     let glanceTimer: ReturnType<typeof setTimeout>;
     const config = JSON.parse(key);
+    // The service holds the bytes and this window the reading of them, so it is told which sessions are agents.
+    let agents: string | null = null;
     snapshots = new Map();
     glances = new Map();
     histories = new Map();
@@ -63,6 +65,13 @@ export function useMonitorRuntime() {
       try {
         const next = await invoke<Glance[]>("pty_standing");
         if (!live) return;
+        const ids = next.filter((one) => isAgent(one)).map((one) => one.id);
+        if (ids.sort().join("\n") !== agents) {
+          agents = ids.join("\n");
+          void invoke("monitor_agents", { ids }).catch(() => {
+            agents = null;
+          });
+        }
         // Keep unchanged glances as the same objects so badges only redraw on a change.
         let changed = next.length !== glances.size;
         const kept = new Map<string, Glance>();

@@ -337,6 +337,7 @@
   "monitor": {
     "title": "Monitor",
     "enabled": "有効",
+    "agentsOnly": "コーディングエージェントの端末だけ",
     "agent": "エージェント",
     "cli": "コーディングエージェント",
     "custom": "カスタム ACP",

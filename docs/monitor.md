@@ -68,6 +68,10 @@ new observation even when the terminal output has not changed.
 
 ## Lifecycle
 
+By default only terminals running a coding agent are observed, as read off
+their screens by the window; a plain command is not worth an observer.
+**Coding agent terminals only** in Settings → Monitor turns that off.
+
 The runtime checks changed terminal output at the configured interval, with
 at most four concurrent observations and a 120-second observation timeout.
 Unchanged output does not trigger another inference. Each observation uses a

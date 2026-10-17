@@ -337,6 +337,7 @@
   "monitor": {
     "title": "Monitor",
     "enabled": "Enabled",
+    "agentsOnly": "Coding agent terminals only",
     "agent": "Agent",
     "cli": "Coding agent",
     "custom": "Custom ACP",

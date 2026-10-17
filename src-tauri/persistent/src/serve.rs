@@ -317,6 +317,10 @@ fn answer(
         "monitor_refresh" => {
             read::<Named>(with).and_then(|at| held.monitor.refresh(&at.id).map(|()| Value::Null))
         }
+        "monitor_agents" => read::<MonitorAgents>(with).map(|at| {
+            held.monitor.agents(at.ids);
+            Value::Null
+        }),
         "monitor_models" => read::<MonitorModels>(with)
             .and_then(|at| said(held.monitor.models(at.agent, at.command, at.args)?)),
         "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
@@ -387,6 +391,11 @@ fn said<T: serde::Serialize>(answer: T) -> Result<Value, String> {
 #[derive(Deserialize)]
 struct MonitorConfig {
     config: crate::monitor::Config,
+}
+
+#[derive(Deserialize)]
+struct MonitorAgents {
+    ids: Vec<String>,
 }
 
 #[derive(Deserialize)]

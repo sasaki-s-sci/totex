@@ -29,6 +29,14 @@ pub fn monitor_models<R: Runtime>(
     )
 }
 
+/// Which sessions are running a coding agent, as the screen reading has them.
+#[tauri::command(async)]
+pub fn monitor_agents<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) -> Result<(), String> {
+    crate::persistent::link(&app)
+        .ask("monitor_agents", json!({ "ids": ids }))
+        .map(|_| ())
+}
+
 #[tauri::command(async)]
 pub fn monitor_refresh<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
     crate::persistent::link(&app)

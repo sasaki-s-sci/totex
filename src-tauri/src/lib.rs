@@ -310,6 +310,7 @@ pub fn run() {
             monitor::monitor_configure,
             monitor::monitor_snapshots,
             monitor::monitor_refresh,
+            monitor::monitor_agents,
             monitor::monitor_models,
             persistent::persistent_get,
             persistent::persistent_put,

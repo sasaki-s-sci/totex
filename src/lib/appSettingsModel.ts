@@ -14,6 +14,8 @@ export const MONITOR_PREVIEW_WIDTHS = [160, 220, 320, 420] as const;
 export type MonitorPreviewWidth = (typeof MONITOR_PREVIEW_WIDTHS)[number];
 export type MonitorSettings = {
   enabled: boolean;
+  /** Observe only terminals running a coding agent; a plain command is not worth an observer. */
+  agentsOnly: boolean;
   /** Which coding agent CLI observes the sessions; "custom" runs `command` with `args`. */
   agent: MonitorAgent;
   /** Only used when `agent` is "custom": an ACP executable and its arguments. */
@@ -33,6 +35,7 @@ export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview"
 };
 export const DEFAULT_MONITOR: MonitorSettings = {
   enabled: false,
+  agentsOnly: true,
   agent: "claude",
   command: "",
   args: [],

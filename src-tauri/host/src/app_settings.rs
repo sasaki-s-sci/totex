@@ -81,8 +81,10 @@ fn validate(value: &Value) -> Result<(), String> {
 
 fn validate_monitor(value: &Value) -> Result<(), String> {
     let fields = value.as_object().ok_or("monitor must be an object")?;
-    if fields.get("enabled").is_some_and(|v| !v.is_boolean()) {
-        return Err("Invalid monitor.enabled".into());
+    for key in ["enabled", "agentsOnly"] {
+        if fields.get(key).is_some_and(|v| !v.is_boolean()) {
+            return Err(format!("Invalid monitor.{key}"));
+        }
     }
     if fields.get("agent").is_some_and(|v| {
         v.as_str()
@@ -281,6 +283,7 @@ mod tests {
         for invalid in [
             json!({"monitor": []}),
             json!({"monitor": {"enabled": "yes"}}),
+            json!({"monitor": {"agentsOnly": "yes"}}),
             json!({"monitor": {"agent": "gemini"}}),
             json!({"monitor": {"agent": 1}}),
             json!({"monitor": {"command": "bad\u{0}command"}}),
