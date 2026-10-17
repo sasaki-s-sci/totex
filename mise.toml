@@ -2,4 +2,179 @@
 rust = { version = "1.95.0", components = "rustfmt,clippy" }
 node = "24.13.0"
 pnpm = "10.28.2"
-task = "3.52.0"
+
+[vars]
+# The Rust crates live under src-tauri/, and every cargo task is driven from
+# the root. The app, and the crates beside it that other programs in the
+# workspace share -- see src-tauri/host. `cargo fmt` reaches all of them
+# through `--all`; the two below want to be told, which is what workspace is.
+cargo = "--manifest-path src-tauri/Cargo.toml"
+workspace = "--workspace"
+# The standalone installer is a second crate, released on a cycle of its own.
+# It is built for Windows from wherever it is built, since Windows is the only
+# place it runs; off Windows that wants `rustup target add` first, and the
+# icon and manifest are left out because the tool that compiles them is not
+# there. See setup/build.rs.
+setup = "--manifest-path setup/Cargo.toml"
+setup_target = "x86_64-pc-windows-msvc"
+
+# Tasks with POSIX shell syntax name bash, since Windows would run them in cmd
+# and mise only takes a different default from the user's own config.
+# shortcut: on Windows bash (Git Bash) has to be on PATH ahead of WSL's bash.exe.
+
+[tasks.setup]
+description = "Install the pinned toolchain, npm dependencies and Git hooks"
+run = [
+  "mise install",
+  "pnpm install --frozen-lockfile",
+  "git config --local core.hooksPath .githooks",
+]
+
+[tasks.precommit]
+hide = true
+shell = "bash -o errexit -c"
+description = "Check staged whitespace and run the full local check suite"
+run = [
+  "git diff --cached --check",
+  # Keep Git's selected index for the staged check above, then clear its
+  # hook environment so tests can operate on their own repositories.
+  '''
+  unset $(git rev-parse --local-env-vars)
+  mise run check
+  ''',
+]
+
+[tasks.dev]
+shell = "bash -o errexit -c"
+description = "Run the desktop app with hot reload, on a port reserved for this run"
+usage = 'arg "[args]..." var=#true help="Passed on to tauri dev"'
+run = [
+  # The program that holds the terminals first, so that it is beside the
+  # app's own binary in the target directory when the app looks for it --
+  # see src-tauri/src/persistent.rs. `tauri dev` builds the app and nothing else.
+  "node scripts/persistent-sidecar.mjs",
+  # Both halves are told the same port: the dev server binds it, and the
+  # window is pointed at it. Hard-coding one only works until a dev server
+  # from an earlier run is still holding it, which is not a failure worth
+  # having to diagnose — and two checkouts can then run side by side.
+  '''
+  port="$(node scripts/dev-port.mjs)"
+  pnpm tauri dev --config "{\"build\":{\"beforeDevCommand\":\"pnpm dev --port $port\",\"devUrl\":\"http://localhost:$port\"}}" ${usage_args:-}
+  ''',
+]
+
+[tasks.start]
+shell = "bash -o errexit -c"
+description = "Build the app in release mode and open it (mise run start -- EXTRA_ARGS)"
+usage = 'arg "[args]..." var=#true help="Passed on to tauri build"'
+run = [
+  # The point here is to look at the production build, not to ship it, so
+  # bundling is skipped -- `mise run build` is what produces the installers.
+  "node scripts/persistent-sidecar.mjs --release",
+  "pnpm tauri build --no-bundle ${usage_args:-}",
+  # cargo names the binary after the crate, with the host's executable
+  # suffix, and tauri leaves it in the crate's target directory.
+  '''
+  bin="src-tauri/target/release/totex"
+  [ -f "$bin" ] || bin="$bin.exe"
+  "$bin"
+  ''',
+]
+
+[tasks.build]
+shell = "bash -o errexit -c"
+description = "Build the installer for the host platform (mise run build -- EXTRA_ARGS)"
+usage = 'arg "[args]..." var=#true help="Passed on to tauri build"'
+# The installers are also what the app updates itself from, and a build
+# signs them with the release key so that an installed copy can tell one
+# of ours from anything else that answers the same URL. That key is the
+# release workflow's, not a checkout's, so a build without it signs
+# nothing: the installer works, and only the updater would turn it down.
+run = "mise run bundle -- ${usage_args:-}"
+
+[tasks.bundle]
+hide = true
+shell = "bash -o errexit -c"
+usage = '''
+flag "--target <target>" help="Rust target triple to build for"
+arg "[args]..." var=#true help="Passed on to tauri build"
+'''
+run = [
+  # The program that holds the terminals goes into every bundle beside the
+  # app -- see scripts/persistent-sidecar.mjs, which also says why it is named
+  # here rather than in tauri.conf.json.
+  'node scripts/persistent-sidecar.mjs --release ${usage_target:+--target "$usage_target"}',
+  '''
+  sign=""
+  [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || sign="--no-sign"
+  pnpm tauri build $sign --config '{"bundle":{"externalBin":["binaries/totex-persistent"]}}' ${usage_target:+--target "$usage_target"} ${usage_args:-}
+  ''',
+]
+
+[tasks."setup:build"]
+description = "Build the standalone installer, which installs any released totex"
+run = "cargo build {{vars.setup}} --release --target {{vars.setup_target}}"
+
+[tasks."setup:check"]
+description = "Format-check and lint the standalone installer"
+# Not part of `mise run check`: that runs on any machine, and this wants a
+# target that is only there for the asking. The workflow in
+# .github/workflows/setup.yml runs it on every change to setup/.
+run = [
+  "cargo fmt {{vars.setup}} --all -- --check",
+  "cargo clippy {{vars.setup}} --all-targets --target {{vars.setup_target}} -- -D warnings",
+]
+
+[tasks.fmt]
+description = "Format and auto-fix both stacks"
+run = [
+  "pnpm exec biome check --write .",
+  "cargo fmt {{vars.cargo}} --all",
+]
+
+[tasks."fmt:check"]
+description = "Fail if either stack is unformatted"
+run = [
+  "pnpm exec biome format .",
+  "cargo fmt {{vars.cargo}} --all -- --check",
+]
+
+[tasks.lint]
+description = "Lint both stacks, treating warnings as errors"
+run = [
+  "pnpm exec biome lint .",
+  "cargo clippy {{vars.cargo}} {{vars.workspace}} --all-targets --all-features -- -D warnings",
+]
+
+[tasks.test]
+description = "Run the release policy, frontend and Rust test suites"
+run = [
+  "python3 -B scripts/release.py verify",
+  "python3 -B -m unittest discover -s tests -p 'test_*.py'",
+  "pnpm test",
+  # `--no-fail-fast` because the workspace is several test binaries and the
+  # default stops at the first one that fails: a single failure in the app
+  # would hide whether the persistent half's own suite still passes, which is the half
+  # most likely to explain it. Every binary runs, and the run still fails.
+  "cargo test {{vars.cargo}} {{vars.workspace}} --no-fail-fast",
+]
+
+[tasks."test:e2e"]
+description = "Build and test the real Linux desktop app, saving video and an HTML report"
+run = [{ task = "test:e2e:build" }, "pnpm test:e2e"]
+
+[tasks."test:e2e:build"]
+description = "Build the desktop app and sidecar for E2E (bundled frontend, debug Rust)"
+run = [
+  "node scripts/persistent-sidecar.mjs",
+  "pnpm tauri build --debug --no-bundle --no-sign",
+]
+
+[tasks.check]
+description = "Format check, lint, type-check and test"
+run = [
+  { task = "fmt:check" },
+  { task = "lint" },
+  "pnpm exec tsc --noEmit",
+  { task = "test" },
+]

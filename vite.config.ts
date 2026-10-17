@@ -40,7 +40,7 @@ export default defineConfig({
   // Tauri drives this dev server, so keep its output visible.
   clearScreen: false,
   server: {
-    // Only where `pnpm dev` lands on its own. `task dev` reserves a free port
+    // Only where `pnpm dev` lands on its own. `mise run dev` reserves a free port
     // and passes it on the command line, to both this and the window — a fixed
     // port is a port a dev server from an earlier run can still be holding.
     port: 1420,

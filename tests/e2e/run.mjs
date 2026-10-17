@@ -84,7 +84,7 @@ async function run() {
   const binary = join(root, "src-tauri/target/debug/totex");
   const sidecar = join(root, "src-tauri/target/debug/totex-persistent");
   if (!existsSync(binary) || !existsSync(sidecar)) {
-    throw new Error("Build first with task test:e2e (or task test:e2e:build).");
+    throw new Error("Build first with mise run test:e2e (or mise run test:e2e:build).");
   }
 
   const repository = join(temporary, "demo-repo");

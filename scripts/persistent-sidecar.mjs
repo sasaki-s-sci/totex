@@ -12,7 +12,7 @@
  * Not in `tauri.conf.json`, on purpose. A sidecar named there is checked for
  * by every `cargo build` of the app, including `cargo test` and `cargo check`,
  * which would then all fail until this had been run. So the name is passed to
- * `tauri build` on the command line instead -- see the Taskfile and
+ * `tauri build` on the command line instead -- see mise.toml and
  * .github/workflows/build.yml -- and a plain cargo build knows nothing of it.
  *
  * Without `--target`, the program is built for this machine and left in

@@ -1,5 +1,5 @@
 <!--
-  Rasterisation source for src-tauri/icons (task icon). Same geometry as
+  Rasterisation source for src-tauri/icons (pnpm tauri icon assets/app-icon.svg). Same geometry as
   icon.svg, which is drawn for the UI: a hairline in currentColor. A taskbar
   entry is ~20px, where a 2-unit stroke lands under half a pixel and vanishes,
   so the stroke and the dot are the one thing scaled up here. Change the mark in

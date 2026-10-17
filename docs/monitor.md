@@ -84,7 +84,7 @@ a minor release under the repository's existing update policy.
 
 ## Desktop and live-agent tests
 
-`task test:e2e` builds the desktop app and persistent sidecar, then drives the
+`mise run test:e2e` builds the desktop app and persistent sidecar, then drives the
 actual Linux WebView through WebDriver. It records video, screenshots and an
 HTML report under `test-results/e2e`. Monitor checks use a deterministic custom ACP
 process; the UI, settings persistence,

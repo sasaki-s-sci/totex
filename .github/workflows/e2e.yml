@@ -35,7 +35,7 @@ jobs:
           key: e2e
       - run: pnpm install --frozen-lockfile
       - run: cargo install tauri-driver --version 2.0.6 --locked
-      - run: task test:e2e
+      - run: mise run test:e2e
       - name: Save video, screenshots and report
         if: always()
         uses: actions/upload-artifact@v7

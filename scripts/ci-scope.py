@@ -42,7 +42,6 @@ UNBUILT_DIRECTORIES = (
 UNBUILT_FILES = frozenset(
     (
         ".gitignore",
-        "Taskfile.yml",
         ".github/workflows/setup.yml",
         ".github/workflows/e2e.yml",
         ".github/workflows/release.yml",

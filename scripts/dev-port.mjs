@@ -3,7 +3,7 @@
  *
  * Asked of the operating system rather than guessed at: binding to port zero
  * hands back one that was free at that instant, which is the only answer that
- * is not a hopeful assumption. `task dev` gives the same number to both halves
+ * is not a hopeful assumption. `mise run dev` gives the same number to both halves
  * of the pair, so the window and the dev server always agree on it.
  *
  * There is a gap between letting go of the port and vite taking it, and nothing
