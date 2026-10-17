@@ -2,7 +2,9 @@
 // a patch is on the running line and never ends a terminal, a minor is on
 // another line and is installed and restarted into. A patch is one of two
 // things, which the shell contract says: pages drawn in place, or a program
-// installed with the window reopened over the running service.
+// installed with the window reopened over the running service. A release of the
+// pages alone carries the program of the release before it, so a copy already
+// running that program draws them in place, and one that is not installs it first.
 import type { Layer, UpdateChoice, UpdateState } from "./model";
 
 export const LATEST = "latest";
