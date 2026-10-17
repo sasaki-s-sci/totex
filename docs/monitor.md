@@ -30,6 +30,26 @@ use the [agent-client-protocol Rust SDK](https://docs.rs/agent-client-protocol/3
 their permission requests are cancelled, so Monitor never approves work.
 No global agent configuration is edited.
 
+## Reading an agent's own state
+
+Before any model call, a terminal whose shell runs Claude Code or OpenCode is
+read from the agent's own session state, on this machine (Linux only, local
+terminals only). Such a report is `observed`; a model's inference is
+`inferred`, and the badge marks inferred agents with `≈`.
+
+- **Claude Code**: the process is found under the shell through
+  `sessions/<pid>.json` in its config directory (`CLAUDE_CONFIG_DIR` or
+  `~/.claude`), checked against the process start time. The session's
+  transcript is read from its last 512 KiB. A turn that ended normally is
+  `stopped`; the last prompt is the request, and the last reply or tool call is
+  the task. Claude Code's transcript format is not a published API.
+- **OpenCode**: the newest unarchived session in the terminal's folder, from
+  `opencode.db` read-only. Its newest reply with a `stop` step is `stopped`.
+
+Neither reader reports goals, estimates or workers, and neither sees a
+permission prompt until the agent acts on it. Codex has no reader yet, so its
+terminals still use the configured observer.
+
 The model list comes from the host of a live terminal (then the local machine)
 and names that host under the field. A missing executable is reported as
 `<agent> is not installed on <environment>`; a failing agent reports the end of

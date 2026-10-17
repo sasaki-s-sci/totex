@@ -3,6 +3,8 @@
 mod acp;
 mod cli;
 mod launch;
+#[cfg(target_os = "linux")]
+mod native;
 mod prompt;
 
 use crate::{Sessions, session::Running};
@@ -560,34 +562,49 @@ impl Monitor {
     ) {
         let _worker = Worker(&self.workers);
         let host = Host::of_str(&session.cwd);
-        let result = check_environment(&session)
-            .and_then(|()| {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|e| e.to_string())
-            })
-            .and_then(|runtime| {
-                runtime.block_on(async {
-                    tokio::time::timeout(
-                        Duration::from_secs(120),
-                        observation(
-                            &config,
-                            &host,
-                            &environment(&host),
-                            &transcript,
-                            Arc::clone(&cancel),
-                            previous,
-                        ),
-                    )
-                    .await
-                    .map_err(|_| "Monitor timed out after 120 seconds".to_owned())?
+        // The agent's own session state, when it is on this machine, needs no
+        // model call and no terminal reading.
+        let native = match (session.pid, &host) {
+            #[cfg(target_os = "linux")]
+            (Some(root), Host::Local) => native::observe(root, &session.cwd),
+            _ => None,
+        };
+        let source = if native.is_some() {
+            "observed"
+        } else {
+            "inferred"
+        };
+        let result = match native {
+            Some(report) => Ok(report),
+            None => check_environment(&session)
+                .and_then(|()| {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(|e| e.to_string())
                 })
-            })
-            .and_then(|value| {
-                serde_json::from_value::<Report>(value)
-                    .map_err(|e| format!("Invalid monitor report: {e}"))
-            });
+                .and_then(|runtime| {
+                    runtime.block_on(async {
+                        tokio::time::timeout(
+                            Duration::from_secs(120),
+                            observation(
+                                &config,
+                                &host,
+                                &environment(&host),
+                                &transcript,
+                                Arc::clone(&cancel),
+                                previous,
+                            ),
+                        )
+                        .await
+                        .map_err(|_| "Monitor timed out after 120 seconds".to_owned())?
+                    })
+                })
+                .and_then(|value| {
+                    serde_json::from_value::<Report>(value)
+                        .map_err(|e| format!("Invalid monitor report: {e}"))
+                }),
+        };
         cancel.store(true, Ordering::Relaxed);
         let mut state = lock(&self.state);
         if state.generation != generation {
@@ -608,6 +625,7 @@ impl Monitor {
             Ok(mut report) => {
                 sanitize(&mut report, &config.features);
                 entry.snapshot.report = report;
+                entry.snapshot.source = source;
                 entry.snapshot.updated_at = now();
                 entry.snapshot.monitor_status = "idle";
                 entry.snapshot.error = None;
@@ -633,8 +651,24 @@ fn check_environment(session: &Running) -> Result<(), String> {
     let Some(root) = session.pid else {
         return Ok(());
     };
+    for pid in descendants(root) {
+        let Ok(command) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
+            continue;
+        };
+        let program =
+            String::from_utf8_lossy(command.split(|b| *b == 0).next().unwrap_or_default());
+        let name = program.rsplit('/').next().unwrap_or("");
+        if matches!(name, "ssh" | "wsl" | "wsl.exe") && owns_terminal_input(root, pid) {
+            return Err("Terminal entered a nested remote environment. Open an SSH or WSL terminal through Totex so Monitor can run on that host.".into());
+        }
+    }
+    Ok(())
+}
+/// The processes under `root`, not including it, read off `/proc`.
+#[cfg(target_os = "linux")]
+fn descendants(root: u32) -> Vec<u32> {
     let Ok(entries) = std::fs::read_dir("/proc") else {
-        return Ok(());
+        return vec![];
     };
     let processes: Vec<_> = entries
         .flatten()
@@ -660,18 +694,7 @@ fn check_environment(session: &Running) -> Result<(), String> {
         }
         descendants.extend(next);
     }
-    for pid in descendants.into_iter().filter(|pid| *pid != root) {
-        let Ok(command) = std::fs::read(format!("/proc/{pid}/cmdline")) else {
-            continue;
-        };
-        let program =
-            String::from_utf8_lossy(command.split(|b| *b == 0).next().unwrap_or_default());
-        let name = program.rsplit('/').next().unwrap_or("");
-        if matches!(name, "ssh" | "wsl" | "wsl.exe") && owns_terminal_input(root, pid) {
-            return Err("Terminal entered a nested remote environment. Open an SSH or WSL terminal through Totex so Monitor can run on that host.".into());
-        }
-    }
-    Ok(())
+    descendants.into_iter().filter(|pid| *pid != root).collect()
 }
 #[cfg(target_os = "linux")]
 fn owns_terminal_input(root: u32, pid: u32) -> bool {
