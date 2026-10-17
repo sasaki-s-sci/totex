@@ -46,14 +46,22 @@ export type Glance = {
   running: string | null;
 };
 export type ShownStatus = AgentStatus | "initial" | "idle";
-/** Running and asking come off the screen; only failure needs the observer to say so. */
+/** Asking comes off the screen; running comes from `runningNow`; only failure needs the observer to say so. */
 export function shownStatus(glance: Glance | undefined, snapshot?: MonitorSnapshot): ShownStatus {
   if (!glance) return snapshot?.status ?? "unknown";
   if (glance.asking) return "permission";
-  if (glance.doing === "working" || glance.doing === "running") return "running";
+  if (runningNow(glance)) return "running";
   if (snapshot?.status === "failure") return "failure";
   if (!glance.said) return "initial";
   return glance.doing === "agent" ? "stopped" : "idle";
+}
+/**
+ * A coding agent runs while it is working, read off its screen. A command runs while the process
+ * table has one in the foreground; where that table has nothing, the screen decides.
+ */
+function runningNow(glance: Glance): boolean {
+  if (isAgent(glance)) return glance.doing === "working";
+  return glance.running !== null || glance.doing === "running";
 }
 /** A shell running commands is summed up by the process it runs, an agent by the observer. */
 export function isAgent(glance: Glance | undefined) {

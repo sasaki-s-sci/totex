@@ -27,6 +27,17 @@ test("status comes off the screen, failure off the observer", () => {
   assert.equal(shownStatus(undefined, snapshot(1, "success")), "success");
 });
 
+test("a command is running by the process table, a coding agent only while it works", () => {
+  const command = { ...glance("idle", false, null), running: "npm run dev" };
+  assert.equal(shownStatus(command), "running");
+  // Where the process table says nothing, the screen is what there is to go by.
+  assert.equal(shownStatus({ ...glance("running"), running: null }), "running");
+  assert.equal(shownStatus({ ...glance("idle", false, null), running: null }), "initial");
+  // A coding agent's own foreground process does not make it running.
+  assert.equal(shownStatus({ ...glance("agent"), running: "claude" }), "stopped");
+  assert.equal(shownStatus({ ...glance("working"), running: null }), "running");
+});
+
 test("history keeps each report once, newest first, bounded", () => {
   let history = [];
   history = remember(history, snapshot(1));
