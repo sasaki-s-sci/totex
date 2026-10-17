@@ -4760,6 +4760,7 @@ dependencies = [
  "tauri-plugin-opener",
  "totex-host",
  "totex-persistent",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

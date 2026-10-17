@@ -200,8 +200,7 @@
     "themesUnread": "テーマフォルダを読めません: {{error}}",
     "themeRefused": "{{file}}: {{error}}",
     "language": "言語",
-    "said": "行の説明",
-    "reveal": "ズームアンカー",
+    "reveal": "選択へ移動",
     "walkWrap": "Ctrl+矢印で端まで行ったら反対側へ戻る",
     "terminalSort": "ターミナルの並び",
     "createdWhere": "作った場所",
@@ -220,11 +219,6 @@
     "now": "fetch",
     "fetching": "fetch 中…",
     "fetchFailed": "届きませんでした",
-    "saidFace": "フォント",
-    "saidSize": "行の大きさ",
-    "saidFit": "行をキャンバスに合わせる",
-    "saidLines": "行数",
-    "saidWidth": "行の幅",
     "wheel": "ホイール",
     "moving": "移動",
     "background": "背景",
@@ -234,8 +228,7 @@
     "remote": "リモート",
     "branches": "ブランチ",
     "terminalView": "ターミナル画面",
-    "terminalMarks": "ターミナルのアイコン",
-    "saidGroup": "ターミナル横の行"
+    "terminalMarks": "ターミナルのアイコン"
   },
   "update": {
     "title": "Updates",
@@ -330,10 +323,6 @@
     "wrap": "{{name}} を折り返す",
     "unwrap": "{{name}} の折り返しをやめる"
   },
-  "said": {
-    "terminal": "ターミナルのフォント",
-    "window": "ウィンドウのフォント"
-  },
   "monitor": {
     "title": "Monitor",
     "enabled": "有効",
@@ -382,8 +371,14 @@
       "high": "高"
     },
     "preview": "プレビューに出す項目",
+    "text": "バッジの文字",
+    "texts": {
+      "agent": "エージェントの要約",
+      "stdio": "打った行",
+      "none": "なし"
+    },
     "previewWidth": "プレビューの幅",
-    "typed": "最後に打ったコマンド",
+    "running": "実行中のコマンド",
     "history": "観測の履歴"
   }
 }

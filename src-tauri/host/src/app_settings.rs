@@ -112,6 +112,12 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
         return Err("Invalid monitor.args".into());
     }
     range(value, "intervalSecs", 10, 3600)?;
+    if fields.get("text").is_some_and(|v| {
+        v.as_str()
+            .is_none_or(|s| !["agent", "stdio", "none"].contains(&s))
+    }) {
+        return Err("Invalid monitor.text".into());
+    }
     if fields.get("previewWidth").is_some_and(|v| {
         v.as_u64()
             .is_none_or(|n| ![160, 220, 320, 420].contains(&n))
@@ -133,6 +139,10 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
             "estimate",
             "goal",
         ] {
+            // The badge shows the status as an icon, so only the features can set it.
+            if group == "preview" && key == "status" {
+                continue;
+            }
             if features.get(key).is_some_and(|v| !v.is_boolean()) {
                 return Err(format!("Invalid monitor.{group}.{key}"));
             }
@@ -291,8 +301,8 @@ mod tests {
             json!({"monitor": {"args": [false]}}),
             json!({"monitor": {"intervalSecs": 0}}),
             json!({"monitor": {"features": {"status": "yes"}}}),
-            json!({"monitor": {"preview": {"status": "yes"}}}),
             json!({"monitor": {"previewWidth": 200}}),
+            json!({"monitor": {"text": "llm"}}),
         ] {
             assert!(patch(&temp.0, &invalid).is_err());
             assert_eq!(std::fs::read_to_string(&temp.0).unwrap(), next.text);

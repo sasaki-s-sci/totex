@@ -20,6 +20,7 @@
 mod choice;
 mod doing;
 mod glyph;
+pub mod process;
 mod read;
 mod screen;
 mod typed;

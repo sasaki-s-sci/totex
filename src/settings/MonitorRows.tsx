@@ -19,14 +19,18 @@ import { updateSettings, useAppSettings } from "../lib/appSettings";
 import {
   MONITOR_AGENTS,
   MONITOR_PREVIEW_WIDTHS,
+  MONITOR_TEXTS,
   type MonitorAgent,
   type MonitorFeatures,
   type MonitorPatch,
+  type MonitorPreview,
   type MonitorPreviewWidth,
+  type MonitorText,
 } from "../lib/appSettingsModel";
 import { agentLabel, type MonitorModel, useMonitorModels } from "../monitor/models";
 import { useMonitorError } from "../monitor/runtime";
 import { Group, PICK_SX, Row, TICK_SX } from "./Row";
+import { Callout } from "./SettingsMap";
 
 const FIELD_WIDTH = 200;
 
@@ -141,7 +145,22 @@ export function MonitorRows() {
           </Row>
         ))}
       </Group>
-      <Group name={t("monitor.preview")}>
+      <Callout parts={["monitor"]} name={t("monitor.preview")}>
+        <Row label={t("monitor.text")}>
+          <Select
+            size="small"
+            value={monitor.text}
+            inputProps={{ "aria-label": t("monitor.text") }}
+            onChange={(event) => set({ text: event.target.value as MonitorText })}
+            sx={{ ...PICK_SX, width: FIELD_WIDTH }}
+          >
+            {MONITOR_TEXTS.map((text) => (
+              <MenuItem key={text} value={text}>
+                {t(`monitor.texts.${text}`)}
+              </MenuItem>
+            ))}
+          </Select>
+        </Row>
         <Row label={t("monitor.previewWidth")}>
           <Select
             size="small"
@@ -159,13 +178,12 @@ export function MonitorRows() {
             ))}
           </Select>
         </Row>
-        {(Object.keys(monitor.preview) as (keyof MonitorFeatures)[]).map((item) => (
+        {(Object.keys(monitor.preview) as (keyof MonitorPreview)[]).map((item) => (
           <Row key={item} label={t(`monitor.${item}`)}>
             <Checkbox
               size="small"
               sx={TICK_SX}
-              // Status is read off the screen, so it can be shown without asking the observer.
-              disabled={item !== "status" && !monitor.features[item]}
+              disabled={!monitor.features[item]}
               checked={monitor.preview[item]}
               onChange={(event) => set({ preview: { [item]: event.target.checked } })}
               slotProps={{
@@ -174,7 +192,7 @@ export function MonitorRows() {
             />
           </Row>
         ))}
-      </Group>
+      </Callout>
       {monitor.enabled && custom && !monitor.command.trim() && (
         <Alert severity="info">{t("monitor.commandRequired")}</Alert>
       )}

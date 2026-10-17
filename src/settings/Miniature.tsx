@@ -2,9 +2,8 @@ import { useTheme } from "@mui/material/styles";
 import { type ReactNode, useId, useLayoutEffect } from "react";
 import { useMarkSizes } from "../canvas/markSizes";
 import { useAppSettings } from "../lib/appSettings";
-import { HISTORY_ALL } from "../lib/appSettingsModel";
+import { HISTORY_ALL, type MonitorPreview } from "../lib/appSettingsModel";
 import { GRID_OFF } from "../lib/grid";
-import { useSaid } from "../lib/said";
 import {
   AddMark,
   AgentMark,
@@ -45,7 +44,6 @@ export function Miniature() {
   const map = useSettingsMap();
   const settings = useAppSettings();
   const marks = useMarkSizes();
-  const said = useSaid();
 
   // The leader lines are measured off the drawing, so they follow every redraw.
   useLayoutEffect(() => map?.drawn());
@@ -81,14 +79,21 @@ export function Miniature() {
     { y: bandA, count: commits, tip: byTerminal ? BAND.end : BAND.start + span(commits) },
     { y: bandB, count: shorter, tip: byTerminal ? BAND.end : BAND.start + span(shorter) },
   ];
-  const fitted = said.fitting;
-  const saidLines = fitted ? 2 : Math.min(said.lines, 4);
-  const saidLeft = bands[0].tip + 2 * cli + 8;
-  const saidWidth = Math.max(
+  // The badge beside the first terminal, where the line typed there used to be.
+  const badgeLeft = bands[0].tip + 2 * cli + 8;
+  const monitor = settings.monitor;
+  const monitored = monitor.enabled;
+  // The badge shows an item only when its feature is on and its preview is ticked, as it does live.
+  const slot = (item: keyof MonitorPreview) => monitor.features[item] && monitor.preview[item];
+  const badgeWidth = Math.max(
     1,
-    Math.min(PANEL.left - 4 - saidLeft, fitted ? 40 : Math.max(8, said.width * 0.07)),
+    Math.min(PANEL.left - 4 - badgeLeft, Math.max(8, monitor.previewWidth * 0.07)),
   );
-  const saidThick = 1 + said.size * 0.1;
+  // Each item the badge previews takes a slot off the end of its summary.
+  const summaryWidth = Math.max(
+    1,
+    badgeWidth - 5 - (slot("agents") ? 4 : 0) - (slot("estimate") ? 3 : 0),
+  );
   const title = settings.fileTitle === "path" ? "~/repo/notes/README.md" : "README.md";
 
   return (
@@ -406,47 +411,71 @@ export function Miniature() {
         );
       })}
 
-      {/* The line a terminal's agent writes beside its mark. */}
-      <g {...hook("said")}>
+      {/* Monitor's badge: dashed while Monitor is off, otherwise its status, text and previews. */}
+      <g {...hook("monitor")}>
         <rect
-          x={saidLeft - 2}
+          x={badgeLeft - 2}
           y={bands[0].y - 10 - cli}
-          width={saidWidth + 4}
-          height={saidLines * 3.6 + 2}
+          width={badgeWidth + 4}
+          height={6}
           fill="transparent"
         />
-        {!said.showing && (
-          <rect
-            x={saidLeft}
-            y={bands[0].y - 8 - cli}
-            width={saidWidth}
-            height={saidLines * 3.6 - 1}
-            rx={0.8}
-            fill="none"
-            stroke={ink("said", palette.divider)}
-            strokeDasharray="1.5 1.5"
-            strokeWidth={0.6}
-          />
-        )}
-        {said.showing &&
-          Array.from({ length: saidLines }, (_, line) => line).map((line) => (
-            <rect
-              key={`line-${line}`}
-              x={saidLeft}
-              y={bands[0].y - 8 - cli + line * 3.6}
-              width={line === saidLines - 1 && saidLines > 1 ? saidWidth * 0.6 : saidWidth}
-              height={Math.min(saidThick, 3)}
-              rx={0.6}
-              fill={ink(
-                "said",
-                said.face === "terminal" ? palette.text.secondary : palette.text.primary,
-              )}
-              opacity={Math.max(0.15, said.opacity / 100)}
+        <rect
+          x={badgeLeft}
+          y={bands[0].y - 8 - cli}
+          width={badgeWidth}
+          height={2.6}
+          rx={1.3}
+          fill="none"
+          stroke={ink("monitor", palette.divider)}
+          strokeWidth={0.6}
+          strokeDasharray={monitored ? undefined : "1.5 1.5"}
+        />
+        {monitored && (
+          <>
+            <circle
+              cx={badgeLeft + 1.3}
+              cy={bands[0].y - 6.7 - cli}
+              r={0.9}
+              fill={palette.info.main}
             />
-          ))}
+            {monitor.text !== "none" && (
+              <rect
+                x={badgeLeft + 3.2}
+                y={bands[0].y - 7.5 - cli}
+                width={summaryWidth}
+                height={1}
+                rx={0.4}
+                fill={ink("monitor", palette.text.secondary)}
+              />
+            )}
+            {slot("agents") && (
+              <rect
+                x={badgeLeft + badgeWidth - 6}
+                y={bands[0].y - 7.7 - cli}
+                width={3}
+                height={1.4}
+                rx={0.3}
+                fill="none"
+                stroke={ink("monitor", palette.text.secondary)}
+                strokeWidth={0.3}
+              />
+            )}
+            {slot("estimate") && (
+              <rect
+                x={badgeLeft + badgeWidth - 2}
+                y={bands[0].y - 7.7 - cli}
+                width={1.2}
+                height={1.4}
+                rx={0.3}
+                fill={ink("monitor", palette.text.secondary)}
+              />
+            )}
+          </>
+        )}
         <circle
-          data-anchor="said"
-          cx={saidLeft + 2}
+          data-anchor="monitor"
+          cx={badgeLeft + 2}
           cy={bands[0].y - 8 - cli}
           r={0.5}
           fill="none"

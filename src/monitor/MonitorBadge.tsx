@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
-import type { MonitorFeatures } from "../lib/appSettingsModel";
+import type { MonitorPreview } from "../lib/appSettingsModel";
 import { agentCounts, estimateMinutes, isAgent, shownStatus } from "./model";
 import {
   useMonitorError,
@@ -77,19 +77,24 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const { t } = useTranslation();
   if (!monitor.enabled) return null;
   const features = monitor.features;
-  const shown = (item: keyof MonitorFeatures) => features[item] && monitor.preview[item];
+  const shown = (item: keyof MonitorPreview) => features[item] && monitor.preview[item];
   const error = runtimeError ?? snapshot?.error ?? refreshError;
   const status = error ? "failure" : shownStatus(glance, snapshot);
   const agent = isAgent(glance);
   const counts = snapshot ? agentCounts(snapshot.agents) : null;
   const estimate = estimateMinutes(snapshot?.estimate ?? null);
-  // A command is summed up by what was typed at it, never by what it printed.
-  const typed = agent ? null : glance?.said || null;
+  // A command is summed up by the process running it, never by what was typed or printed.
+  const running = agent ? null : glance?.running || null;
+  // The text is the agent's own summary, the line typed at the terminal, or nothing at all.
   const summary =
-    typed ??
-    ((shown("taskSummary") && snapshot?.taskSummary) ||
-      (shown("requestSummary") && snapshot?.requestSummary) ||
-      null);
+    monitor.text === "none"
+      ? null
+      : monitor.text === "stdio"
+        ? glance?.said || null
+        : (running ??
+          ((shown("taskSummary") && snapshot?.taskSummary) ||
+            (shown("requestSummary") && snapshot?.requestSummary) ||
+            null));
   return (
     <>
       <button
@@ -107,9 +112,6 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
         title={summary || error || t(`monitor.states.${status}`)}
       >
         <StatusIcon status={status} />
-        {monitor.preview.status && (
-          <span className="monitor-badge__status">{t(`monitor.states.${status}`)}</span>
-        )}
         {agent && shown("agents") && counts && (
           <span
             className="monitor-badge__count"
@@ -153,7 +155,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
               {t("monitor.refresh")}
             </Button>
           </Stack>
-          {typed && <Detail label={t("monitor.typed")} value={typed} />}
+          {running && <Detail label={t("monitor.running")} value={running} />}
           {features.requestSummary && (
             <Detail
               label={t("monitor.requestSummary")}

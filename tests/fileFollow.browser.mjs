@@ -44,7 +44,6 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
           [
             "pty_sessions",
             "pty_doing",
-            "pty_typed",
             "mcp_reports",
             "list_roots",
             "describe_folders",

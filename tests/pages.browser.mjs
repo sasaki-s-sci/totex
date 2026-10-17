@@ -32,7 +32,6 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
         if (
           [
             "pty_doing",
-            "pty_typed",
             "mcp_reports",
             "list_roots",
             "describe_folders",
@@ -81,20 +80,9 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   });
 
   // Ctrl is held only while pressed, even if a child consumes its release.
-  const typedReads = () =>
-    page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_typed").length);
-  const waitForHeld = async (before) => {
-    await page.waitForFunction(
-      (count) => window.pageCalls.filter((call) => call.cmd === "pty_typed").length > count,
-      before,
-    );
-  };
   const verifyReleased = async (text) => {
     await page.keyboard.type(text);
     await page.waitForTimeout(250);
-    const count = await typedReads();
-    await page.waitForTimeout(250);
-    assert.equal(await typedReads(), count, "Ctrl release stops navigation-mode polling");
     const written = await page.evaluate(() =>
       window.pageCalls
         .filter((call) => call.cmd === "pty_write")
@@ -104,9 +92,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     assert.ok(written.endsWith(text), "Terminal accepts input after Ctrl release");
   };
   await terminal.locator(".xterm-screen").click();
-  let readsBefore = await typedReads();
   await page.keyboard.down("Control");
-  await waitForHeld(readsBefore);
   await terminal.locator("textarea").evaluate((input) => {
     input.addEventListener("keyup", (event) => event.stopPropagation(), { once: true });
   });
@@ -114,13 +100,11 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   await verifyReleased("released");
 
   // A lost keyup must recover on an ordinary keydown, even when xterm consumes it.
-  readsBefore = await typedReads();
   await terminal.locator("textarea").evaluate((input) => {
     input.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Control", ctrlKey: true, bubbles: true }),
     );
   });
-  await waitForHeld(readsBefore);
   await verifyReleased("recovered");
 
   // Ctrl+V must work without a browser paste event, through xterm's paste API.

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_SETTINGS, legacySettings, settingsFrom } from "../src/lib/appSettingsModel.ts";
 
-test("migrates all existing user preferences, including line size one", () => {
+test("migrates the user preferences that survive, reading the reading size", () => {
   const values = new Map(
     Object.entries({
       "totex.mode": "dark",
@@ -12,12 +12,6 @@ test("migrates all existing user preferences, including line size one", () => {
       "totex.follow": "on",
       "totex.mcp.serving": "yes",
       "totex.reading.size": "14",
-      "totex.said": "on",
-      "totex.said.face": "window",
-      "totex.said.size": "1",
-      "totex.said.lines": "3",
-      "totex.said.width": "300",
-      "totex.said.fit": "on",
     }),
   );
   assert.deepEqual(
@@ -48,15 +42,6 @@ test("migrates all existing user preferences, including line size one", () => {
       undoDepth: 200,
       cliWheel: 100,
       graphWheel: 100,
-      said: {
-        showing: true,
-        opacity: 100,
-        face: "window",
-        size: 1,
-        lines: 3,
-        width: 300,
-        fitting: true,
-      },
     },
   );
 });
@@ -70,8 +55,8 @@ test("missing and invalid legacy preferences fall back to valid defaults", () =>
     legacySettings(() => "NaN"),
     DEFAULT_SETTINGS,
   );
-  assert.equal(legacySettings(() => "999").said.size, 20);
-  assert.equal(legacySettings(() => "0.1").said.size, 1);
+  assert.equal(legacySettings(() => "999").readingSize, 20);
+  assert.equal(legacySettings(() => "0.1").readingSize, 8);
   // A preset saved as a whole JSON object is not an id; it falls back rather than carrying over.
   const preset = (value) => (key) => (key === "totex.preset" ? value : null);
   assert.equal(legacySettings(preset('{"name":"mine"}')).appearance.colors, "neon");
@@ -79,10 +64,11 @@ test("missing and invalid legacy preferences fall back to valid defaults", () =>
 });
 
 test("partial JSON uses defaults independently of migrated local preferences", () => {
-  const settings = settingsFrom({ fileTitle: "path", said: { size: 1 } });
+  const settings = settingsFrom({ fileTitle: "path", monitor: { text: "none" } });
   assert.equal(settings.theme, "system");
   assert.equal(settings.fileTitle, "path");
-  assert.deepEqual(settings.said, { ...DEFAULT_SETTINGS.said, size: 1 });
+  assert.equal(settings.monitor.text, "none");
+  assert.equal(settingsFrom({ monitor: { text: "llm" } }).monitor.text, "agent");
 });
 
 test("a partial appearance keeps the other layers at their defaults", () => {

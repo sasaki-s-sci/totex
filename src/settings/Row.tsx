@@ -1,4 +1,6 @@
-import { Button, Divider, Stack, Typography } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { Button, ButtonBase, Divider, Stack, Typography } from "@mui/material";
+import { useState } from "react";
 
 export const ROW_HEIGHT = 26;
 
@@ -31,17 +33,37 @@ export const NEST_SX = {
   borderColor: "divider",
 } as const;
 
+/** A top-level heading that folds its rows away; folded rows unmount, so their callouts leave the miniature. */
 export function Section({ name, children }: { name: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
   return (
     <>
       <Divider sx={{ my: 0.5 }} />
-      <Typography
-        variant="subtitle2"
-        sx={{ minHeight: ROW_HEIGHT, display: "flex", alignItems: "center", fontWeight: 600 }}
+      <ButtonBase
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        sx={{
+          minHeight: ROW_HEIGHT,
+          justifyContent: "flex-start",
+          gap: 0.5,
+          borderRadius: 1,
+          textAlign: "left",
+        }}
       >
-        {name}
-      </Typography>
-      <Stack sx={NEST_SX}>{children}</Stack>
+        <Typography component="span" variant="subtitle2" sx={{ fontWeight: 600 }}>
+          {name}
+        </Typography>
+        <ExpandMoreIcon
+          aria-hidden="true"
+          sx={{
+            fontSize: 16,
+            color: "text.secondary",
+            transition: "transform 120ms",
+            transform: open ? undefined : "rotate(-90deg)",
+          }}
+        />
+      </ButtonBase>
+      {open && <Stack sx={NEST_SX}>{children}</Stack>}
     </>
   );
 }

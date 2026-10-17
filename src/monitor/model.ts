@@ -42,6 +42,8 @@ export type Glance = {
   doing: "idle" | "running" | "agent" | "working";
   asking: boolean;
   said: string | null;
+  /** What the shell is running, from the process table; null at a prompt or off this machine. */
+  running: string | null;
 };
 export type ShownStatus = AgentStatus | "initial" | "idle";
 /** Running and asking come off the screen; only failure needs the observer to say so. */

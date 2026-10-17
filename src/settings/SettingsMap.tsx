@@ -28,7 +28,7 @@ export type Part =
   | "remote"
   | "branch"
   | "stack"
-  | "said"
+  | "monitor"
   | "terminal";
 
 type SettingsMapValue = {

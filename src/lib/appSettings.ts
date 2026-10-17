@@ -53,7 +53,6 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
           },
         }
       : {}),
-    ...(one.said || two.said ? { said: { ...one.said, ...two.said } } : {}),
     ...(one.resume || two.resume
       ? {
           resume: {
@@ -82,7 +81,6 @@ function accept(next: SettingsDocument) {
     ...pending,
     monitor: mergeMonitor(next.value.monitor, pending.monitor),
     appearance: { ...next.value.appearance, ...pending.appearance },
-    said: { ...next.value.said, ...pending.said },
   });
   error = null;
   cacheBootTheme();
@@ -128,7 +126,6 @@ export function updateSettings(patch: SettingsPatch): void {
       agents: { ...settings.resume.agents, ...patch.resume?.agents },
     }),
     appearance: { ...settings.appearance, ...patch.appearance },
-    said: { ...settings.said, ...patch.said },
   });
   cacheBootTheme();
   changes.notify();

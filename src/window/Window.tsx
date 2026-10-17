@@ -21,7 +21,6 @@ import { sessionsInPlaces } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { useMonitorRuntime } from "../monitor/runtime";
-import { resumeJob, useResumeRuntime } from "../resume/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
 import {
   canvasPart,
@@ -31,6 +30,7 @@ import {
   tasksPart,
   worktreePart,
 } from "../parts";
+import { resumeJob, useResumeRuntime } from "../resume/runtime";
 import { useFrontState } from "../shell/state";
 import {
   type FolderDestination,

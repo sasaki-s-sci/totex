@@ -200,8 +200,7 @@
     "themesUnread": "Could not read the themes folder: {{error}}",
     "themeRefused": "{{file}}: {{error}}",
     "language": "Language",
-    "said": "Line explanation",
-    "reveal": "Zoom anchor",
+    "reveal": "Pan to selection",
     "walkWrap": "Ctrl+Arrow comes round at the ends",
     "terminalSort": "Terminal sort",
     "createdWhere": "Created where",
@@ -220,11 +219,6 @@
     "now": "Fetch",
     "fetching": "Fetching…",
     "fetchFailed": "Could not reach",
-    "saidFace": "Font",
-    "saidSize": "Line size",
-    "saidFit": "Fit the lines to the canvas",
-    "saidLines": "Lines",
-    "saidWidth": "Line width",
     "wheel": "Wheel",
     "moving": "Moving around",
     "background": "Background",
@@ -234,8 +228,7 @@
     "remote": "Remote",
     "branches": "Branches",
     "terminalView": "Terminal view",
-    "terminalMarks": "Terminal marks",
-    "saidGroup": "Line beside a terminal"
+    "terminalMarks": "Terminal marks"
   },
   "update": {
     "title": "Updates",
@@ -330,10 +323,6 @@
     "wrap": "Wrap lines in {{name}}",
     "unwrap": "Stop wrapping lines in {{name}}"
   },
-  "said": {
-    "terminal": "The terminal's",
-    "window": "The window's"
-  },
   "monitor": {
     "title": "Monitor",
     "enabled": "Enabled",
@@ -382,8 +371,14 @@
       "high": "High"
     },
     "preview": "Shown in preview",
+    "text": "Badge text",
+    "texts": {
+      "agent": "Agent summary",
+      "stdio": "Typed line",
+      "none": "None"
+    },
     "previewWidth": "Preview width",
-    "typed": "Last command typed",
+    "running": "Running command",
     "history": "Observation history"
   }
 }

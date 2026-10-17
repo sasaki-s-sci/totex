@@ -78,7 +78,10 @@ export function useMonitorRuntime() {
         for (const one of next) {
           const was = glances.get(one.id);
           const same =
-            was?.doing === one.doing && was.asking === one.asking && was.said === one.said;
+            was?.doing === one.doing &&
+            was.asking === one.asking &&
+            was.said === one.said &&
+            was.running === one.running;
           if (!same) changed = true;
           kept.set(one.id, same && was ? was : one);
         }

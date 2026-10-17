@@ -143,9 +143,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.monitor-badge__status {
-  flex: 0 1 auto;
-}
 .monitor-badge__count {
   display: inline-flex;
   flex: 0 1 auto;
@@ -165,7 +162,4 @@
 }
 .monitor-badge--canvas .monitor-badge__extra {
   display: none;
-}
-.monitor-badge--canvas .monitor-badge__status {
-  max-width: 56px;
 }

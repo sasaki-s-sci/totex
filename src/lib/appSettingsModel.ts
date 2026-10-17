@@ -10,6 +10,11 @@ export type MonitorFeatures = {
 };
 export const MONITOR_AGENTS = ["claude", "codex", "opencode", "custom"] as const;
 export type MonitorAgent = (typeof MONITOR_AGENTS)[number];
+/** The badge shows its status as an icon, so only the rest can be previewed as text. */
+export type MonitorPreview = Omit<MonitorFeatures, "status">;
+/** What the badge says: the agent's own summary, the line typed at the terminal, or nothing. */
+export const MONITOR_TEXTS = ["agent", "stdio", "none"] as const;
+export type MonitorText = (typeof MONITOR_TEXTS)[number];
 export const MONITOR_PREVIEW_WIDTHS = [160, 220, 320, 420] as const;
 export type MonitorPreviewWidth = (typeof MONITOR_PREVIEW_WIDTHS)[number];
 export type MonitorSettings = {
@@ -23,15 +28,17 @@ export type MonitorSettings = {
   args: string[];
   /** Empty means the agent's own default model. */
   model: string;
+  /** What the badge says beside a terminal; see `MonitorText`. */
+  text: MonitorText;
   intervalSecs: number;
   features: MonitorFeatures;
   /** What the badge beside a terminal shows, among the enabled features; the popover shows all. */
-  preview: MonitorFeatures;
+  preview: MonitorPreview;
   previewWidth: MonitorPreviewWidth;
 };
 export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview"> & {
   features?: Partial<MonitorFeatures>;
-  preview?: Partial<MonitorFeatures>;
+  preview?: Partial<MonitorPreview>;
 };
 export const DEFAULT_MONITOR: MonitorSettings = {
   enabled: false,
@@ -40,6 +47,7 @@ export const DEFAULT_MONITOR: MonitorSettings = {
   command: "",
   args: [],
   model: "",
+  text: "agent",
   intervalSecs: 30,
   features: {
     status: true,
@@ -50,7 +58,6 @@ export const DEFAULT_MONITOR: MonitorSettings = {
     goal: true,
   },
   preview: {
-    status: true,
     agents: true,
     taskSummary: true,
     requestSummary: false,
@@ -69,6 +76,7 @@ export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch):
   };
   // A hand-edited or older file may name an agent this build does not know.
   if (!MONITOR_AGENTS.includes(merged.agent)) merged.agent = DEFAULT_MONITOR.agent;
+  if (!MONITOR_TEXTS.includes(merged.text)) merged.text = DEFAULT_MONITOR.text;
   if (!MONITOR_PREVIEW_WIDTHS.includes(merged.previewWidth))
     merged.previewWidth = DEFAULT_MONITOR.previewWidth;
   return merged;
@@ -112,26 +120,13 @@ export type AppSettings = {
   undoDepth: number;
   /** Percent of xterm's own wheel distance. */
   cliWheel: number;
-  /** Percent of d3-zoom's own wheel distance. */
+  /** Percent of the canvas's own wheel distance. */
   graphWheel: number;
-  said: {
-    showing: boolean;
-    opacity: number;
-    face: "terminal" | "window";
-    size: number;
-    lines: number;
-    width: number;
-    fitting: boolean;
-  };
 };
 
-export type SettingsPatch = Omit<
-  Partial<AppSettings>,
-  "said" | "appearance" | "monitor" | "resume"
-> & {
+export type SettingsPatch = Omit<Partial<AppSettings>, "appearance" | "monitor" | "resume"> & {
   monitor?: MonitorPatch;
   resume?: Partial<ResumeSettings>;
-  said?: Partial<AppSettings["said"]>;
   appearance?: Partial<AppSettings["appearance"]>;
 };
 
@@ -164,15 +159,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   undoDepth: 200,
   cliWheel: 100,
   graphWheel: 100,
-  said: {
-    showing: false,
-    opacity: 100,
-    face: "terminal",
-    size: 9,
-    lines: 1,
-    width: 220,
-    fitting: false,
-  },
 };
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
@@ -183,7 +169,6 @@ export function settingsFrom(value: SettingsPatch): AppSettings {
     monitor: mergeMonitor(value.monitor),
     resume: mergeResume(value.resume),
     appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
-    said: { ...DEFAULT_SETTINGS.said, ...value.said },
   };
 }
 
@@ -226,14 +211,5 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     undoDepth: 200,
     cliWheel: 100,
     graphWheel: 100,
-    said: {
-      showing: read("totex.said") === "on",
-      opacity: 100,
-      face: pick("totex.said.face", ["terminal", "window"], "terminal"),
-      size: number("totex.said.size", 1, 20, 9),
-      lines: number("totex.said.lines", 1, 6, 1),
-      width: number("totex.said.width", 80, 640, 220),
-      fitting: read("totex.said.fit") === "on",
-    },
   };
 }

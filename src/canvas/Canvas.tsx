@@ -30,7 +30,6 @@ import type { CanvasProps } from "./CanvasProps";
 import { useCanvasActions } from "./canvasActions";
 import { CliDoingProvider } from "./cliDoing";
 import { CliJumpsProvider } from "./cliJumps";
-import { CliTypedProvider } from "./cliTyped";
 import { GraphLines } from "./GraphLines";
 import { GraphActionsProvider } from "./graphActions";
 import { DETAIL_GAP, DETAIL_ZOOM, nodeTypes, proOptions, retainLineNodes } from "./graphCanvas";
@@ -43,14 +42,12 @@ import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "./hooks/useCanvasFold";
 import { useCanvasKeys } from "./hooks/useCanvasKeys";
 import { useCanvasZoom } from "./hooks/useCanvasZoom";
 import { useCliPages } from "./hooks/useCliPages";
-import { useCliTyped } from "./hooks/useCliTyped";
 import { useFilePreviews } from "./hooks/useFilePreviews";
 import { useFolderPlaces } from "./hooks/useFolderPlaces";
 import { useFolderView } from "./hooks/useFolderView";
 import { useHistoryDepth } from "./hooks/useHistoryDepth";
 import { useJunctionView } from "./hooks/useJunctionView";
 import { useNodeGlide } from "./hooks/useNodeGlide";
-import { useSaidStyle } from "./hooks/useSaidStyle";
 import { useSettingsPage } from "./hooks/useSettingsPage";
 import { useWorktreeStatus } from "./hooks/useWorktreeStatus";
 import { Pages } from "./Pages";
@@ -243,8 +240,6 @@ export function Canvas({
     return () => observer.disconnect();
   }, [flowReady]);
 
-  const fitSaid = useSaidStyle(host);
-
   const { expand, fold, setLength, reachFold, keepFold } = useCanvasFold({
     workspace,
     graph,
@@ -290,15 +285,10 @@ export function Canvas({
   });
 
   const [coarse, setCoarse] = useState(false);
-  const resolve = useCallback(
-    (zoom: number) => {
-      // Hysteresis, so settling on the threshold does not flicker the offers.
-      setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
-
-      fitSaid(zoom);
-    },
-    [fitSaid],
-  );
+  const resolve = useCallback((zoom: number) => {
+    // Hysteresis, so settling on the threshold does not flicker the offers.
+    setCoarse((held) => (held ? zoom < DETAIL_ZOOM : zoom < DETAIL_ZOOM / DETAIL_GAP));
+  }, []);
 
   const handleMove = useCallback(
     (_event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
@@ -347,8 +337,6 @@ export function Canvas({
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
 
   const jumps = useMemo(() => ({ numbers }), [numbers]);
-
-  const typed = useCliTyped(showing, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,
@@ -412,81 +400,79 @@ export function Canvas({
               <GraphMarksProvider value={marks}>
                 <CliJumpsProvider value={jumps}>
                   <CliDoingProvider value={doings}>
-                    <CliTypedProvider value={typed}>
-                      {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
-                      <div
-                        ref={host}
-                        className="graph"
-                        data-coarse={coarse || undefined}
-                        data-offering={offering || undefined}
-                      >
-                        <ReactFlow<AppNode, Edge>
-                          ref={pane}
-                          nodes={shown}
-                          nodeTypes={nodeTypes}
-                          onNodesChange={onNodesChange}
-                          onInit={(flow) => {
-                            instance.current = flow;
-                            const kept = frontValue<Viewport>("canvas.viewport");
-                            if (kept) void flow.setViewport(kept);
-                            setFlowReady(true);
+                    {/* is-merging is written on this element by useBranchDrag, not rendered: React only rewrites attributes whose prop changed. Zoom is a separate data attribute for the same reason. */}
+                    <div
+                      ref={host}
+                      className="graph"
+                      data-coarse={coarse || undefined}
+                      data-offering={offering || undefined}
+                    >
+                      <ReactFlow<AppNode, Edge>
+                        ref={pane}
+                        nodes={shown}
+                        nodeTypes={nodeTypes}
+                        onNodesChange={onNodesChange}
+                        onInit={(flow) => {
+                          instance.current = flow;
+                          const kept = frontValue<Viewport>("canvas.viewport");
+                          if (kept) void flow.setViewport(kept);
+                          setFlowReady(true);
 
-                            resolve(flow.getViewport().zoom);
-                          }}
-                          onMove={handleMove}
-                          onNodeClick={handleNodeClick}
-                          onNodeDragStart={takeGroup}
-                          onNodeDrag={carryGroup}
-                          onNodeDragStop={dropGroup}
-                          onPaneClick={() => setSelectedCommit(null)}
-                          nodesConnectable={false}
-                          nodesDraggable
-                          elevateNodesOnSelect={false}
-                          // React Flow's per-frame visibility pass cost more than moving the nodes.
-                          onlyRenderVisibleElements={false}
-                          minZoom={MIN_ZOOM}
-                          maxZoom={MAX_ZOOM}
-                          // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
-                          zoomOnScroll={false}
-                          proOptions={proOptions}
-                          // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
-                          fitView={fitOnInit}
-                        >
-                          <CanvasBackground />
-                          <Pages
-                            nodes={nodes}
-                            sessions={sessions}
-                            terminalList={
-                              <TabStrip
-                                run={run}
-                                sessions={sessions}
-                                showing={showing}
-                                doings={doings}
-                              />
-                            }
-                          />
-                          <GraphLines
-                            bands={graph.bands}
-                            reach={graph.reach}
-                            offerReach={graph.offerReach}
-                            holds={graph.holds}
-                            extent={graph.extent}
-                            nodes={lineNodes}
-                            selected={selectedCommit}
-                            picked={picked}
-                            offering={offering}
-                            reading={offering && !coarse}
-                            onCommit={handleCommitClick}
-                          />
-                        </ReactFlow>
-                        <PinnedCards
-                          pinnedFiles={pinnedFiles.filter(
-                            (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
-                          )}
-                          pinDrag={pinDrag}
+                          resolve(flow.getViewport().zoom);
+                        }}
+                        onMove={handleMove}
+                        onNodeClick={handleNodeClick}
+                        onNodeDragStart={takeGroup}
+                        onNodeDrag={carryGroup}
+                        onNodeDragStop={dropGroup}
+                        onPaneClick={() => setSelectedCommit(null)}
+                        nodesConnectable={false}
+                        nodesDraggable
+                        elevateNodesOnSelect={false}
+                        // React Flow's per-frame visibility pass cost more than moving the nodes.
+                        onlyRenderVisibleElements={false}
+                        minZoom={MIN_ZOOM}
+                        maxZoom={MAX_ZOOM}
+                        // The wheel is useCanvasZoom's, which zooms on the canvas middle rather than the cursor.
+                        zoomOnScroll={false}
+                        proOptions={proOptions}
+                        // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
+                        fitView={fitOnInit}
+                      >
+                        <CanvasBackground />
+                        <Pages
+                          nodes={nodes}
+                          sessions={sessions}
+                          terminalList={
+                            <TabStrip
+                              run={run}
+                              sessions={sessions}
+                              showing={showing}
+                              doings={doings}
+                            />
+                          }
                         />
-                      </div>
-                    </CliTypedProvider>
+                        <GraphLines
+                          bands={graph.bands}
+                          reach={graph.reach}
+                          offerReach={graph.offerReach}
+                          holds={graph.holds}
+                          extent={graph.extent}
+                          nodes={lineNodes}
+                          selected={selectedCommit}
+                          picked={picked}
+                          offering={offering}
+                          reading={offering && !coarse}
+                          onCommit={handleCommitClick}
+                        />
+                      </ReactFlow>
+                      <PinnedCards
+                        pinnedFiles={pinnedFiles.filter(
+                          (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
+                        )}
+                        pinDrag={pinDrag}
+                      />
+                    </div>
                   </CliDoingProvider>
                 </CliJumpsProvider>
               </GraphMarksProvider>

@@ -98,7 +98,6 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
         if (
           [
             "pty_doing",
-            "pty_typed",
             "mcp_reports",
             "list_roots",
             "describe_folders",

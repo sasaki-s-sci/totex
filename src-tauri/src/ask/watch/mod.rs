@@ -41,22 +41,9 @@ pub struct Doings {
     doing: super::Doing,
 }
 
-/// A session, and the last thing typed at it.
-///
-/// Asked for rather than sent. What a session is doing changes a few times a
-/// command and is drawn the moment it does; this is a label somebody wants for
-/// as long as they are holding a key, and a session says it over and over as
-/// somebody types — so it goes the other way round, and the window asks when
-/// there is somebody to read it.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Typed {
-    id: String,
-    said: String,
-}
-
 /// A session as Monitor draws it between observations: what it is doing,
-/// whether it is stopped on a question, and the last thing typed at it.
+/// whether it is stopped on a question, the last thing typed at it, and what
+/// its shell is running as the process table has it — see `ask::process`.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Glance {
@@ -64,6 +51,7 @@ pub struct Glance {
     doing: super::Doing,
     asking: bool,
     said: Option<String>,
+    running: Option<String>,
 }
 
 /// One screen per running session, and nothing that is not on one.
@@ -183,27 +171,6 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-/// The last thing typed at every running session that has been typed at.
-///
-/// What the canvas draws beside its terminal marks while Ctrl is held: the
-/// number says which of them a key would reach, and this says which of them is
-/// which. Read out of what the watchers are already holding, so asking costs a
-/// walk of the running sessions and nothing else.
-#[tauri::command]
-pub fn pty_typed<R: Runtime>(app: AppHandle<R>) -> Vec<Typed> {
-    let state = app.state::<AskState>();
-    let watching = state.lock();
-    watching
-        .iter()
-        .filter_map(|(id, watcher)| {
-            Some(Typed {
-                id: id.clone(),
-                said: watcher.typed()?.to_string(),
-            })
-        })
-        .collect()
-}
-
 /// What every running session is doing, for a window that has just come up.
 ///
 /// The event carries the moments these change; a window that only listened
@@ -224,8 +191,13 @@ pub fn pty_doing<R: Runtime>(app: AppHandle<R>) -> Vec<Doings> {
 
 /// Every running session as it stands, polled often by Monitor so its status
 /// comes off the screen rather than waiting on the observer's next report.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn pty_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Glance> {
+    // The shells' pids are the persistent half's, asked before the lock is taken.
+    let pids: HashMap<String, u32> = pty::running(&app)
+        .into_iter()
+        .filter_map(|session| Some((session.id, session.pid?)))
+        .collect();
     let state = app.state::<AskState>();
     let watching = state.lock();
     watching
@@ -235,6 +207,9 @@ pub fn pty_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Glance> {
             doing: watcher.doing(),
             asking: watcher.asking(),
             said: watcher.typed().map(str::to_string),
+            running: pids
+                .get(id)
+                .and_then(|pid| super::process::foreground(*pid)),
         })
         .collect()
 }

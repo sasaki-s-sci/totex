@@ -13,7 +13,6 @@ import { MonitorRows } from "./MonitorRows";
 import { ResumeRows } from "./ResumeRows";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
-import { SaidRows } from "./SaidRows";
 import { Callout, SettingsMap } from "./SettingsMap";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
@@ -76,9 +75,6 @@ export function SettingsContent() {
           </Callout>
           <Callout parts={["stack"]} name={t("settings.terminalMarks")}>
             <TerminalSortRow />
-          </Callout>
-          <Callout parts={["said"]} name={t("settings.saidGroup")}>
-            <SaidRows />
           </Callout>
         </Section>
         <Section name={t("monitor.title")}>
