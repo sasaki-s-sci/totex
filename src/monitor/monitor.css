@@ -1,19 +1,31 @@
+/* One card of two rows: the user's request, then the agent's line. */
 .monitor-badge {
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
   min-width: 0;
   overflow: hidden;
-  height: 17px;
-  padding: 0 4px;
-  border: 0;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--mui-palette-background-paper) 88%, transparent);
+  padding: 4px 6px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 6px;
+  background: var(--mui-palette-background-paper);
   color: var(--mui-palette-text-secondary);
   font: inherit;
   font-size: 10px;
+  line-height: 14px;
   white-space: nowrap;
   cursor: pointer;
+}
+.monitor-badge__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 14px;
+}
+.monitor-badge__row--request {
+  color: var(--mui-palette-text-primary);
 }
 .monitor-badge--canvas {
   position: absolute;
@@ -32,36 +44,34 @@
   text-overflow: ellipsis;
   color: var(--mui-palette-text-secondary);
 }
-.monitor-badge__count {
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  padding: 0 3px;
-  font-size: 9px;
-}
 .monitor-state {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-.monitor-badge[data-status="running"],
+.monitor-badge__row[data-status="running"],
+.monitor-role[data-status="running"],
 .monitor-state[data-status="running"],
 .monitor-agent[data-status="running"],
 .monitor-history__row[data-status="running"] {
   color: var(--mui-palette-info-main);
 }
-.monitor-badge[data-status="permission"],
+.monitor-badge__row[data-status="permission"],
+.monitor-role[data-status="permission"],
 .monitor-state[data-status="permission"],
 .monitor-agent[data-status="permission"],
 .monitor-history__row[data-status="permission"] {
   color: var(--mui-palette-warning-main);
 }
-.monitor-badge[data-status="success"],
+.monitor-badge__row[data-status="success"],
+.monitor-role[data-status="success"],
 .monitor-state[data-status="success"],
 .monitor-agent[data-status="success"],
 .monitor-history__row[data-status="success"] {
   color: var(--mui-palette-success-main);
 }
-.monitor-badge[data-status="failure"],
+.monitor-badge__row[data-status="failure"],
+.monitor-role[data-status="failure"],
 .monitor-state[data-status="failure"],
 .monitor-agent[data-status="failure"],
 .monitor-history__row[data-status="failure"] {
@@ -153,9 +163,10 @@
   align-items: center;
   gap: 1px;
 }
-.monitor-badge > .monitor-badge__summary {
-  flex: 1 1 80px;
-  min-width: 55px;
+
+.monitor-badge__row > .monitor-badge__summary {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .monitor-badge__extra {
   flex: 0 1 auto;

@@ -38,6 +38,7 @@ export type MonitorSettings = {
   features: MonitorFeatures;
   /** What the badge beside a terminal shows, among the enabled features; the popover shows all. */
   preview: MonitorPreview;
+  /** The widest the card beside a terminal may be; its text is asked for at a length that fits. */
   previewWidth: MonitorPreviewWidth;
 };
 export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview"> & {
@@ -64,7 +65,7 @@ export const DEFAULT_MONITOR: MonitorSettings = {
   preview: {
     agents: true,
     taskSummary: true,
-    requestSummary: false,
+    requestSummary: true,
     estimate: true,
     goal: false,
   },

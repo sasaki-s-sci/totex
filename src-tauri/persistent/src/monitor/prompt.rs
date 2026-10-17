@@ -38,12 +38,20 @@ fn marker() -> String {
 }
 
 /// The whole request: rules, enabled fields, prior context and the evidence.
-pub(super) fn prompt(features: &Features, transcript: &str, previous: Option<&Value>) -> String {
+pub(super) fn prompt(
+    features: &Features,
+    limit: usize,
+    transcript: &str,
+    previous: Option<&Value>,
+) -> String {
     let fields = fields(features);
     let mut result = format!("{RULES}\n\nEnabled fields:\n");
     for (name, instruction) in &fields {
         result.push_str(&format!("- {name}: {instruction}\n"));
     }
+    result.push_str(&format!(
+        "\nEvery text value is at most {limit} characters, a Japanese character counting as one; put the essential part first.\n"
+    ));
     if let Some(previous) = previous {
         result.push_str(&format!(
             "\nPrevious observation (prior inferred context, not current facts):\n<previous_observation>\n{previous}\n</previous_observation>\n"
@@ -170,7 +178,7 @@ mod tests {
     #[test]
     fn prompt_carries_the_transcript_and_only_enabled_fields() {
         let previous = json!({"taskSummary": "earlier task"});
-        let text = prompt(&some(), "$ cargo test\n日本語", Some(&previous));
+        let text = prompt(&some(), 19, "$ cargo test\n日本語", Some(&previous));
         assert!(text.contains("$ cargo test\n日本語"));
         assert!(text.contains("- taskSummary:") && text.contains("- goal:"));
         assert!(!text.contains("estimate") && !text.contains("requestSummary"));
@@ -181,7 +189,8 @@ mod tests {
             .find(|line| line.starts_with("TOTEX_TRANSCRIPT_"))
             .unwrap();
         assert_eq!(text.matches(marker).count(), 3);
-        assert!(!prompt(&some(), "x", None).contains("previous_observation"));
+        assert!(text.contains("at most 19 characters"));
+        assert!(!prompt(&some(), 19, "x", None).contains("previous_observation"));
     }
 
     #[test]

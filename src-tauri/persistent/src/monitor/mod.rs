@@ -55,6 +55,8 @@ pub struct Config {
     pub features: Features,
     /// Observe only the sessions the window says are running a coding agent.
     pub agents_only: bool,
+    /// The widest the badge may be, in px; the text of a report is cut to fit.
+    pub preview_width: u32,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -67,6 +69,7 @@ impl Default for Config {
             interval_secs: 30,
             features: Features::default(),
             agents_only: false,
+            preview_width: 220,
         }
     }
 }
@@ -89,6 +92,11 @@ impl Config {
             return Err("Choose an ACP agent command".into());
         }
         valid_words(&self.command, &self.args, &self.model)
+    }
+
+    /// How many characters fit the badge's text: 10px type, less the padding, icon and gap.
+    pub fn text_chars(&self) -> usize {
+        (self.preview_width as usize).saturating_sub(28) / 10
     }
 
     /// The ACP launch words, for the agents driven through ACP.
@@ -274,7 +282,12 @@ async fn observation(
     cancelled: Arc<AtomicBool>,
     previous: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    let prompt = prompt::prompt(&config.features, transcript, previous.as_ref());
+    let prompt = prompt::prompt(
+        &config.features,
+        config.text_chars(),
+        transcript,
+        previous.as_ref(),
+    );
     let schema = prompt::schema(&config.features);
     let model = config.model.trim();
     let work = async {
@@ -337,6 +350,13 @@ impl Monitor {
         config.validate()?;
         let mut state = lock(&self.state);
         if serde_json::to_value(&state.config).ok() == serde_json::to_value(&config).ok() {
+            return Ok(());
+        }
+        // The width only sets how long the next text may be, so it discards nothing.
+        let mut width_only = config.clone();
+        width_only.preview_width = state.config.preview_width;
+        if serde_json::to_value(&state.config).ok() == serde_json::to_value(&width_only).ok() {
+            state.config = config;
             return Ok(());
         }
         state.generation += 1;
@@ -894,6 +914,18 @@ mod tests {
         assert_eq!(report.agents.len(), 1);
         assert_eq!(report.agents[0].source, "inferred");
     }
+
+    #[test]
+    fn the_badge_width_sets_how_much_text_fits() {
+        let width = |preview_width| Config {
+            preview_width,
+            ..Config::default()
+        };
+        assert_eq!(width(160).text_chars(), 13);
+        assert_eq!(width(220).text_chars(), 19);
+        assert_eq!(width(420).text_chars(), 39);
+    }
+
     #[test]
     fn config_defaults_to_claude_ignores_extra_fields_and_needs_a_custom_command() {
         let config: Config = serde_json::from_value(serde_json::json!({

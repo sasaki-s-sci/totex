@@ -4,14 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
 import { type MonitorPreview, type MonitorText, monitorShows } from "../lib/appSettingsModel";
-import {
-  agentCounts,
-  estimateMinutes,
-  type Glance,
-  isAgent,
-  type MonitorSnapshot,
-  shownStatus,
-} from "./model";
+import { estimateMinutes, type Glance, isAgent, type MonitorSnapshot, shownStatus } from "./model";
 import {
   useMonitorError,
   useMonitorGlance,
@@ -106,11 +99,14 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const error = runtimeError ?? snapshot?.error ?? refreshError;
   const status = error ? "failure" : shownStatus(glance, snapshot);
   const agent = isAgent(glance);
-  const counts = snapshot ? agentCounts(snapshot.agents) : null;
   const estimate = estimateMinutes(snapshot?.estimate ?? null);
   // A command is summed up by the process running it, never by what was typed or printed.
   const running = agent ? null : glance?.running || null;
   const summary = summaryOf(monitor.text, glance, running, snapshot, shown);
+  const request =
+    agent && monitor.text !== "none" && shown("requestSummary")
+      ? snapshot?.requestSummary || null
+      : null;
   return (
     <>
       <button
@@ -125,24 +121,43 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
           event.stopPropagation();
           setAnchor(event.currentTarget);
         }}
-        title={summary || error || t(`monitor.states.${status}`)}
+        title={
+          [request, agent ? summary : running, error].filter(Boolean).join("\n") ||
+          t(`monitor.states.${status}`)
+        }
       >
-        <StatusIcon status={status} />
-        {agent && shown("agents") && counts && (
-          <span
-            className="monitor-badge__count"
-            title={`shell ${counts.shell} · subagent ${counts.subagent} · background ${counts.background}`}
-          >
-            {counts.subagent > 0 && <RoleCount kind="subagent" count={counts.subagent} />}
-            {counts.background > 0 && <RoleCount kind="background" count={counts.background} />}
+        {agent ? (
+          <>
+            <span className="monitor-badge__row" data-role="request">
+              {request && (
+                <>
+                  <UserIcon />
+                  <span className="monitor-badge__summary">{request}</span>
+                </>
+              )}
+            </span>
+            <span className="monitor-badge__row" data-status={status}>
+              <StatusIcon status={status} />
+              {summary && <span className="monitor-badge__summary">{summary}</span>}
+              {shown("agents") && snapshot && snapshot.agents.length > 0 && (
+                <AgentChips agents={snapshot.agents} />
+              )}
+              {shown("goal") && snapshot?.goal && (
+                <span className="monitor-badge__extra">
+                  {t(`monitor.goals.${snapshot.goal.status}`)}
+                </span>
+              )}
+              {shown("estimate") && estimate !== null && (
+                <span className="monitor-badge__extra">≈{estimate}m</span>
+              )}
+            </span>
+          </>
+        ) : (
+          // A plain command shows only the command it runs, never what was typed or printed.
+          <span className="monitor-badge__row" data-status={status}>
+            <StatusIcon status={status} />
+            {running && <span className="monitor-badge__summary">{running}</span>}
           </span>
-        )}
-        {agent && shown("goal") && snapshot?.goal && (
-          <span className="monitor-badge__extra">{t(`monitor.goals.${snapshot.goal.status}`)}</span>
-        )}
-        {summary && <span className="monitor-badge__summary">{summary}</span>}
-        {agent && shown("estimate") && estimate !== null && (
-          <span className="monitor-badge__extra">≈{estimate}m</span>
         )}
       </button>
       <Popover
@@ -270,23 +285,73 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RoleCount({ kind, count }: { kind: "subagent" | "background"; count: number }) {
-  const path =
-    kind === "subagent" ? "M6 1v4M2 10V5h8v5" : "M6 3v3l2 1M6 1a5 5 0 1 0 0 10 5 5 0 0 0 0-10";
+/** The request the user made, as a person; the same stroke weight as the status icon. */
+function UserIcon() {
   return (
-    <span className="monitor-role" role="img" aria-label={`${kind} ${count}`}>
-      <svg
-        aria-hidden="true"
-        width="9"
-        height="9"
-        viewBox="0 0 12 12"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      >
-        <path d={path} />
-      </svg>
-      {count}
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
+      <path d="M8 8.2a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2ZM3.2 14c.5-2.6 2.4-4 4.8-4s4.3 1.4 4.8 4" />
+    </svg>
+  );
+}
+
+const KIND_PATHS = {
+  monitor:
+    "M1.5 8C3 5.4 5.3 4 8 4s5 1.4 6.5 4C13 10.6 10.7 12 8 12S3 10.6 1.5 8Zm4.5 0a2 2 0 1 0 4 0 2 2 0 0 0-4 0Z",
+  subagent: "M6 1v4M2 10V5h8v5",
+  background: "M6 3v3l2 1M6 1a5 5 0 1 0 0 10 5 5 0 0 0 0-10",
+  shell: "M2.5 3.5 5.5 6l-3 2.5M7 10.5h4.5",
+} as const;
+const KINDS = ["monitor", "subagent", "background", "shell"] as const;
+
+/** Each kind of observed worker as a chip: its glyph, how many, and the most pressing state of them. */
+function AgentChips({ agents }: { agents: MonitorSnapshot["agents"] }) {
+  const { t } = useTranslation();
+  return (
+    <span className="monitor-badge__count">
+      {KINDS.map((kind) => {
+        const same = agents.filter((agent) => agent.kind === kind);
+        if (same.length === 0) return null;
+        const pressing = same.find((agent) =>
+          ["permission", "running", "failure"].includes(agent.status),
+        );
+        const title = same
+          .map((agent) => `${agent.label || agent.detail} · ${t(`monitor.states.${agent.status}`)}`)
+          .join("\n");
+        return (
+          <span
+            key={kind}
+            className="monitor-role"
+            role="img"
+            aria-label={`${t(`monitor.kinds.${kind}`)} ${same.length}`}
+            title={title}
+            data-kind={kind}
+            data-status={pressing?.status ?? same[0].status}
+          >
+            <svg
+              aria-hidden="true"
+              width="9"
+              height="9"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            >
+              <path d={KIND_PATHS[kind]} />
+            </svg>
+            {same.length}
+          </span>
+        );
+      })}
     </span>
   );
 }

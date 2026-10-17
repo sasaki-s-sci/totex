@@ -375,7 +375,13 @@
       "stdio": "Typed line",
       "none": "None"
     },
-    "previewWidth": "Preview width",
+    "previewWidth": "Card max width",
+    "kinds": {
+      "monitor": "Monitor",
+      "subagent": "Subagent",
+      "background": "Background",
+      "shell": "Shell"
+    },
     "running": "Running command",
     "history": "Observation history"
   }

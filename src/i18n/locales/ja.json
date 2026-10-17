@@ -375,7 +375,13 @@
       "stdio": "打った行",
       "none": "なし"
     },
-    "previewWidth": "プレビューの幅",
+    "previewWidth": "カードの最大幅",
+    "kinds": {
+      "monitor": "モニター",
+      "subagent": "サブエージェント",
+      "background": "バックグラウンド",
+      "shell": "シェル"
+    },
     "running": "実行中のコマンド",
     "history": "観測の履歴"
   }
