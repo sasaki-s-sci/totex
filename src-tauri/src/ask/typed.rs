@@ -1,11 +1,10 @@
-//! The last thing typed at a session, read off the same screen its questions
-//! are.
+//! The last thing typed at a session, read off the screen it draws.
 //!
 //! A terminal has no interface to be asked what somebody typed into it, so this
-//! is read the way a question is: off the drawing, because the drawing is the
-//! only place it exists. What comes back is one line — the command a shell was
-//! given, or the turn an agent was handed — and it is drawn beside the terminal
-//! only while Ctrl is held, as what tells one mark in a stack from another.
+//! is read off the drawing, because the drawing is the only place it exists.
+//! What comes back is one line — the command a shell was given, or the turn an
+//! agent was handed — and it is drawn beside the terminal only while Ctrl is
+//! held, as what tells one mark in a stack from another.
 //!
 //! Two readings, and the order matters. What is being typed *now* is on the
 //! caret's own line, which is where a shell's prompt and an agent's composer

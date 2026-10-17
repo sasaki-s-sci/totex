@@ -10,6 +10,7 @@ import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
 import { MarkSizeRows } from "./MarkSizeRows";
 import { MonitorRows } from "./MonitorRows";
+import { ResumeRows } from "./ResumeRows";
 import { RevealRow } from "./RevealRow";
 import { Group, Section } from "./Row";
 import { SaidRows } from "./SaidRows";
@@ -82,6 +83,9 @@ export function SettingsContent() {
         </Section>
         <Section name={t("monitor.title")}>
           <MonitorRows />
+        </Section>
+        <Section name={t("resume.title")}>
+          <ResumeRows />
         </Section>
         <Section name={t("settings.other")}>
           <Callout parts={["window"]} name={t("settings.appearance")}>

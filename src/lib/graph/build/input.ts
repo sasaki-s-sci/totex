@@ -1,6 +1,5 @@
 import type { Folder } from "../../../hooks/useWorkspace";
 import type { Workspace } from "../../../types/git";
-import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
 
@@ -21,8 +20,6 @@ export type GraphInput = {
   sessions: readonly Session[];
 
   showing: string | null;
-
-  asks: ReadonlyMap<string, Ask>;
 
   reports: ReadonlyMap<string, Report>;
 

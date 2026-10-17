@@ -1,8 +1,8 @@
-//! One session's screen, and the question standing on it.
+//! One session's screen, and what is read off it.
 
 use serde::{Deserialize, Serialize};
 
-use super::super::{Ask, Doing, Reading, Screen, doing_as, read, typed};
+use super::super::{Doing, Screen, doing_as, read, typed};
 
 /// What a session whose terminal has been taken over cannot be asked twice.
 ///
@@ -25,11 +25,10 @@ pub struct Taken {
 }
 
 /// Fed everything the session says whether or not a terminal is being drawn for
-/// it — a session nobody has opened is exactly the one whose question the graph
-/// has to carry.
+/// it — a session nobody has opened still wears a mark on the canvas, and the
+/// mark is drawn from what is read here.
 pub struct Watcher {
     pub(super) screen: Screen,
-    asking: Option<Ask>,
     /// The last thing typed at this session, kept rather than read when asked
     /// for.
     ///
@@ -94,7 +93,6 @@ impl Watcher {
     pub fn new(rows: u16, cols: u16) -> Self {
         Self {
             screen: Screen::new(rows, cols),
-            asking: None,
             typed: None,
             started: None,
             agent: false,
@@ -116,26 +114,23 @@ impl Watcher {
         self.screen.retake(taken.watched, taken.alt);
     }
 
-    /// Follows a run of output, and says what is being asked when that changed.
-    /// `None` for output that left the question as it was, which is nearly all
-    /// of it.
-    pub fn keep(&mut self, at: usize, data: &str) -> Option<Option<Ask>> {
+    /// Follows a run of output. What it changed is asked for afterwards — see
+    /// `turned` and `retaken` — because nearly all of it changes nothing.
+    pub fn keep(&mut self, at: usize, data: &str) {
         if at < self.fed {
-            return None;
+            return;
         }
         self.fed = at + data.len();
         self.follow(data);
         self.remember();
         self.reckon();
-        self.settle(read(&self.screen))
     }
 
     /// Takes a whole backlog at once and stands wherever it leaves the screen.
-    /// Nothing is reported: this is a question already being asked, arrived at a
-    /// second time. A window that has just come up asks via `pty_asking`.
+    /// Nothing is reported: this is a screen already read once, arrived at a
+    /// second time.
     pub(super) fn replay(&mut self, text: &str, upto: usize) {
         self.follow(text);
-        self.asking = read(&self.screen).map(Ask::of);
         self.remember();
         self.reckon();
         // Nothing was told, so nothing is owed: a window that has just come up
@@ -167,10 +162,6 @@ impl Watcher {
         self.screen.resize(rows, cols);
     }
 
-    pub fn asking(&self) -> Option<&Ask> {
-        self.asking.as_ref()
-    }
-
     /// The last thing typed at this session, or nothing where none of it was
     /// ever drawn.
     pub fn typed(&self) -> Option<&str> {
@@ -184,6 +175,11 @@ impl Watcher {
     /// standing at a fresh prompt says nothing about the command that has just
     /// finished — so the reading that found nothing leaves the last one that
     /// found something where it is.
+    ///
+    /// Nor while an agent's question box stands on the screen. Its answers are
+    /// drawn as lines that look exactly like something typed — a mark, and words
+    /// after it — so a session stopped on "may I run this" would otherwise say
+    /// it was last told `1. Yes`. That is the whole of what `read` is for now.
     fn remember(&mut self) {
         if let Some(said) = typed(&self.screen)
             && read(&self.screen).is_none()
@@ -248,52 +244,5 @@ impl Watcher {
         }
         self.noted = taken;
         true
-    }
-
-    /// How far into everything the session has said this screen has been fed,
-    /// which is how anything else tells whether the agent has drawn since.
-    pub fn drawn(&self) -> usize {
-        self.fed
-    }
-
-    /// Reads the screen again as it stands, without a word having been added to
-    /// it.
-    ///
-    /// For a press the agent did nothing about — see `look_again` beside the
-    /// acts. Everything else here reads because something arrived; this reads
-    /// because nothing did, and the same screen read twice is the same question
-    /// under the same name.
-    pub fn again(&mut self) -> Option<Option<Ask>> {
-        self.settle(read(&self.screen))
-    }
-
-    /// Puts the question away once it has been answered. The agent would redraw
-    /// without it a moment later, but a moment is exactly how long a card that
-    /// has been pressed must not stay on the graph. False when it is no longer
-    /// the question being asked, which refuses an answer meant for something
-    /// else.
-    pub fn answered(&mut self, seq: u64) -> bool {
-        if self.asking.as_ref().is_some_and(|ask| ask.seq == seq) {
-            self.asking = None;
-            return true;
-        }
-        false
-    }
-
-    /// The reading against what was already being asked. The same question with
-    /// the mark on another line keeps the same name — an answer half given is
-    /// not refused because somebody moved the selection — but it is a different
-    /// drawing of it, and the card follows the agent's own mark.
-    fn settle(&mut self, reading: Option<Reading>) -> Option<Option<Ask>> {
-        let Some(reading) = reading else {
-            return self.asking.take().map(|_| None);
-        };
-
-        let ask = Ask::of(reading);
-        if self.asking.as_ref() == Some(&ask) {
-            return None;
-        }
-        self.asking = Some(ask.clone());
-        Some(Some(ask))
     }
 }

@@ -1,5 +1,4 @@
 import type { Folder } from "../../../hooks/useWorkspace";
-import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
 import {
@@ -38,7 +37,6 @@ export function folderGroup(
     opened: ReadonlyMap<string, boolean>;
     open: ReadonlyMap<string, Session[]>;
     showing: string | null;
-    asks: ReadonlyMap<string, Ask>;
     reports: ReadonlyMap<string, Report>;
     reaching: string | null;
     /** Air above each band after the first, the same as between groups. */
@@ -50,7 +48,7 @@ export function folderGroup(
   claimed: Set<string>,
   draw: Draw,
 ): LaidGroup {
-  const { folder, held, opened, open, showing, asks, reports, reaching, gap, axis } = input;
+  const { folder, held, opened, open, showing, reports, reaching, gap, axis } = input;
 
   const id = folderId(folder.root);
   const shown = held.filter((entry) => isOpen(opened, entry.repository.id, held.length));
@@ -101,7 +99,7 @@ export function folderGroup(
 
   const rows: Row[] = held.map((entry) =>
     shown.includes(entry)
-      ? { entry, column: bandColumn(entry, open, claimed, showing, asks, reports, draw) }
+      ? { entry, column: bandColumn(entry, open, claimed, showing, reports, draw) }
       : {
           entry,
           standing: take(open, claimed, [
@@ -123,7 +121,6 @@ export function folderGroup(
       lead: FOLDER_MARK / 2,
       at: { x: stackX, y: head.y + ROW_SOCKET.y },
       showing,
-      asks,
       reports,
       floor,
     },
@@ -162,7 +159,6 @@ export function folderGroup(
     stack: axis === null ? null : stackX,
     open,
     showing,
-    asks,
     reports,
     reaching,
     gap,

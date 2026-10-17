@@ -1,4 +1,4 @@
-//! What a session is doing, read off the same screen its questions are.
+//! What a session is doing, read off the screen it draws.
 //!
 //! A terminal has no interface to be asked what is running in it. On Unix the
 //! pty itself would answer — `tcgetpgrp` on the master says which process group
@@ -9,9 +9,8 @@
 //! inside the virtual machine, where nothing on this side can see it. The one
 //! mechanism that would answer everywhere is the shell saying so itself — the
 //! semantic prompt marks, `OSC 133` — and that is a thing the person's own
-//! shell has to be set up to emit. So this is read off the drawing, the way the
-//! questions are, because the drawing is the only place it exists on every
-//! machine this app runs on.
+//! shell has to be set up to emit. So this is read off the drawing, because the
+//! drawing is the only place it exists on every machine this app runs on.
 //!
 //! Four states out of three readings, and every one of them is deliberately
 //! blunt. Whether the terminal has been taken over says that something is

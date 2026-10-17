@@ -204,7 +204,6 @@
   filter: var(--lit);
 }
 
-.react-flow__node-ask.is-picked,
 .react-flow__node-report.is-picked,
 .react-flow__node-file-preview.is-picked {
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 55%, transparent));

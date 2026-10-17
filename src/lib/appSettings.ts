@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
+import { mergeResume, type ResumeSettings } from "../resume/model.ts";
 import {
   type AppSettings,
   legacySettings,
@@ -53,6 +54,22 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
         }
       : {}),
     ...(one.said || two.said ? { said: { ...one.said, ...two.said } } : {}),
+    ...(one.resume || two.resume
+      ? {
+          resume: {
+            ...one.resume,
+            ...two.resume,
+            ...(one.resume?.agents || two.resume?.agents
+              ? {
+                  agents: {
+                    ...one.resume?.agents,
+                    ...two.resume?.agents,
+                  } as ResumeSettings["agents"],
+                }
+              : {}),
+          },
+        }
+      : {}),
     ...(one.appearance || two.appearance
       ? { appearance: { ...one.appearance, ...two.appearance } }
       : {}),
@@ -105,6 +122,11 @@ export function updateSettings(patch: SettingsPatch): void {
     ...settings,
     ...patch,
     monitor: mergeMonitor(settings.monitor, patch.monitor),
+    resume: mergeResume({
+      ...settings.resume,
+      ...patch.resume,
+      agents: { ...settings.resume.agents, ...patch.resume?.agents },
+    }),
     appearance: { ...settings.appearance, ...patch.appearance },
     said: { ...settings.said, ...patch.said },
   });

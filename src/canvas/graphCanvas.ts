@@ -1,6 +1,5 @@
 import type { NodeTypes } from "@xyflow/react";
 import { type AppNode, isPage } from "../lib/graph";
-import { AskNode } from "./nodes/AskNode";
 import { BranchHeadNode } from "./nodes/BranchHeadNode";
 import { CliNode } from "./nodes/CliNode";
 import { CliPageNode } from "./nodes/CliPageNode";
@@ -22,7 +21,6 @@ export const nodeTypes = {
   junction: JunctionNode,
   cli: CliNode,
   offer: OfferNode,
-  ask: AskNode,
   report: ReportNode,
   "file-preview": FilePreviewNode,
   "cli-page": CliPageNode,

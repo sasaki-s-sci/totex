@@ -58,7 +58,6 @@ function build(workspace, folders, previous, sessions = [], align) {
       closed: new Set(),
       sessions,
       showing: null,
-      asks: new Map(),
       reports: new Map(),
       reaching: null,
       places: new Map(),

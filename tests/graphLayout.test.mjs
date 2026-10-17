@@ -225,7 +225,7 @@ test("the new workspace's line leaves the commit the workspace is cut from", asy
   const lineFrom = (repo) => {
     const entry = prepare(repo, undefined, new Map());
     const draw = { before: new Map(), offered: new Map() };
-    const column = bandColumn(entry, new Map(), new Set(), null, new Map(), new Map(), draw);
+    const column = bandColumn(entry, new Map(), new Set(), null, new Map(), draw);
     return column.offerLines.find((part) => part.id.endsWith("newcut"))?.from.node;
   };
 
@@ -277,7 +277,7 @@ test("a branch nothing runs in reaches its offer with a dashed line from its rin
   const entry = prepare(repo, undefined, new Map());
   const draw = { before: new Map(), offered: new Map() };
 
-  const empty = bandColumn(entry, new Map(), new Set(), null, new Map(), new Map(), draw);
+  const empty = bandColumn(entry, new Map(), new Set(), null, new Map(), draw);
   const offer = empty.offers.find((node) => node.data.kind === "open");
   const line = empty.offerLines.find((part) => part.id === "offerreporefmainline");
   assert.ok(offer && line);
@@ -289,7 +289,7 @@ test("a branch nothing runs in reaches its offer with a dashed line from its rin
 
   // Once a terminal stands there, the offer and its line are gone.
   const open = new Map([["/repo", [{ id: "s", cwd: "/repo" }]]]);
-  const running = bandColumn(entry, open, new Set(), null, new Map(), new Map(), draw);
+  const running = bandColumn(entry, open, new Set(), null, new Map(), draw);
   assert.ok(!running.offers.some((node) => node.data.kind === "open"));
   assert.ok(!running.offerLines.some((part) => part.id === "offerreporefmainline"));
 });
@@ -309,7 +309,6 @@ test("a folder row and a shut repository's mark reach their offers with dashed l
       opened: new Map([["repo", false]]),
       open: new Map(),
       showing: null,
-      asks: new Map(),
       reports: new Map(),
       reaching: null,
       gap: 0,

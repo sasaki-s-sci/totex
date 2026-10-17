@@ -21,6 +21,7 @@ import type { Session } from "../lib/session";
 import { registerTerminalClipboard } from "../lib/terminalClipboard";
 import { openTerminalLink } from "../lib/terminalLinks";
 import { useWheel, wheelFactor } from "../lib/wheel";
+import { ResumeBar } from "../resume/ResumeBar";
 import { frontInactive, readyAfter } from "../shell/bridge";
 import { frontValue, readOnSnapshot } from "../shell/state";
 import { usePalette, useTerminalLook, withAlpha } from "../theme";
@@ -452,6 +453,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
           {t("terminal.copyFailed")}
         </Alert>
       )}
+      <ResumeBar id={session.id} />
     </Box>
   );
 }

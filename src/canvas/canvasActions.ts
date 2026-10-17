@@ -22,11 +22,6 @@ export function useCanvasActions({
   onEndSession,
   collapseCliPage,
   fitCliPage,
-  onAnswer,
-  onReply,
-  onPoint,
-  onPick,
-  onTake,
   onCloseFilePreview,
   saveFilePreview,
   refreshFilePreview,
@@ -58,11 +53,6 @@ export function useCanvasActions({
   onEndSession: GraphActions["endSession"];
   collapseCliPage: GraphActions["collapseCliPage"];
   fitCliPage: GraphActions["fitCliPage"];
-  onAnswer: GraphActions["answer"];
-  onReply: GraphActions["reply"];
-  onPoint: GraphActions["point"];
-  onPick: GraphActions["pick"];
-  onTake: GraphActions["take"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
   saveFilePreview: GraphActions["saveFilePreview"];
   refreshFilePreview: GraphActions["refreshFilePreview"];
@@ -97,11 +87,6 @@ export function useCanvasActions({
       endSession: onEndSession,
       collapseCliPage,
       fitCliPage,
-      answer: onAnswer,
-      reply: onReply,
-      point: onPoint,
-      pick: onPick,
-      take: onTake,
       closeFilePreview: onCloseFilePreview,
       saveFilePreview,
       refreshFilePreview,
@@ -134,11 +119,6 @@ export function useCanvasActions({
       onEndSession,
       collapseCliPage,
       fitCliPage,
-      onAnswer,
-      onReply,
-      onPoint,
-      onPick,
-      onTake,
       onCloseFilePreview,
       saveFilePreview,
       refreshFilePreview,

@@ -140,14 +140,34 @@
     "find": "What to run",
     "empty": "Nothing here says what it can run"
   },
-  "ask": {
-    "asking": "is asking",
-    "open": "Open the terminal",
-    "write": "Type an answer",
-    "send": "Send",
-    "point": "Move the selection",
-    "pick": "Take this one too",
-    "take": "Answer"
+  "resume": {
+    "title": "Resume",
+    "run": "Resume",
+    "dismiss": "Dismiss",
+    "lost": {
+      "update": "Lost to an update",
+      "crash": "Ended unexpectedly",
+      "close": "Terminal closed"
+    },
+    "doubt": {
+      "stale": "not seen running recently",
+      "changed": "the folder changed since",
+      "unchecked": "the folder could not be checked"
+    },
+    "mode": {
+      "auto": "Run again",
+      "ask": "Offer",
+      "off": "Let go"
+    },
+    "update": "After an update",
+    "crash": "After a crash",
+    "close": "After closing its terminal",
+    "within": "Run again only within",
+    "guard": "Run again only if unchanged",
+    "guardGit": "Git checkout",
+    "guardNone": "Don't check",
+    "prompt": "Prompt for an interrupted turn",
+    "agentLine": "Start {{agent}} with"
   },
   "report": {
     "open": "Open the terminal",

@@ -1,5 +1,4 @@
 import { createContext, useContext } from "react";
-import type { Ask } from "../lib/ask";
 import type { Fetch, RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { WorktreeStatus } from "../lib/workspace";
@@ -77,16 +76,6 @@ export type GraphActions = FilePageActions & {
   collapseCliPage: (sessionId: string) => void;
 
   fitCliPage: (sessionId: string, width: number, height: number) => void;
-
-  answer: (session: Session, ask: Ask, key: string) => void;
-
-  reply: (session: Session, ask: Ask, text: string) => void;
-
-  point: (session: Session, ask: Ask, key: string) => void;
-
-  pick: (session: Session, ask: Ask, key: string) => void;
-
-  take: (session: Session, ask: Ask) => void;
 };
 
 export const NO_ACTIONS: GraphActions = {
@@ -110,11 +99,6 @@ export const NO_ACTIONS: GraphActions = {
   endSession: () => {},
   collapseCliPage: () => {},
   fitCliPage: () => {},
-  answer: () => {},
-  reply: () => {},
-  point: () => {},
-  pick: () => {},
-  take: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
   refreshFilePreview: () => {},

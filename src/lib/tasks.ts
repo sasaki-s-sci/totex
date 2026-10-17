@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Runner = "totex" | "mise" | "task" | "just" | "make";
+export type Runner = "totex" | "mise" | "task" | "just" | "make" | "agent" | "resume";
 
 export type Task = {
   runner: Runner;
@@ -8,6 +8,10 @@ export type Task = {
   about: string;
   line: string;
   params: Param[];
+  /** A space command's `# resume:` line: it is a job to keep. See `src/resume/model.ts`. */
+  resume?: string;
+  /** A lost job offered again, by the terminal it was lost in. */
+  job?: string;
 };
 
 export type Param = {

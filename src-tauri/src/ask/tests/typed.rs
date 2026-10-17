@@ -269,5 +269,4 @@ fn a_completed_codex_turn_keeps_the_request_instead_of_the_placeholder() {
     let idle = "\x1b[2J\x1b[H› Ask codex to do anything\x1b[1;3H";
     watcher.keep(start.len(), idle);
     assert_eq!(watcher.typed(), Some("fix the bug"));
-    assert!(watcher.asking().is_none());
 }

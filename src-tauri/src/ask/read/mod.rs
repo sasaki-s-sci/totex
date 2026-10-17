@@ -1,4 +1,8 @@
-//! The question on a screen, if one is being asked.
+//! The question on a screen, if an agent has stopped to ask one.
+//!
+//! Read for what it rules out rather than for what it says: while one stands,
+//! the answers drawn under it are not the last thing typed — see
+//! `Watcher::remember`.
 
 mod lists;
 mod prompt;

@@ -1,7 +1,6 @@
 import { Alert, Box, Snackbar } from "@mui/material";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAsks } from "../hooks/useAsks";
 import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
 import { useDoings } from "../hooks/useDoings";
@@ -22,6 +21,7 @@ import { sessionsInPlaces } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { useMonitorRuntime } from "../monitor/runtime";
+import { resumeJob, useResumeRuntime } from "../resume/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
 import {
   canvasPart,
@@ -61,7 +61,7 @@ export function Window() {
   const { marks, fail, hold, release } = useMarks();
 
   const sessions = useSessions();
-  const asks = useAsks();
+  useResumeRuntime(sessions);
   const reports = useReports();
   const doings = useDoings();
   useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
@@ -202,14 +202,8 @@ export function Window() {
               sessions={sessions.sessions}
               showing={sessions.showing}
               paged={sessions.paged}
-              asks={asks.asks}
               reports={reports}
               doings={doings}
-              onAnswer={asks.answer}
-              onReply={asks.reply}
-              onPoint={asks.point}
-              onPick={asks.pick}
-              onTake={asks.take}
               marks={marks}
               onSelect={work.pickCommit}
               onNewWork={work.newWork}
@@ -244,7 +238,20 @@ export function Window() {
           </Alert>
         </Snackbar>
 
-        {TaskMenu && <TaskMenu session={tasks.asking} onClose={tasks.close} onRun={tasks.run} />}
+        {TaskMenu && (
+          <TaskMenu
+            session={tasks.asking}
+            onClose={tasks.close}
+            onRun={tasks.run}
+            onResume={(id) => {
+              tasks.close();
+              resumeJob(
+                id,
+                sessions.sessions.map((session) => session.id),
+              );
+            }}
+          />
+        )}
         {CommitMenu && (
           <CommitMenu target={menus.commit} onClose={menus.closeCommit} onOpen={sessions.open} />
         )}

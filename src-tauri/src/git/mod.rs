@@ -14,7 +14,7 @@ macro_rules! off_thread {
 // Public so `generate_handler!` can name its command the same way it names
 // the other modules' commands.
 pub mod changes;
-mod cmd;
+pub(crate) mod cmd;
 mod delta;
 mod discover;
 pub mod identity;

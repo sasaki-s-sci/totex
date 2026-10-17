@@ -6,7 +6,7 @@ import { watchReadings } from "../lib/watchReadings";
 
 const NOTHING: ReadonlyMap<string, Report> = new Map();
 
-// Not held back like a question: a report is sent on purpose.
+// Drawn as it arrives, never held back for flicker: a report is sent on purpose.
 export function useReports() {
   const [reports, setReports] = useState<ReadonlyMap<string, Report>>(NOTHING);
 

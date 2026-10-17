@@ -31,7 +31,6 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
         if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
         if (
           [
-            "pty_asking",
             "pty_doing",
             "pty_typed",
             "mcp_reports",

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { startShell, writeShell } from "../lib/pty";
 import { type Session, shellSession } from "../lib/session";
+import { launchJob } from "../resume/runtime";
 
 type Options = {
   sessions: readonly Session[];
@@ -32,14 +33,16 @@ export function useTaskKeys({ sessions, showing, open }: Options) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // A fresh terminal rather than the shown one: whatever runs in there is somebody's.
+  // A fresh terminal rather than the shown one: whatever runs in there is somebody's. Which is also
+  // what lets it be kept as a job: the terminal is the job's alone.
   const run = useCallback(
-    (session: Session, line: string) => {
+    (session: Session, line: string, resume: string | null = null) => {
       close();
       const next = shellSession(session.cwd, session.branch, session.folder);
       open(next);
+      const typed = launchJob(next, line, resume);
       void startShell(next)
-        .then(() => writeShell(next.id, `${line}\n`))
+        .then(() => writeShell(next.id, `${typed}\n`))
         .catch(() => undefined);
     },
     [close, open],

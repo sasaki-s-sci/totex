@@ -2,10 +2,18 @@ import type { Node } from "@xyflow/react";
 
 import type { Report } from "../mcp";
 import type { Session } from "../session";
-import { clamp, wrap } from "./asking";
+import { clamp, wrap } from "./cells";
 
-// The same card shape as a question, never both at once; measured before
-// placement for the same reason. Numbers pair with rules in the stylesheet.
+// A report is measured here, before placement: the canvas extent and the
+// stacking of two cards in one branch both need the size first.
+
+export const REPORT_WIDTH = 264;
+export const REPORT_GAP = 30;
+export const REPORT_STACK_GAP = 10;
+/** Over its band, under a pinned file. */
+export const REPORT_Z = 1_000;
+
+// Every number below is paired with a rule in the stylesheet.
 const PAD = 9;
 const HEAD = 15;
 const SPLIT = 7;

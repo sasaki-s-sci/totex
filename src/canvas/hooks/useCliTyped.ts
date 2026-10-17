@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Ask } from "../../lib/ask";
 import type { Report } from "../../lib/mcp";
 import { pollVisible } from "../../lib/pollVisible";
 import { useShowingSaid } from "../../lib/said";
@@ -8,7 +7,6 @@ import type { CliTyped } from "../cliTyped";
 
 export function useCliTyped(
   showing: string | null,
-  asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
 ): CliTyped {
   const kept = useShowingSaid();
@@ -37,8 +35,8 @@ export function useCliTyped(
     if (!said) return null;
     const lines = new Map<string, string>();
     for (const [session, line] of said) {
-      if (!asks.has(session) && !reports.has(session)) lines.set(session, line);
+      if (!reports.has(session)) lines.set(session, line);
     }
     return lines;
-  }, [said, asks, reports]);
+  }, [said, reports]);
 }

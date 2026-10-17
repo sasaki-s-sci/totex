@@ -1,7 +1,5 @@
-import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
-import { ASK_GAP, ASK_STACK_GAP } from "../asking";
 import {
   type AppNode,
   CLI_MARK,
@@ -14,6 +12,7 @@ import {
   SESSION_WIDTH,
   stackReach,
 } from "../model";
+import { REPORT_GAP, REPORT_STACK_GAP } from "../reporting";
 import { besideMark } from "./cards";
 import { cliNode } from "./nodes";
 import type { LaidGroup } from "./parts";
@@ -43,13 +42,12 @@ export function rowStack(
 
     at: { x: number; y: number };
     showing: string | null;
-    asks: ReadonlyMap<string, Ask>;
     reports: ReadonlyMap<string, Report>;
     floor: number;
   },
   draw: Draw,
 ): RowStack {
-  const { open, socket, lead, at, showing, asks, reports, group } = where;
+  const { open, socket, lead, at, showing, reports, group } = where;
   const drawn: RowStack = {
     nodes: [],
     lines: [],
@@ -97,11 +95,11 @@ export function rowStack(
     drawn.right = Math.max(drawn.right, at.x + SESSION_WIDTH);
     drawn.bottom = Math.max(drawn.bottom, y + CLI_STEP);
 
-    const x = at.x + SESSION_WIDTH + ASK_GAP;
-    const card = besideMark(session, asks, reports, id, null, x, y, drawn.floor, draw);
+    const x = at.x + SESSION_WIDTH + REPORT_GAP;
+    const card = besideMark(session, reports, id, null, x, y, drawn.floor, draw);
     if (!card) continue;
 
-    drawn.floor = card.at + card.height + ASK_STACK_GAP;
+    drawn.floor = card.at + card.height + REPORT_STACK_GAP;
     drawn.nodes.push(card.node);
     drawn.lines.push(card.line);
     drawn.right = Math.max(drawn.right, x + card.width);

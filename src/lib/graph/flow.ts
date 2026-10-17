@@ -1,6 +1,5 @@
 import type { Node } from "@xyflow/react";
 
-import type { AskFlowNode } from "./asking";
 import type {
   CliNodeData,
   CliPageNodeData,
@@ -34,7 +33,6 @@ export type AppNode =
   | RepoMarkFlowNode
   | CliFlowNode
   | OfferFlowNode
-  | AskFlowNode
   | ReportFlowNode
   | FilePreviewFlowNode
   | CliPageFlowNode;

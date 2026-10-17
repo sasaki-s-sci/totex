@@ -1,12 +1,12 @@
 //! As much of a terminal as it takes to be redrawn into.
 //!
 //! Not an emulator: nothing here is drawn, so colour, style and mouse reporting
-//! are read and dropped. What is kept is the part a question is made of — where
+//! are read and dropped. What is kept is the part a reading is made of — where
 //! the cursor is, what is at each place, and what erasing and scrolling do to it
 //! — because an agent drawing its prompt box moves the cursor up over what it
 //! said last, and text taken from the stream as it arrives would be the box and
 //! the wreckage of everything it was drawn over. There is no scrollback: what
-//! has gone off the top is not what anybody is being asked.
+//! has gone off the top is not what the session is doing now.
 
 mod ansi;
 mod grid;

@@ -10,6 +10,7 @@ mod monitor;
 mod persistent;
 mod pty;
 mod release;
+mod resume;
 mod space;
 mod ssh;
 mod tasks;
@@ -194,7 +195,7 @@ pub fn run() {
         .manage(git::SessionState::default())
         .manage(git::ListState::default())
         .manage(ask::watch::AskState::default())
-        // What the sessions say is read for the questions agents ask, and the
+        // What the sessions say is read for what each is doing, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
         // `persistent` for the whole of what joins them. The reading first and the
@@ -287,6 +288,8 @@ pub fn run() {
             git::workspace::history::cherry_pick_commit,
             git::workspace::history::undo_commit,
             tasks::directory_tasks,
+            resume::resume_fingerprint,
+            resume::resume_codex_sessions,
             space::space_standing,
             space::space_tell,
             ssh::ssh_reach,
@@ -297,14 +300,8 @@ pub fn run() {
             pty::pty_write,
             pty::pty_resize,
             pty::pty_close,
-            ask::watch::pty_asking,
             ask::watch::pty_typed,
             ask::watch::pty_doing,
-            ask::watch::answer::pty_answer,
-            ask::watch::answer::pty_reply,
-            ask::watch::answer::pty_take,
-            ask::watch::adjust::pty_point,
-            ask::watch::adjust::pty_pick,
             mcp::mcp_serving,
             mcp::mcp_serve,
             mcp::mcp_stop,

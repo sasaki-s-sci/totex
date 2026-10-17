@@ -126,9 +126,16 @@ fn totex(dir: &Path) -> Vec<Task> {
 /// The `#` lines a block opens with are what it is for. They are the shell's
 /// own way of saying something that is not a command, so a block whose comment
 /// this reading did not understand is still a block that runs.
+///
+/// One of them is not what it is for but what to do with it: `# resume: …`
+/// says whether the window runs the block again after an update, a crash or a
+/// closed tab, and is kept as written for the window to read — see
+/// `Task::resume`. A comment, for the same reason the rest are: the shell
+/// passes over it, so a file with one in it still pastes into a terminal.
 pub fn kept(text: &str) -> Vec<Task> {
     let mut found: Vec<Task> = Vec::new();
     let mut about: Vec<String> = Vec::new();
+    let mut resume: Option<String> = None;
     let mut lines: Vec<&str> = Vec::new();
 
     // A line at a time rather than a split on two newlines, because a blank
@@ -139,7 +146,7 @@ pub fn kept(text: &str) -> Vec<Task> {
         let line = line.trim_end();
 
         if line.is_empty() {
-            keep(&mut found, &mut about, &mut lines);
+            keep(&mut found, &mut about, &mut resume, &mut lines);
             continue;
         }
 
@@ -147,7 +154,11 @@ pub fn kept(text: &str) -> Vec<Task> {
         // is the shell's own, and goes in with the command because that is
         // where the person who wrote it put it.
         if lines.is_empty() && line.trim_start().starts_with('#') {
-            about.push(line.trim_start().trim_start_matches('#').trim().to_string());
+            let said = line.trim_start().trim_start_matches('#').trim();
+            match said.strip_prefix("resume:") {
+                Some(directive) => resume = Some(directive.trim().to_string()),
+                None => about.push(said.to_string()),
+            }
             continue;
         }
 
@@ -160,7 +171,12 @@ pub fn kept(text: &str) -> Vec<Task> {
 /// Puts one block down and clears the way for the next, or clears the way for
 /// the next where there was no block — which is every run of blank lines, and
 /// every comment nobody wrote a command under.
-fn keep(found: &mut Vec<Task>, about: &mut Vec<String>, lines: &mut Vec<&str>) {
+fn keep(
+    found: &mut Vec<Task>,
+    about: &mut Vec<String>,
+    resume: &mut Option<String>,
+    lines: &mut Vec<&str>,
+) {
     if !lines.is_empty() {
         found.push(Task {
             runner: "totex",
@@ -175,9 +191,11 @@ fn keep(found: &mut Vec<Task>, about: &mut Vec<String>, lines: &mut Vec<&str>) {
             // here has a way to say otherwise, and a line with a hole in it is
             // a line they will finish in the terminal.
             params: Vec::new(),
+            resume: resume.take(),
         });
     }
     about.clear();
+    *resume = None;
     lines.clear();
 }
 
@@ -212,6 +230,7 @@ fn mise(dir: &Path) -> Vec<Task> {
                 // text somebody wrote rather than as anything to read. Nothing
                 // is claimed about it here.
                 params: Vec::new(),
+                resume: None,
             })
         })
         .collect()
@@ -242,6 +261,7 @@ fn taskfile(dir: &Path) -> Vec<Task> {
                 // A Taskfile says what a task needs with `requires: vars:`, and
                 // says none of it in what Task will list. Nothing to read.
                 params: Vec::new(),
+                resume: None,
             })
         })
         .collect()
@@ -275,6 +295,7 @@ fn justfile(dir: &Path) -> Vec<Task> {
                     about: said(recipe, "doc"),
                     line: format!("just {name}"),
                     params: parameters(recipe),
+                    resume: None,
                 })
             })
             .collect();
@@ -293,6 +314,7 @@ fn justfile(dir: &Path) -> Vec<Task> {
             // The summary is names and nothing else, which is the whole of why
             // it is the fallback rather than the way this is read.
             params: Vec::new(),
+            resume: None,
         })
         .collect()
 }
@@ -385,6 +407,7 @@ pub fn targets(text: &str) -> Vec<Task> {
                 // A Makefile is given variables rather than arguments, and
                 // never says which ones it wants.
                 params: Vec::new(),
+                resume: None,
             });
         }
     }

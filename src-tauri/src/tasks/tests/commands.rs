@@ -112,3 +112,36 @@ fn a_space_below_the_folder_is_read_and_comes_first() {
     // one asked about, so it is the space that carries down and not the runner.
     assert!(found.iter().all(|task| task.runner == "totex"));
 }
+
+#[test]
+fn a_resume_line_says_what_to_do_with_it_and_not_what_it_is_for() {
+    let found = kept(
+        "# watch the docs\n# resume: update=auto crash=ask close=ask within=600 guard=git\nmy_cli watch docs\n\nls\n",
+    );
+
+    assert_eq!(found.len(), 2);
+    assert_eq!(found[0].about, "watch the docs");
+    assert_eq!(
+        found[0].resume.as_deref(),
+        Some("update=auto crash=ask close=ask within=600 guard=git")
+    );
+    assert_eq!(found[0].line, "my_cli watch docs");
+    // It belongs to its own block and to no other.
+    assert_eq!(found[1].resume, None);
+}
+
+#[test]
+fn a_resume_line_with_nothing_under_it_is_nothing() {
+    let found = kept("# resume: update=auto\n\nls\n");
+
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].resume, None);
+}
+
+#[test]
+fn a_resume_line_under_the_command_is_the_shells() {
+    let found = kept("ls\n# resume: update=auto\n");
+
+    assert_eq!(found[0].resume, None);
+    assert_eq!(found[0].line, "ls\n# resume: update=auto");
+}

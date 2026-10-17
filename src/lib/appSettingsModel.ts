@@ -1,3 +1,5 @@
+import { DEFAULT_RESUME, mergeResume, type ResumeSettings } from "../resume/model.ts";
+
 export type MonitorFeatures = {
   status: boolean;
   agents: boolean;
@@ -53,6 +55,8 @@ export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch):
 
 export type AppSettings = {
   monitor: MonitorSettings;
+  /** What becomes of a job totex started when its terminal is lost; see `src/resume/model.ts`. */
+  resume: ResumeSettings;
   theme: "system" | "light" | "dark";
   /** Theme ids per layer; see src/theme/declaration.ts. */
   appearance: { colors: string; style: string; effects: string };
@@ -100,8 +104,12 @@ export type AppSettings = {
   };
 };
 
-export type SettingsPatch = Omit<Partial<AppSettings>, "said" | "appearance" | "monitor"> & {
+export type SettingsPatch = Omit<
+  Partial<AppSettings>,
+  "said" | "appearance" | "monitor" | "resume"
+> & {
   monitor?: MonitorPatch;
+  resume?: Partial<ResumeSettings>;
   said?: Partial<AppSettings["said"]>;
   appearance?: Partial<AppSettings["appearance"]>;
 };
@@ -111,6 +119,7 @@ export const HISTORY_ALL = 300;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   monitor: DEFAULT_MONITOR,
+  resume: DEFAULT_RESUME,
   theme: "system",
   appearance: { colors: "neon", style: "default", effects: "none" },
   language: "system",
@@ -151,6 +160,7 @@ export function settingsFrom(value: SettingsPatch): AppSettings {
     ...DEFAULT_SETTINGS,
     ...value,
     monitor: mergeMonitor(value.monitor),
+    resume: mergeResume(value.resume),
     appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
     said: { ...DEFAULT_SETTINGS.said, ...value.said },
   };
@@ -167,6 +177,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
   };
   return {
     monitor: mergeMonitor(undefined),
+    resume: DEFAULT_RESUME,
     theme: pick("totex.mode", ["system", "light", "dark"], "system"),
     // `totex.preset` was a shipped id or a whole preset in JSON; only an id carries over.
     appearance: {

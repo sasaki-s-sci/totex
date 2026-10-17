@@ -1,5 +1,4 @@
 import type { Folder } from "../hooks/useWorkspace";
-import type { Ask } from "../lib/ask";
 import type { CardSeed } from "../lib/cardWindow";
 import type { Doing } from "../lib/doing";
 import type { FilePreviewRequest, FilePreviewView } from "../lib/filePreview";
@@ -36,21 +35,9 @@ export type CanvasProps = {
 
   paged: readonly string[];
 
-  asks: ReadonlyMap<string, Ask>;
-
   reports: ReadonlyMap<string, Report>;
 
   doings: ReadonlyMap<string, Doing>;
-
-  onAnswer: (session: Session, ask: Ask, key: string) => void;
-
-  onReply: (session: Session, ask: Ask, text: string) => void;
-
-  onPoint: (session: Session, ask: Ask, key: string) => void;
-
-  onPick: (session: Session, ask: Ask, key: string) => void;
-
-  onTake: (session: Session, ask: Ask) => void;
 
   marks: GraphMarks;
 

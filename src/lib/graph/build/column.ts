@@ -1,7 +1,5 @@
-import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
-import { ASK_GAP, ASK_STACK_GAP } from "../asking";
 import { refNodeId } from "../branches";
 import { commitNodeId, newWorkBase } from "../history";
 import type { PreparedRepository } from "../layout";
@@ -27,6 +25,7 @@ import {
   SESSION_WIDTH,
   stackReach,
 } from "../model";
+import { REPORT_GAP, REPORT_STACK_GAP } from "../reporting";
 import { besideMark } from "./cards";
 import { cliNode, offerNode } from "./nodes";
 import { take } from "./parts";
@@ -52,7 +51,6 @@ export function bandColumn(
 
   claimed: Set<string>,
   showing: string | null,
-  asks: ReadonlyMap<string, Ask>,
   reports: ReadonlyMap<string, Report>,
   draw: Draw,
 ): Column {
@@ -132,11 +130,11 @@ export function bandColumn(
 
       drawn.bottom = Math.max(drawn.bottom, y + CLI_STEP);
 
-      const x = run.x + SESSION_WIDTH + ASK_GAP;
-      const beside = besideMark(session, asks, reports, id, band, x, y, floor, draw);
+      const x = run.x + SESSION_WIDTH + REPORT_GAP;
+      const beside = besideMark(session, reports, id, band, x, y, floor, draw);
       if (!beside) continue;
 
-      floor = beside.at + beside.height + ASK_STACK_GAP;
+      floor = beside.at + beside.height + REPORT_STACK_GAP;
       drawn.nodes.push(beside.node);
       drawn.lines.push(beside.line);
 

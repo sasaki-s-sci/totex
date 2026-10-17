@@ -1,4 +1,3 @@
-import type { Ask } from "../../ask";
 import type { Report } from "../../mcp";
 import type { Session } from "../../session";
 import { FOLDER_ROW_WIDTH, markId, ROW_SOCKET, ROW_STACK_X, repoMark } from "../folders";
@@ -48,7 +47,6 @@ export type Place = {
   stack: number | null;
   open: ReadonlyMap<string, Session[]>;
   showing: string | null;
-  asks: ReadonlyMap<string, Ask>;
   reports: ReadonlyMap<string, Report>;
   reaching: string | null;
   /** Air above a band, or above a mark under a band; see `airAbove`. */
@@ -122,7 +120,7 @@ function bandRow(
 
 function markRow(
   row: Row & { standing: Session[] },
-  { id, from, x, stack: lined, open, showing, asks, reports, draw }: Place,
+  { id, from, x, stack: lined, open, showing, reports, draw }: Place,
   drawn: LaidGroup,
   at: Cursor,
   air: number,
@@ -158,7 +156,6 @@ function markRow(
       lead: REPO_MARK_TRIM,
       at: { x: stackX, y: line },
       showing,
-      asks,
       reports,
       floor: at.floor,
     },

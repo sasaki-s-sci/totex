@@ -29,7 +29,6 @@ export function buildCommitGraph(
     closed,
     sessions,
     showing,
-    asks,
     reports,
     reaching,
     places,
@@ -78,7 +77,6 @@ export function buildCommitGraph(
       node.type === "folder" ||
       node.type === "repo-mark" ||
       node.type === "cli" ||
-      node.type === "ask" ||
       node.type === "report"
     ) {
       before.set(node.id, node);
@@ -126,7 +124,6 @@ export function buildCommitGraph(
         opened,
         open: folder.kind === "folder" ? beside : open,
         showing,
-        asks,
         reports,
         reaching,
         gap,

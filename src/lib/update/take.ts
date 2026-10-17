@@ -1,7 +1,8 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { ephemeralIdentity, swapEphemeral } from "../../ephemeral/runtime";
+import { holdForRestart } from "../../resume/runtime";
 import { connection } from "../../shell/bridge";
-import { carryAcrossRestart, dropCarried } from "../../shell/state";
+import { carryAcrossRestart } from "../../shell/state";
 import type { Layer, UpdateStage } from "./model";
 import { wanted } from "./reading";
 import { askStanding, settlePress, state } from "./store";
@@ -49,12 +50,9 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
         // The installed bundle contains both the new host and the views built for it. Its page
         // starts in a new process, so the graph goes ahead of it through the service.
         await carryAcrossRestart().catch(() => undefined);
-        try {
-          await invoke("update_restart");
-        } catch (reason) {
-          await dropCarried();
-          throw reason;
-        }
+        // A minor update closes every terminal; the jobs in them are marked as lost to it.
+        await holdForRestart().catch(() => undefined);
+        await invoke("update_restart");
         settlePress(layer, { stage: "ready", progress: null });
       }
     } else {

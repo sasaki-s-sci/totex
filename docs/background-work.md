@@ -4,8 +4,8 @@ Status: design, nothing built yet. Sources checked 2026-10-05.
 
 A coding agent in a terminal leaves work running after its turn ends:
 background shells, monitors, background subagents. Today the window cannot see
-any of it. It sees the screen (`doing`, the question being asked, the last line
-typed) and the `report` an agent chooses to send. This document designs one
+any of it. It sees the screen (`doing`, the last line typed) and the `report`
+an agent chooses to send. This document designs one
 normalized view of that background work. The view is served over MCP and drawn
 on the canvas and in the sidebar.
 

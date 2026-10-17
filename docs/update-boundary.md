@@ -60,14 +60,15 @@ checking. Focus/selection and terminal scroll/selection are restored where their
 corresponding content remains available. Terminal replay is bounded by the
 service's retained output; a new emulator is not the original emulator instance.
 
-A program update ends the process, so no frame is there to take a snapshot.
-Before `update_restart` the front keeps the graph keys listed in
+A program update or closing the window ends the process, so no frame is there
+to take a snapshot. The main-window front keeps the graph keys listed in
 `src/shell/carried.ts` (graph roots, explorer panes, the folder column and the
-canvas viewport) as the `totex.relaunch` document in the service's store, which
-outlives both the window and a replaced service. The first main-window front of
-the next launch takes them back before rendering and clears the document; a
-failed restart clears it too. Terminals are found running again on a patch and
-are gone on a minor, and workspace readings are scanned again.
+canvas viewport) as the `totex.relaunch` document in the service's store as
+they change, debounced, and once more right before `update_restart`. The store
+is on disk, so the document outlives the window, a replaced service and an
+ordinary close. The first main-window front of every launch takes them back
+before rendering. Terminals are found running again on a patch and are gone on
+a minor or after a close, and workspace readings are scanned again.
 
 New features must explicitly register state they need to preserve. Changing a
 value's representation requires a new key or migration. Transient dialogs,

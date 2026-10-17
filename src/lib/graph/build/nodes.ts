@@ -1,4 +1,3 @@
-import type { AskFlowNode } from "../asking";
 import { GRIP } from "../folders";
 import type { PreparedRepository } from "../layout";
 import type {
@@ -143,7 +142,6 @@ export type Held =
   | FolderFlowNode
   | RepoMarkFlowNode
   | CliFlowNode
-  | AskFlowNode
   | ReportFlowNode;
 
 // Copied rather than laid out: layouts are cached per depth, and a pull revisits depths.

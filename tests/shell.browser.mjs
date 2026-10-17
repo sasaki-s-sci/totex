@@ -86,7 +86,6 @@ export async function verifyShell(
           return running.has(args.id) ? { text: `Running ${args.id}\r\n`, upto: 0 } : null;
         if (
           [
-            "pty_asking",
             "pty_doing",
             "mcp_reports",
             "list_roots",

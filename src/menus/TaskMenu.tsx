@@ -2,17 +2,50 @@ import { Box, CircularProgress, Dialog, InputBase, Stack, Typography } from "@mu
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { useAppSettings } from "../lib/appSettings";
 import type { Session } from "../lib/session";
 import { directoryTasks, matching, type Param, runLine, type Task } from "../lib/tasks";
+import { AGENTS } from "../resume/model";
+import { useResumeJobs } from "../resume/runtime";
 
 type Props = {
   session: Session | null;
   onClose: () => void;
-  onRun: (session: Session, line: string) => void;
+  onRun: (session: Session, line: string, resume: string | null) => void;
+  onResume: (job: string) => void;
 };
 
-export function TaskMenu({ session, onClose, onRun }: Props) {
+export function TaskMenu({ session, onClose, onRun, onResume }: Props) {
   const { t } = useTranslation();
+  const lines = useAppSettings().resume.agents;
+  const jobs = useResumeJobs();
+  // Closed terminals first, the latest on top: the one just closed by mistake is the one wanted.
+  const again = useMemo<Task[]>(
+    () =>
+      jobs
+        .filter((job) => job.lost?.why === "close")
+        .sort((one, two) => (two.lost?.at ?? 0) - (one.lost?.at ?? 0))
+        .map((job) => ({
+          runner: "resume",
+          name: job.line,
+          about: job.cwd,
+          line: job.line,
+          params: [],
+          job: job.id,
+        })),
+    [jobs],
+  );
+  const agents = useMemo<Task[]>(
+    () =>
+      AGENTS.map((agent) => ({
+        runner: "agent",
+        name: agent,
+        about: lines[agent] === agent ? "" : lines[agent],
+        line: lines[agent],
+        params: [],
+      })),
+    [lines],
+  );
   const [tasks, setTasks] = useState<readonly Task[] | null>(null);
   const [typed, setTyped] = useState("");
   const [at, setAt] = useState(0);
@@ -40,8 +73,11 @@ export function TaskMenu({ session, onClose, onRun }: Props) {
     };
   }, [session]);
 
-  const rows = useMemo(() => matching(tasks ?? [], typed), [tasks, typed]);
-  const barren = tasks !== null && tasks.length === 0;
+  const rows = useMemo(
+    () => matching([...again, ...(tasks ?? []), ...agents], typed),
+    [again, tasks, agents, typed],
+  );
+  const barren = tasks !== null && rows.length === 0;
   // biome-ignore lint/correctness/useExhaustiveDependencies: typing is the trigger
   useEffect(() => setAt(0), [typed]);
 
@@ -57,8 +93,9 @@ export function TaskMenu({ session, onClose, onRun }: Props) {
   };
 
   const take = (task: Task) => {
-    if (task.params.length > 0) setFilling(task);
-    else onRun(shown, task.line);
+    if (task.job) onResume(task.job);
+    else if (task.params.length > 0) setFilling(task);
+    else onRun(shown, task.line, task.resume ?? null);
   };
 
   return (
@@ -72,7 +109,7 @@ export function TaskMenu({ session, onClose, onRun }: Props) {
       slotProps={{ paper: { sx: { width: 560, maxWidth: "92vw", mt: "12vh" } } }}
     >
       {filling ? (
-        <Filling task={filling} onRun={(line) => onRun(shown, line)} />
+        <Filling task={filling} onRun={(line) => onRun(shown, line, filling.resume ?? null)} />
       ) : (
         <Stack
           onKeyDown={(event) => {
@@ -182,7 +219,7 @@ function Row({
     >
       <Typography
         variant="caption"
-        sx={{ width: 34, flexShrink: 0, fontFamily: "monospace", color: "text.disabled" }}
+        sx={{ width: 42, flexShrink: 0, fontFamily: "monospace", color: "text.disabled" }}
       >
         {task.runner}
       </Typography>
@@ -243,7 +280,7 @@ function Filling({ task, onRun }: { task: Task; onRun: (line: string) => void })
       <Stack direction="row" sx={{ alignItems: "baseline", gap: 1.25, px: 1.5, py: 1 }}>
         <Typography
           variant="caption"
-          sx={{ width: 34, flexShrink: 0, fontFamily: "monospace", color: "text.disabled" }}
+          sx={{ width: 42, flexShrink: 0, fontFamily: "monospace", color: "text.disabled" }}
         >
           {task.runner}
         </Typography>

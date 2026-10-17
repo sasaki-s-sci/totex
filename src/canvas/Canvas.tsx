@@ -71,14 +71,8 @@ export function Canvas({
   sessions,
   showing,
   paged,
-  asks,
   reports,
   doings,
-  onAnswer,
-  onReply,
-  onPoint,
-  onPick,
-  onTake,
   marks,
   onSelect,
   onNewWork,
@@ -150,7 +144,6 @@ export function Canvas({
           closed,
           sessions,
           showing,
-          asks,
           reports,
           reaching,
           places,
@@ -167,7 +160,6 @@ export function Canvas({
       closed,
       sessions,
       showing,
-      asks,
       reports,
       reaching,
       places,
@@ -356,7 +348,7 @@ export function Canvas({
 
   const jumps = useMemo(() => ({ numbers }), [numbers]);
 
-  const typed = useCliTyped(showing, asks, reports);
+  const typed = useCliTyped(showing, reports);
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,
@@ -399,11 +391,6 @@ export function Canvas({
     onEndSession,
     collapseCliPage,
     fitCliPage,
-    onAnswer,
-    onReply,
-    onPoint,
-    onPick,
-    onTake,
     onCloseFilePreview: closePage,
     saveFilePreview,
     refreshFilePreview,

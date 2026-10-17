@@ -24,6 +24,7 @@ test("migrates all existing user preferences, including line size one", () => {
     legacySettings((key) => values.get(key) ?? null),
     {
       monitor: DEFAULT_SETTINGS.monitor,
+      resume: DEFAULT_SETTINGS.resume,
       theme: "dark",
       appearance: { colors: "classic", style: "default", effects: "none" },
       language: "ja",

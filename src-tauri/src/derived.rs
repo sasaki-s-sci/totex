@@ -5,7 +5,7 @@
 //! a process with a history nobody else has a copy of, gone for good if
 //! whatever holds it stops. The other is all the rest — the snapshot a folder
 //! was scanned into, the watches on the few places git writes, the screen a
-//! session has drawn and the question standing on it — and none of that is a
+//! session has drawn and what it is doing on it — and none of that is a
 //! possession. It is a saving. Throw it away and it comes back, out of what is
 //! on disk and out of what the sessions have already said.
 //!

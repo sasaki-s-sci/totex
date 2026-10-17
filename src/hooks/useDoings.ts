@@ -6,7 +6,7 @@ import { watchReadings } from "../lib/watchReadings";
 
 const NOTHING: ReadonlyMap<string, Doing> = new Map();
 
-// Not held back like a question: a state is only sent when it changed.
+// Drawn as it arrives, never held back for flicker: a state is only sent when it changed.
 export function useDoings(): ReadonlyMap<string, Doing> {
   const [doings, setDoings] = useState<ReadonlyMap<string, Doing>>(NOTHING);
 

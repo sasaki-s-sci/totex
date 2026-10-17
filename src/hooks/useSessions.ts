@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
 import { restored, type Session } from "../lib/session";
+import { closing, dismiss } from "../resume/runtime";
 import { frontValue, useFrontState } from "../shell/state";
 
 resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
@@ -50,6 +51,14 @@ export function useSessions() {
     setShowing(next.id);
   }, []);
 
+  // A terminal put back after it was lost, where it stood, without taking the panel from anything.
+  const restore = useCallback((next: Session) => {
+    void startShell(next).catch(() => undefined);
+    setSessions((current) =>
+      current.some((session) => session.id === next.id) ? current : [...current, next],
+    );
+  }, []);
+
   const show = useCallback((next: Session) => {
     setPaged((current) => current.filter((id) => id !== next.id));
     setShowing((current) => (current === next.id ? null : next.id));
@@ -78,6 +87,8 @@ export function useSessions() {
 
   const end = useCallback(
     (going: Session) => {
+      // Closed from the window: whatever totex started in it can be had back for a while.
+      closing(going.id);
       void kill(going);
       setSessions((current) => current.filter((session) => session.id !== going.id));
       setPaged((current) => current.filter((id) => id !== going.id));
@@ -91,6 +102,8 @@ export function useSessions() {
     async (cwd: string) => {
       const going = sessions.filter((session) => session.cwd === cwd);
       if (going.length === 0) return;
+      // The directory is about to go, and the jobs in it with it.
+      for (const session of going) dismiss(session.id);
       await Promise.all(going.map(kill));
       setSessions((current) => current.filter((session) => session.cwd !== cwd));
       setPaged((current) => current.filter((id) => going.every((session) => session.id !== id)));
@@ -105,6 +118,8 @@ export function useSessions() {
       const native = restored(await runningShells());
       const all = new Map([...native, ...sessions].map((session) => [session.id, session]));
       const going = [...all.values()].filter(matches);
+      // Taken off the canvas on purpose, which is not losing them.
+      for (const session of going) dismiss(session.id);
       const results = await Promise.allSettled(going.map((session) => endShell(session.id)));
       const ended = new Set(
         going
@@ -128,6 +143,7 @@ export function useSessions() {
     paged,
     attached,
     open,
+    restore,
     show,
     jump,
     hide,

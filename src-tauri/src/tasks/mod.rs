@@ -12,7 +12,9 @@
 //! nothing to say about the line one person keeps retyping in that folder and
 //! nowhere else, which until now lived in a shell's history until the history
 //! rolled over. That goes in the space instead — see `read::totex` and
-//! `crate::space`.
+//! `crate::space`. A block there may also say, in a `# resume:` comment above
+//! it, whether the window runs it again after the terminal it ran in went away
+//! — see `read::kept` and `crate::resume`.
 //!
 //! Lines, and not runs. Nothing here starts anything: a task is a command
 //! somebody would have typed into the terminal that is already open in that
@@ -54,6 +56,12 @@ pub struct Task {
     /// passed. Empty for a task that takes nothing, and empty for the three
     /// runners that have no way to say — see `read::justfile`.
     pub params: Vec<Param>,
+    /// Whether the window may run it again by itself, as its space's file says
+    /// in a `# resume:` line above it — `update=auto crash=ask …`, kept as
+    /// written and read on the window's side. None for every runner but the
+    /// space's own, because a project's file has no way to say it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume: Option<String>,
 }
 
 /// One thing a task is given when it is run.
