@@ -173,7 +173,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   readingSize: 11,
   undoDepth: 200,
   cliWheel: 100,
-  graphWheel: 100,
+  graphWheel: 50,
 };
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
@@ -225,6 +225,6 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     readingSize: number("totex.reading.size", 8, 20, 11),
     undoDepth: 200,
     cliWheel: 100,
-    graphWheel: 100,
+    graphWheel: 50,
   };
 }

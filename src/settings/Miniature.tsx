@@ -422,10 +422,10 @@ export function Miniature() {
         />
         <rect
           x={badgeLeft}
-          y={bands[0].y - 8 - cli}
+          y={bands[0].y - 8 - cli + 0.3}
           width={badgeWidth}
-          height={2.6}
-          rx={1.3}
+          height={2}
+          rx={1}
           fill="none"
           stroke={ink("monitor", palette.divider)}
           strokeWidth={0.6}
@@ -442,9 +442,9 @@ export function Miniature() {
             {monitor.text !== "none" && (
               <rect
                 x={badgeLeft + 3.2}
-                y={bands[0].y - 7.5 - cli}
+                y={bands[0].y - 7.4 - cli}
                 width={summaryWidth}
-                height={1}
+                height={0.75}
                 rx={0.4}
                 fill={ink("monitor", palette.text.secondary)}
               />
@@ -452,9 +452,9 @@ export function Miniature() {
             {monitorShows(monitor, "agents") && (
               <rect
                 x={badgeLeft + badgeWidth - 6}
-                y={bands[0].y - 7.7 - cli}
+                y={bands[0].y - 7.5 - cli}
                 width={3}
-                height={1.4}
+                height={1.05}
                 rx={0.3}
                 fill="none"
                 stroke={ink("monitor", palette.text.secondary)}
@@ -464,9 +464,9 @@ export function Miniature() {
             {monitorShows(monitor, "estimate") && (
               <rect
                 x={badgeLeft + badgeWidth - 2}
-                y={bands[0].y - 7.7 - cli}
+                y={bands[0].y - 7.5 - cli}
                 width={1.2}
-                height={1.4}
+                height={1.05}
                 rx={0.3}
                 fill={ink("monitor", palette.text.secondary)}
               />

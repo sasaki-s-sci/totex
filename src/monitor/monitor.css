@@ -6,23 +6,27 @@
   gap: 2px;
   min-width: 0;
   overflow: hidden;
-  padding: 4px 6px;
+  padding: 2px 4px;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 6px;
-  background: var(--mui-palette-background-paper);
+  border-radius: 5px;
+  background: transparent;
   color: var(--mui-palette-text-secondary);
   font: inherit;
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 9px;
+  line-height: 12px;
   white-space: nowrap;
   cursor: pointer;
 }
 .monitor-badge__row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
-  height: 14px;
+  height: 12px;
+}
+.monitor-badge__row > svg {
+  width: 10px;
+  height: 10px;
 }
 .monitor-badge__row--request {
   color: var(--mui-palette-text-primary);
