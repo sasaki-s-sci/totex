@@ -25,6 +25,12 @@
   filter: var(--lit);
 }
 
+/* Held long enough to move: the icon follows the pointer rather than opening. */
+.cli__open.is-moving {
+  cursor: grabbing;
+  color: var(--mui-palette-primary-main);
+}
+
 .cli__end {
   position: absolute;
   top: 50%;

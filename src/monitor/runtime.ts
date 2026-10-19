@@ -13,6 +13,11 @@ const NO_HISTORY: Observation[] = [];
 const GLANCE_MS = 1000;
 let failure: string | null = null;
 let configureQueue: Promise<unknown> = Promise.resolve();
+/** The last glance at a session, read without subscribing: for a key walk, which asks once per press. */
+export function glanceNow(id: string): Glance | undefined {
+  return glances.get(id);
+}
+
 export function useMonitorSnapshot(id: string) {
   return useSyncExternalStore(changes.subscribe, () => snapshots.get(id));
 }

@@ -73,6 +73,9 @@ export type GraphActions = FilePageActions & {
 
   endSession: (session: Session) => void;
 
+  /** Moves a terminal just before or after another in the same row. */
+  placeSession: (moved: Session, anchor: Session, below: boolean) => void;
+
   collapseCliPage: (sessionId: string) => void;
 
   fitCliPage: (sessionId: string, width: number, height: number) => void;
@@ -97,6 +100,7 @@ export const NO_ACTIONS: GraphActions = {
   keepFold: () => {},
   showSession: () => {},
   endSession: () => {},
+  placeSession: () => {},
   collapseCliPage: () => {},
   fitCliPage: () => {},
   closeFilePreview: () => {},

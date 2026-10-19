@@ -20,6 +20,7 @@ export function useCanvasActions({
   keepFold,
   onShowSession,
   onEndSession,
+  onPlaceSession,
   collapseCliPage,
   fitCliPage,
   onCloseFilePreview,
@@ -51,6 +52,7 @@ export function useCanvasActions({
   keepFold: GraphActions["keepFold"];
   onShowSession: GraphActions["showSession"];
   onEndSession: GraphActions["endSession"];
+  onPlaceSession: GraphActions["placeSession"];
   collapseCliPage: GraphActions["collapseCliPage"];
   fitCliPage: GraphActions["fitCliPage"];
   onCloseFilePreview: GraphActions["closeFilePreview"];
@@ -85,6 +87,7 @@ export function useCanvasActions({
       keepFold,
       showSession: onShowSession,
       endSession: onEndSession,
+      placeSession: onPlaceSession,
       collapseCliPage,
       fitCliPage,
       closeFilePreview: onCloseFilePreview,
@@ -117,6 +120,7 @@ export function useCanvasActions({
       keepFold,
       onShowSession,
       onEndSession,
+      onPlaceSession,
       collapseCliPage,
       fitCliPage,
       onCloseFilePreview,

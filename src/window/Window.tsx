@@ -218,6 +218,7 @@ export function Window() {
               onShowSession={sessions.show}
               onJumpSession={sessions.jump}
               onEndSession={sessions.end}
+              onPlaceSession={sessions.place}
               filePreviews={files.filePreviews}
               onPreviewFile={files.previewFile}
               onCloseFilePreview={files.closeFilePreview}

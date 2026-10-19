@@ -61,6 +61,7 @@ export type CanvasProps = {
 
   onJumpSession: (session: Session) => void;
   onEndSession: (session: Session) => void;
+  onPlaceSession: (moved: Session, anchor: Session, below: boolean) => void;
 
   filePreviews: readonly FilePreviewRequest[];
 

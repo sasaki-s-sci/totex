@@ -6,6 +6,7 @@ import { CliGlyph } from "../../marks";
 import { MonitorBadge } from "../../monitor/MonitorBadge";
 import { useCliDoing } from "../cliDoing";
 import { useCliJump } from "../cliJumps";
+import { useCliReorder } from "../cliReorder";
 import { useGraphActions } from "../graphActions";
 import { useMarkSizes } from "../markSizes";
 
@@ -16,6 +17,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { showSession, endSession } = useGraphActions();
   const jump = useCliJump(id);
   const doing = useCliDoing(session.id);
+  const reorder = useCliReorder(id, session, data.group);
 
   const name = ordinal ? `${t("cli.shell")} ${ordinal}` : t("cli.shell");
 
@@ -27,9 +29,10 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
           className={`cli__open nopan${showing ? " is-showing" : ""}`}
           aria-label={name}
           aria-pressed={showing}
-          onPointerDown={(event) => event.stopPropagation()}
+          {...reorder.pointer}
           onClick={(event) => {
             event.stopPropagation();
+            if (reorder.takeMoved()) return;
             showSession(session);
           }}
         >

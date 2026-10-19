@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
-import { restored, type Session } from "../lib/session";
+import { placeBeside, restored, type Session } from "../lib/session";
 import { closing, dismiss } from "../resume/runtime";
 import { frontValue, useFrontState } from "../shell/state";
 
@@ -49,6 +49,11 @@ export function useSessions() {
         : [...current.slice(0, at + 1), next, ...current.slice(at + 1)];
     });
     setShowing(next.id);
+  }, []);
+
+  // A long press moves a terminal beside another in its row: the row is drawn in this order.
+  const place = useCallback((moved: Session, anchor: Session, below: boolean) => {
+    setSessions((current) => placeBeside(current, moved, anchor, below));
   }, []);
 
   // A terminal put back after it was lost, where it stood, without taking the panel from anything.
@@ -144,6 +149,7 @@ export function useSessions() {
     attached,
     open,
     restore,
+    place,
     show,
     jump,
     hide,

@@ -74,3 +74,17 @@ export function ordinalOf(sessions: readonly Session[], session: Session): numbe
   const alike = sessions.filter((other) => other.cwd === session.cwd);
   return alike.length > 1 ? alike.indexOf(session) + 1 : null;
 }
+
+/** The list with `moved` just before or after `anchor`; the list itself when `anchor` is not in it. */
+export function placeBeside(
+  list: readonly Session[],
+  moved: Session,
+  anchor: Session,
+  below: boolean,
+): readonly Session[] {
+  const rest = list.filter((session) => session.id !== moved.id);
+  const at = rest.findIndex((session) => session.id === anchor.id);
+  if (at < 0) return list;
+  rest.splice(below ? at + 1 : at, 0, moved);
+  return rest;
+}

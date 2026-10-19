@@ -14,6 +14,8 @@ import {
 import { terminal, typing } from "../../lib/keys";
 import { revealing } from "../../lib/reveal";
 import { isWrapping } from "../../lib/walk";
+import { isAgent } from "../../monitor/model";
+import { glanceNow } from "../../monitor/runtime";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
   ArrowRight: { x: 1, y: 0 },
@@ -167,13 +169,20 @@ export function useGraphKeys({
       if (node) latest.current.jump(node);
     };
 
+    // A coding CLI, as the monitor reads its screen. Without a monitor reading every terminal counts.
+    const coding = (pick: Pickable) => {
+      const node = latest.current.nodes.find((candidate) => candidate.id === pick.id);
+      return node?.type === "cli" && isAgent(glanceNow(node.data.session.id));
+    };
+
     // Up and Down go a terminal at a time; Left and Right go a repository or folder at a time.
-    const walkTerminals = (direction: { x: number; y: number }) => {
+    const walkTerminals = (direction: { x: number; y: number }, codingOnly = false) => {
       const by = direction.x + direction.y > 0 ? 1 : -1;
 
       const standing = at.current ?? latest.current.shown;
       const walk = direction.x ? neighbourRow : neighbour;
-      const next = walk(standing, places.current, by, isWrapping());
+      const stacks = codingOnly ? places.current.filter(coding) : places.current;
+      const next = walk(standing, stacks, by, isWrapping());
       if (!next) return;
 
       const node = stand(next);
@@ -189,11 +198,20 @@ export function useGraphKeys({
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      // Ctrl alone; Alt and Meta combinations belong to something else.
-      if (!event.ctrlKey || event.altKey || event.metaKey) return;
+      // Meta combinations belong to something else.
+      if (!event.ctrlKey || event.metaKey) return;
 
       // A text field keeps Ctrl+Shift+Arrow for word selection; a terminal does not.
       const writing = typing(event.target) && !terminal(event.target);
+
+      // Ctrl+Alt+Arrow walks the coding CLIs only, skipping the plain terminals between them.
+      if (event.altKey) {
+        const direction = DIRECTIONS[event.key];
+        if (!direction || writing) return;
+        event.preventDefault();
+        walkTerminals(direction, true);
+        return;
+      }
 
       if (event.shiftKey && !writing) {
         setOffering(true);
