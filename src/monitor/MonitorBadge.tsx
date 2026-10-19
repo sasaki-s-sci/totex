@@ -31,6 +31,11 @@ function summaryOf(
   );
 }
 
+/** A plain command that is running blinks a terminal cursor: one cell, always one line. */
+function TerminalCursor() {
+  return <span aria-hidden="true" className="monitor-cursor" />;
+}
+
 /** Running spins, asking asks and failing crosses; the colour comes from `data-status`. */
 function StatusIcon({ status }: { status: string }) {
   if (status === "running")
@@ -155,7 +160,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
         ) : (
           // A plain command shows only the command it runs, never what was typed or printed.
           <span className="monitor-badge__row" data-status={status}>
-            <StatusIcon status={status} />
+            {status === "running" ? <TerminalCursor /> : <StatusIcon status={status} />}
             {running && <span className="monitor-badge__summary">{running}</span>}
           </span>
         )}

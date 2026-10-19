@@ -132,8 +132,23 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .monitor-spin {
+  .monitor-spin,
+  .monitor-cursor {
     animation: none;
+  }
+}
+
+/* A plain command's running state: a block cursor blinking in one cell, the height of one line. */
+.monitor-cursor {
+  flex-shrink: 0;
+  width: 0.6em;
+  height: 10px;
+  background: currentColor;
+  animation: monitor-blink 1s steps(1) infinite;
+}
+@keyframes monitor-blink {
+  50% {
+    opacity: 0;
   }
 }
 
