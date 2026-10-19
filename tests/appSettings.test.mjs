@@ -41,7 +41,7 @@ test("migrates the user preferences that survive, reading the reading size", () 
       readingSize: 14,
       undoDepth: 200,
       cliWheel: 100,
-      graphWheel: 50,
+      graphWheel: 25,
     },
   );
 });
