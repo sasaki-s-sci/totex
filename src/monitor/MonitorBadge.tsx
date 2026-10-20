@@ -13,7 +13,7 @@ import {
 } from "./runtime";
 import "./monitor.css";
 
-/** The text beside the badge: the agent's summary or the running command, the line typed, or nothing. */
+/** The text beside the badge: the agent's summary or the running command, or nothing. */
 function summaryOf(
   text: MonitorText,
   glance: Glance | undefined,
@@ -23,12 +23,8 @@ function summaryOf(
 ): string | null {
   if (text === "none") return null;
   if (text === "stdio") return glance?.said || null;
-  return (
-    running ??
-    ((shown("taskSummary") && snapshot?.taskSummary) ||
-      (shown("requestSummary") && snapshot?.requestSummary) ||
-      null)
-  );
+  // The user's request has its own row above; it must not fall back into this one.
+  return running ?? ((shown("taskSummary") && snapshot?.taskSummary) || null);
 }
 
 /** A plain command that is running blinks a terminal cursor: one cell, always one line. */

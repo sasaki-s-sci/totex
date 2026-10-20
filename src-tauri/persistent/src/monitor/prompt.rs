@@ -18,7 +18,7 @@ pub(super) fn fields(features: &Features) -> Vec<(&'static str, &'static str)> {
     [
         (f.status, "status", "One of unknown, running, permission, stopped, success, failure. Use unknown when unsupported by evidence."),
         (f.agents, "agents", "Array of observed workers: {id,kind: monitor|shell|background|subagent,label,status,detail,progress: number 0..100 or null}. Only count workers explicitly evidenced in the transcript; absence is not proof of zero."),
-        (f.task_summary, "taskSummary", "Exactly one short sentence on the task currently being worked on, or null."),
+        (f.task_summary, "taskSummary", "Exactly one short sentence: the agent's conclusion so far, or the action it is asking for when it waits on the user (approval, a choice, a missing input). Never a bare status such as completed or generating; null if neither is visible."),
         (f.request_summary, "requestSummary", "Exactly one short sentence summarising the user's original request, or null. Never invent an unseen request."),
         (f.estimate, "estimate", "Remaining implementation time as {seconds,confidence: low|medium|high}, or null if evidence is insufficient. This is an estimate, not a deadline."),
         (f.goal, "goal", "Explicit goal mode only: {status: active|paused|blocked|complete,summary}, otherwise null. Keep goal lifecycle separate from execution status."),
