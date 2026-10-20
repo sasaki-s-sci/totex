@@ -377,6 +377,14 @@
       "none": "なし"
     },
     "previewWidth": "カードの最大幅",
+    "browser": "ブラウザ",
+    "browserEnabled": "観測役がページを見られるようにする",
+    "browserProfile": "プロファイル",
+    "browserUrl": "許可する URL パターン",
+    "profiles": {
+      "separate": "全フォルダで共有",
+      "folder": "フォルダの中に置く"
+    },
     "kinds": {
       "monitor": "モニター",
       "subagent": "サブエージェント",

@@ -40,8 +40,8 @@ fn validate(value: &Value) -> Result<(), String> {
     }
     range(value, "readingSize", 8, 20)?;
     range(value, "undoDepth", 10, 1000)?;
-    range(value, "cliWheel", 25, 400)?;
-    range(value, "graphWheel", 25, 400)?;
+    range(value, "cliWheel", 5, 400)?;
+    range(value, "graphWheel", 5, 400)?;
     if let Some(monitor) = object.get("monitor") {
         validate_monitor(monitor)?;
     }
@@ -123,6 +123,26 @@ fn validate_monitor(value: &Value) -> Result<(), String> {
             .is_none_or(|n| ![160, 220, 320, 420].contains(&n))
     }) {
         return Err("Invalid monitor.previewWidth".into());
+    }
+    if let Some(browser) = fields.get("browser") {
+        let browser = browser
+            .as_object()
+            .ok_or("monitor.browser must be an object")?;
+        if browser.get("enabled").is_some_and(|v| !v.is_boolean()) {
+            return Err("Invalid monitor.browser.enabled".into());
+        }
+        if browser.get("allowedUrl").is_some_and(|v| {
+            v.as_str()
+                .is_none_or(|s| s.is_empty() || s.len() > 4096 || s.contains('\0'))
+        }) {
+            return Err("Invalid monitor.browser.allowedUrl".into());
+        }
+        if browser.get("profile").is_some_and(|v| {
+            !v.as_str()
+                .is_some_and(|s| ["separate", "folder"].contains(&s))
+        }) {
+            return Err("Invalid monitor.browser.profile".into());
+        }
     }
     // The badge shows the status as an icon, so only the features can set it.
     let groups = [

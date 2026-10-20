@@ -3,7 +3,7 @@ import { settingsNow, subscribeSettings } from "./appSettings";
 
 export type WheelPlace = "cli" | "graph";
 
-export const WHEEL = { least: 25, most: 400, start: 100 } as const;
+export const WHEEL = { least: 5, most: 400, start: 100 } as const;
 
 export const WHEEL_STEP = 1;
 

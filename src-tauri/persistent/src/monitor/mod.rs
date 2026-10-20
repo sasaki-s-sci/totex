@@ -1,6 +1,7 @@
 //! Optional observers, separate from the shells they describe.
 //! Reports are inference over terminal output; observer lifecycle is measured.
 mod acp;
+mod browser;
 mod cli;
 mod launch;
 #[cfg(target_os = "linux")]
@@ -10,6 +11,7 @@ mod prompt;
 use crate::{Sessions, session::Running};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -57,6 +59,8 @@ pub struct Config {
     pub agents_only: bool,
     /// The widest the badge may be, in px; the text of a report is cut to fit.
     pub preview_width: u32,
+    /// A headless browser the observer may look at the page with; see `browser`.
+    pub browser: browser::Browser,
 }
 impl Default for Config {
     fn default() -> Self {
@@ -70,6 +74,7 @@ impl Default for Config {
             features: Features::default(),
             agents_only: false,
             preview_width: 220,
+            browser: browser::Browser::default(),
         }
     }
 }
@@ -209,6 +214,13 @@ pub struct Report {
     pub estimate: Option<Estimate>,
     pub agents: Vec<Agent>,
 }
+/// A screenshot the observer saved of the page the terminal works on, and when.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Shot {
+    pub path: String,
+    pub at: u64,
+}
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
@@ -220,6 +232,7 @@ pub struct Snapshot {
     pub updated_at: u64,
     pub error: Option<String>,
     pub monitor_status: &'static str,
+    pub shot: Option<Shot>,
 }
 fn inferred_source() -> String {
     "inferred".into()
@@ -281,19 +294,24 @@ async fn observation(
     transcript: &str,
     cancelled: Arc<AtomicBool>,
     previous: Option<serde_json::Value>,
+    browser: Option<(browser::Setup, PathBuf)>,
 ) -> Result<serde_json::Value, String> {
-    let prompt = prompt::prompt(
+    let mut prompt = prompt::prompt(
         &config.features,
         config.text_chars(),
         transcript,
         previous.as_ref(),
     );
+    if let Some((_, shot)) = &browser {
+        prompt.push_str(&browser::instruction(shot));
+    }
     let schema = prompt::schema(&config.features);
     let model = config.model.trim();
     let work = async {
         let report = match config.agent {
             Observer::Claude => {
-                cli::claude("claude", model, host, environment, &prompt, &schema).await?
+                let setup = browser.as_ref().map(|(setup, _)| setup);
+                cli::claude("claude", model, host, environment, &prompt, &schema, setup).await?
             }
             Observer::Codex => {
                 cli::codex("codex", model, host, environment, &prompt, &schema).await?
@@ -523,6 +541,7 @@ impl Monitor {
                         updated_at: 0,
                         error: None,
                         monitor_status: "idle",
+                        shot: None,
                     },
                     last_seq: None,
                     last_attempt: 0,
@@ -582,6 +601,22 @@ impl Monitor {
     ) {
         let _worker = Worker(&self.workers);
         let host = Host::of_str(&session.cwd);
+        // The browser is offered to the claude observer on this machine only: the MCP server runs beside it.
+        let shot = browser::shot_path(&session.id, now());
+        let browser = (config.agent == Observer::Claude && matches!(host, Host::Local))
+            .then(|| {
+                browser::setup(
+                    &config.browser,
+                    &session.cwd,
+                    totex_host::fs_browse::home_dir(),
+                )
+            })
+            .flatten()
+            .map(|setup| {
+                let _ = std::fs::create_dir_all(browser::shots_dir());
+                (setup, shot.clone())
+            });
+        let used = browser.is_some();
         // The agent's own session state, when it is on this machine, needs no
         // model call and no terminal reading.
         let native = match (session.pid, &host) {
@@ -614,6 +649,7 @@ impl Monitor {
                                 &transcript,
                                 Arc::clone(&cancel),
                                 previous,
+                                browser,
                             ),
                         )
                         .await
@@ -645,6 +681,12 @@ impl Monitor {
             Ok(mut report) => {
                 sanitize(&mut report, &config.features);
                 entry.snapshot.report = report;
+                if used && shot.is_file() {
+                    entry.snapshot.shot = Some(Shot {
+                        path: shot.to_string_lossy().into_owned(),
+                        at: now(),
+                    });
+                }
                 entry.snapshot.source = source;
                 entry.snapshot.updated_at = now();
                 entry.snapshot.monitor_status = "idle";
@@ -885,6 +927,7 @@ mod tests {
                         updated_at: 1,
                         error: None,
                         monitor_status: "running",
+                        shot: None,
                     },
                     last_seq: None,
                     last_attempt: 0,

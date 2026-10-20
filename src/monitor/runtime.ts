@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useAppSettings } from "../lib/appSettings";
 import { notifications } from "../lib/notifications";
 import { type Glance, isAgent, type MonitorSnapshot, type Observation, remember } from "./model";
@@ -26,6 +26,26 @@ export function useMonitorGlance(id: string) {
 }
 export function useMonitorHistory(id: string) {
   return useSyncExternalStore(changes.subscribe, () => histories.get(id) ?? NO_HISTORY);
+}
+/**
+ * Calls `onShot` with the path of each screenshot an observer saves from now on. The shots that
+ * were already there when the window opened are not opened again.
+ */
+export function useMonitorShots(onShot: (path: string) => void) {
+  const latest = useRef(onShot);
+  latest.current = onShot;
+  useEffect(() => {
+    const opened = Date.now();
+    const seen = new Map<string, number>();
+    return changes.subscribe(() => {
+      for (const [id, snapshot] of snapshots) {
+        const shot = snapshot.shot;
+        if (!shot || shot.at <= opened || seen.get(id) === shot.at) continue;
+        seen.set(id, shot.at);
+        latest.current(shot.path);
+      }
+    });
+  }, []);
 }
 export function useMonitorError() {
   return useSyncExternalStore(changes.subscribe, () => failure);

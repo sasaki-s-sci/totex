@@ -377,6 +377,14 @@
       "none": "None"
     },
     "previewWidth": "Card max width",
+    "browser": "Browser",
+    "browserEnabled": "Let the observer look at pages",
+    "browserProfile": "Profile",
+    "browserUrl": "Allowed URL pattern",
+    "profiles": {
+      "separate": "Shared by all folders",
+      "folder": "Inside the folder"
+    },
     "kinds": {
       "monitor": "Monitor",
       "subagent": "Subagent",

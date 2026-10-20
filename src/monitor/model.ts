@@ -20,6 +20,8 @@ export type MonitorSnapshot = {
   updatedAt: number;
   error: string | null;
   monitorStatus: "disabled" | "idle" | "running" | "failure" | "permission";
+  /** The screenshot the observer saved on its last look, and when; null without a browser. */
+  shot: { path: string; at: number } | null;
 };
 export function estimateMinutes(estimate: MonitorSnapshot["estimate"]): number | null {
   return estimate && Number.isFinite(estimate.seconds) && estimate.seconds > 0

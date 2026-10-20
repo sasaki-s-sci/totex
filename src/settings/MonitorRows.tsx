@@ -17,12 +17,14 @@ import {
   defaultModel,
   MONITOR_AGENTS,
   MONITOR_PREVIEW_WIDTHS,
+  MONITOR_PROFILES,
   MONITOR_TEXTS,
   type MonitorAgent,
   type MonitorFeatures,
   type MonitorPatch,
   type MonitorPreview,
   type MonitorPreviewWidth,
+  type MonitorProfile,
   type MonitorText,
 } from "../lib/appSettingsModel";
 import { agentLabel, type MonitorModel, useMonitorModels } from "../monitor/models";
@@ -194,6 +196,42 @@ export function MonitorRows() {
           </Row>
         ))}
       </Callout>
+      <Group name={t("monitor.browser")}>
+        <Row label={t("monitor.browserEnabled")}>
+          <Checkbox
+            size="small"
+            sx={TICK_SX}
+            checked={monitor.browser.enabled}
+            onChange={(event) => set({ browser: { enabled: event.target.checked } })}
+            slotProps={{ input: { "aria-label": t("monitor.browserEnabled") } }}
+          />
+        </Row>
+        <Row label={t("monitor.browserProfile")}>
+          <Select
+            size="small"
+            value={monitor.browser.profile}
+            inputProps={{ "aria-label": t("monitor.browserProfile") }}
+            onChange={(event) =>
+              set({ browser: { profile: event.target.value as MonitorProfile } })
+            }
+            sx={{ ...PICK_SX, width: FIELD_WIDTH }}
+          >
+            {MONITOR_PROFILES.map((profile) => (
+              <MenuItem key={profile} value={profile}>
+                {t(`monitor.profiles.${profile}`)}
+              </MenuItem>
+            ))}
+          </Select>
+        </Row>
+        <Row label={t("monitor.browserUrl")}>
+          <MonitorField
+            value={monitor.browser.allowedUrl}
+            label={t("monitor.browserUrl")}
+            placeholder="http://localhost:*/*"
+            onCommit={(allowedUrl) => set({ browser: { allowedUrl } })}
+          />
+        </Row>
+      </Group>
       {monitor.enabled && custom && !monitor.command.trim() && (
         <Alert severity="info">{t("monitor.commandRequired")}</Alert>
       )}

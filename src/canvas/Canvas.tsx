@@ -56,6 +56,7 @@ import { PinnedCards } from "./PinnedCards";
 export type { CanvasProps, MergeRequest, SyncRequest } from "./CanvasProps";
 export type { BranchPick, FetchRequest } from "./graphActions";
 
+import { useMonitorShots } from "../monitor/runtime";
 import { ChangesProvider } from "./changes";
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
@@ -276,6 +277,8 @@ export function Canvas({
     ),
   );
   useSettingsPage(settingsRequest, { host, instance, standing, nodes, setNodes, flowReady });
+  // A screenshot an observer saves opens in the PNG viewer, placed at the corner: no card beside it.
+  useMonitorShots((path) => onPreviewFile(path, -1));
   const { collapseCliPage, fitCliPage } = useCliPages(sessions, paged, showing, {
     host,
     instance,

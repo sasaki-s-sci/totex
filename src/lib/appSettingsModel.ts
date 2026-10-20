@@ -19,6 +19,18 @@ export type MonitorText = (typeof MONITOR_TEXTS)[number];
 export function defaultModel(agent: MonitorAgent): string {
   return agent === "claude" ? "claude-haiku-5-5" : "";
 }
+/** Where the observer's browser keeps its profile: one shared by every folder, or the folder's own. */
+export const MONITOR_PROFILES = ["separate", "folder"] as const;
+export type MonitorProfile = (typeof MONITOR_PROFILES)[number];
+
+/** A headless browser the claude observer may look at pages with, on this machine only. */
+export type MonitorBrowser = {
+  enabled: boolean;
+  /** The URL pattern the browser may visit; anything else is refused. */
+  allowedUrl: string;
+  profile: MonitorProfile;
+};
+
 export const MONITOR_PREVIEW_WIDTHS = [160, 220, 320, 420] as const;
 export type MonitorPreviewWidth = (typeof MONITOR_PREVIEW_WIDTHS)[number];
 export type MonitorSettings = {
@@ -40,10 +52,12 @@ export type MonitorSettings = {
   preview: MonitorPreview;
   /** The widest the card beside a terminal may be; its text is asked for at a length that fits. */
   previewWidth: MonitorPreviewWidth;
+  browser: MonitorBrowser;
 };
-export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview"> & {
+export type MonitorPatch = Omit<Partial<MonitorSettings>, "features" | "preview" | "browser"> & {
   features?: Partial<MonitorFeatures>;
   preview?: Partial<MonitorPreview>;
+  browser?: Partial<MonitorBrowser>;
 };
 export const DEFAULT_MONITOR: MonitorSettings = {
   enabled: false,
@@ -70,6 +84,7 @@ export const DEFAULT_MONITOR: MonitorSettings = {
     goal: false,
   },
   previewWidth: 220,
+  browser: { enabled: false, allowedUrl: "http://localhost:*/*", profile: "separate" },
 };
 /** Whether the badge shows a preview item: its feature is on and its preview is ticked. */
 export function monitorShows(monitor: MonitorSettings, item: keyof MonitorPreview): boolean {
@@ -88,12 +103,15 @@ export function mergeMonitor(one: MonitorPatch | undefined, two?: MonitorPatch):
     ...two,
     features: known(DEFAULT_MONITOR.features, { ...one?.features, ...two?.features }),
     preview: known(DEFAULT_MONITOR.preview, { ...one?.preview, ...two?.preview }),
+    browser: { ...DEFAULT_MONITOR.browser, ...one?.browser, ...two?.browser },
   };
   // A hand-edited or older file may name an agent this build does not know.
   if (!MONITOR_AGENTS.includes(merged.agent)) merged.agent = DEFAULT_MONITOR.agent;
   if (!MONITOR_TEXTS.includes(merged.text)) merged.text = DEFAULT_MONITOR.text;
   if (!MONITOR_PREVIEW_WIDTHS.includes(merged.previewWidth))
     merged.previewWidth = DEFAULT_MONITOR.previewWidth;
+  if (!MONITOR_PROFILES.includes(merged.browser.profile))
+    merged.browser = { ...merged.browser, profile: DEFAULT_MONITOR.browser.profile };
   return merged;
 }
 
@@ -173,7 +191,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   readingSize: 11,
   undoDepth: 200,
   cliWheel: 100,
-  graphWheel: 25,
+  graphWheel: 10,
 };
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
@@ -225,6 +243,6 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     readingSize: number("totex.reading.size", 8, 20, 11),
     undoDepth: 200,
     cliWheel: 100,
-    graphWheel: 25,
+    graphWheel: 10,
   };
 }

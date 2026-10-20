@@ -8,7 +8,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use totex_host::host::Host;
 
 use super::{
-    Model,
+    Model, browser,
     launch::{Workspace, failure, run, trimmed_tail},
     prompt::final_report,
 };
@@ -20,12 +20,21 @@ pub(super) async fn claude(
     environment: &str,
     prompt: &str,
     schema: &Value,
+    browser: Option<&browser::Setup>,
 ) -> Result<Map<String, Value>, String> {
-    let workspace = Workspace::prepare(host, environment, program, &[]).await?;
+    let files: Vec<(&str, &str)> = browser
+        .map(|setup| ("browser.json", setup.config.as_str()))
+        .into_iter()
+        .collect();
+    let workspace = Workspace::prepare(host, environment, program, &files).await?;
     let schema = schema.to_string();
     let mut argv = vec![program, "-p"];
     if !model.is_empty() {
         argv.extend(["--model", model]);
+    }
+    if browser.is_some() {
+        argv.extend(["--mcp-config", "browser.json", "--allowedTools"]);
+        argv.extend(browser::TOOLS);
     }
     argv.extend([
         "--tools",
@@ -291,6 +300,7 @@ mod tests {
             "Local",
             "PROMPT 日本語",
             &schema(),
+            None,
         )
         .await
         .unwrap();
@@ -330,6 +340,7 @@ mod tests {
             "Local",
             "p",
             &schema(),
+            None,
         )
         .await
         .unwrap();
@@ -345,6 +356,7 @@ mod tests {
             "Local",
             "p",
             &schema(),
+            None,
         )
         .await
         .unwrap_err();
