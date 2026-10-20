@@ -19,6 +19,10 @@
   "resize": {
     "width": "幅"
   },
+  "usage": {
+    "title": "端末",
+    "none": "動いている端末はありません"
+  },
   "folder": {
     "expandSidebar": "ルートフォルダー一覧を開く",
     "collapseSidebar": "ルートフォルダー一覧を閉じる",
@@ -202,6 +206,7 @@
     "language": "言語",
     "reveal": "選択へ移動",
     "walkWrap": "Ctrl+矢印で端まで行ったら反対側へ戻る",
+    "terminalUsage": "端末の CPU・メモリ",
     "terminalSort": "ターミナルの並び",
     "createdWhere": "作った場所",
     "createdAt": "作った順",

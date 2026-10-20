@@ -33,7 +33,7 @@ fn validate(value: &Value) -> Result<(), String> {
             return Err(format!("Invalid {key}"));
         }
     }
-    for key in ["follow", "mcpServing", "backgroundGrid"] {
+    for key in ["follow", "mcpServing", "backgroundGrid", "terminalUsage"] {
         if object.get(key).is_some_and(|v| !v.is_boolean()) {
             return Err(format!("Invalid {key}"));
         }

@@ -147,6 +147,8 @@ export type AppSettings = {
   /** Whether a band is cut back to that length as commits arrive, rather than growing with them. */
   historyFollow: boolean;
   mcpServing: boolean;
+  /** Whether the left sidebar shows each terminal's CPU and memory; see `src/sidebar/left/UsagePanel.tsx`. */
+  terminalUsage: boolean;
   fileTitle: "name" | "path";
   readingSize: number;
   /** How many steps back Ctrl+Z can take a file being edited. */
@@ -187,6 +189,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   historyLength: 3,
   historyFollow: false,
   mcpServing: false,
+  terminalUsage: false,
   fileTitle: "name",
   readingSize: 11,
   undoDepth: 200,
@@ -239,6 +242,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     historyLength: 3,
     historyFollow: false,
     mcpServing: read("totex.mcp.serving") === "yes",
+    terminalUsage: false,
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),
     undoDepth: 200,

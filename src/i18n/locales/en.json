@@ -19,6 +19,10 @@
   "resize": {
     "width": "Width"
   },
+  "usage": {
+    "title": "Terminals",
+    "none": "No terminal is running"
+  },
   "folder": {
     "expandSidebar": "Expand root folders",
     "collapseSidebar": "Collapse root folders",
@@ -202,6 +206,7 @@
     "language": "Language",
     "reveal": "Pan to selection",
     "walkWrap": "Ctrl+Arrow comes round at the ends",
+    "terminalUsage": "Terminal CPU and memory",
     "terminalSort": "Terminal sort",
     "createdWhere": "Created where",
     "createdAt": "Created at",

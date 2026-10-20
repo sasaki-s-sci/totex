@@ -5,6 +5,7 @@ import { createEntry, renameFile } from "../folder/api";
 import { DROP_INTO, folderUnder } from "../folder/dropInto";
 import { baseName } from "../folder/format";
 import type { Drops } from "../hooks/useDrops";
+import { useAppSettings } from "../lib/appSettings";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { Graphed, PaneSeed } from "../lib/graphed";
 import type { Homes } from "../lib/worktrees";
@@ -16,6 +17,7 @@ import type { Naming } from "./left/NameField";
 import { movePane, PANE_DRAG_TYPE, type PaneGrip, slotAt } from "./left/paneOrder";
 import { RepoPane } from "./left/RepoPane";
 import { RootsMenu } from "./left/RootsMenu";
+import { UsagePanel } from "./left/UsagePanel";
 import {
   type FolderDestination,
   type FolderUngraph,
@@ -23,6 +25,7 @@ import {
   shownPath,
   usePanes,
 } from "./left/usePanes";
+import { useTerminalUsage } from "./left/useTerminalUsage";
 import { Sidebar, type Sizing } from "./Sidebar";
 
 export type { FolderDestination, FolderUngraph, Pane } from "./left/usePanes";
@@ -75,6 +78,9 @@ export function LeftSidebar({
   onDeletePane,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
+  const { terminalUsage } = useAppSettings();
+  const showUsage = open && terminalUsage;
+  const usage = useTerminalUsage(showUsage);
   const panes = usePanes(
     initialPanes ?? [],
     onGraphedChange,
@@ -396,6 +402,8 @@ export function LeftSidebar({
           }
         />
       </Box>
+
+      {showUsage && <UsagePanel usage={usage} />}
 
       {removeFailed && (
         <Alert

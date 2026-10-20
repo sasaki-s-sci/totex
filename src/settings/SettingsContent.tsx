@@ -20,6 +20,7 @@ import { TerminalSortRow } from "./TerminalSortRow";
 import { ThemeRow } from "./ThemeRow";
 import { UndoRow } from "./UndoRow";
 import { UpdateRow } from "./UpdateRow";
+import { UsageRow } from "./UsageRow";
 import { WalkRow } from "./WalkRow";
 import { WheelRow } from "./WheelRow";
 
@@ -89,6 +90,7 @@ export function SettingsContent() {
             <AppearanceRows />
           </Callout>
           <Callout parts={["sidebar"]}>
+            <UsageRow />
             <LanguageRow />
           </Callout>
           <Callout parts={["controls"]}>

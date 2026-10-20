@@ -37,6 +37,7 @@ test("migrates the user preferences that survive, reading the reading size", () 
       historyLength: 3,
       historyFollow: false,
       mcpServing: true,
+      terminalUsage: false,
       fileTitle: "name",
       readingSize: 14,
       undoDepth: 200,

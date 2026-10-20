@@ -16,6 +16,7 @@ mod ssh;
 mod tasks;
 mod themes;
 mod update;
+mod usage;
 
 /// The machine, as the app knows it.
 ///
@@ -195,6 +196,7 @@ pub fn run() {
         .manage(git::SessionState::default())
         .manage(git::ListState::default())
         .manage(ask::watch::AskState::default())
+        .manage(usage::UsageState::default())
         // What the sessions say is read for what each is doing, and the
         // reading is registered here rather than built into the sessions
         // themselves — see `derived` for why the two are kept apart, and
@@ -302,6 +304,7 @@ pub fn run() {
             pty::pty_close,
             ask::watch::pty_doing,
             ask::watch::pty_standing,
+            usage::terminal_usage,
             mcp::mcp_serving,
             mcp::mcp_serve,
             mcp::mcp_stop,
