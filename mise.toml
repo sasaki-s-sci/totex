@@ -73,7 +73,9 @@ run = [
   # having to diagnose — and two checkouts can then run side by side.
   '''
   port="$(node scripts/dev-port.mjs)"
-  pnpm tauri dev --config "{\"build\":{\"beforeDevCommand\":\"pnpm dev --port $port\",\"devUrl\":\"http://localhost:$port\"}}" ${usage_args:-}
+  # The identifier is overridden too: it names the data directory, which the installed app keeps
+  # its terminals' program in. Sharing it would let this window reach that program.
+  pnpm tauri dev --config "{\"identifier\":\"com.totex.app.dev\",\"build\":{\"beforeDevCommand\":\"pnpm dev --port $port\",\"devUrl\":\"http://localhost:$port\"}}" ${usage_args:-}
   ''',
 ]
 
