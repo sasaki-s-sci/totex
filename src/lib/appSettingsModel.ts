@@ -157,6 +157,10 @@ export type AppSettings = {
   cliWheel: number;
   /** Percent of the canvas's own wheel distance. */
   graphWheel: number;
+  /** Percent of the file page's own text size, where 100 is `readingSize`. */
+  pageText: number;
+  /** Percent of the terminal's own text size. */
+  terminalText: number;
 };
 
 export type SettingsPatch = Omit<Partial<AppSettings>, "appearance" | "monitor" | "resume"> & {
@@ -195,6 +199,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   undoDepth: 200,
   cliWheel: 100,
   graphWheel: 10,
+  pageText: 100,
+  terminalText: 100,
 };
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
@@ -248,5 +254,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     undoDepth: 200,
     cliWheel: 100,
     graphWheel: 10,
+    pageText: 100,
+    terminalText: 100,
   };
 }

@@ -60,7 +60,7 @@ export function FilePage({
   const workspace = usePageWorkspace();
   const pageId = filePageId(data.requestId);
   const { t } = useTranslation();
-  const { fileTitle } = useAppSettings();
+  const { fileTitle, pageText } = useAppSettings();
   const Settings = settingsPart.use(data.view === "settings");
   const { previewFilePreview, fitFilePreview } = actions;
   const view = useReading();
@@ -125,7 +125,8 @@ export function FilePage({
   const rows = useWrappedRows(paper, wrapped && data.view === "text", lines);
   const drawing = useRef<HTMLImageElement>(null);
   const [undrawn, setUndrawn] = useState<string | null>(null);
-  const size = useReadingSize();
+  // The canvas zoom scales the whole card, so this keeps the text's ratio to the page.
+  const size = (useReadingSize() * pageText) / 100;
 
   // The reading resizes but its box does not, so the observer in useReading never sees this.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the new size is the trigger, and it is written to the card rather than read here
@@ -174,12 +175,7 @@ export function FilePage({
       bodyRef={setBody}
       onBodyWheel={data.view === "settings" || isDocument || nativeScroll ? undefined : onWheel}
       footnote={footnote}
-      style={
-        {
-          // The canvas scales the card with its zoom; dividing it back out keeps the text the sidebar's size.
-          "--reading-size": `${placement === "canvas" ? size / zoom : size}px`,
-        } as CSSProperties
-      }
+      style={{ "--reading-size": `${size}px` } as CSSProperties}
       onPointerDown={(event) => {
         // Only when the focus is not already inside: a header press would otherwise blur the reading, which saves the file.
         const card = event.currentTarget;

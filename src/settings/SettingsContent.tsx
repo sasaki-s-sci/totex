@@ -17,6 +17,7 @@ import { Callout, SettingsMap } from "./SettingsMap";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
 import { SpareRow } from "./SpareRow";
 import { TerminalSortRow } from "./TerminalSortRow";
+import { TextSizeRow } from "./TextSizeRow";
 import { ThemeRow } from "./ThemeRow";
 import { UndoRow } from "./UndoRow";
 import { UpdateRow } from "./UpdateRow";
@@ -52,6 +53,7 @@ export function SettingsContent() {
           </Callout>
           <Callout parts={["page"]} name={t("settings.page")}>
             <FileTitleRow />
+            <TextSizeRow place="page" />
             <UndoRow />
           </Callout>
           <Group name={t("settings.graph")}>
@@ -73,6 +75,7 @@ export function SettingsContent() {
         <Section name={t("settings.terminal")}>
           <Callout parts={["terminal"]} name={t("settings.terminalView")}>
             <WheelRow place="cli" />
+            <TextSizeRow place="terminal" />
           </Callout>
           <Callout parts={["stack"]} name={t("settings.terminalMarks")}>
             <TerminalSortRow />

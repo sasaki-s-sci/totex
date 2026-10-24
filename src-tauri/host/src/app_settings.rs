@@ -41,6 +41,8 @@ fn validate(value: &Value) -> Result<(), String> {
     range(value, "readingSize", 8, 20)?;
     range(value, "undoDepth", 10, 1000)?;
     range(value, "cliWheel", 5, 400)?;
+    range(value, "pageText", 50, 200)?;
+    range(value, "terminalText", 50, 200)?;
     range(value, "graphWheel", 5, 400)?;
     if let Some(monitor) = object.get("monitor") {
         validate_monitor(monitor)?;
