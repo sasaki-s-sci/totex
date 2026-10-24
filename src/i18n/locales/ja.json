@@ -73,6 +73,7 @@
     "copyContents": "中身をコピー",
     "duplicate": "複製",
     "download": "ダウンロード",
+    "downloadMany": "{{count}} 件をダウンロード",
     "downloaded": "{{path}} にコピーしました",
     "copyPath": "パスをコピー",
     "copyRelativePath": "相対パスをコピー",

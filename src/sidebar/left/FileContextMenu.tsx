@@ -9,6 +9,7 @@ import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutl
 import NotesOutlinedIcon from "@mui/icons-material/NotesOutlined";
 import RouteOutlinedIcon from "@mui/icons-material/RouteOutlined";
 import {
+  Alert,
   Button,
   Dialog,
   DialogActions,
@@ -20,6 +21,7 @@ import {
   ListItemText,
   Menu,
   MenuItem,
+  Snackbar,
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -165,13 +167,15 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
         <Divider />
         <FileItem
           icon={<DownloadOutlinedIcon />}
-          label={t("file.download")}
+          label={
+            paths.length > 1 ? t("file.downloadMany", { count: paths.length }) : t("file.download")
+          }
           disabled={busy !== null}
           onClick={() =>
             void run(
               "download",
-              () => downloadEntry(path),
-              (where) => String(where),
+              () => downloadEach(paths),
+              (where) => (where as string[]).map(displayPath).join("\n"),
             )
           }
         />
@@ -209,17 +213,20 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
             }}
           />
         )}
-        {(failed || went) && (
-          <MenuItem disabled sx={{ whiteSpace: "normal" }}>
-            <ListItemText
-              secondary={
-                failed ? t("file.failed") : t("file.downloaded", { path: displayPath(went ?? "") })
-              }
-              slotProps={{ secondary: { sx: { wordBreak: "break-all" } } }}
-            />
-          </MenuItem>
-        )}
       </Menu>
+
+      {/* Outside the menu: a row added inside it would make the menu taller and move it. */}
+      <Snackbar
+        open={failed || went !== null}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+      >
+        <Alert
+          severity={failed ? "error" : "success"}
+          sx={{ whiteSpace: "pre-line", wordBreak: "break-all" }}
+        >
+          {failed ? t("file.failed") : t("file.downloaded", { path: went ?? "" })}
+        </Alert>
+      </Snackbar>
 
       <Dialog open={deleting} onClose={busy ? undefined : () => setDeleting(false)}>
         <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
@@ -267,6 +274,13 @@ function FileItem({
       <ListItemText>{label}</ListItemText>
     </MenuItem>
   );
+}
+
+/** One at a time: two copies racing for a free name in the same folder could pick the same one. */
+async function downloadEach(paths: readonly string[]) {
+  const where: string[] = [];
+  for (const path of paths) where.push(await downloadEntry(path));
+  return where;
 }
 
 async function copyContents(path: string) {

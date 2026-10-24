@@ -73,6 +73,7 @@
     "copyContents": "Copy contents",
     "duplicate": "Duplicate",
     "download": "Download",
+    "downloadMany": "Download {{count}} items",
     "downloaded": "Copied to {{path}}",
     "copyPath": "Copy path",
     "copyRelativePath": "Copy relative path",
