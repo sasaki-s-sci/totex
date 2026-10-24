@@ -174,7 +174,12 @@ export function FilePage({
       bodyRef={setBody}
       onBodyWheel={data.view === "settings" || isDocument || nativeScroll ? undefined : onWheel}
       footnote={footnote}
-      style={{ "--reading-size": `${size}px` } as CSSProperties}
+      style={
+        {
+          // The canvas scales the card with its zoom; dividing it back out keeps the text the sidebar's size.
+          "--reading-size": `${placement === "canvas" ? size / zoom : size}px`,
+        } as CSSProperties
+      }
       onPointerDown={(event) => {
         // Only when the focus is not already inside: a header press would otherwise blur the reading, which saves the file.
         const card = event.currentTarget;
