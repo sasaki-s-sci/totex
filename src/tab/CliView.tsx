@@ -7,6 +7,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAppSettings } from "../lib/appSettings";
 import { copyText, readClipboard } from "../lib/clipboard";
 import {
   attachShell,
@@ -93,7 +94,9 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
   useEffect(() => {
     ended.current = onEnded;
   }, [onEnded]);
+  const { terminalText } = useAppSettings();
   const drawnAt = useRef(scale);
+  const textAt = useRef(terminalText);
   const settle = useRef<(() => void) | null>(null);
   const showing = useRef(shown);
   const catchUpNow = useRef<(() => void) | null>(null);
@@ -107,7 +110,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     setPasteFailed(false);
 
     const terminal = new Terminal({
-      fontSize: FONT * drawnAt.current,
+      fontSize: (FONT * drawnAt.current * textAt.current) / 100,
       fontFamily: look.mono,
       allowTransparency: look.seeThrough,
       cursorBlink: true,
@@ -150,7 +153,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     };
 
     const measure = () => {
-      const face = FONT * drawnAt.current;
+      const face = (FONT * drawnAt.current * textAt.current) / 100;
       if (terminal.options.fontSize !== face) terminal.options.fontSize = face;
       fit.fit();
       const { rows, cols } = terminal;
@@ -409,6 +412,10 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     drawnAt.current = scale;
     settle.current?.();
   }, [scale]);
+  useEffect(() => {
+    textAt.current = terminalText;
+    settle.current?.();
+  }, [terminalText]);
   useEffect(() => {
     showing.current = shown;
     if (shown) catchUpNow.current?.();

@@ -214,6 +214,8 @@
     "groupGap": "リポジトリ・フォルダの間隔（格子の行数）",
     "cliMarkSize": "ターミナルのアイコンの大きさ",
     "folderMarkSize": "フォルダのアイコンの大きさ",
+    "pageText": "ページの文字サイズ",
+    "terminalText": "ターミナルの文字サイズ",
     "canvasAlign": "揃える位置",
     "alignTerminal": "ターミナル",
     "alignInitial": "履歴の始まり",

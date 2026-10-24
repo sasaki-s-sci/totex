@@ -43,6 +43,8 @@ test("migrates the user preferences that survive, reading the reading size", () 
       undoDepth: 200,
       cliWheel: 100,
       graphWheel: 10,
+      pageText: 100,
+      terminalText: 100,
     },
   );
 });
