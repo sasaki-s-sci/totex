@@ -14,10 +14,15 @@ export function underPlace(root: string, cwd: string): boolean {
   return path === parent || path.startsWith(`${parent}/`);
 }
 
-/** Worktrees can stand outside the repository folder; directory prefixes alone miss them. */
+/**
+ * Worktrees can stand outside the repository folder; directory prefixes alone miss them.
+ * `kept` are the roots that stay on the canvas: a session under one of them, and deeper than the
+ * places being removed, belongs to that kept root and stays alive.
+ */
 export function sessionsInPlaces(
   places: readonly Graphed[],
   repositories: readonly Repository[],
+  kept: readonly string[] = [],
 ): (session: Session) => boolean {
   const roots = new Set<string>();
   for (const place of places) {
@@ -27,5 +32,12 @@ export function sessionsInPlaces(
       for (const worktree of repository.worktrees) roots.add(worktree.path);
     }
   }
-  return (session) => [...roots].some((root) => underPlace(root, session.cwd));
+  for (const root of kept) roots.delete(root);
+  const everything = [...roots, ...kept];
+  return (session) => {
+    const owner = everything
+      .filter((root) => underPlace(root, session.cwd))
+      .reduce((deepest, root) => (root.length > deepest.length ? root : deepest), "");
+    return roots.has(owner);
+  };
 }

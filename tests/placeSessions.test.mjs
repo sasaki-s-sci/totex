@@ -22,6 +22,18 @@ test("folder deletion includes repositories beneath it and their worktrees", () 
   assert.equal(matches(session("/projects-other/app")), false);
 });
 
+test("removing a folder keeps terminals of a folder still on the canvas beneath it", () => {
+  const matches = sessionsInPlaces(
+    [{ kind: "folder", root: "/projects" }],
+    [repo],
+    ["/projects/app"],
+  );
+  assert.equal(matches(session("/projects/notes")), true);
+  assert.equal(matches(session("/projects/app")), false);
+  assert.equal(matches(session("/projects/app/src")), false);
+  assert.equal(matches(session("/worktrees/feature")), true);
+});
+
 test("ownership uses path components and platform casing", () => {
   assert.equal(underPlace("C:\\Projects\\App\\", "c:/projects/app/src"), true);
   assert.equal(underPlace("C:/projects/app", "c:/projects/app-two"), false);

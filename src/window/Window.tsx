@@ -80,10 +80,11 @@ export function Window() {
   const drops = useDrops(canvasHost, files.openFiles);
   const deletePlace = useCallback(
     async (place: Graphed) => {
-      await sessions.endMatching(sessionsInPlaces([place], workspace?.repositories ?? []));
+      const kept = graphed.filter((folder) => folder.root !== place.root).map((f) => f.root);
+      await sessions.endMatching(sessionsInPlaces([place], workspace?.repositories ?? [], kept));
       setUngraph({ root: place.root, kind: place.kind });
     },
-    [sessions.endMatching, workspace],
+    [sessions.endMatching, workspace, graphed],
   );
   const deletePane = useCallback(
     async (pane: Pane) => {
@@ -91,9 +92,11 @@ export function Window() {
         { kind: pane.kind, root: pane.path },
         ...pane.graphed.map((root) => ({ kind: pane.kind, root })),
       ];
-      await sessions.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? []));
+      const ownedRoots = new Set(owned.map((place) => place.root));
+      const kept = graphed.filter((folder) => !ownedRoots.has(folder.root)).map((f) => f.root);
+      await sessions.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? [], kept));
     },
-    [sessions.endMatching, workspace],
+    [sessions.endMatching, workspace, graphed],
   );
   const closeRepository = useCallback(
     (repository: Repository) => {
