@@ -67,7 +67,7 @@ function TerminalPage({
       tools={
         <>
           {placement !== "sidebar" && <MonitorBadge id={session.id} />}
-          <PageTools name={name} placement={placement} collapsed={collapsed} controls={controls} />
+          <PageTools name={name} placement={placement} controls={controls} />
         </>
       }
     >

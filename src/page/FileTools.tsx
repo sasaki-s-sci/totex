@@ -39,13 +39,7 @@ export function FileTools({
   const { t } = useTranslation();
   const config = useSettingsDocument();
   const isSettings = config?.path === data.path;
-  const {
-    closeFilePreview,
-    collapseFilePreview,
-    setFilePreviewView,
-    pinFilePreview,
-    previewFilePreview,
-  } = actions;
+  const { closeFilePreview, setFilePreviewView, pinFilePreview, previewFilePreview } = actions;
 
   const afterSave = (action: () => void) => () => {
     void save().then((saved) => saved && action());
@@ -54,14 +48,12 @@ export function FileTools({
     <PageTools
       name={data.name}
       placement={placement}
-      collapsed={data.collapsed}
       pinned={data.pinnedAt !== null}
       controls={{
         move: onMove && afterSave(onMove),
         hide: onHide,
         pin: afterSave(() => pinFilePreview(data.requestId)),
         fit: onFit,
-        collapse: afterSave(() => collapseFilePreview(data.requestId)),
         shrink: onShrink,
         close: afterSave(() => closeFilePreview(data.requestId)),
       }}

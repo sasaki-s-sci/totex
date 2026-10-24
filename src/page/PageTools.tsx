@@ -1,9 +1,7 @@
 import CloseIcon from "@mui/icons-material/Close";
 import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
 import HeightIcon from "@mui/icons-material/Height";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
@@ -17,7 +15,6 @@ export type PageControls = {
   move?: () => void;
   pin?: () => void;
   fit?: () => void;
-  collapse?: () => void;
   shrink?: () => void;
   close?: () => void;
   hide?: () => void;
@@ -28,14 +25,12 @@ export function PageTools({
   name,
   placement,
   controls,
-  collapsed = false,
   pinned = false,
   children,
 }: {
   name: string;
   placement: PagePlacement;
   controls: PageControls;
-  collapsed?: boolean;
   pinned?: boolean;
   children?: ReactNode;
 }) {
@@ -70,14 +65,6 @@ export function PageTools({
           {controls.fit && (
             <PageTool label={t("filePreview.fitWidth", { name })} onClick={controls.fit}>
               <HeightIcon sx={{ ...icon, transform: "rotate(90deg)" }} />
-            </PageTool>
-          )}
-          {controls.collapse && (
-            <PageTool
-              label={t(collapsed ? "filePreview.expand" : "filePreview.collapse", { name })}
-              onClick={controls.collapse}
-            >
-              {collapsed ? <KeyboardArrowDownIcon sx={icon} /> : <KeyboardArrowUpIcon sx={icon} />}
             </PageTool>
           )}
           {controls.shrink && (

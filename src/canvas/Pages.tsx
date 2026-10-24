@@ -81,7 +81,6 @@ export function Pages({
               controls={{
                 move: () => workspace.move(id, placement === "canvas" ? "sidebar" : "canvas"),
                 hide: workspace.hide,
-                collapse: () => actions.collapseCliPage(session.id),
                 shrink: () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
               }}
               onEnded={() => actions.endSession(session)}
