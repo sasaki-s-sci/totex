@@ -4,6 +4,12 @@
   contain: layout;
 }
 
+/* Ctrl+Shift or Ctrl+Alt with a terminal focused: files step back and the worktrees come forward. */
+.graph[data-chord] .react-flow__node-file-preview {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
 .graph .react-flow__node-file-preview:focus,
 .graph .react-flow__node-cli-page:focus,
 .graph .react-flow__node-settings-page:focus {

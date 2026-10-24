@@ -36,6 +36,7 @@ import { DETAIL_GAP, DETAIL_ZOOM, nodeTypes, proOptions, retainLineNodes } from 
 import { GraphMarksProvider } from "./graphMarks";
 import { HistoryLengthProvider } from "./historyLength";
 import { fileLeast } from "./hooks/filePreviewBox";
+import { PAGE_Z } from "./hooks/pagePlacing";
 import { useBrowsedWorktrees } from "./hooks/useBrowsedWorktrees";
 import { useCanvasDrag } from "./hooks/useCanvasDrag";
 import { MAX_ZOOM, MIN_ZOOM, useCanvasFold } from "./hooks/useCanvasFold";
@@ -49,6 +50,7 @@ import { useHistoryDepth } from "./hooks/useHistoryDepth";
 import { useJunctionView } from "./hooks/useJunctionView";
 import { useNodeGlide } from "./hooks/useNodeGlide";
 import { useSettingsPage } from "./hooks/useSettingsPage";
+import { useTerminalChord } from "./hooks/useTerminalChord";
 import { useWorktreeStatus } from "./hooks/useWorktreeStatus";
 import { Pages } from "./Pages";
 import { PinnedCards } from "./PinnedCards";
@@ -61,6 +63,9 @@ import { ChangesProvider } from "./changes";
 import { WorktreeStatusProvider } from "./worktreeStatus";
 
 import "./styles/index.css";
+
+// Above the files' pages, so the worktrees they are beside can be reached while a terminal chord is held.
+const FRONT_Z = PAGE_Z + 100;
 
 export function Canvas({
   workspace,
@@ -322,6 +327,8 @@ export function Canvas({
     onEndSession,
   });
 
+  const chord = useTerminalChord();
+
   // Offers ride on top of the canvas's own nodes and only while asked for: they are never in its state.
   const shown = useMemo(() => {
     const drawn = nodes
@@ -333,10 +340,14 @@ export function Canvas({
             : node.type === "cli-page"
               ? terminalPageId(node.data.session.id)
               : null;
-        return id && placement?.(id) === "sidebar" ? { ...node, hidden: true } : node;
+        if (id && placement?.(id) === "sidebar") return { ...node, hidden: true };
+        // Over the files while a terminal chord is held: the worktrees are what it is for.
+        if (chord && (node.type === "repository" || node.type === "folder"))
+          return { ...node, zIndex: FRONT_Z };
+        return node;
       });
     return offering ? [...drawn, ...graph.offers] : drawn;
-  }, [nodes, offering, graph.offers, placement]);
+  }, [nodes, offering, graph.offers, placement, chord]);
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
 
@@ -411,6 +422,7 @@ export function Canvas({
                       className="graph"
                       data-coarse={coarse || undefined}
                       data-offering={offering || undefined}
+                      data-chord={chord || undefined}
                     >
                       <ReactFlow<AppNode, Edge>
                         ref={pane}
