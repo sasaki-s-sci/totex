@@ -11,6 +11,7 @@ import { OfferNode } from "./nodes/OfferNode";
 import { RepoMarkNode } from "./nodes/RepoMarkNode";
 import { ReportNode } from "./nodes/ReportNode";
 import { RepositoryNode } from "./nodes/RepositoryNode";
+import { TileNode } from "./nodes/TileNode";
 
 export const nodeTypes = {
   repository: RepositoryNode,
@@ -24,6 +25,7 @@ export const nodeTypes = {
   report: ReportNode,
   "file-preview": FilePreviewNode,
   "cli-page": CliPageNode,
+  tile: TileNode,
 } satisfies NodeTypes;
 
 export const proOptions = { hideAttribution: true };

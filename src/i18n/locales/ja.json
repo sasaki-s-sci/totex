@@ -128,6 +128,10 @@
     "deleteConfirm": "削除",
     "deleteFailed": "削除できませんでした"
   },
+  "tile": {
+    "shorter": "タイルを一段低くする",
+    "taller": "タイルを一段高くする"
+  },
   "cli": {
     "shell": "シェル",
     "open": "シェル",
@@ -335,7 +339,7 @@
   "monitor": {
     "title": "Monitor",
     "enabled": "有効",
-    "agentsOnly": "コーディングエージェントの端末だけ",
+    "everyTerminal": "全てのターミナルを監視",
     "agent": "エージェント",
     "cli": "コーディングエージェント",
     "custom": "カスタム ACP",

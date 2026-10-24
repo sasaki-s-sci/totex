@@ -56,6 +56,8 @@ function build(workspace, folders, previous, sessions = [], align) {
       visible: new Map(),
       opened: new Map(),
       closed: new Set(),
+      tiles: new Map(),
+      step: 24,
       sessions,
       showing: null,
       reports: new Map(),

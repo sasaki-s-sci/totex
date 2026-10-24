@@ -67,3 +67,4 @@ export {
 } from "./model";
 export { isPage } from "./pages";
 export type { CardStep, ReportCard, ReportFlowNode, ReportNodeData } from "./reporting";
+export { clampTile, TILE, TILE_WIDTH, type TileFlowNode, type TileNodeData } from "./tiles";

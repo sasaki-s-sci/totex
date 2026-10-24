@@ -17,6 +17,12 @@ export type GraphInput = {
   /** Junction knots pressed shut, by node id. */
   closed: ReadonlySet<string>;
 
+  /** Grid steps each plain terminal's tile is tall, by session; absent is `TILE.start`. */
+  tiles: ReadonlyMap<string, number>;
+
+  /** The grid step a tile's height is counted in. */
+  step: number;
+
   sessions: readonly Session[];
 
   showing: string | null;

@@ -1,6 +1,5 @@
 import type { Folder } from "../hooks/useWorkspace";
 import type { CardSeed } from "../lib/cardWindow";
-import type { Doing } from "../lib/doing";
 import type { FilePreviewRequest, FilePreviewView } from "../lib/filePreview";
 import type { CommitFlowNode, Origin } from "../lib/graph";
 import type { Report } from "../lib/mcp";
@@ -36,8 +35,6 @@ export type CanvasProps = {
   paged: readonly string[];
 
   reports: ReadonlyMap<string, Report>;
-
-  doings: ReadonlyMap<string, Doing>;
 
   marks: GraphMarks;
 

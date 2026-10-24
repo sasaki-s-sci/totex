@@ -13,6 +13,7 @@ export function useCanvasActions({
   openRepository,
   foldRepository,
   toggleJunction,
+  resizeTile,
   expand,
   fold,
   setLength,
@@ -45,6 +46,7 @@ export function useCanvasActions({
   openRepository: GraphActions["openRepository"];
   foldRepository: GraphActions["foldRepository"];
   toggleJunction: GraphActions["toggleJunction"];
+  resizeTile: GraphActions["resizeTile"];
   expand: GraphActions["expand"];
   fold: GraphActions["fold"];
   setLength: GraphActions["setLength"];
@@ -80,6 +82,7 @@ export function useCanvasActions({
       openRepository,
       foldRepository,
       toggleJunction,
+      resizeTile,
       expand,
       fold,
       setLength,
@@ -113,6 +116,7 @@ export function useCanvasActions({
       openRepository,
       foldRepository,
       toggleJunction,
+      resizeTile,
       expand,
       fold,
       setLength,

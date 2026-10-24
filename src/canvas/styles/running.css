@@ -8,8 +8,11 @@
   justify-content: center;
 }
 
+/* The hit area of a terminal: no mark drawn, so the number and the card are what show. */
 .cli__open {
   display: flex;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
   background: none;
@@ -28,6 +31,24 @@
 /* Held long enough to move: the icon follows the pointer rather than opening. */
 .cli__open.is-moving {
   cursor: grabbing;
+  color: var(--mui-palette-primary-main);
+}
+
+/* Stood above the edge that runs into the terminal, as a branch's name stands above its line. */
+.cli__number {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  color: var(--mui-palette-text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.cli__open.is-showing ~ .cli__number {
   color: var(--mui-palette-primary-main);
 }
 
@@ -119,4 +140,66 @@
 .offer:hover .offer__name,
 .react-flow__node.is-picked .offer__name {
   display: block;
+}
+
+/* A plain terminal's tile: a box as tall as its grid steps, beside the edge that runs into it. */
+.tile {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 5px;
+  background: var(--mui-palette-background-paper);
+  overflow: hidden;
+}
+
+.tile__body {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+/* The badge keeps its text; the tile, not the badge, is the box it sits in. */
+.tile__body .monitor-badge--canvas {
+  position: static;
+  width: 100%;
+  border: none;
+  transform: none;
+}
+
+.tile__bar {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--reveal);
+}
+
+.tile:hover .tile__bar,
+.tile__bar:focus-within {
+  opacity: 1;
+}
+
+.tile__press {
+  display: flex;
+  padding: 1px;
+  border: none;
+  background: none;
+  color: var(--mui-palette-text-secondary);
+  cursor: pointer;
+}
+
+.tile__press:hover {
+  color: var(--mui-palette-text-primary);
+}
+
+.tile__press:disabled {
+  opacity: 0.35;
+  cursor: default;
 }

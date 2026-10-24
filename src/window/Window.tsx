@@ -3,7 +3,6 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
-import { useDoings } from "../hooks/useDoings";
 import { useDrops } from "../hooks/useDrops";
 import { useFileDrops } from "../hooks/useFileDrops";
 import { useMarks } from "../hooks/useMarks";
@@ -63,7 +62,6 @@ export function Window() {
   const sessions = useSessions();
   useResumeRuntime(sessions);
   const reports = useReports();
-  const doings = useDoings();
   useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
   const tasks = useTaskKeys({
     sessions: sessions.sessions,
@@ -206,7 +204,6 @@ export function Window() {
               showing={sessions.showing}
               paged={sessions.paged}
               reports={reports}
-              doings={doings}
               marks={marks}
               onSelect={work.pickCommit}
               onNewWork={work.newWork}

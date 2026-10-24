@@ -128,6 +128,10 @@
     "deleteConfirm": "Delete",
     "deleteFailed": "Could not delete"
   },
+  "tile": {
+    "shorter": "Shorten tile by one step",
+    "taller": "Make tile one step taller"
+  },
   "cli": {
     "shell": "Shell",
     "open": "Shell",
@@ -335,7 +339,7 @@
   "monitor": {
     "title": "Monitor",
     "enabled": "Enabled",
-    "agentsOnly": "Coding agent terminals only",
+    "everyTerminal": "Monitor every terminal",
     "agent": "Agent",
     "cli": "Coding agent",
     "custom": "Custom ACP",

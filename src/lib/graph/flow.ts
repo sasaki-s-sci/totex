@@ -11,6 +11,7 @@ import type {
 } from "./marks";
 import type { BranchHeadData, CommitNodeData, FolderNodeData, RepositoryNodeData } from "./nodes";
 import type { ReportFlowNode } from "./reporting";
+import type { TileFlowNode } from "./tiles";
 
 export type CommitFlowNode = Node<CommitNodeData, "commit">;
 export type BranchHeadFlowNode = Node<BranchHeadData, "head">;
@@ -24,6 +25,7 @@ export type OfferFlowNode = Node<OfferData, "offer">;
 export type FilePreviewFlowNode = Node<FilePreviewNodeData, "file-preview">;
 export type CliPageFlowNode = Node<CliPageNodeData, "cli-page">;
 export type AppNode =
+  | TileFlowNode
   | CommitFlowNode
   | BranchHeadFlowNode
   | CollapseFlowNode

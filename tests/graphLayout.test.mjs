@@ -224,7 +224,7 @@ test("the new workspace's line leaves the commit the workspace is cut from", asy
 
   const lineFrom = (repo) => {
     const entry = prepare(repo, undefined, new Map());
-    const draw = { before: new Map(), offered: new Map() };
+    const draw = { before: new Map(), offered: new Map(), tiles: new Map(), step: 24 };
     const column = bandColumn(entry, new Map(), new Set(), null, new Map(), draw);
     return column.offerLines.find((part) => part.id.endsWith("newcut"))?.from.node;
   };
@@ -275,7 +275,7 @@ test("a branch nothing runs in reaches its offer with a dashed line from its rin
   repo.worktrees = [{ id: "wt", name: "repo", path: "/repo", head: "tip", branch: "main" }];
   repo.branches[0].checkedOutIn = ["wt"];
   const entry = prepare(repo, undefined, new Map());
-  const draw = { before: new Map(), offered: new Map() };
+  const draw = { before: new Map(), offered: new Map(), tiles: new Map(), step: 24 };
 
   const empty = bandColumn(entry, new Map(), new Set(), null, new Map(), draw);
   const offer = empty.offers.find((node) => node.data.kind === "open");
@@ -316,7 +316,7 @@ test("a folder row and a shut repository's mark reach their offers with dashed l
     },
     { x: 40, y: 80 },
     new Set(),
-    { before: new Map(), offered: new Map() },
+    { before: new Map(), offered: new Map(), tiles: new Map(), step: 24 },
   );
 
   const at = new Map(group.nodes.map((node) => [node.id, node.position]));

@@ -411,28 +411,8 @@ impl Monitor {
     }
     pub fn snapshots(&self) -> Vec<Snapshot> {
         let state = lock(&self.state);
-        let mut snapshots: Vec<_> = state
-            .entries
-            .values()
-            .map(|e| {
-                let mut s = e.snapshot.clone();
-                if state.config.features.agents && state.config.enabled {
-                    s.report.agents.insert(
-                        0,
-                        Agent {
-                            id: "totex-shell".into(),
-                            kind: Kind::Shell,
-                            label: "shell".into(),
-                            status: Status::Running,
-                            detail: s.environment.clone(),
-                            progress: None,
-                            source: "observed".into(),
-                        },
-                    );
-                }
-                s
-            })
-            .collect();
+        // The terminal's own process is not a worker: only what the transcript evidences is shown.
+        let mut snapshots: Vec<_> = state.entries.values().map(|e| e.snapshot.clone()).collect();
         snapshots.sort_by(|a, b| a.id.cmp(&b.id));
         snapshots
     }

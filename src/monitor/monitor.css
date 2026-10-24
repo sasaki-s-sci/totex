@@ -178,6 +178,19 @@
   flex: 0 1 auto;
   gap: 3px;
 }
+/* On the canvas card's top edge, as a legend: the edge runs through the icons and they break it. */
+.monitor-badge--canvas {
+  overflow: visible;
+}
+.monitor-badge--canvas > .monitor-badge__count {
+  position: absolute;
+  top: 0;
+  left: 8px;
+  padding: 0 3px;
+  background: var(--mui-palette-background-default);
+  line-height: 1;
+  transform: translateY(-50%);
+}
 .monitor-role {
   display: inline-flex;
   align-items: center;

@@ -53,13 +53,13 @@ export function MonitorRows() {
           slotProps={{ input: { "aria-label": t("monitor.enabled") } }}
         />
       </Row>
-      <Row label={t("monitor.agentsOnly")}>
+      <Row label={t("monitor.everyTerminal")}>
         <Checkbox
           size="small"
           sx={TICK_SX}
-          checked={monitor.agentsOnly}
-          onChange={(event) => set({ agentsOnly: event.target.checked })}
-          slotProps={{ input: { "aria-label": t("monitor.agentsOnly") } }}
+          checked={!monitor.agentsOnly}
+          onChange={(event) => set({ agentsOnly: !event.target.checked })}
+          slotProps={{ input: { "aria-label": t("monitor.everyTerminal") } }}
         />
       </Row>
       <Group name={t("monitor.agent")}>

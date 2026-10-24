@@ -1,8 +1,7 @@
 import { Box, Typography } from "@mui/material";
-import type { Doing } from "../lib/doing";
 import type { CliPlace } from "../lib/graphNav";
 import type { Session } from "../lib/session";
-import { CLI_GLYPH, CLI_NUMBER, CliGlyph } from "../marks";
+import { CLI_GLYPH, CLI_NUMBER } from "../marks";
 
 const GAP = 4;
 const GROUP_GAP = 6;
@@ -13,7 +12,6 @@ type Props = {
   run: readonly CliPlace[];
   sessions: readonly Session[];
   showing: string | null;
-  doings: ReadonlyMap<string, Doing>;
 };
 
 type Party = {
@@ -41,7 +39,7 @@ function parties(run: readonly CliPlace[]): Party[] {
   return places;
 }
 
-export function TabStrip({ run, sessions, showing, doings }: Props) {
+export function TabStrip({ run, sessions, showing }: Props) {
   const groups = parties(run);
   // Sessions outside the current graph still belong in the header, without a graph shortcut.
   for (const session of sessions) {
@@ -113,7 +111,17 @@ export function TabStrip({ run, sessions, showing, doings }: Props) {
                     ml: slot === 0 ? 0 : `${GAP}px`,
                   }}
                 >
-                  <CliGlyph doing={doings.get(place.session) ?? null} jump={jump} />
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: `${Math.round(CLI_GLYPH * 0.85)}px`,
+                      fontWeight: 600,
+                      fontVariantNumeric: "tabular-nums",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {jump}
+                  </Box>
                 </Box>
               );
             })}

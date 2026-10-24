@@ -130,19 +130,12 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
         {agent ? (
           <>
             <span className="monitor-badge__row" data-role="request">
-              {request && (
-                <>
-                  <UserIcon />
-                  <span className="monitor-badge__summary">{request}</span>
-                </>
-              )}
+              <PromptIcon />
+              {request && <span className="monitor-badge__summary">{request}</span>}
             </span>
             <span className="monitor-badge__row" data-status={status}>
               <StatusIcon status={status} />
               {summary && <span className="monitor-badge__summary">{summary}</span>}
-              {shown("agents") && snapshot && snapshot.agents.length > 0 && (
-                <AgentChips agents={snapshot.agents} />
-              )}
               {shown("goal") && snapshot?.goal && (
                 <span className="monitor-badge__extra">
                   {t(`monitor.goals.${snapshot.goal.status}`)}
@@ -152,6 +145,10 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
                 <span className="monitor-badge__extra">≈{estimate}m</span>
               )}
             </span>
+            {/* On the card's top edge, not in its rows: the line runs through the icons. */}
+            {shown("agents") && snapshot && snapshot.agents.length > 0 && (
+              <AgentChips agents={snapshot.agents} />
+            )}
           </>
         ) : (
           // A plain command shows only the command it runs, never what was typed or printed.
@@ -286,8 +283,8 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** The request the user made, as a person; the same stroke weight as the status icon. */
-function UserIcon() {
+/** The prompt the user's request is typed after; shown from the first render, before any request. */
+function PromptIcon() {
   return (
     <svg
       aria-hidden="true"
@@ -298,8 +295,9 @@ function UserIcon() {
       stroke="currentColor"
       strokeWidth="1.5"
       strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      <path d="M8 8.2a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2ZM3.2 14c.5-2.6 2.4-4 4.8-4s4.3 1.4 4.8 4" />
+      <path d="m5 3.5 4.5 4.5L5 12.5" />
     </svg>
   );
 }

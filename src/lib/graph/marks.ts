@@ -56,6 +56,10 @@ export type Draw = {
   /** The graph this one replaces, for reusing nodes that did not change. */
   before: ReadonlyMap<string, AppNode>;
   offered: ReadonlyMap<string, OfferFlowNode>;
+  /** Grid steps each plain terminal's tile is tall, by session. */
+  tiles: ReadonlyMap<string, number>;
+  /** The grid step a tile's height is counted in. */
+  step: number;
 };
 
 /** A terminal stood on the canvas as a page; its stack mark stays where it was. */

@@ -15,6 +15,7 @@ import type {
 } from "../model";
 import { CLI_STEP, type Draw, OFFER_STYLE, SESSION_WIDTH, STACK_STYLE } from "../model";
 import type { ReportFlowNode } from "../reporting";
+import type { TileFlowNode } from "../tiles";
 
 export function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
   const batches = new Map<string, { key: string; stroke: StrokeStyle; parts: GraphLine[] }>();
@@ -142,7 +143,8 @@ export type Held =
   | FolderFlowNode
   | RepoMarkFlowNode
   | CliFlowNode
-  | ReportFlowNode;
+  | ReportFlowNode
+  | TileFlowNode;
 
 // Copied rather than laid out: layouts are cached per depth, and a pull revisits depths.
 export function provisional(nodes: PreparedRepository["nodes"]): PreparedRepository["nodes"] {

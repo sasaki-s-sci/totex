@@ -27,6 +27,8 @@ export function buildCommitGraph(
     visible,
     opened,
     closed,
+    tiles,
+    step,
     sessions,
     showing,
     reports,
@@ -77,7 +79,8 @@ export function buildCommitGraph(
       node.type === "folder" ||
       node.type === "repo-mark" ||
       node.type === "cli" ||
-      node.type === "report"
+      node.type === "report" ||
+      node.type === "tile"
     ) {
       before.set(node.id, node);
     }
@@ -92,7 +95,7 @@ export function buildCommitGraph(
   const holds: Hold[] = [];
   const groups = new Map<string, Group>();
   const offered = new Map((previous?.offers ?? []).map((offer) => [offer.id, offer]));
-  const draw: Draw = { before, offered };
+  const draw: Draw = { before, offered, tiles, step };
 
   const claimed = new Set<string>();
 

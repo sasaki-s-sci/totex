@@ -58,6 +58,9 @@ export type GraphActions = FilePageActions & {
 
   toggleJunction: (junction: string) => void;
 
+  /** Grid steps a plain terminal's tile stands tall; clamped to `TILE`. */
+  resizeTile: (session: string, units: number) => void;
+
   expand: (repository: string) => void;
 
   fold: (repository: string, shown: number) => void;
@@ -93,6 +96,7 @@ export const NO_ACTIONS: GraphActions = {
   openRepository: () => {},
   foldRepository: () => {},
   toggleJunction: () => {},
+  resizeTile: () => {},
   expand: () => {},
   fold: () => {},
   setLength: () => {},

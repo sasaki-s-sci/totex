@@ -2,21 +2,20 @@ import CloseIcon from "@mui/icons-material/Close";
 import type { NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
 import type { CliFlowNode } from "../../lib/graph";
-import { CliGlyph } from "../../marks";
 import { MonitorBadge } from "../../monitor/MonitorBadge";
-import { useCliDoing } from "../cliDoing";
+import { isAgent } from "../../monitor/model";
+import { useMonitorGlance } from "../../monitor/runtime";
 import { useCliJump } from "../cliJumps";
 import { useCliReorder } from "../cliReorder";
 import { useGraphActions } from "../graphActions";
-import { useMarkSizes } from "../markSizes";
 
+// A coding CLI keeps its card beside the node; a plain terminal's tile is drawn by `TileNode`.
 export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
   const { t } = useTranslation();
-  const marks = useMarkSizes();
   const { session, showing, ordinal } = data;
   const { showSession, endSession } = useGraphActions();
   const jump = useCliJump(id);
-  const doing = useCliDoing(session.id);
+  const agent = isAgent(useMonitorGlance(session.id));
   const reorder = useCliReorder(id, session, data.group);
 
   const name = ordinal ? `${t("cli.shell")} ${ordinal}` : t("cli.shell");
@@ -35,9 +34,8 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
             if (reorder.takeMoved()) return;
             showSession(session);
           }}
-        >
-          <CliGlyph doing={doing} jump={jump} size={marks.cli} />
-        </button>
+        />
+        {jump !== null && <span className="cli__number">{jump}</span>}
 
         <button
           type="button"
@@ -52,7 +50,7 @@ export function CliNode({ id, data }: NodeProps<CliFlowNode>) {
           <CloseIcon sx={{ fontSize: 9 }} />
         </button>
 
-        <MonitorBadge id={session.id} canvas />
+        {agent && <MonitorBadge id={session.id} canvas />}
       </div>
     </div>
   );
