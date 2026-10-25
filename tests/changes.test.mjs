@@ -70,12 +70,12 @@ test("the colour climbs from worktrees to their repository and on to the folder"
       ["c", "added"],
     ],
   );
-  // A folder answers for the repositories it lists; a repository standing as itself has no row.
+  // A folder answers for the repositories it lists, amber whenever they hold any diff; a repository standing as itself has no row.
   assert.deepEqual(
     [...changes.folders],
     [
       ["/w", "modified"],
-      ["/w/c", "added"],
+      ["/w/c", "modified"],
     ],
   );
 });

@@ -99,6 +99,10 @@ export function bandColumn(
     for (const [slot, session] of standing.entries()) {
       const id = `session${session.id}`;
       const y = head + slot * CLI_STEP;
+      const x = run.x + SESSION_WIDTH + REPORT_GAP;
+      const beside = besideMark(session, reports, band, x, y, floor, draw);
+      // Level with its card's centre, so the one edge reaches the card without a peak.
+      const stand = beside ? beside.at + beside.height / 2 - CLI_STEP / 2 : y;
 
       drawn.nodes.push(
         cliNode(
@@ -111,31 +115,39 @@ export function bandColumn(
           },
           band,
           run.x,
-          y,
+          stand,
           draw,
         ),
       );
 
-      drawn.lines.push({
-        id: `${id}run`,
-        from: onHead(run.head),
-        to: onStack(id),
-        shape: "curve",
+      drawn.bottom = Math.max(drawn.bottom, stand + CLI_STEP);
 
-        trim: 0,
-        lead: run.lead,
-        stroke: CLI_STROKE,
-      });
-
-      drawn.bottom = Math.max(drawn.bottom, y + CLI_STEP);
-
-      const x = run.x + SESSION_WIDTH + REPORT_GAP;
-      const beside = besideMark(session, reports, id, band, x, y, floor, draw);
-      if (!beside) continue;
+      // One edge from the head to the card, as the git graph draws a parent link; the terminal is only its label.
+      if (!beside) {
+        drawn.lines.push({
+          id: `${id}run`,
+          from: onHead(run.head),
+          to: onStack(id),
+          shape: "curve",
+          trim: 0,
+          lead: run.lead,
+          stroke: CLI_STROKE,
+        });
+        continue;
+      }
 
       floor = beside.at + beside.height + REPORT_STACK_GAP;
       drawn.nodes.push(beside.node);
-      drawn.lines.push(beside.line);
+      drawn.lines.push({
+        id: `${id}run`,
+        from: onHead(run.head),
+        to: { node: beside.node.id, dx: 0, dy: beside.height / 2 },
+        shape: "curve",
+        trim: 0,
+        lead: run.lead,
+        stroke: CLI_STROKE,
+        terminal: id,
+      });
 
       drawn.bottom = Math.max(drawn.bottom, beside.at + beside.height);
       drawn.right = Math.max(drawn.right, x + beside.width);
@@ -204,16 +216,4 @@ function newWorkFrom({ repository, nodes }: PreparedRepository): {
     };
   }
   return null;
-}
-
-export function cardLine(card: string, mark: string, height: number): GraphLine {
-  return {
-    id: `${card}line`,
-    from: onStack(mark),
-    to: { node: card, dx: 0, dy: height / 2 },
-    shape: "curve",
-    trim: 0,
-    lead: 0,
-    stroke: CLI_STROKE,
-  };
 }

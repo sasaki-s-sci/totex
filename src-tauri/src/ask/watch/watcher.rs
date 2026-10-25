@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::super::doing::agent;
 use super::super::{Doing, Screen, doing_as, read, typed};
 
 /// What a session whose terminal has been taken over cannot be asked twice.
@@ -55,6 +56,11 @@ pub struct Watcher {
     /// started it, and it is left standing for as long as the agent has the
     /// terminal.
     started: Option<String>,
+    /// The line being typed at a terminal nothing has taken yet, as it was sent.
+    ///
+    /// Read from what was sent rather than from the screen because a Windows
+    /// console repaints, and the line that ran an agent is never seen on it.
+    keys: String,
     /// Whether the program holding the terminal has been read as an agent.
     ///
     /// Held, not read afresh each time: an agent is recognised by its composer
@@ -95,6 +101,7 @@ impl Watcher {
             screen: Screen::new(rows, cols),
             typed: None,
             started: None,
+            keys: String::new(),
             agent: false,
             // A shell that has not printed its prompt yet is a shell nobody
             // can type at, which is what starting up is.
@@ -203,8 +210,35 @@ impl Watcher {
         // A carriage return parks the caret at the start of a wrapped row.
         // Its preceding rows contain only a prefix of the submitted command.
         let standing = self.screen.standing();
-        if !standing.taken && standing.col > 0 && self.started != self.typed {
+        if !standing.taken && standing.col > 0 && self.typed.is_some() && self.started != self.typed
+        {
             self.started = self.typed.clone();
+        }
+    }
+
+    /// Takes what is sent to a terminal nothing has taken yet, and keeps the
+    /// line it makes if that line runs one of `AGENTS`.
+    ///
+    /// Sent as keystrokes, so a line is what is held until its return. Any other
+    /// line clears what was kept, so a program run after an agent is not read as
+    /// that agent. Nothing here while a program holds the terminal: what is typed
+    /// then is a turn, not a command.
+    pub fn keyed(&mut self, data: &str) {
+        if self.screen.standing().taken {
+            return;
+        }
+        for letter in data.chars() {
+            match letter {
+                '\r' | '\n' => {
+                    let line = std::mem::take(&mut self.keys);
+                    self.started = agent(&line).then_some(line);
+                }
+                '\u{7f}' | '\u{8}' => {
+                    self.keys.pop();
+                }
+                letter if letter.is_control() => self.keys.clear(),
+                letter => self.keys.push(letter),
+            }
         }
     }
 

@@ -323,6 +323,19 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       if (event.payload === session.id && live) ended.current();
     });
 
+    // Written at the default size, a backlog would be pushed up as the terminal shrinks to fit.
+    let stopSizing = () => {};
+    const sized = new Promise<void>((resolve) => {
+      if (element.clientWidth > 0 && element.clientHeight > 0) return resolve();
+      const wait = new ResizeObserver(() => {
+        if (element.clientWidth === 0 || element.clientHeight === 0) return;
+        wait.disconnect();
+        resolve();
+      });
+      wait.observe(element);
+      stopSizing = () => wait.disconnect();
+    });
+
     void readyAfter(
       (async () => {
         // Listen first: registering is itself an IPC round trip, and the backlog only covers the gap in this order.
@@ -344,6 +357,9 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
           return;
         }
 
+        await sized;
+        if (!live) return;
+        measure();
         await new Promise<void>((resolve) => terminal.write(held.text, resolve));
         if (!live) return;
         replaying = false;
@@ -379,6 +395,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       drawn.current = null;
       settle.current = null;
       resize.disconnect();
+      stopSizing();
       element.removeEventListener("paste", onPaste, true);
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());

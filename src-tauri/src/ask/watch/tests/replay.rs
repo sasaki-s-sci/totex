@@ -84,3 +84,25 @@ fn an_agent_that_left_in_the_tail_is_not_kept_standing() {
     assert_eq!(resumed.doing(), crate::ask::Doing::Idle);
     assert!(resumed.taken().is_none());
 }
+
+/// A Windows console repaints, so the line that ran an agent is never seen on
+/// the screen. What was sent is what says it ran, and that is enough for the
+/// agent to be drawn before its composer is.
+#[test]
+fn an_agent_sent_as_keys_is_one_before_its_composer_is_drawn() {
+    let mut watcher = Watcher::new(24, 60);
+    watcher.keyed("cla");
+    watcher.keyed("ude\r");
+    watcher.keep(0, "\u{1b}[?1004h\u{1b}[2J\u{1b}[H  Loading…");
+    assert_eq!(watcher.doing(), crate::ask::Doing::Agent);
+}
+
+/// A line that runs something else clears the agent that was sent before it.
+#[test]
+fn a_command_sent_after_an_agent_is_not_that_agent() {
+    let mut watcher = Watcher::new(24, 60);
+    watcher.keyed("claude\r");
+    watcher.keyed("vim notes\x7f\x7fsomething\r");
+    watcher.keep(0, "\u{1b}[?1004h\u{1b}[2J\u{1b}[H  Loading…");
+    assert_eq!(watcher.doing(), crate::ask::Doing::Running);
+}

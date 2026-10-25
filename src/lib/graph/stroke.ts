@@ -15,6 +15,8 @@ export type GraphLine = {
   offset?: number;
   stroke: StrokeStyle;
   name?: Label;
+  /** The terminal a line to its card stands for, where the line does not end on the terminal. */
+  terminal?: string;
 };
 
 /** Ends are named by node plus a half-box offset, so they follow the mark. */

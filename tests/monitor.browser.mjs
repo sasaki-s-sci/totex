@@ -99,7 +99,7 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
   );
   for (const [tail, expected] of [
     ["updated output\n$ ", ["updated output", "$ "]],
-    ["single line", ["", "single line"]],
+    ["single line", ["single line", ""]],
     ["", ["", ""]],
     [`${"あ".repeat(200)}\n  ${"x".repeat(200)}`, ["あ".repeat(200), `  ${"x".repeat(200)}`]],
   ]) {

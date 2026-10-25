@@ -1,31 +1,25 @@
 // Line arithmetic in layout units, so hit testing is the same answer at every zoom.
 
-// Both control points share one x, so a curve leaves flat, turns once, arrives flat.
-const LATE_BEND = 0.55;
-const EARLY_BEND = 0.26;
-// Rise over run past which the turn comes early.
-const STEEP = 1.6;
-
 export type Point = { x: number; y: number };
 
 /** `elbow` is the one non-history shape: a folder square down to what it holds. */
 export type LineShape = "straight" | "curve" | "elbow";
 
-// The steeper the climb, the earlier the turn: lines fanning out of one commit
-// then spread as nested arcs instead of overlapping, and cannot cross.
-function bendOf(source: Point, target: Point): number {
-  const run = Math.abs(target.x - source.x);
-  const rise = Math.abs(target.y - source.y);
-  if (run === 0) return LATE_BEND;
-
-  // Eased, so two branches a row apart do not leave at visibly different angles.
-  const steepness = Math.min(1, rise / run / STEEP);
-  return LATE_BEND + (EARLY_BEND - LATE_BEND) * steepness * steepness;
+// x runs linearly and y follows t(2 - t), a quadratic that leaves steep at the
+// source and levels into the target. The cubic handles that give exactly this
+// curve sit at 1/3 and 2/3 of the run; y never turns back, so there is no inflection.
+function controlsOf(source: Point, target: Point): [Point, Point] {
+  const run = target.x - source.x;
+  const rise = target.y - source.y;
+  return [
+    { x: source.x + run / 3, y: source.y + (rise * 2) / 3 },
+    { x: source.x + (run * 2) / 3, y: target.y },
+  ];
 }
 
 export function sigmoidPath(source: Point, target: Point): string {
-  const bendX = source.x + (target.x - source.x) * bendOf(source, target);
-  return `M ${source.x},${source.y} C ${bendX},${source.y} ${bendX},${target.y} ${target.x},${target.y}`;
+  const [first, second] = controlsOf(source, target);
+  return `M ${source.x},${source.y} C ${first.x},${first.y} ${second.x},${second.y} ${target.x},${target.y}`;
 }
 
 export function straightPath(source: Point, target: Point): string {
@@ -60,8 +54,7 @@ export function midpointOf(source: Point, target: Point, shape: LineShape): Poin
       : { x: source.x + Math.sign(target.x - source.x) * (half - down), y: target.y };
   }
 
-  const bendX = source.x + (target.x - source.x) * bendOf(source, target);
-  return { x: (source.x + target.x + 6 * bendX) / 8, y };
+  return cubicAt(source, target, 0.5);
 }
 
 /** The far end pulled back by `by`, so a line stops at a ring's rim. */
@@ -92,24 +85,26 @@ export function samplesOf(source: Point, target: Point, shape: LineShape): numbe
   if (shape === "straight") return [source.x, source.y, target.x, target.y];
   if (shape === "elbow") return [source.x, source.y, source.x, target.y, target.x, target.y];
 
-  const bendX = source.x + (target.x - source.x) * bendOf(source, target);
   const run: number[] = [];
   for (let step = 0; step <= SAMPLES; step++) {
-    const at = step / SAMPLES;
-    const rest = 1 - at;
-    // The same cubic `sigmoidPath` emits, not an approximation of it.
-    run.push(
-      rest * rest * rest * source.x +
-        3 * rest * rest * at * bendX +
-        3 * rest * at * at * bendX +
-        at * at * at * target.x,
-      rest * rest * rest * source.y +
-        3 * rest * rest * at * source.y +
-        3 * rest * at * at * target.y +
-        at * at * at * target.y,
-    );
+    const at = cubicAt(source, target, step / SAMPLES);
+    run.push(at.x, at.y);
   }
   return run;
+}
+
+/** The point on the cubic `sigmoidPath` emits, at parameter `at`. */
+function cubicAt(source: Point, target: Point, at: number): Point {
+  const [first, second] = controlsOf(source, target);
+  const rest = 1 - at;
+  const a = rest * rest * rest;
+  const b = 3 * rest * rest * at;
+  const c = 3 * rest * at * at;
+  const d = at * at * at;
+  return {
+    x: a * source.x + b * first.x + c * second.x + d * target.x,
+    y: a * source.y + b * first.y + c * second.y + d * target.y,
+  };
 }
 
 /** Distance to the run, or `Infinity` past `limit`; stops early once within it. */

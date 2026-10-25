@@ -65,8 +65,8 @@ export function changesOf(
       const held = summed.get(id);
       if (held) add(sum, held);
     }
-    const change = changeOf(sum);
-    if (change) roots.set(folder.root, change);
+    // A folder with any diff is amber, whatever its files did.
+    if (changeOf(sum)) roots.set(folder.root, "modified");
   }
 
   return { worktrees, repositories, folders: roots };

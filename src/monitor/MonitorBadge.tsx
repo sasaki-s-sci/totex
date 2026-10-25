@@ -106,7 +106,8 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const agents = shown("agents") && snapshot && snapshot.agents.length > 0 && (
     <AgentChips agents={snapshot.agents} />
   );
-  const terminalLines = ["", ...(glance?.tail ?? "").split("\n")].slice(-2);
+  // Top row first: a single line of output is the first line, not the bottom one.
+  const terminalLines = [...(glance?.tail ?? "").split("\n").slice(-2), "", ""].slice(0, 2);
   return (
     <>
       <button

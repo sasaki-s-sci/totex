@@ -100,7 +100,7 @@ test("a tile is fixed at its default length, and only grows from it", () => {
   assert.equal(tile.style.height, 32 + 10 * STEP);
 });
 
-test("session edges join without a gap in folders and open or folded repositories", () => {
+test("a session is one edge from its folder to its card, labelled with the terminal", () => {
   for (const extra of [
     {},
     { opened: new Map([["repo", false]]) },
@@ -116,10 +116,11 @@ test("session edges join without a gap in folders and open or folded repositorie
       (batch) => batch.parts,
     );
     for (const id of ["sessiona", "sessionb"]) {
-      const incoming = lines.find((line) => line.to.node === id);
-      const outgoing = lines.find((line) => line.from.node === id);
-      assert.ok(incoming && outgoing, id);
-      assert.deepEqual(endsOf(incoming, places).end, endsOf(outgoing, places).start);
+      const edges = lines.filter((line) => line.terminal === id);
+      assert.equal(edges.length, 1, id);
+      const [edge] = edges;
+      assert.ok(!lines.some((line) => line.from.node === id || line.to.node === id), id);
+      assert.equal(endsOf(edge, places).end.x, places.get(edge.to.node).x, id);
     }
   }
 });

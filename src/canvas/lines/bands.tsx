@@ -181,14 +181,15 @@ function SessionNumber({
 }) {
   const { numbers, showing } = useCliJumps();
   const id = useId();
-  const number = numbers.get(line.to.node);
+  const terminal = line.terminal ?? line.to.node;
+  const number = numbers.get(terminal);
   if (number === undefined) return null;
   return (
     <g>
       <defs>
         <path id={id} d={pathOf([line], standing)} />
       </defs>
-      <text className={`edge__number${showing === line.to.node ? " is-showing" : ""}`} dy={-4}>
+      <text className={`edge__number${showing === terminal ? " is-showing" : ""}`} dy={-4}>
         <textPath href={`#${id}`} startOffset="90%" textAnchor="end">
           {number}
         </textPath>

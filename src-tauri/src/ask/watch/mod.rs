@@ -67,6 +67,13 @@ impl AskState {
     }
 }
 
+/// Takes what is sent to a session as it goes to the shell — see `Watcher::keyed`.
+pub fn keyed<R: Runtime>(app: &AppHandle<R>, id: &str, data: &str) {
+    if let Some(watcher) = app.state::<AskState>().lock().get_mut(id) {
+        watcher.keyed(data);
+    }
+}
+
 /// Starts following the sessions, for the life of the app. The one place the
 /// two sides are joined, and joined this way round on purpose: the link is told
 /// that something is following and never what it is for.

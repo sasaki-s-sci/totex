@@ -66,6 +66,7 @@ pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Option<Held> {
 /// Sends what was typed. Keystrokes, not lines: the shell does the editing.
 #[tauri::command(async)]
 pub fn pty_write<R: Runtime>(app: AppHandle<R>, id: String, data: String) -> Result<(), String> {
+    crate::ask::watch::keyed(&app, &id, &data);
     crate::persistent::link(&app)
         .ask("write", json!({ "id": id, "data": data }))
         .map(|_| ())

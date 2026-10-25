@@ -218,7 +218,7 @@ fn waiting(text: &str) -> bool {
 }
 
 /// Whether a line somebody typed starts one of the agents.
-fn agent(said: &str) -> bool {
+pub(super) fn agent(said: &str) -> bool {
     ran(said).is_some_and(|name| AGENTS.contains(&name.as_str()))
 }
 
