@@ -1,6 +1,5 @@
 import type { NodeChange } from "@xyflow/react";
-import { useSyncExternalStore } from "react";
-import { settingsNow, subscribeSettings } from "./appSettings";
+import { settingsNow, useAppSettings } from "./appSettings";
 
 export const GRID = { least: 1, most: 100, start: 24 } as const;
 
@@ -15,7 +14,8 @@ export function gridNow(): { step: number; holding: boolean } {
 }
 
 export function useGrid(): { step: number; holding: boolean } {
-  return useSyncExternalStore(subscribeSettings, gridNow, gridNow);
+  const { gridStep, gridSnap } = useAppSettings();
+  return { step: gridStep, holding: gridSnap };
 }
 
 export function onGrid(value: number, step: number): number {
