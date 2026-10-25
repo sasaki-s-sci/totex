@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ReportFlowNode } from "../../lib/graph";
 import { useGraphActions } from "../graphActions";
+import { SessionEnd } from "./SessionEnd";
 
 export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
   const { t } = useTranslation();
@@ -11,6 +12,7 @@ export function ReportNode({ data }: NodeProps<ReportFlowNode>) {
 
   return (
     <div className="report">
+      <SessionEnd session={session} />
       <button
         type="button"
         className="report__head nopan"

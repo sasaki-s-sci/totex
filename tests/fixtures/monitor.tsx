@@ -1,19 +1,30 @@
 import { Box, CssBaseline, Stack, Typography } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { ReactFlow } from "@xyflow/react";
+import { useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { loadSettings, updateSettings } from "../../src/lib/appSettings";
+import { CliJumpsProvider } from "../../src/canvas/cliJumps";
+import { GraphLines } from "../../src/canvas/GraphLines";
+import { GraphActionsProvider, NO_ACTIONS } from "../../src/canvas/graphActions";
+import { CliNode } from "../../src/canvas/nodes/CliNode";
+import { FolderNode } from "../../src/canvas/nodes/FolderNode";
+import { TileNode } from "../../src/canvas/nodes/TileNode";
+import { loadSettings, updateSettings, useAppSettings } from "../../src/lib/appSettings";
+import type { Session } from "../../src/lib/session";
 import {
   DEFAULT_SETTINGS,
   mergeMonitor,
   type SettingsPatch,
   settingsFrom,
 } from "../../src/lib/appSettingsModel";
+import { buildCommitGraph } from "../../src/lib/graph/build";
 import { MonitorBadge } from "../../src/monitor/MonitorBadge";
 import { useMonitorRuntime } from "../../src/monitor/runtime";
 import { MonitorRows } from "../../src/settings/MonitorRows";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
+import "../../src/canvas/styles/index.css";
 
 let value = settingsFrom({
   ...DEFAULT_SETTINGS,
@@ -31,9 +42,27 @@ const documentValue = () => ({
   value,
 });
 const calls: { cmd: string; payload: unknown }[] = [];
+let terminalTail = "first output line\n  last output line";
+let summaries = true;
+const ended: string[] = [];
+const graphActions = {
+  ...NO_ACTIONS,
+  endSession: (session: Session) => {
+    ended.push(session.id);
+  },
+};
 Object.assign(window, {
   monitorCalls: calls,
+  monitorEnded: ended,
   monitorLanguage: (language: "en" | "ja") => updateSettings({ language }),
+  monitorTail: (tail: string) => {
+    terminalTail = tail;
+  },
+  monitorSummaries: (shown: boolean) => {
+    summaries = shown;
+  },
+  monitorWidth: (previewWidth: 160 | 220 | 320 | 420) =>
+    updateSettings({ monitor: { previewWidth } }),
 });
 mockIPC((cmd, payload) => {
   calls.push({ cmd, payload });
@@ -48,6 +77,25 @@ mockIPC((cmd, payload) => {
     return documentValue();
   }
   if (cmd === "monitor_configure" || cmd === "monitor_refresh") return null;
+  if (cmd === "pty_standing")
+    return [
+      ...["running", "permission", "failure"].map((id) => ({
+        id,
+        doing: id === "running" ? "working" : "agent",
+        asking: id === "permission",
+        said: "Add keyboard navigation to the editor",
+        running: "claude",
+        tail: "agent output",
+      })),
+      {
+        id: "terminal",
+        doing: "running",
+        asking: false,
+        said: "npm run dev",
+        running: "npm run dev",
+        tail: terminalTail,
+      },
+    ];
   if (cmd === "monitor_models") {
     const { agent, command } = payload as { agent: string; command: string };
     // Listing starts the agent CLI, so the answer is never immediate.
@@ -74,8 +122,8 @@ mockIPC((cmd, payload) => {
       source: "inferred",
       status,
       goal: { status: "active", summary: "Ship the editor update" },
-      taskSummary: "Implementing the editor",
-      requestSummary: "Add keyboard navigation to the editor",
+      taskSummary: summaries ? "Implementing the editor" : null,
+      requestSummary: summaries ? "Add keyboard navigation to the editor" : null,
       estimate: { seconds: 960, confidence: "medium" },
       updatedAt: Date.now(),
       error: status === "failure" ? "ACP connection closed" : null,
@@ -121,8 +169,45 @@ mockIPC((cmd, payload) => {
 });
 await loadSettings();
 const { colors, style } = appearanceNow();
+function fixtureGraph(cardWidth: number) {
+  const graph = buildCommitGraph({
+    workspace: { root: "/tmp", repositories: [], warnings: [] },
+    folders: [{ root: "/tmp", name: "tmp", kind: "folder", repositories: [] }],
+    sessions: ["running", "terminal"].map((id) => ({
+      id,
+      cwd: "/tmp",
+      branch: "tmp",
+      folder: true,
+    })),
+    visible: new Map(),
+    opened: new Map(),
+    closed: new Set(),
+    tiles: new Map(),
+    cardWidth,
+    step: 24,
+    showing: "running",
+    reports: new Map(),
+    reaching: null,
+    places: new Map(),
+  });
+  graph.nodes = graph.nodes.map((node) => ({
+    ...node,
+    className: node.id === "tileterminal" ? "fixture-terminal" : undefined,
+  }));
+  return graph;
+}
+const nodeTypes = { cli: CliNode, folder: FolderNode, tile: TileNode };
+const jumps = {
+  showing: "sessionrunning",
+  numbers: new Map([
+    ["sessionrunning", 1],
+    ["sessionterminal", 2],
+  ]),
+};
 function Fixture() {
   useMonitorRuntime();
+  const { monitor } = useAppSettings();
+  const graph = useMemo(() => fixtureGraph(monitor.previewWidth), [monitor.previewWidth]);
   return (
     <Stack direction="row" spacing={4} sx={{ p: 3, alignItems: "flex-start" }}>
       <Box sx={{ width: 420 }}>
@@ -133,8 +218,27 @@ function Fixture() {
         {["running", "permission", "failure"].map((id) => (
           <MonitorBadge key={id} id={id} />
         ))}
-        <Box sx={{ position: "relative", width: 16, height: 16 }}>
-          <MonitorBadge id="running" canvas />
+        <Box className="graph fixture-graph" sx={{ width: 480, height: 200 }}>
+          <GraphActionsProvider value={graphActions}>
+            <CliJumpsProvider value={jumps}>
+              <ReactFlow
+                nodes={graph.nodes}
+                nodeTypes={nodeTypes}
+                fitView
+                maxZoom={1}
+                proOptions={{ hideAttribution: true }}
+              >
+                <GraphLines
+                  {...graph}
+                  selected={null}
+                  picked={null}
+                  offering={false}
+                  reading={false}
+                  onCommit={() => {}}
+                />
+              </ReactFlow>
+            </CliJumpsProvider>
+          </GraphActionsProvider>
         </Box>
       </Stack>
     </Stack>

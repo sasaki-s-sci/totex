@@ -5,6 +5,7 @@
   justify-content: center;
   gap: 2px;
   min-width: 0;
+  max-width: var(--monitor-width);
   overflow: hidden;
   padding: 2px 4px;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
@@ -20,10 +21,14 @@
 }
 .monitor-badge__row {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 3px;
   min-width: 0;
   height: 12px;
+}
+.monitor-badge__row[data-role="terminal"] {
+  white-space: pre;
 }
 .monitor-badge__row > svg {
   width: 10px;
@@ -33,11 +38,9 @@
   color: var(--mui-palette-text-primary);
 }
 .monitor-badge--canvas {
-  position: absolute;
-  left: calc(100% + 14px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: max-content;
+  position: relative;
+  width: var(--monitor-width);
+  background: var(--mui-palette-background-default);
 }
 .monitor-badge svg,
 .monitor-state svg,
@@ -111,16 +114,16 @@
 }
 /* The badge's width is a setting. */
 .monitor-badge[data-width="160"] {
-  max-width: 160px;
+  --monitor-width: 160px;
 }
 .monitor-badge[data-width="220"] {
-  max-width: 220px;
+  --monitor-width: 220px;
 }
 .monitor-badge[data-width="320"] {
-  max-width: 320px;
+  --monitor-width: 320px;
 }
 .monitor-badge[data-width="420"] {
-  max-width: 420px;
+  --monitor-width: 420px;
 }
 
 .monitor-spin {
@@ -132,23 +135,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .monitor-spin,
-  .monitor-cursor {
+  .monitor-spin {
     animation: none;
-  }
-}
-
-/* A plain command's running state: a block cursor blinking in one cell, the height of one line. */
-.monitor-cursor {
-  flex-shrink: 0;
-  width: 0.6em;
-  height: 10px;
-  background: currentColor;
-  animation: monitor-blink 1s steps(1) infinite;
-}
-@keyframes monitor-blink {
-  50% {
-    opacity: 0;
   }
 }
 

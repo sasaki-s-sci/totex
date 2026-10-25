@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 
-/** Real settings, observer runtime and badges with only native IPC replaced. */
-export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
+/** Agent cards and terminal tails, including updates with unchanged process metadata. */
+export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`${base}/tests/fixtures/monitor.html`);
   await page.locator(".monitor-role").first().waitFor();
   const badges = page.locator(".monitor-badge");
-  assert.equal(await badges.count(), 4);
+  await page.locator('.fixture-terminal [data-role="terminal"]').first().waitFor();
+  assert.equal(await badges.count(), 5);
   for (const width of [1200, 800]) {
     await page.setViewportSize({ width, height: 850 });
     const sizes = await badges.evaluateAll((nodes) =>
@@ -15,6 +16,8 @@ export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
         width: node.clientWidth,
         content: node.scrollWidth,
         summary: node.querySelector(".monitor-badge__summary")?.clientWidth,
+        height: node.offsetHeight,
+        rows: node.querySelectorAll(".monitor-badge__row").length,
       })),
     );
     assert.ok(
@@ -25,12 +28,140 @@ export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
       sizes.every((size) => size.summary >= 55),
       JSON.stringify(sizes),
     );
+    assert.ok(
+      sizes.every((size) => size.rows === 2 && size.height >= 30 && size.height <= 32),
+      JSON.stringify(sizes),
+    );
   }
-  assert.match(await badges.nth(2).innerText(), /Failed/);
+  assert.equal(await badges.nth(2).getAttribute("data-status"), "failure");
+  assert.equal(await badges.first().locator('[data-role="request"] svg').count(), 1);
   assert.equal(
-    await page.locator(".monitor-badge--canvas").evaluate((node) => node.clientWidth),
+    await badges.first().locator('.monitor-badge__row[data-status="running"]').count(),
+    1,
+  );
+  assert.equal(
+    await page
+      .locator(".fixture-graph .tile")
+      .first()
+      .evaluate((node) => node.offsetWidth),
     220,
   );
+  const lefts = await page
+    .locator(".fixture-graph .monitor-badge")
+    .evaluateAll((nodes) =>
+      nodes.map(
+        (node) =>
+          node.closest(".tile")?.getBoundingClientRect().left ?? node.getBoundingClientRect().left,
+      ),
+    );
+  assert.ok(Math.abs(lefts[0] - lefts[1]) < 1, JSON.stringify(lefts));
+  await page.evaluate(() => window.monitorSummaries(false));
+  await page.waitForFunction(
+    () =>
+      !document.querySelector(
+        '.monitor-badge--canvas [data-role="request"] .monitor-badge__summary',
+      ),
+  );
+  for (const width of [160, 220, 320, 420]) {
+    await page.evaluate((width) => window.monitorWidth(width), width);
+    const canvas = page.locator(".fixture-graph .tile").first();
+    await page.waitForFunction(
+      (width) =>
+        document.querySelector(".monitor-badge--canvas")?.getAttribute("data-width") ===
+        String(width),
+      width,
+    );
+    assert.equal(await canvas.evaluate((node) => node.offsetWidth), width);
+    assert.equal(await canvas.evaluate((node) => node.offsetHeight), 32);
+    assert.ok(
+      await canvas.evaluate(
+        (node) => getComputedStyle(node).backgroundColor !== "rgba(0, 0, 0, 0)",
+      ),
+    );
+  }
+  await page.evaluate(() => window.monitorWidth(220));
+  await page.evaluate(() => window.monitorSummaries(true));
+  await page.waitForFunction(() =>
+    Boolean(
+      document.querySelector(
+        '.monitor-badge--canvas [data-role="request"] .monitor-badge__summary',
+      ),
+    ),
+  );
+  const terminalRows = page.locator('.fixture-terminal [data-role="terminal"]');
+  assert.deepEqual(await terminalRows.allTextContents(), [
+    "first output line",
+    "  last output line",
+  ]);
+  assert.equal(
+    await page.locator(".fixture-terminal .tile").evaluate((node) => node.offsetHeight),
+    32,
+  );
+  for (const [tail, expected] of [
+    ["updated output\n$ ", ["updated output", "$ "]],
+    ["single line", ["", "single line"]],
+    ["", ["", ""]],
+    [`${"あ".repeat(200)}\n  ${"x".repeat(200)}`, ["あ".repeat(200), `  ${"x".repeat(200)}`]],
+  ]) {
+    await page.evaluate((tail) => window.monitorTail(tail), tail);
+    await page.waitForFunction(
+      (expected) =>
+        JSON.stringify(
+          [...document.querySelectorAll('.fixture-terminal [data-role="terminal"]')].map(
+            (node) => node.textContent,
+          ),
+        ) === JSON.stringify(expected),
+      expected,
+    );
+    assert.deepEqual(await terminalRows.allTextContents(), expected);
+  }
+  assert.equal(
+    await page
+      .locator(".fixture-terminal .monitor-badge")
+      .evaluate((node) => node.scrollWidth <= node.clientWidth),
+    true,
+  );
+  await page.setViewportSize({ width: 1200, height: 850 });
+  const numbers = await page
+    .locator(".fixture-graph .edge__number textPath")
+    .evaluateAll((labels) =>
+      labels.map((label) => ({
+        text: label.textContent,
+        length: document.getElementById(label.getAttribute("href").slice(1)).getTotalLength(),
+      })),
+    );
+  assert.deepEqual(
+    numbers.map((label) => label.text),
+    ["1", "2"],
+  );
+  assert.ok(numbers.every((label) => label.length > 0));
+  assert.equal(await page.locator(".cli__number").count(), 0);
+  const cards = page.locator(".fixture-graph .tile");
+  for (let at = 0; at < 2; at++) {
+    const card = cards.nth(at);
+    const close = card.locator(".cli__end");
+    await card.hover();
+    const box = await card.boundingBox();
+    const end = await close.boundingBox();
+    assert.ok(end.x > box.x + box.width);
+    assert.ok(Math.abs(end.y + end.height / 2 - box.y - box.height / 2) < 1);
+    if (at === 0) await close.click();
+    else {
+      await close.focus();
+      await close.press("Enter");
+    }
+  }
+  assert.deepEqual(await page.evaluate(() => window.monitorEnded), ["running", "terminal"]);
+  assert.equal(await page.locator(".MuiPopover-root").count(), 0);
+  assert.deepEqual(errors, []);
+}
+
+/** Real settings, observer runtime and badges with only native IPC replaced. */
+export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
+  await verifyMonitorCards(page, base);
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const badges = page.locator(".monitor-badge");
   const lastConfig = () =>
     page.evaluate(
       () =>

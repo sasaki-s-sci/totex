@@ -122,8 +122,7 @@ export function bandColumn(
         to: onStack(id),
         shape: "curve",
 
-        // Half the glyph, so the line stops beside the terminal rather than across it.
-        trim: CLI_MARK / 2,
+        trim: 0,
         lead: run.lead,
         stroke: CLI_STROKE,
       });
@@ -214,7 +213,7 @@ export function cardLine(card: string, mark: string, height: number): GraphLine 
     to: { node: card, dx: 0, dy: height / 2 },
     shape: "curve",
     trim: 0,
-    lead: CLI_MARK / 2,
+    lead: 0,
     stroke: CLI_STROKE,
   };
 }

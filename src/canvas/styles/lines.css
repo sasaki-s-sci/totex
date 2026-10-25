@@ -11,6 +11,17 @@
   opacity: 0.7;
 }
 
+.edge__number {
+  fill: var(--mui-palette-text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.edge__number.is-showing {
+  fill: var(--mui-palette-primary-main);
+}
+
 .band-lines--provisional .edge__name {
   opacity: 0.4;
 }

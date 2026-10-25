@@ -4,6 +4,24 @@
 use super::super::Watcher;
 
 #[test]
+fn terminal_tail_follows_the_last_two_drawn_rows() {
+    for (rows, cols, text, expected) in [
+        (24, 80, "", ""),
+        (24, 80, "$ ", "$"),
+        (24, 80, "old\r\nfirst\r\nsecond\r\n", "first\nsecond"),
+        (24, 80, "old\r\n\r\nlast", "\nlast"),
+        (3, 80, "one\r\ntwo\r\nthree\r\nfour", "three\nfour"),
+        (24, 4, "abcdefghij", "efgh\nij"),
+        (24, 80, "old\r\n\x1b[31m赤\x1b[0m\r\n$ ", "赤\n$"),
+        (24, 80, "old\r\nfirst\r\nsecond\r\x1b[2Knew", "first\nnew"),
+    ] {
+        let mut watcher = Watcher::new(rows, cols);
+        watcher.replay(text, text.len());
+        assert_eq!(watcher.tail(), expected, "{text:?}");
+    }
+}
+
+#[test]
 fn replay_preserves_agent_identity() {
     for agent in ["codex", "claude", "opencode"] {
         let mut watcher = Watcher::new(24, 60);

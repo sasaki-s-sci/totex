@@ -1,4 +1,5 @@
 .report {
+  position: relative;
   display: flex;
   box-sizing: border-box;
   width: 100%;
@@ -10,7 +11,7 @@
   background: var(--mui-palette-background-paper);
   box-shadow: var(--mui-shadows-6);
   color: var(--mui-palette-text-primary);
-  overflow: hidden;
+  overflow: visible;
   pointer-events: auto;
 }
 

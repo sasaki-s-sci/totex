@@ -46,6 +46,8 @@ export type Glance = {
   said: string | null;
   /** What the shell is running, from the process table; null at a prompt or off this machine. */
   running: string | null;
+  /** The last two screen rows, without unused trailing rows. */
+  tail: string;
 };
 export type ShownStatus = AgentStatus | "initial" | "idle";
 /** Asking comes off the screen; running comes from `runningNow`; only failure needs the observer to say so. */

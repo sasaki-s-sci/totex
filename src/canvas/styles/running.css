@@ -1,6 +1,5 @@
 .cli__row {
   display: flex;
-  /* As wide as the mark and its number: the row is centred on the cell, so it grows both ways. */
   width: max-content;
   min-width: 16px;
   height: 16px;
@@ -34,28 +33,10 @@
   color: var(--mui-palette-primary-main);
 }
 
-/* Stood above the edge that runs into the terminal, as a branch's name stands above its line. */
-.cli__number {
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  color: var(--mui-palette-text-secondary);
-  font-size: 9px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-
-.cli__open.is-showing ~ .cli__number {
-  color: var(--mui-palette-primary-main);
-}
-
 .cli__end {
   position: absolute;
   top: 50%;
-  left: 100%;
+  left: calc(100% + 4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,12 +49,13 @@
   transition: color var(--reveal);
 }
 
-.cli:hover .cli__end,
+.tile:hover .cli__end,
+.report:hover .cli__end,
 .cli__end:focus-visible {
   color: color-mix(in srgb, var(--mui-palette-text-secondary) 75%, transparent);
 }
 
-.cli:hover .cli__end:hover {
+.cli__end:hover {
   color: var(--mui-palette-error-main);
 }
 
@@ -145,6 +127,7 @@
 /* A plain terminal's tile: a box as tall as its grid steps, beside the edge that runs into it. */
 .tile {
   position: relative;
+  pointer-events: auto;
   box-sizing: border-box;
   display: flex;
   width: 100%;
@@ -152,7 +135,7 @@
   border: 1px solid var(--mui-palette-divider);
   border-radius: 5px;
   background: var(--mui-palette-background-paper);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tile__body {
@@ -165,10 +148,9 @@
 
 /* The badge keeps its text; the tile, not the badge, is the box it sits in. */
 .tile__body .monitor-badge--canvas {
-  position: static;
   width: 100%;
   border: none;
-  transform: none;
+  background: transparent;
 }
 
 .tile__bar {

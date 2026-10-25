@@ -27,11 +27,6 @@ function summaryOf(
   return running ?? ((shown("taskSummary") && snapshot?.taskSummary) || null);
 }
 
-/** A plain command that is running blinks a terminal cursor: one cell, always one line. */
-function TerminalCursor() {
-  return <span aria-hidden="true" className="monitor-cursor" />;
-}
-
 /** Running spins, asking asks and failing crosses; the colour comes from `data-status`. */
 function StatusIcon({ status }: { status: string }) {
   if (status === "running")
@@ -108,6 +103,10 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
     agent && monitor.text !== "none" && shown("requestSummary")
       ? snapshot?.requestSummary || null
       : null;
+  const agents = shown("agents") && snapshot && snapshot.agents.length > 0 && (
+    <AgentChips agents={snapshot.agents} />
+  );
+  const terminalLines = ["", ...(glance?.tail ?? "").split("\n")].slice(-2);
   return (
     <>
       <button
@@ -123,7 +122,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
           setAnchor(event.currentTarget);
         }}
         title={
-          [request, agent ? summary : running, error].filter(Boolean).join("\n") ||
+          [request, agent ? summary : glance?.tail, error].filter(Boolean).join("\n") ||
           t(`monitor.states.${status}`)
         }
       >
@@ -144,18 +143,22 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
               {shown("estimate") && estimate !== null && (
                 <span className="monitor-badge__extra">≈{estimate}m</span>
               )}
+              {!canvas && agents}
             </span>
             {/* On the card's top edge, not in its rows: the line runs through the icons. */}
-            {shown("agents") && snapshot && snapshot.agents.length > 0 && (
-              <AgentChips agents={snapshot.agents} />
-            )}
+            {canvas && agents}
           </>
         ) : (
-          // A plain command shows only the command it runs, never what was typed or printed.
-          <span className="monitor-badge__row" data-status={status}>
-            {status === "running" ? <TerminalCursor /> : <StatusIcon status={status} />}
-            {running && <span className="monitor-badge__summary">{running}</span>}
-          </span>
+          ["previous", "last"].map((row, at) => (
+            <span
+              key={row}
+              className="monitor-badge__row"
+              data-role="terminal"
+              data-status={status}
+            >
+              <span className="monitor-badge__summary">{terminalLines[at]}</span>
+            </span>
+          ))
         )}
       </button>
       <Popover

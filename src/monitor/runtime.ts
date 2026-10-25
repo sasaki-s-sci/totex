@@ -106,7 +106,8 @@ export function useMonitorRuntime() {
             was?.doing === one.doing &&
             was.asking === one.asking &&
             was.said === one.said &&
-            was.running === one.running;
+            was.running === one.running &&
+            was.tail === one.tail;
           if (!same) changed = true;
           kept.set(one.id, same && was ? was : one);
         }

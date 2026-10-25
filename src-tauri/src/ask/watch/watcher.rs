@@ -168,6 +168,16 @@ impl Watcher {
         self.typed.as_deref()
     }
 
+    /// The last two screen rows, without the unused blank rows below the output.
+    pub fn tail(&self) -> String {
+        let lines = self.screen.lines();
+        let end = lines
+            .iter()
+            .rposition(|line| !line.is_empty())
+            .map_or(0, |at| at + 1);
+        lines[end.saturating_sub(2)..end].join("\n")
+    }
+
     /// Takes what is being typed off the screen as it stands, and keeps it.
     ///
     /// Kept only when there is something to keep. A composer emptied by the

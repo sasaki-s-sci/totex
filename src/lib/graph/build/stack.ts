@@ -2,7 +2,6 @@ import type { Report } from "../../mcp";
 import { ordinalOf, type Session } from "../../session";
 import {
   type AppNode,
-  CLI_MARK,
   CLI_STEP,
   CLI_STROKE,
   type Draw,
@@ -87,7 +86,7 @@ export function rowStack(
       to: onStack(id),
       shape: "curve",
 
-      trim: CLI_MARK / 2,
+      trim: 0,
       lead,
       stroke: CLI_STROKE,
     });
