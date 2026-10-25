@@ -12,7 +12,6 @@ import {
 } from "../folders";
 import type { PreparedRepository } from "../layout";
 import {
-  CLI_MARK,
   CLI_STEP,
   type Draw,
   FOLDER_INSET,
@@ -23,6 +22,7 @@ import {
   rowReach,
   SESSION_WIDTH,
 } from "../model";
+import { REPORT_GAP } from "../reporting";
 import { bandColumn } from "./column";
 import { offerNode } from "./nodes";
 import { type LaidGroup, take } from "./parts";
@@ -144,9 +144,9 @@ export function folderGroup(
     drawn.offerLinks.push({
       id: `offer${id}line`,
       from: inBand(id, ROW_SOCKET.x, ROW_SOCKET.y),
-      to: { node: id, dx: stackX - head.x + SESSION_WIDTH / 2, dy: ROW_SOCKET.y },
+      to: { node: id, dx: stackX - head.x + SESSION_WIDTH + REPORT_GAP, dy: ROW_SOCKET.y },
       shape: "curve",
-      trim: CLI_MARK / 2,
+      trim: 0,
       lead: FOLDER_MARK / 2,
       stroke: OFFER_STROKE,
     });

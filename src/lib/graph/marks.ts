@@ -49,9 +49,6 @@ export const STACK_STYLE = {
   pointerEvents: "none",
 } as const;
 
-/** A stack mark's box, but pressed: an offer is its own button. */
-export const OFFER_STYLE = { width: SESSION_WIDTH, height: CLI_STEP } as const;
-
 export type Draw = {
   /** The graph this one replaces, for reusing nodes that did not change. */
   before: ReadonlyMap<string, AppNode>;

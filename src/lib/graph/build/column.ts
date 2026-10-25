@@ -6,7 +6,6 @@ import type { PreparedRepository } from "../layout";
 import {
   type AppNode,
   CHIP_STEP,
-  CLI_MARK,
   CLI_STEP,
   CLI_STROKE,
   COMMIT_TRIM,
@@ -83,9 +82,9 @@ export function bandColumn(
       drawn.offerLines.push({
         id: `offer${run.head}line`,
         from: onHead(run.head),
-        to: inBand(band, run.x + SESSION_WIDTH / 2, run.y + CLI_STEP / 2),
+        to: inBand(band, run.x + SESSION_WIDTH + REPORT_GAP, run.y + CLI_STEP / 2),
         shape: "curve",
-        trim: CLI_MARK / 2,
+        trim: 0,
         lead: run.lead,
         stroke: OFFER_STROKE,
       });
@@ -186,9 +185,9 @@ export function bandColumn(
   drawn.offerLines.push({
     id: `offer${band}newline`,
     from: ring,
-    to: inBand(band, column + SESSION_WIDTH / 2, rise + CLI_STEP / 2),
+    to: inBand(band, column + SESSION_WIDTH + REPORT_GAP, rise + CLI_STEP / 2),
     shape: "curve",
-    trim: CLI_MARK / 2,
+    trim: 0,
     lead: RING_TRIM,
     stroke: OFFER_STROKE,
   });

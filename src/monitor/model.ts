@@ -55,9 +55,8 @@ export function shownStatus(glance: Glance | undefined, snapshot?: MonitorSnapsh
   if (!glance) return snapshot?.status ?? "unknown";
   if (glance.asking) return "permission";
   if (runningNow(glance)) return "running";
-  if (snapshot?.status === "failure") return "failure";
-  if (!glance.said) return "initial";
-  return glance.doing === "agent" ? "stopped" : "idle";
+  if (isAgent(glance)) return snapshot?.status === "failure" ? "failure" : "stopped";
+  return glance.said ? "idle" : "initial";
 }
 /**
  * A coding agent runs while it is working, read off its screen. A command runs while the process
@@ -69,7 +68,7 @@ function runningNow(glance: Glance): boolean {
 }
 /** A shell running commands is summed up by the process it runs, an agent by the observer. */
 export function isAgent(glance: Glance | undefined) {
-  return !glance || glance.asking || glance.doing === "agent" || glance.doing === "working";
+  return glance?.doing === "agent" || glance?.doing === "working";
 }
 
 export type Observation = { at: number; status: AgentStatus; text: string | null };

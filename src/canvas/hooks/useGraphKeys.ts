@@ -172,7 +172,9 @@ export function useGraphKeys({
     // A coding CLI, as the monitor reads its screen. Without a monitor reading every terminal counts.
     const coding = (pick: Pickable) => {
       const node = latest.current.nodes.find((candidate) => candidate.id === pick.id);
-      return node?.type === "cli" && isAgent(glanceNow(node.data.session.id));
+      if (node?.type !== "cli") return false;
+      const glance = glanceNow(node.data.session.id);
+      return !glance || isAgent(glance);
     };
 
     // Up and Down go a terminal at a time; Left and Right go a repository or folder at a time.

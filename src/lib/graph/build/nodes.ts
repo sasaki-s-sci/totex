@@ -13,8 +13,8 @@ import type {
   RepositoryFlowNode,
   StrokeStyle,
 } from "../model";
-import { CLI_STEP, type Draw, OFFER_STYLE, SESSION_WIDTH, STACK_STYLE } from "../model";
-import type { ReportFlowNode } from "../reporting";
+import { CLI_STEP, type Draw, SESSION_WIDTH, STACK_STYLE } from "../model";
+import { REPORT_GAP, type ReportFlowNode } from "../reporting";
 import type { TileFlowNode } from "../tiles";
 
 export function batched(lines: readonly GraphLine[]): GraphResult["reach"] {
@@ -75,6 +75,7 @@ export function offerNode(
   y: number,
   draw: Draw,
 ): OfferFlowNode {
+  const cardX = x + SESSION_WIDTH + REPORT_GAP;
   const held = draw.offered.get(id);
   if (
     held &&
@@ -83,7 +84,8 @@ export function offerNode(
     (held.data.kind !== "open" ||
       (data.kind === "open" && held.data.branch === data.branch && held.data.cwd === data.cwd)) &&
     (held.parentId ?? null) === band &&
-    held.position.x === x &&
+    held.style?.width === draw.cardWidth &&
+    held.position.x === cardX &&
     held.position.y === y
   ) {
     return held;
@@ -93,12 +95,12 @@ export function offerNode(
     id,
     type: "offer",
     ...(band === null ? null : { parentId: band }),
-    position: { x, y },
+    position: { x: cardX, y },
     data,
     // Given outright: an offer is not in the canvas's node state, so nothing would keep a measurement.
-    initialWidth: SESSION_WIDTH,
+    initialWidth: draw.cardWidth,
     initialHeight: CLI_STEP,
-    style: OFFER_STYLE,
+    style: { width: draw.cardWidth, height: CLI_STEP },
     draggable: false,
     selectable: false,
   };

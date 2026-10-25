@@ -99,9 +99,10 @@ impl Config {
         valid_words(&self.command, &self.args, &self.model)
     }
 
-    /// How many characters fit the badge's text: 10px type, less the padding, icon and gap.
+    /// Full-width characters at 8px, less the card borders, padding, icon and gap.
     pub fn text_chars(&self) -> usize {
-        (self.preview_width as usize).saturating_sub(28) / 10
+        // shortcut: proportional glyphs vary; measure the font if ellipsis becomes frequent.
+        (self.preview_width as usize).saturating_sub(24) / 8
     }
 
     /// The ACP launch words, for the agents driven through ACP.
@@ -944,9 +945,11 @@ mod tests {
             preview_width,
             ..Config::default()
         };
-        assert_eq!(width(160).text_chars(), 13);
-        assert_eq!(width(220).text_chars(), 19);
-        assert_eq!(width(420).text_chars(), 39);
+        assert_eq!(width(160).text_chars(), 17);
+        assert_eq!(width(220).text_chars(), 24);
+        assert_eq!(width(320).text_chars(), 37);
+        assert_eq!(width(420).text_chars(), 49);
+        assert_eq!(width(0).text_chars(), 0);
     }
 
     #[test]

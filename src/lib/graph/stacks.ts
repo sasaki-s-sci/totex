@@ -3,8 +3,8 @@ import { COMMIT_STEP, gridRows, LANE_HEIGHT } from "./grid";
 export const SESSION_WIDTH = 38;
 /** The glyph with clearance; there is no box for a line to hide under. */
 export const CLI_MARK = 16;
-/** Half a cell: the corridor between branches and terminals is swept by lines. */
-export const CHIP_STEP = 66;
+/** A short lead from the branch or folder to its terminal column. */
+export const CHIP_STEP = 24;
 export const CLI_STEP = 34;
 /** The air between the topmost stack and the new workspace over it. */
 export const NEW_RISE = (COMMIT_STEP.y - CLI_STEP) / 2;

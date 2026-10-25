@@ -18,8 +18,8 @@ pub(super) fn fields(features: &Features) -> Vec<(&'static str, &'static str)> {
     [
         (f.status, "status", "One of unknown, running, permission, stopped, success, failure. Use unknown when unsupported by evidence."),
         (f.agents, "agents", "Array of observed workers: {id,kind: monitor|shell|background|subagent,label,status,detail,progress: number 0..100 or null}. Only count workers explicitly evidenced in the transcript; absence is not proof of zero."),
-        (f.task_summary, "taskSummary", "Exactly one short sentence: the agent's conclusion so far, or the action it is asking for when it waits on the user (approval, a choice, a missing input). Never a bare status such as completed or generating; null if neither is visible."),
-        (f.request_summary, "requestSummary", "Exactly one short sentence summarising the user's original request, or null. Never invent an unseen request."),
+        (f.task_summary, "taskSummary", "Exactly one short sentence: the agent's conclusion so far, or the action it is asking for when it waits on the user (approval, a choice, a missing input). Never a bare status such as completed or generating. Never summarise idle indicators, warning counts, composer hints or an unsent draft; null if no conclusion or requested action is visible."),
+        (f.request_summary, "requestSummary", "Exactly one short sentence summarising the user's submitted request, or null. An unsent composer draft is not a request. Never invent an unseen request."),
         (f.estimate, "estimate", "Remaining implementation time as {seconds,confidence: low|medium|high}, or null if evidence is insufficient. This is an estimate, not a deadline."),
         (f.goal, "goal", "Explicit goal mode only: {status: active|paused|blocked|complete,summary}, otherwise null. Keep goal lifecycle separate from execution status."),
     ].into_iter().filter_map(|(enabled, name, instruction)| enabled.then_some((name, instruction))).collect()
@@ -50,7 +50,7 @@ pub(super) fn prompt(
         result.push_str(&format!("- {name}: {instruction}\n"));
     }
     result.push_str(&format!(
-        "\nEvery text value is at most {limit} characters, a Japanese character counting as one; put the essential part first.\n"
+        "\nEvery text value must fit {limit} full-width characters or {} ASCII characters; mixed text shares that display width. Put the essential part first.\n", limit * 7 / 4
     ));
     if let Some(previous) = previous {
         result.push_str(&format!(
@@ -189,7 +189,19 @@ mod tests {
             .find(|line| line.starts_with("TOTEX_TRANSCRIPT_"))
             .unwrap();
         assert_eq!(text.matches(marker).count(), 3);
-        assert!(text.contains("at most 19 characters"));
+        assert!(text.contains("19 full-width characters or 33 ASCII characters"));
+        let all = prompt(
+            &Features {
+                request_summary: true,
+                ..some()
+            },
+            24,
+            "x",
+            None,
+        );
+        assert!(all.contains("unsent composer draft is not a request"));
+        assert!(all.contains("Never summarise idle indicators"));
+        assert!(all.contains("24 full-width characters or 42 ASCII characters"));
         assert!(!prompt(&some(), 19, "x", None).contains("previous_observation"));
     }
 

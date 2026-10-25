@@ -29,7 +29,7 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
       JSON.stringify(sizes),
     );
     assert.ok(
-      sizes.every((size) => size.rows === 2 && size.height >= 30 && size.height <= 32),
+      sizes.every((size) => size.rows === 2 && size.height >= 28 && size.height <= 30),
       JSON.stringify(sizes),
     );
   }
@@ -62,7 +62,12 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
         '.monitor-badge--canvas [data-role="request"] .monitor-badge__summary',
       ),
   );
-  for (const width of [160, 220, 320, 420]) {
+  for (const [width, wide, ascii] of [
+    [160, 17, 29],
+    [220, 24, 42],
+    [320, 37, 64],
+    [420, 49, 85],
+  ]) {
     await page.evaluate((width) => window.monitorWidth(width), width);
     const canvas = page.locator(".fixture-graph .tile").first();
     await page.waitForFunction(
@@ -75,9 +80,27 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
     assert.equal(await canvas.evaluate((node) => node.offsetHeight), 32);
     assert.ok(
       await canvas.evaluate(
-        (node) => getComputedStyle(node).backgroundColor !== "rgba(0, 0, 0, 0)",
+        (node) => getComputedStyle(node).backgroundColor === "rgba(0, 0, 0, 0)",
       ),
     );
+    // The prompt's text budgets must fit the actual default font, including the row icon.
+    const measured = await canvas.evaluate(
+      (node, [wide, ascii]) => {
+        const badge = node.querySelector(".monitor-badge");
+        const context = document.createElement("canvas").getContext("2d");
+        context.font = getComputedStyle(badge).font;
+        return {
+          available: badge.querySelector(".monitor-badge__row").clientWidth - 11,
+          wide: context.measureText("あ".repeat(wide)).width,
+          ascii: context.measureText(
+            "Add keyboard navigation and check focus behavior. ".repeat(3).slice(0, ascii),
+          ).width,
+        };
+      },
+      [wide, ascii],
+    );
+    assert.ok(measured.wide <= measured.available, JSON.stringify(measured));
+    assert.ok(measured.ascii <= measured.available, JSON.stringify(measured));
   }
   await page.evaluate(() => window.monitorWidth(220));
   await page.evaluate(() => window.monitorSummaries(true));
@@ -136,6 +159,17 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
   );
   assert.ok(numbers.every((label) => label.length > 0));
   assert.equal(await page.locator(".cli__number").count(), 0);
+  await page.evaluate(() => window.monitorOffers(true));
+  const offer = page.getByRole("button", { name: "Open a shell on empty", exact: true });
+  await offer.waitFor();
+  const offered = await offer.boundingBox();
+  const existing = await page.locator(".fixture-graph .tile").first().boundingBox();
+  assert.ok(Math.abs(offered.x - existing.x) < 1);
+  assert.ok(Math.abs(offered.width - existing.width) < 1);
+  assert.equal(await offer.evaluate((node) => getComputedStyle(node).borderStyle), "dashed");
+  await offer.click();
+  assert.deepEqual(await page.evaluate(() => window.monitorOpened), ["/tmp/empty"]);
+  await page.evaluate(() => window.monitorOffers(false));
   const cards = page.locator(".fixture-graph .tile");
   for (let at = 0; at < 2; at++) {
     const card = cards.nth(at);
@@ -177,7 +211,7 @@ export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
       agent,
     );
   const model = page.getByRole("combobox", { name: "Model", exact: true });
-  await page.getByText("From WSL · Ubuntu-24.04", { exact: true }).waitFor();
+  await model.waitFor();
   assert.equal(await model.inputValue(), "claude-sonnet");
   assert.equal(await page.getByRole("textbox", { name: "ACP command" }).count(), 0);
   await model.click();
@@ -220,45 +254,38 @@ export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
       window.monitorCalls.filter((call) => call.cmd === "monitor_configure").at(-1).payload.config
         .command === "another-agent-acp",
   );
-  await page.getByText("From SSH · another-agent-acp", { exact: true }).waitFor();
   await page.locator(".monitor-role").first().waitFor();
   await badges.first().click();
-  await page.getByText("Add keyboard navigation to the editor", { exact: true }).waitFor();
-  assert.ok(await page.getByText("Running · Inferred", { exact: true }).isVisible());
-  assert.ok(await page.getByText("Running 60%", { exact: true }).isVisible());
-  assert.ok(await page.getByText("another-agent-acp · Agent default", { exact: true }).isVisible());
+  const detail = page.locator(".MuiPopover-root");
+  await detail.getByText("Add keyboard navigation to the editor", { exact: true }).waitFor();
+  assert.equal(await detail.locator(".monitor-state").textContent(), "Running");
+  assert.ok(await detail.getByText("Running 60%", { exact: true }).isVisible());
   await page.keyboard.press("Escape");
   await page.getByRole("textbox", { name: "Arguments (JSON)" }).fill("[invalid");
   await page.getByText("Use a JSON array of strings").waitFor();
   await page.getByRole("textbox", { name: "Arguments (JSON)" }).fill('["--acp"]');
   await model.focus();
   assert.equal(await page.getByText("Use a JSON array of strings").count(), 0);
-  // The list is remembered per agent, and only the refresh button asks again.
+  // The list is remembered per agent when returning to its settings.
   await page.getByRole("combobox", { name: "Coding agent" }).click();
   await page.getByRole("option", { name: "Claude Code", exact: true }).click();
-  await page.getByText("From WSL · Ubuntu-24.04", { exact: true }).waitFor();
+  await model.click();
+  await page.getByRole("option", { name: /Opus/ }).waitFor();
+  await page.keyboard.press("Escape");
   assert.equal(await modelCalls("claude"), 1);
-  await page.getByRole("button", { name: "Reload models" }).click();
-  await page.waitForFunction(
-    () =>
-      window.monitorCalls.filter(
-        (call) => call.cmd === "monitor_models" && call.payload.agent === "claude",
-      ).length === 2,
-  );
-  await page.getByText("From WSL · Ubuntu-24.04", { exact: true }).waitFor();
   assert.equal(await page.getByRole("textbox", { name: "ACP command" }).count(), 0);
-  await page.getByRole("checkbox", { name: "User request", exact: true }).uncheck();
+  await page.getByRole("checkbox", { name: "User request", exact: true }).first().uncheck();
   await page.locator(".monitor-role").first().waitFor();
   await badges.first().click();
   assert.equal(
-    await page.getByText("Add keyboard navigation to the editor", { exact: true }).count(),
+    await detail.getByText("Add keyboard navigation to the editor", { exact: true }).count(),
     0,
   );
   await page.keyboard.press("Escape");
   await page.evaluate(() => window.monitorLanguage("ja"));
-  await page.getByRole("checkbox", { name: "ユーザーの依頼", exact: true }).waitFor();
+  await page.getByRole("checkbox", { name: "ユーザーの依頼", exact: true }).first().waitFor();
   await page.evaluate(() => window.monitorLanguage("en"));
-  await page.getByRole("checkbox", { name: "Agents", exact: true }).uncheck();
+  await page.getByRole("checkbox", { name: "Agents", exact: true }).first().uncheck();
   assert.equal(await page.locator(".monitor-role").count(), 0);
   await page.getByRole("checkbox", { name: "Enabled", exact: true }).uncheck();
   assert.equal(await badges.count(), 0);

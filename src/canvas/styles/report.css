@@ -8,8 +8,7 @@
   padding: 9px;
   border: 1px solid var(--mui-palette-divider);
   border-radius: 7px;
-  background: var(--mui-palette-background-paper);
-  box-shadow: var(--mui-shadows-6);
+  background: transparent;
   color: var(--mui-palette-text-primary);
   overflow: visible;
   pointer-events: auto;

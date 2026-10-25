@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { HISTORY_LIMIT, remember, shownStatus } from "../src/monitor/model.ts";
+import { HISTORY_LIMIT, isAgent, remember, shownStatus } from "../src/monitor/model.ts";
 
 const glance = (doing, asking = false, said = "claude") => ({
   id: "t",
@@ -36,6 +36,18 @@ test("a command is running by the process table, a coding agent only while it wo
   // A coding agent's own foreground process does not make it running.
   assert.equal(shownStatus({ ...glance("agent"), running: "claude" }), "stopped");
   assert.equal(shownStatus({ ...glance("working"), running: null }), "running");
+});
+
+test("unknown terminals and shell questions do not become coding agents", () => {
+  assert.equal(isAgent(undefined), false);
+  assert.equal(isAgent(glance("idle", true)), false);
+  assert.equal(isAgent(glance("running", true)), false);
+  assert.equal(isAgent(glance("agent", true)), true);
+  assert.equal(isAgent(glance("working")), true);
+  assert.equal(shownStatus(glance("agent", false, null)), "stopped");
+  assert.equal(shownStatus(glance("idle", true)), "permission");
+  // A previous agent's failure must not linger after returning to the shell.
+  assert.equal(shownStatus(glance("idle"), snapshot(1, "failure")), "idle");
 });
 
 test("history keeps each report once, newest first, bounded", () => {

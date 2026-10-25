@@ -2,16 +2,16 @@ import { Box, CssBaseline, Stack, Typography } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { ReactFlow } from "@xyflow/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CliJumpsProvider } from "../../src/canvas/cliJumps";
 import { GraphLines } from "../../src/canvas/GraphLines";
 import { GraphActionsProvider, NO_ACTIONS } from "../../src/canvas/graphActions";
 import { CliNode } from "../../src/canvas/nodes/CliNode";
 import { FolderNode } from "../../src/canvas/nodes/FolderNode";
+import { OfferNode } from "../../src/canvas/nodes/OfferNode";
 import { TileNode } from "../../src/canvas/nodes/TileNode";
 import { loadSettings, updateSettings, useAppSettings } from "../../src/lib/appSettings";
-import type { Session } from "../../src/lib/session";
 import {
   DEFAULT_SETTINGS,
   mergeMonitor,
@@ -19,6 +19,7 @@ import {
   settingsFrom,
 } from "../../src/lib/appSettingsModel";
 import { buildCommitGraph } from "../../src/lib/graph/build";
+import type { Session } from "../../src/lib/session";
 import { MonitorBadge } from "../../src/monitor/MonitorBadge";
 import { useMonitorRuntime } from "../../src/monitor/runtime";
 import { MonitorRows } from "../../src/settings/MonitorRows";
@@ -45,15 +46,20 @@ const calls: { cmd: string; payload: unknown }[] = [];
 let terminalTail = "first output line\n  last output line";
 let summaries = true;
 const ended: string[] = [];
+const opened: string[] = [];
 const graphActions = {
   ...NO_ACTIONS,
   endSession: (session: Session) => {
     ended.push(session.id);
   },
+  openWork: (work: Parameters<typeof NO_ACTIONS.openWork>[0]) => {
+    if (work.cwd) opened.push(work.cwd);
+  },
 };
 Object.assign(window, {
   monitorCalls: calls,
   monitorEnded: ended,
+  monitorOpened: opened,
   monitorLanguage: (language: "en" | "ja") => updateSettings({ language }),
   monitorTail: (tail: string) => {
     terminalTail = tail;
@@ -172,7 +178,10 @@ const { colors, style } = appearanceNow();
 function fixtureGraph(cardWidth: number) {
   const graph = buildCommitGraph({
     workspace: { root: "/tmp", repositories: [], warnings: [] },
-    folders: [{ root: "/tmp", name: "tmp", kind: "folder", repositories: [] }],
+    folders: [
+      { root: "/tmp", name: "tmp", kind: "folder", repositories: [] },
+      { root: "/tmp/empty", name: "empty", kind: "folder", repositories: [] },
+    ],
     sessions: ["running", "terminal"].map((id) => ({
       id,
       cwd: "/tmp",
@@ -196,7 +205,7 @@ function fixtureGraph(cardWidth: number) {
   }));
   return graph;
 }
-const nodeTypes = { cli: CliNode, folder: FolderNode, tile: TileNode };
+const nodeTypes = { cli: CliNode, folder: FolderNode, tile: TileNode, offer: OfferNode };
 const jumps = {
   showing: "sessionrunning",
   numbers: new Map([
@@ -207,6 +216,8 @@ const jumps = {
 function Fixture() {
   useMonitorRuntime();
   const { monitor } = useAppSettings();
+  const [offering, setOffering] = useState(false);
+  Object.assign(window, { monitorOffers: setOffering });
   const graph = useMemo(() => fixtureGraph(monitor.previewWidth), [monitor.previewWidth]);
   return (
     <Stack direction="row" spacing={4} sx={{ p: 3, alignItems: "flex-start" }}>
@@ -222,7 +233,7 @@ function Fixture() {
           <GraphActionsProvider value={graphActions}>
             <CliJumpsProvider value={jumps}>
               <ReactFlow
-                nodes={graph.nodes}
+                nodes={offering ? [...graph.nodes, ...graph.offers] : graph.nodes}
                 nodeTypes={nodeTypes}
                 fitView
                 maxZoom={1}
@@ -232,7 +243,7 @@ function Fixture() {
                   {...graph}
                   selected={null}
                   picked={null}
-                  offering={false}
+                  offering={offering}
                   reading={false}
                   onCommit={() => {}}
                 />

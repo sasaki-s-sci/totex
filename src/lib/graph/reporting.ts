@@ -8,7 +8,7 @@ import { clamp, wrap } from "./cells";
 // stacking of two cards in one branch both need the size first.
 
 export const REPORT_WIDTH = 264;
-export const REPORT_GAP = 30;
+export const REPORT_GAP = 8;
 export const REPORT_STACK_GAP = 10;
 /** Over its band, under a pinned file. */
 export const REPORT_Z = 1_000;

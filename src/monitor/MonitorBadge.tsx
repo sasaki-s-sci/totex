@@ -93,8 +93,8 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
   const features = monitor.features;
   const shown = (item: keyof MonitorPreview) => monitorShows(monitor, item);
   const error = runtimeError ?? snapshot?.error ?? refreshError;
-  const status = error ? "failure" : shownStatus(glance, snapshot);
   const agent = isAgent(glance);
+  const status = shownStatus(glance, snapshot);
   const estimate = estimateMinutes(snapshot?.estimate ?? null);
   // A command is summed up by the process running it, never by what was typed or printed.
   const running = agent ? null : glance?.running || null;
@@ -341,9 +341,9 @@ function AgentChips({ agents }: { agents: MonitorSnapshot["agents"] }) {
           >
             <svg
               aria-hidden="true"
-              width="9"
-              height="9"
-              viewBox="0 0 12 12"
+              width="8"
+              height="8"
+              viewBox={kind === "monitor" ? "0 0 16 16" : "0 0 12 12"}
               fill="none"
               stroke="currentColor"
               strokeWidth="1.2"

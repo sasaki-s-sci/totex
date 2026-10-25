@@ -7,14 +7,14 @@
   min-width: 0;
   max-width: var(--monitor-width);
   overflow: hidden;
-  padding: 2px 4px;
+  padding: 2px 3px;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
   border-radius: 5px;
   background: transparent;
   color: var(--mui-palette-text-secondary);
   font: inherit;
-  font-size: 9px;
-  line-height: 12px;
+  font-size: 8px;
+  line-height: 11px;
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
@@ -23,16 +23,16 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  height: 12px;
+  height: 11px;
 }
 .monitor-badge__row[data-role="terminal"] {
   white-space: pre;
 }
 .monitor-badge__row > svg {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 .monitor-badge__row--request {
   color: var(--mui-palette-text-primary);
@@ -40,7 +40,6 @@
 .monitor-badge--canvas {
   position: relative;
   width: var(--monitor-width);
-  background: var(--mui-palette-background-default);
 }
 .monitor-badge svg,
 .monitor-state svg,
@@ -164,20 +163,19 @@
 .monitor-badge__count {
   display: inline-flex;
   flex: 0 1 auto;
-  gap: 3px;
+  gap: 2px;
+  font-size: 7px;
 }
-/* On the canvas card's top edge, as a legend: the edge runs through the icons and they break it. */
+/* Above the transparent card, clear of its rows and border. */
 .monitor-badge--canvas {
   overflow: visible;
 }
 .monitor-badge--canvas > .monitor-badge__count {
   position: absolute;
   top: 0;
-  left: 8px;
-  padding: 0 3px;
-  background: var(--mui-palette-background-default);
+  left: 3px;
   line-height: 1;
-  transform: translateY(-50%);
+  transform: translateY(calc(-100% - 4px));
 }
 .monitor-role {
   display: inline-flex;

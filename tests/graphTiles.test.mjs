@@ -132,7 +132,31 @@ test("card width changes update the measured node and graph extent", () => {
     const graph = build(sessions, new Map(), { cardWidth: width }, previous);
     const [tile] = tilesOf(graph);
     assert.equal(tile.style.width, width);
+    const offer = graph.offers.find((node) => node.data.kind === "new");
+    assert.equal(offer.initialWidth, width);
+    assert.equal(offer.style.width, width);
+    assert.equal(offer.position.x, tile.position.x);
     if (previous) assert.ok(graph.extent.width > previous.extent.width);
     previous = graph;
+  }
+});
+
+test("folder and branch cards have a short lead from their mark", () => {
+  for (const extra of [
+    {},
+    { opened: new Map([["repo", false]]) },
+    {
+      workspace: { root: CWD, repositories: [], warnings: [] },
+      folders: [{ kind: "folder", root: CWD, name: "repo", repositories: [] }],
+    },
+  ]) {
+    const graph = build([session("a")], new Map(), extra);
+    const places = new Map(graph.nodes.map((node) => [node.id, node.position]));
+    const lines = [...graph.reach, ...graph.bands.flatMap((band) => band.runs)].flatMap(
+      (batch) => batch.parts,
+    );
+    const line = lines.find((line) => line.terminal === "sessiona");
+    const { start, end } = endsOf(line, places);
+    assert.ok(end.x - start.x > 30 && end.x - start.x <= 60);
   }
 });
