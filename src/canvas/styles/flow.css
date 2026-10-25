@@ -7,7 +7,9 @@
   contain: layout paint;
 }
 
-.graph .react-flow__node-collapse {
+.graph .react-flow__node-collapse,
+.graph .react-flow__node-tile,
+.graph .react-flow__node-report {
   /* No paint containment: what these hold reaches past their own box. */
   contain: layout;
 }

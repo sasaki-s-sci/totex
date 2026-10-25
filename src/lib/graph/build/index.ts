@@ -17,6 +17,7 @@ import {
 import { folderGroup, stackAxis } from "./group";
 import type { GraphInput } from "./input";
 import { batched, type Held } from "./nodes";
+import { TILE_WIDTH } from "../tiles";
 
 export type { Align, GraphInput } from "./input";
 
@@ -28,6 +29,7 @@ export function buildCommitGraph(
     opened,
     closed,
     tiles,
+    cardWidth = TILE_WIDTH,
     step,
     sessions,
     showing,
@@ -95,7 +97,7 @@ export function buildCommitGraph(
   const holds: Hold[] = [];
   const groups = new Map<string, Group>();
   const offered = new Map((previous?.offers ?? []).map((offer) => [offer.id, offer]));
-  const draw: Draw = { before, offered, tiles, step };
+  const draw: Draw = { before, offered, tiles, cardWidth, step };
 
   const claimed = new Set<string>();
 

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { clampTile } from "../../lib/graph";
 
-/** Each plain terminal's tile height in grid steps, by session; a session not here stands at the start size. */
+/** Tile resize units by session; a session not here stands at the two-line default. */
 export function useTileSizes() {
   const [tiles, setTiles] = useState<ReadonlyMap<string, number>>(() => new Map());
 

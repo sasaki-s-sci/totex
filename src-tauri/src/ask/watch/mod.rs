@@ -52,6 +52,7 @@ pub struct Glance {
     asking: bool,
     said: Option<String>,
     running: Option<String>,
+    tail: String,
 }
 
 /// One screen per running session, and nothing that is not on one.
@@ -207,6 +208,7 @@ pub fn pty_standing<R: Runtime>(app: AppHandle<R>) -> Vec<Glance> {
             doing: watcher.doing(),
             asking: watcher.asking(),
             said: watcher.typed().map(str::to_string),
+            tail: watcher.tail(),
             running: pids
                 .get(id)
                 .and_then(|pid| super::process::foreground(*pid)),

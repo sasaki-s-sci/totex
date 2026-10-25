@@ -1,5 +1,6 @@
 import type { XYPosition } from "@xyflow/react";
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo } from "react";
+import { useCliJumps } from "../cliJumps";
 import {
   type Band,
   COMMIT_STEP,
@@ -35,6 +36,9 @@ export const Reach = memo(function Reach({
           {...stroke(batch.stroke)}
         />
       ))}
+      {reach.map((batch) =>
+        batch.parts.map((part) => <SessionNumber key={part.id} line={part} standing={standing} />),
+      )}
       {reach.map((batch) =>
         batch.parts.map((part) => {
           const tint = tints.get(part.to.node);
@@ -124,6 +128,9 @@ function BandGroup({
       {band.runs.map((batch) => (
         <path key={batch.key} d={pathOf(batch.parts, standing)} {...stroke(batch.stroke)} />
       ))}
+      {band.runs.map((batch) =>
+        batch.parts.map((part) => <SessionNumber key={part.id} line={part} standing={standing} />),
+      )}
       {offering && <OfferLines band={band} standing={standing} />}
       {band.lines.named.map((line) => (
         <g key={line.id}>
@@ -164,6 +171,31 @@ function BandGroup({
 }
 
 const ORIGIN = { x: 0, y: 0 };
+
+function SessionNumber({
+  line,
+  standing,
+}: {
+  line: GraphLine;
+  standing: ReadonlyMap<string, XYPosition>;
+}) {
+  const { numbers, showing } = useCliJumps();
+  const id = useId();
+  const number = numbers.get(line.to.node);
+  if (number === undefined) return null;
+  return (
+    <g>
+      <defs>
+        <path id={id} d={pathOf([line], standing)} />
+      </defs>
+      <text className={`edge__number${showing === line.to.node ? " is-showing" : ""}`} dy={-4}>
+        <textPath href={`#${id}`} startOffset="90%" textAnchor="end">
+          {number}
+        </textPath>
+      </text>
+    </g>
+  );
+}
 
 /** Mounted only while Ctrl+Shift is held. An offer is no node of the canvas's, so its end is a point in the band, which here is the origin. */
 function OfferLines({ band, standing }: { band: Band; standing: ReadonlyMap<string, XYPosition> }) {

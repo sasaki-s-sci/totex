@@ -93,6 +93,21 @@ fn marked_hidden(metadata: &std::fs::Metadata) -> bool {
 }
 
 pub(super) fn local_child(entry: &std::fs::DirEntry) -> Option<Child> {
+    let mut child = local_kind(entry)?;
+    let metadata = entry.metadata().ok();
+    child.stat.hidden = metadata.as_ref().is_some_and(marked_hidden);
+    child.stat.size = metadata.as_ref().map(|meta| meta.len()).unwrap_or(0);
+    child.stat.modified_ms = metadata
+        .as_ref()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|since| since.as_millis() as u64);
+    Some(child)
+}
+
+/// An entry's name and kind from the directory listing alone, with no `statx` per entry.
+// shortcut: hidden, size and modified time are left empty, only the walks that read the kind use this; upgrade by calling local_child.
+pub(super) fn local_kind(entry: &std::fs::DirEntry) -> Option<Child> {
     let file_type = entry.file_type().ok()?;
     let is_symlink = file_type.is_symlink();
     // `DirEntry::file_type` never follows a link, so a link to a directory needs
@@ -104,19 +119,14 @@ pub(super) fn local_child(entry: &std::fs::DirEntry) -> Option<Child> {
     } else {
         file_type.is_dir()
     };
-    let metadata = entry.metadata().ok();
     Some(Child {
         name: entry.file_name().to_string_lossy().into_owned(),
         stat: Stat {
             is_dir,
             is_symlink,
-            hidden: metadata.as_ref().is_some_and(marked_hidden),
-            size: metadata.as_ref().map(|meta| meta.len()).unwrap_or(0),
-            modified_ms: metadata
-                .as_ref()
-                .and_then(|meta| meta.modified().ok())
-                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-                .map(|since| since.as_millis() as u64),
+            hidden: false,
+            size: 0,
+            modified_ms: None,
         },
     })
 }

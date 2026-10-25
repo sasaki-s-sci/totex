@@ -58,7 +58,7 @@ export type GraphActions = FilePageActions & {
 
   toggleJunction: (junction: string) => void;
 
-  /** Grid steps a plain terminal's tile stands tall; clamped to `TILE`. */
+  /** Resize units for a plain terminal's tile; clamped to `TILE`. */
   resizeTile: (session: string, units: number) => void;
 
   expand: (repository: string) => void;

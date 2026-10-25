@@ -8,7 +8,7 @@ import {
   type ReportNodeData,
   reportCard,
 } from "../reporting";
-import { clampTile, TILE, TILE_WIDTH, type TileFlowNode, type TileNodeData } from "../tiles";
+import { clampTile, TILE, type TileFlowNode, type TileNodeData } from "../tiles";
 import { cardLine } from "./column";
 
 export function besideMark(
@@ -38,7 +38,7 @@ export function besideMark(
   };
 }
 
-// A plain terminal has no report, so its tile stands where the card would: the same stacking.
+// Sessions without a report share a compact card.
 function besideTile(
   session: Session,
   mark: string,
@@ -50,13 +50,13 @@ function besideTile(
 ): { node: AppNode; line: GraphLine; at: number; width: number; height: number } {
   const id = `tile${session.id}`;
   const units = clampTile(draw.tiles.get(session.id) ?? TILE.start);
-  const height = units * draw.step;
+  const height = TILE.height + (units - TILE.start) * draw.step;
   const at = Math.max(y + CLI_STEP / 2 - height / 2, floor);
   return {
     node: tileNode(id, { session, units, height }, band, x, at, draw),
     line: cardLine(id, mark, height),
     at,
-    width: TILE_WIDTH,
+    width: draw.cardWidth,
     height,
   };
 }
@@ -75,6 +75,7 @@ export function tileNode(
     held.data.session === data.session &&
     held.data.units === data.units &&
     held.data.height === data.height &&
+    held.style?.width === draw.cardWidth &&
     (held.parentId ?? null) === band &&
     held.position.x === x &&
     held.position.y === y
@@ -88,7 +89,7 @@ export function tileNode(
     ...(band === null ? null : { parentId: band }),
     position: { x, y },
     data,
-    style: { width: TILE_WIDTH, height: data.height },
+    style: { width: draw.cardWidth, height: data.height },
     zIndex: REPORT_Z,
     draggable: false,
     selectable: false,

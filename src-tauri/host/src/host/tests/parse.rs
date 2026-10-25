@@ -43,3 +43,47 @@ fn a_child_of_the_root_belongs_to_the_root() {
     assert_eq!(found[0].0, "/");
     assert_eq!(found[0].1.name, "srv");
 }
+
+#[test]
+fn local_walk_keeps_entry_kinds_and_full_listing_metadata() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("totex-local-listing-{unique}"));
+    std::fs::create_dir(&dir).expect("scratch directory");
+    std::fs::create_dir(dir.join("folder")).expect("child directory");
+    std::fs::write(dir.join("file"), "12345").expect("file");
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(dir.join("folder"), dir.join("link")).expect("directory link");
+        std::os::unix::fs::symlink(dir.join("missing"), dir.join("broken")).expect("broken link");
+    }
+
+    let host = super::super::Host::Local;
+    let missing = dir.join("missing");
+    let (found, warnings) = host.children(&[dir.clone(), missing.clone()]);
+    assert_eq!(warnings.len(), 1);
+    assert!(!found.contains_key(&missing));
+    let full = host.read_dir(&dir).expect("full listing");
+    assert_eq!(found[&dir].len(), full.len());
+    for child in &full {
+        let walked = found[&dir]
+            .iter()
+            .find(|one| one.name == child.name)
+            .expect("same entry");
+        assert_eq!(walked.stat.is_dir, child.stat.is_dir, "{}", child.name);
+        assert_eq!(
+            walked.stat.is_symlink, child.stat.is_symlink,
+            "{}",
+            child.name
+        );
+    }
+    let file = full
+        .iter()
+        .find(|child| child.name == "file")
+        .expect("file metadata");
+    assert_eq!(file.stat.size, 5);
+    assert!(file.stat.modified_ms.is_some());
+    std::fs::remove_dir_all(dir).expect("remove scratch directory");
+}

@@ -136,7 +136,11 @@ export function Canvas({
   const { step } = useGrid();
 
   const { places, placeFolder } = useFolderPlaces();
-  const { groupGap, canvasAlign: align } = useAppSettings();
+  const {
+    groupGap,
+    canvasAlign: align,
+    monitor: { previewWidth: cardWidth },
+  } = useAppSettings();
   const gap = groupGapOf(groupGap);
   const graph = useMemo(
     () =>
@@ -148,6 +152,7 @@ export function Canvas({
           opened,
           closed,
           tiles,
+          cardWidth,
           step,
           sessions,
           showing,
@@ -166,6 +171,7 @@ export function Canvas({
       opened,
       closed,
       tiles,
+      cardWidth,
       step,
       sessions,
       showing,
@@ -356,7 +362,10 @@ export function Canvas({
 
   const run = useMemo(() => cliRun(graph.nodes), [graph.nodes]);
 
-  const jumps = useMemo(() => ({ numbers }), [numbers]);
+  const jumps = useMemo(
+    () => ({ numbers, showing: showing === null ? null : `session${showing}` }),
+    [numbers, showing],
+  );
 
   const { dragBranch, takeGroup, carryGroup, dropGroup } = useCanvasDrag({
     graph,

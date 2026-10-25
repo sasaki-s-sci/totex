@@ -58,6 +58,8 @@ export type Draw = {
   offered: ReadonlyMap<string, OfferFlowNode>;
   /** Grid steps each plain terminal's tile is tall, by session. */
   tiles: ReadonlyMap<string, number>;
+  /** Width of session cards, from the existing monitor preview setting. */
+  cardWidth: number;
   /** The grid step a tile's height is counted in. */
   step: number;
 };

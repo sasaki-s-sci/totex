@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::parse::{local_child, local_stat, parse_children, parse_stat};
+use super::parse::{local_child, local_kind, local_stat, parse_children, parse_stat};
 use super::script::{LIST, LIST_MANY, STAT};
 use super::{Child, Host, Stat, said};
 
@@ -89,12 +89,18 @@ impl Host {
 
         match self {
             Self::Local => {
+                // Only names and kinds: the walks that ask this never read size or time, and
+                // a `statx` per entry was a large share of the samples in a deep walk.
                 for dir in dirs {
-                    match self.read_dir(dir) {
-                        Ok(children) => {
+                    match std::fs::read_dir(dir) {
+                        Ok(entries) => {
+                            let children = entries
+                                .flatten()
+                                .filter_map(|entry| local_kind(&entry))
+                                .collect();
                             found.insert(dir.clone(), children);
                         }
-                        Err(error) => warnings.push(error),
+                        Err(error) => warnings.push(error.to_string()),
                     }
                 }
             }

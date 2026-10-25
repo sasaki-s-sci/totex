@@ -438,8 +438,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
         transformOrigin: "0 0",
         boxShadow: failed ? "inset 0 2px 0 0 var(--mui-palette-error-main)" : "none",
         "& > .xterm": { padding: `${PAD.y}px ${PAD.x}px` },
-        // xterm paints its viewport black over the padding; cleared so the box shows through.
-        "& .xterm-viewport": { background: "transparent" },
+        // The viewport covers the padding too; outrank xterm's default black regardless of load order.
+        "&& .xterm-viewport": { backgroundColor: look.seeThrough ? "transparent" : opaque },
       }}
     >
       {pasteFailed && (
