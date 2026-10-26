@@ -6,10 +6,12 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
 import type { useSessions } from "../hooks/useSessions";
+import { shellSession } from "../lib/session";
 import { useFrontState } from "../shell/state";
 import { type PagePlacement, placementOf, terminalPageId } from "./placement";
 
@@ -17,6 +19,8 @@ type Entry = { id: string; name: string };
 type Workspace = {
   entries: readonly Entry[];
   showing: string | null;
+  /** The sidebar's lower pane, when it is split; never the page showing above it. */
+  lower: string | null;
   placement: (id: string) => PagePlacement;
   move: (id: string, to: PagePlacement) => void;
   show: (id: string) => void;
@@ -44,9 +48,11 @@ export function PageWorkspace({
 }) {
   const [docked, setDocked] = useFrontState<readonly string[]>("pages.dockedFiles", []);
   const [fileShowing, setFileShowing] = useFrontState<string | null>("pages.showingFile", null);
+  const [split, setSplit] = useFrontState<string | null>("pages.lowerSidebar", null);
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
-  const { sessions: terminals, showing, paged, page, dock, jump, hide } = sessions;
+  const { sessions: terminals, showing, paged, page, dock, jump, hide, restore } = sessions;
+  const shownId = showing === null ? fileShowing : terminalPageId(showing);
 
   useEffect(() => {
     if (showing !== null) setFileShowing(null);
@@ -67,6 +73,41 @@ export function PageWorkspace({
   }, []);
 
   const placement = useCallback((id: string) => placementOf(id, docked, paged), [docked, paged]);
+  // A split whose lower page has since moved away, or that became the shown page, is no split.
+  const lower =
+    split !== null && shownId !== null && split !== shownId && placement(split) === "sidebar"
+      ? split
+      : null;
+
+  // Ctrl+Alt+A: the lower pane takes the next page in the sidebar, else a new shell beside the
+  // shown terminal. Again closes the split.
+  const splitSidebar = useCallback(() => {
+    if (lower !== null) return setSplit(null);
+    if (shownId === null) return;
+    const next = entries.find((entry) => entry.id !== shownId && placement(entry.id) === "sidebar");
+    if (next) return setSplit(next.id);
+    const shown = terminals.find((session) => terminalPageId(session.id) === shownId);
+    if (!shown) return;
+    // Restored, not opened: the shown terminal stays on top.
+    const fresh = shellSession(shown.cwd, shown.branch, shown.folder);
+    restore(fresh);
+    setSplit(terminalPageId(fresh.id));
+  }, [lower, shownId, entries, placement, terminals, restore]);
+  const latestSplit = useRef(splitSidebar);
+  latestSplit.current = splitSidebar;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || !event.altKey || event.metaKey || event.shiftKey) return;
+      if (event.key.toLowerCase() !== "a") return;
+      event.preventDefault();
+      if (event.repeat) return;
+      latestSplit.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const forget = useCallback((id: string) => {
     setDocked((held) => held.filter((one) => one !== id));
     setFileShowing((held) => (held === id ? null : held));
@@ -112,14 +153,15 @@ export function PageWorkspace({
   const value = useMemo(
     () => ({
       entries,
-      showing: showing === null ? fileShowing : terminalPageId(showing),
+      showing: shownId,
+      lower,
       placement,
       move,
       show,
       hide: hidePage,
       forget,
     }),
-    [entries, showing, fileShowing, placement, move, show, hidePage, forget],
+    [entries, shownId, lower, placement, move, show, hidePage, forget],
   );
   const hosting = useMemo(
     () => ({ hosts, registerHost, registerPage }),
@@ -134,7 +176,7 @@ export function PageWorkspace({
 }
 
 /** Hosts own layout; the page and its DOM survive a change of host. */
-export function PageSlot({ id, place }: { id: string; place: PagePlacement | "pinned" }) {
+export function PageSlot({ id, place }: { id: string; place: PagePlacement | "pinned" | "cards" }) {
   const context = useContext(HostsContext);
   const register = context?.registerHost;
   const ref = useCallback(
@@ -150,7 +192,7 @@ export function PagePortal({
   place,
   focus,
   children,
-}: Entry & { place: PagePlacement | "pinned"; focus?: string; children: ReactNode }) {
+}: Entry & { place: PagePlacement | "pinned" | "cards"; focus?: string; children: ReactNode }) {
   const context = useContext(HostsContext);
   const register = context?.registerPage;
   const target = context?.hosts.get(`${place}/${id}`);

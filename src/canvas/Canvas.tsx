@@ -7,6 +7,7 @@ import {
   type Viewport,
 } from "@xyflow/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { CardBoard } from "../cards/CardBoard";
 import { useAppSettings } from "../lib/appSettings";
 import { changesOf } from "../lib/changes";
 import { SETTINGS_REQUEST_ID } from "../lib/filePreview";
@@ -97,6 +98,8 @@ export function Canvas({
   settingsRequest,
   onCloseSettings,
 }: CanvasProps) {
+  const { layout } = useAppSettings();
+  const cards = layout === "cards";
   const pages = usePageWorkspace();
   const placement = pages?.placement;
   const forgetPage = pages?.forget;
@@ -434,13 +437,25 @@ export function Canvas({
                   <div
                     ref={host}
                     className="graph"
-                    data-coarse={coarse || undefined}
+                    data-layout={layout}
+                    data-coarse={(!cards && coarse) || undefined}
                     data-offering={offering || undefined}
                     data-chord={chord || undefined}
                   >
+                    {cards && (
+                      <CardBoard
+                        workspace={workspace}
+                        folders={folders}
+                        sessions={sessions}
+                        showing={showing}
+                        nodes={nodes}
+                      />
+                    )}
+                    {/* Keep Pages mounted while their portals move between layout hosts. */}
                     <ReactFlow<AppNode, Edge>
                       ref={pane}
-                      nodes={shown}
+                      style={cards ? { visibility: "hidden", pointerEvents: "none" } : undefined}
+                      nodes={cards ? [] : shown}
                       nodeTypes={nodeTypes}
                       onNodesChange={onNodesChange}
                       onInit={(flow) => {
@@ -470,32 +485,37 @@ export function Canvas({
                       // Never re-fitted once looked at: a fit moves the canvas out from under the reader.
                       fitView={fitOnInit}
                     >
-                      <CanvasBackground />
+                      {!cards && <CanvasBackground />}
                       <Pages
+                        cards={cards}
                         nodes={nodes}
                         sessions={sessions}
                         terminalList={<TabStrip run={run} sessions={sessions} showing={showing} />}
                       />
-                      <GraphLines
-                        bands={graph.bands}
-                        reach={graph.reach}
-                        offerReach={graph.offerReach}
-                        holds={graph.holds}
-                        extent={graph.extent}
-                        nodes={lineNodes}
-                        selected={selectedCommit}
-                        picked={picked}
-                        offering={offering}
-                        reading={offering && !coarse}
-                        onCommit={handleCommitClick}
-                      />
-                    </ReactFlow>
-                    <PinnedCards
-                      pinnedFiles={pinnedFiles.filter(
-                        (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
+                      {!cards && (
+                        <GraphLines
+                          bands={graph.bands}
+                          reach={graph.reach}
+                          offerReach={graph.offerReach}
+                          holds={graph.holds}
+                          extent={graph.extent}
+                          nodes={lineNodes}
+                          selected={selectedCommit}
+                          picked={picked}
+                          offering={offering}
+                          reading={offering && !coarse}
+                          onCommit={handleCommitClick}
+                        />
                       )}
-                      pinDrag={pinDrag}
-                    />
+                    </ReactFlow>
+                    {!cards && (
+                      <PinnedCards
+                        pinnedFiles={pinnedFiles.filter(
+                          (node) => placement?.(filePageId(node.data.requestId)) !== "sidebar",
+                        )}
+                        pinDrag={pinDrag}
+                      />
+                    )}
                   </div>
                 </CliJumpsProvider>
               </GraphMarksProvider>

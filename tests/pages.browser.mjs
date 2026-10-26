@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyCardLayout } from "./cards.browser.mjs";
 
 /** Real Window, React Flow, file editors and xterm; only native IPC is replaced. */
 export async function verifyPages(page, base = "http://127.0.0.1:18422") {
@@ -45,6 +46,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
             text: JSON.stringify(args.initial),
             value: args.initial,
           };
+        if (cmd === "app_settings_write")
+          return { path: "/tmp/totex.json", text: args.text, value: JSON.parse(args.text) };
         if (cmd === "read_file_head")
           return {
             path: args.path,
@@ -78,6 +81,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     window.heldNote = document.querySelector('[role="textbox"][aria-label="note.txt"]');
     window.initialAttaches = window.pageCalls.filter((call) => call.cmd === "pty_attach").length;
   });
+
+  await verifyCardLayout(page);
 
   // Ctrl is held only while pressed, even if a child consumes its release.
   const verifyReleased = async (text) => {

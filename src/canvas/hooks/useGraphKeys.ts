@@ -14,8 +14,6 @@ import {
 import { terminal, typing } from "../../lib/keys";
 import { revealing } from "../../lib/reveal";
 import { isWrapping } from "../../lib/walk";
-import { isAgent } from "../../monitor/model";
-import { glanceNow } from "../../monitor/runtime";
 
 const DIRECTIONS: Record<string, { x: number; y: number }> = {
   ArrowRight: { x: 1, y: 0 },
@@ -89,6 +87,7 @@ export function useGraphKeys({
 
   const reveal = useCallback(
     (pick: Pickable) => {
+      if (host.current?.dataset.layout === "cards") return;
       const how = revealing();
       if (how === "never") return;
       const flow = instance.current;
@@ -169,22 +168,13 @@ export function useGraphKeys({
       if (node) latest.current.jump(node);
     };
 
-    // A coding CLI, as the monitor reads its screen. Without a monitor reading every terminal counts.
-    const coding = (pick: Pickable) => {
-      const node = latest.current.nodes.find((candidate) => candidate.id === pick.id);
-      if (node?.type !== "cli") return false;
-      const glance = glanceNow(node.data.session.id);
-      return !glance || isAgent(glance);
-    };
-
     // Up and Down go a terminal at a time; Left and Right go a repository or folder at a time.
-    const walkTerminals = (direction: { x: number; y: number }, codingOnly = false) => {
+    const walkTerminals = (direction: { x: number; y: number }) => {
       const by = direction.x + direction.y > 0 ? 1 : -1;
 
       const standing = at.current ?? latest.current.shown;
       const walk = direction.x ? neighbourRow : neighbour;
-      const stacks = codingOnly ? places.current.filter(coding) : places.current;
-      const next = walk(standing, stacks, by, isWrapping());
+      const next = walk(standing, places.current, by, isWrapping());
       if (!next) return;
 
       const node = stand(next);
@@ -206,14 +196,10 @@ export function useGraphKeys({
       // A text field keeps Ctrl+Shift+Arrow for word selection; a terminal does not.
       const writing = typing(event.target) && !terminal(event.target);
 
-      // Ctrl+Alt+Arrow walks the coding CLIs only, skipping the plain terminals between them.
-      if (event.altKey) {
-        const direction = DIRECTIONS[event.key];
-        if (!direction || writing) return;
-        event.preventDefault();
-        walkTerminals(direction, true);
-        return;
-      }
+      // Ctrl+Alt+Arrow switches the shown shell in useSessionKeys.
+      if (event.altKey) return;
+
+      if (host.current?.dataset.layout === "cards" && event.shiftKey) return;
 
       if (event.shiftKey && !writing) {
         setOffering(true);
@@ -327,7 +313,7 @@ export function useGraphKeys({
       window.removeEventListener("blur", drop);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [reveal]);
+  }, [reveal, host]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a redrawn graph is what loses the mark, so it is the trigger
   useEffect(() => {

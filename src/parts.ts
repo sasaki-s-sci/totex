@@ -18,7 +18,6 @@ export const commitPart = onDemand(() =>
 export const worktreePart = onDemand(() =>
   import("./menus/WorktreeMenu").then((part) => part.WorktreeMenu),
 );
-export const tasksPart = onDemand(() => import("./menus/TaskMenu").then((part) => part.TaskMenu));
 export const settingsPart = onDemand(() =>
   import("./settings/SettingsContent").then((part) => part.SettingsContent),
 );

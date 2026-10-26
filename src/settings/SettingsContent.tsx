@@ -8,6 +8,7 @@ import { GapRow } from "./GapRow";
 import { GridRows } from "./GridRows";
 import { HistoryRows } from "./HistoryRows";
 import { LanguageRow } from "./LanguageRow";
+import { LayoutRow } from "./LayoutRow";
 import { MarkSizeRows } from "./MarkSizeRows";
 import { MonitorRows } from "./MonitorRows";
 import { ResumeRows } from "./ResumeRows";
@@ -38,6 +39,7 @@ export function SettingsContent() {
       }}
     >
       <SettingsSaveStatus />
+      <LayoutRow />
       <SettingsMap>
         <Section name={t("settings.canvas")}>
           <Callout parts={["canvas"]} name={t("settings.moving")}>

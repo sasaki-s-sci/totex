@@ -1,4 +1,15 @@
 {
+  "cards": {
+    "title": "Cards",
+    "layout": "Layout",
+    "empty": "Open a folder or repository from the sidebar to get started.",
+    "folders": "Folders",
+    "newWorktree": "New workspace",
+    "detached": "detached",
+    "browse": "Browse workspace",
+    "worktreeMenu": "Workspace actions",
+    "inline": "Open terminal in card"
+  },
   "terminal": {
     "copyFailed": "Could not copy. Select the text and try again.",
     "pasteFailed": "Could not paste. Copy the text or image and try again."

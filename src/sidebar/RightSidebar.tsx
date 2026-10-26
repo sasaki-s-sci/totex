@@ -11,7 +11,7 @@ export function RightSidebar() {
   const workspace = usePageWorkspace();
   const { t } = useTranslation();
   if (!workspace) return null;
-  const { entries, showing, placement } = workspace;
+  const { entries, showing, lower, placement } = workspace;
   const pages = entries.filter((entry) => placement(entry.id) === "sidebar");
   const open = pages.some((entry) => entry.id === showing);
   return (
@@ -42,18 +42,28 @@ export function RightSidebar() {
         }}
       >
         <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>
-          {pages.map((entry) => (
-            <Box
-              key={entry.id}
-              sx={{
-                position: "absolute",
-                inset: 0,
-                visibility: entry.id === showing ? "visible" : "hidden",
-              }}
-            >
-              <PageSlot id={entry.id} place="sidebar" />
-            </Box>
-          ))}
+          {/* Split, the shown page takes the top half and the lower page the bottom one. */}
+          {pages.map((entry) => {
+            const top = entry.id === showing;
+            const bottom = entry.id === lower;
+            return (
+              <Box
+                key={entry.id}
+                sx={{
+                  position: "absolute",
+                  left: 0,
+                  right: 0,
+                  top: bottom ? "50%" : 0,
+                  bottom: top && lower ? "50%" : 0,
+                  borderTop: bottom ? 1 : 0,
+                  borderColor: "divider",
+                  visibility: top || bottom ? "visible" : "hidden",
+                }}
+              >
+                <PageSlot id={entry.id} place="sidebar" />
+              </Box>
+            );
+          })}
         </Box>
       </Sidebar>
     </>

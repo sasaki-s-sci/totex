@@ -142,6 +142,7 @@ export type AppSettings = {
   groupGap: number;
   /** What the canvas lines its groups up by: their terminal stacks, or where their histories start. */
   canvasAlign: "terminal" | "initial";
+  layout: "cards" | "canvas";
   /** Commits a band shows from its tip; at `HISTORY_ALL` or past it, every one read. */
   historyLength: number;
   /** Whether a band is cut back to that length as commits arrive, rather than growing with them. */
@@ -190,6 +191,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   folderMarkSize: 15,
   groupGap: 2,
   canvasAlign: "terminal",
+  layout: "cards",
   historyLength: 3,
   historyFollow: false,
   mcpServing: false,
@@ -208,6 +210,7 @@ export function settingsFrom(value: SettingsPatch): AppSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...value,
+    layout: value.layout === "canvas" ? "canvas" : "cards",
     monitor: mergeMonitor(value.monitor),
     resume: mergeResume(value.resume),
     appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
@@ -245,6 +248,7 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     folderMarkSize: 15,
     groupGap: 2,
     canvasAlign: "terminal",
+    layout: "cards",
     historyLength: 3,
     historyFollow: false,
     mcpServing: read("totex.mcp.serving") === "yes",

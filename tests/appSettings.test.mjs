@@ -34,6 +34,7 @@ test("migrates the user preferences that survive, reading the reading size", () 
       folderMarkSize: 15,
       groupGap: 2,
       canvasAlign: "terminal",
+      layout: "cards",
       historyLength: 3,
       historyFollow: false,
       mcpServing: true,
@@ -93,4 +94,10 @@ test("monitor feature patches preserve independent defaults", () => {
   assert.equal(settings.monitor.features.agents, false);
   assert.equal(DEFAULT_SETTINGS.monitor.enabled, false);
   assert.equal(DEFAULT_SETTINGS.monitor.features.agents, true);
+});
+
+test("layout is persisted and unsupported values fall back to cards", () => {
+  assert.equal(settingsFrom({ layout: "canvas" }).layout, "canvas");
+  assert.equal(settingsFrom({ layout: "cards" }).layout, "cards");
+  assert.equal(settingsFrom({ layout: "unknown" }).layout, "cards");
 });

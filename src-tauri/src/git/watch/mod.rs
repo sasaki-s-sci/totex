@@ -109,7 +109,12 @@ fn here(
         let Ok(events) = result else {
             return;
         };
-        let touched = relevant_paths(events.iter().flat_map(|event| event.paths.iter()));
+        let touched = relevant_paths(
+            events
+                .iter()
+                .filter(|event| crate::fs_watch::changes_contents(event.kind))
+                .flat_map(|event| event.paths.iter()),
+        );
         if !touched.is_empty() {
             on_change(touched);
         }

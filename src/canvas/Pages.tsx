@@ -14,10 +14,12 @@ export function Pages({
   nodes,
   sessions,
   terminalList,
+  cards = false,
 }: {
   nodes: readonly AppNode[];
   sessions: readonly Session[];
   terminalList?: ReactNode;
+  cards?: boolean;
 }) {
   const workspace = usePageWorkspace();
   const actions = useGraphActions();
@@ -41,14 +43,22 @@ export function Pages({
             key={id}
             id={id}
             name={name}
-            place={placement === "canvas" && node.data.pinnedAt ? "pinned" : placement}
+            place={
+              placement === "canvas"
+                ? cards
+                  ? "cards"
+                  : node.data.pinnedAt
+                    ? "pinned"
+                    : "canvas"
+                : placement
+            }
           >
             <PageView
               kind="file"
               data={node.data}
               actions={actions}
               placement={placement}
-              scale={placement === "canvas" ? scale : 1}
+              scale={placement === "canvas" && !cards ? scale : 1}
             />
           </PagePortal>
         );
@@ -59,15 +69,16 @@ export function Pages({
         const node = nodes.find(
           (one) => one.type === "cli-page" && one.data.session.id === session.id,
         );
-        const collapsed = node?.type === "cli-page" && node.data.collapsed;
-        const shown = placement === "sidebar" ? workspace.showing === id : !collapsed;
+        const collapsed = !cards && node?.type === "cli-page" && node.data.collapsed;
+        const shown =
+          placement === "sidebar" ? workspace.showing === id || workspace.lower === id : !collapsed;
         const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
         return (
           <PagePortal
             key={id}
             id={id}
             name={name}
-            place={placement}
+            place={cards && placement === "canvas" ? "cards" : placement}
             focus={shown ? ".xterm-helper-textarea" : undefined}
           >
             <PageView
@@ -75,13 +86,15 @@ export function Pages({
               terminalList={terminalList}
               session={session}
               placement={placement}
-              scale={placement === "canvas" ? scale : 1}
+              scale={placement === "canvas" && !cards ? scale : 1}
               shown={shown}
               collapsed={collapsed}
               controls={{
                 move: () => workspace.move(id, placement === "canvas" ? "sidebar" : "canvas"),
                 hide: workspace.hide,
-                shrink: () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
+                shrink: cards
+                  ? undefined
+                  : () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
               }}
               onEnded={() => actions.endSession(session)}
             />

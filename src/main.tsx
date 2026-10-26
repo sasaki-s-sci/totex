@@ -5,14 +5,7 @@ import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ephemeralIdentity, swapEphemeral } from "./ephemeral/runtime";
-import {
-  canvasPart,
-  commitPart,
-  settingsPart,
-  sidebarPart,
-  tasksPart,
-  worktreePart,
-} from "./parts";
+import { canvasPart, commitPart, settingsPart, sidebarPart, worktreePart } from "./parts";
 import { connection, disconnect, retire, settled } from "./shell/bridge";
 import { captureFocus, restoreFocus } from "./shell/focus";
 import { snapshot, takeCarried } from "./shell/state";
@@ -79,7 +72,7 @@ Promise.all([
   swapEphemeral(),
   canvasPart.warm(),
   ...(connection?.snapshot
-    ? [sidebarPart, settingsPart, commitPart, worktreePart, tasksPart].map((part) => part.warm())
+    ? [sidebarPart, settingsPart, commitPart, worktreePart].map((part) => part.warm())
     : []),
 ])
   .then(async () => {

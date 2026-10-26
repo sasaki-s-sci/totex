@@ -11,7 +11,6 @@ import { useServing } from "../hooks/useServing";
 import { useSessionKeys } from "../hooks/useSessionKeys";
 import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
-import { useTaskKeys } from "../hooks/useTaskKeys";
 import { useWorkspaces } from "../hooks/useWorkspace";
 import { FILE_DRAG_TYPE } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
@@ -21,15 +20,8 @@ import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { useMonitorRuntime } from "../monitor/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
-import {
-  canvasPart,
-  commitPart,
-  EMPTY_WORKSPACE,
-  sidebarPart,
-  tasksPart,
-  worktreePart,
-} from "../parts";
-import { resumeJob, useResumeRuntime } from "../resume/runtime";
+import { canvasPart, commitPart, EMPTY_WORKSPACE, sidebarPart, worktreePart } from "../parts";
+import { useResumeRuntime } from "../resume/runtime";
 import { useFrontState } from "../shell/state";
 import {
   type FolderDestination,
@@ -62,11 +54,11 @@ export function Window() {
   const sessions = useSessions();
   useResumeRuntime(sessions);
   const reports = useReports();
-  useSessionKeys({ sessions: sessions.sessions, showing: sessions.showing, open: sessions.open });
-  const tasks = useTaskKeys({
+  useSessionKeys({
     sessions: sessions.sessions,
     showing: sessions.showing,
     open: sessions.open,
+    jump: sessions.jump,
   });
 
   const { workspace, folders: graphed } = useWorkspaces(folders.roots);
@@ -135,7 +127,6 @@ export function Window() {
   const RightSidebar = sidebarPart.use();
   const CommitMenu = commitPart.use(useEver(menus.commit !== null));
   const WorktreeMenu = worktreePart.use(useEver(menus.worktree !== null));
-  const TaskMenu = tasksPart.use(useEver(tasks.asking !== null));
 
   return (
     <PageWorkspace sessions={sessions}>
@@ -239,20 +230,6 @@ export function Window() {
           </Alert>
         </Snackbar>
 
-        {TaskMenu && (
-          <TaskMenu
-            session={tasks.asking}
-            onClose={tasks.close}
-            onRun={tasks.run}
-            onResume={(id) => {
-              tasks.close();
-              resumeJob(
-                id,
-                sessions.sessions.map((session) => session.id),
-              );
-            }}
-          />
-        )}
         {CommitMenu && (
           <CommitMenu target={menus.commit} onClose={menus.closeCommit} onOpen={sessions.open} />
         )}

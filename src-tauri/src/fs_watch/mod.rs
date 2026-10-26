@@ -28,7 +28,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use notify_debouncer_full::notify::RecursiveMode;
+use notify_debouncer_full::notify::{
+    EventKind, RecursiveMode,
+    event::{AccessKind, AccessMode},
+};
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 use tauri::{AppHandle, Emitter, Runtime, State, Window};
 
@@ -165,7 +168,13 @@ fn locally<R: Runtime>(
         let Ok(events) = result else {
             return;
         };
-        let touched = directories(events.iter().flat_map(|event| event.paths.iter()), &watched);
+        let touched = directories(
+            events
+                .iter()
+                .filter(|event| changes_contents(event.kind))
+                .flat_map(|event| event.paths.iter()),
+            &watched,
+        );
         if !touched.is_empty() {
             let _ = handle.emit_to(window.as_str(), CHANGED_EVENT, touched);
         }
@@ -201,6 +210,15 @@ fn inside<R: Runtime>(
             let _ = handle.emit_to(window.as_str(), CHANGED_EVENT, touched);
         }
     })
+}
+
+/// Reading a watched directory must not trigger another reading; a completed write still does.
+pub(crate) fn changes_contents(kind: EventKind) -> bool {
+    !kind.is_access()
+        || matches!(
+            kind,
+            EventKind::Access(AccessKind::Close(AccessMode::Write))
+        )
 }
 
 /// The watched directories a burst of paths belongs to.

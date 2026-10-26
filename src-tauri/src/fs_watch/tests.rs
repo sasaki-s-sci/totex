@@ -46,3 +46,64 @@ fn a_path_inside_a_distribution_finds_its_open_directory() {
         vec![open.to_string_lossy().into_owned()]
     );
 }
+
+#[test]
+fn reading_is_not_a_filesystem_change() {
+    use notify_debouncer_full::notify::event::{CreateKind, ModifyKind, RemoveKind};
+    for access in [
+        AccessKind::Read,
+        AccessKind::Open(AccessMode::Any),
+        AccessKind::Open(AccessMode::Read),
+        AccessKind::Close(AccessMode::Read),
+    ] {
+        assert!(!changes_contents(EventKind::Access(access)));
+    }
+    for kind in [
+        EventKind::Create(CreateKind::File),
+        EventKind::Modify(ModifyKind::Any),
+        EventKind::Remove(RemoveKind::File),
+        EventKind::Access(AccessKind::Close(AccessMode::Write)),
+        EventKind::Any,
+    ] {
+        assert!(changes_contents(kind));
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn directory_reads_do_not_feed_back_but_writes_still_notify() {
+    let directory = std::env::temp_dir().join(format!("totex-watch-read-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let mut watcher = new_debouncer(DEBOUNCE, None, move |result: DebounceEventResult| {
+        let kinds = result
+            .unwrap()
+            .iter()
+            .map(|event| event.kind)
+            .collect::<Vec<_>>();
+        let _ = sender.send(kinds);
+    })
+    .unwrap();
+    watcher
+        .watch(&directory, RecursiveMode::NonRecursive)
+        .unwrap();
+    let _ = std::fs::read_dir(&directory).unwrap().count();
+    let read = receiver
+        .recv_timeout(Duration::from_secs(2))
+        .expect("directory access notification");
+    assert!(!read.into_iter().any(changes_contents));
+
+    std::fs::write(directory.join("written.txt"), "changed").unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let changed = loop {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        match receiver.recv_timeout(remaining) {
+            Ok(kinds) if kinds.iter().copied().any(changes_contents) => break true,
+            Ok(_) => continue,
+            Err(_) => break false,
+        }
+    };
+    drop(watcher);
+    std::fs::remove_dir_all(&directory).unwrap();
+    assert!(changed, "real writes must refresh the folder");
+}
