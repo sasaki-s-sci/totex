@@ -10,8 +10,9 @@ import { useTranslation } from "react-i18next";
 import type { CanvasProps } from "../canvas/CanvasProps";
 import { useGraphActions } from "../canvas/graphActions";
 import { displayPath } from "../folder/format";
+import { useAppSettings } from "../lib/appSettings";
 import type { AppNode } from "../lib/graph";
-import { MonitorBadge } from "../monitor/MonitorBadge";
+import { MonitorAgents, MonitorBadge } from "../monitor/MonitorBadge";
 import { PageSlot, usePageWorkspace } from "../page/PageWorkspace";
 import { filePageId, terminalPageId } from "../page/placement";
 import { cardGroups, type FolderCard } from "./groups";
@@ -30,6 +31,7 @@ export function CardBoard({
   const actions = useGraphActions();
   const pages = usePageWorkspace();
   const host = useRef<HTMLDivElement>(null);
+  const { cardText } = useAppSettings();
   const groups = useMemo(
     () => cardGroups(workspace.repositories, folders, sessions),
     [workspace.repositories, folders, sessions],
@@ -51,7 +53,18 @@ export function CardBoard({
     <Box
       ref={host}
       className="card-board"
-      sx={{ position: "absolute", inset: "30px 0 0", overflow: "auto", p: 2 }}
+      sx={{
+        position: "absolute",
+        inset: "30px 0 0",
+        overflow: "auto",
+        p: 2,
+        "--card-text-scale": cardText / 100,
+        "& [data-card-folder] .monitor-badge__count": { display: "none" },
+        "& .card-workers .monitor-badge__count": {
+          display: "inline-flex",
+          fontSize: "calc(10px * var(--card-text-scale))",
+        },
+      }}
     >
       <Stack spacing={2}>
         {nodes
@@ -87,7 +100,7 @@ export function CardBoard({
                       component="h2"
                       variant="subtitle2"
                       noWrap
-                      sx={{ userSelect: "text" }}
+                      sx={{ userSelect: "text", fontSize: "calc(14px * var(--card-text-scale))" }}
                     >
                       {repository.name}
                     </Typography>
@@ -161,7 +174,7 @@ function WorkspaceCard({
         spacing={1}
         sx={{
           alignItems: "center",
-          height: 28,
+          minHeight: "max(28px, calc(24px * var(--card-text-scale)))",
           px: 1,
           "& .MuiIconButton-root": { width: 24, height: 24, p: 0.25 },
           "& .MuiSvgIcon-root": { fontSize: 16 },
@@ -169,7 +182,12 @@ function WorkspaceCard({
       >
         <Box sx={{ minWidth: 0, flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
           <Tooltip title={displayPath(path)}>
-            <Typography component="h3" variant="subtitle2" noWrap sx={{ userSelect: "text" }}>
+            <Typography
+              component="h3"
+              variant="subtitle2"
+              noWrap
+              sx={{ userSelect: "text", fontSize: "calc(14px * var(--card-text-scale))" }}
+            >
               {name}
             </Typography>
           </Tooltip>
@@ -178,7 +196,11 @@ function WorkspaceCard({
               size="small"
               variant="outlined"
               label={worktree.detached ? `${branch} · ${t("cards.detached")}` : branch}
-              sx={{ maxWidth: "50%", height: 20 }}
+              sx={{
+                maxWidth: "50%",
+                height: "auto",
+                fontSize: "calc(12px * var(--card-text-scale))",
+              }}
             />
           )}
         </Box>
@@ -223,6 +245,14 @@ function WorkspaceCard({
             <AddIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        <Box
+          className="card-workers"
+          sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}
+        >
+          {sessions.map((session) => (
+            <MonitorAgents key={session.id} id={session.id} />
+          ))}
+        </Box>
       </Stack>
       <Box>
         {sessions.map((session, index) => {
@@ -244,7 +274,11 @@ function WorkspaceCard({
               <Stack
                 direction="row"
                 spacing={0.5}
-                sx={{ alignItems: "center", height: inline ? 28 : 52, px: 0.5 }}
+                sx={{
+                  alignItems: "center",
+                  minHeight: inline ? 28 : "calc(36px * var(--card-text-scale) + 16px)",
+                  px: 0.5,
+                }}
               >
                 <Button
                   size="small"
@@ -260,7 +294,7 @@ function WorkspaceCard({
                     height: 28,
                     px: 0.75,
                     color: "text.secondary",
-                    fontSize: 11,
+                    fontSize: "calc(11px * var(--card-text-scale))",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -272,7 +306,7 @@ function WorkspaceCard({
                   <Box
                     className="card-session-preview"
                     sx={{
-                      height: 36,
+                      height: "calc(36px * var(--card-text-scale))",
                       flex: 1,
                       minWidth: 0,
                       px: 1,
@@ -285,11 +319,14 @@ function WorkspaceCard({
                         border: 0,
                         borderRadius: 0,
                         p: 0,
-                        fontSize: 11,
-                        lineHeight: "18px",
+                        fontSize: "calc(11px * var(--card-text-scale))",
+                        lineHeight: "calc(18px * var(--card-text-scale))",
                         justifyContent: "flex-start",
                       },
-                      "& .monitor-badge__row": { height: 18, gap: 0.5 },
+                      "& .monitor-badge__row": {
+                        height: "calc(18px * var(--card-text-scale))",
+                        gap: 0.5,
+                      },
                     }}
                   >
                     <MonitorBadge id={session.id} />

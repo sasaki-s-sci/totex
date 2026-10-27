@@ -162,6 +162,8 @@ export type AppSettings = {
   pageText: number;
   /** Percent of the terminal's own text size. */
   terminalText: number;
+  /** Percent of the folder card headings and previews. */
+  cardText: number;
 };
 
 export type SettingsPatch = Omit<Partial<AppSettings>, "appearance" | "monitor" | "resume"> & {
@@ -203,6 +205,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   graphWheel: 10,
   pageText: 100,
   terminalText: 100,
+  cardText: 100,
 };
 
 /** Unknown fields stay on disk; missing known fields take the defaults. */
@@ -210,6 +213,10 @@ export function settingsFrom(value: SettingsPatch): AppSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...value,
+    cardText:
+      typeof value.cardText === "number" && Number.isFinite(value.cardText)
+        ? Math.min(200, Math.max(50, value.cardText))
+        : DEFAULT_SETTINGS.cardText,
     layout: value.layout === "canvas" ? "canvas" : "cards",
     monitor: mergeMonitor(value.monitor),
     resume: mergeResume(value.resume),
@@ -260,5 +267,6 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
     graphWheel: 10,
     pageText: 100,
     terminalText: 100,
+    cardText: 100,
   };
 }

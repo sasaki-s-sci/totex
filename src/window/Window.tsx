@@ -56,9 +56,10 @@ export function Window() {
   const reports = useReports();
   useSessionKeys({
     sessions: sessions.sessions,
-    showing: sessions.showing,
+    showing: sessions.active,
     open: sessions.open,
     jump: sessions.jump,
+    end: sessions.end,
   });
 
   const { workspace, folders: graphed } = useWorkspaces(folders.roots);
@@ -192,7 +193,7 @@ export function Window() {
               folders={graphed}
               browsing={folders.browsing}
               sessions={sessions.sessions}
-              showing={sessions.showing}
+              showing={sessions.active}
               paged={sessions.paged}
               reports={reports}
               marks={marks}

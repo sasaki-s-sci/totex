@@ -230,6 +230,7 @@
     "cliMarkSize": "Terminal icon size",
     "folderMarkSize": "Folder icon size",
     "pageText": "Page text size",
+    "cardText": "Card text size",
     "terminalText": "Terminal text size",
     "canvasAlign": "Line groups up by",
     "alignTerminal": "Terminals",

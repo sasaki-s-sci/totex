@@ -79,7 +79,7 @@ export function Pages({
             id={id}
             name={name}
             place={cards && placement === "canvas" ? "cards" : placement}
-            focus={shown ? ".xterm-helper-textarea" : undefined}
+            focus={shown && workspace.active === id ? ".xterm-helper-textarea" : undefined}
           >
             <PageView
               kind="terminal"

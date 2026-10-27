@@ -46,6 +46,7 @@ test("migrates the user preferences that survive, reading the reading size", () 
       graphWheel: 10,
       pageText: 100,
       terminalText: 100,
+      cardText: 100,
     },
   );
 });
@@ -100,4 +101,13 @@ test("layout is persisted and unsupported values fall back to cards", () => {
   assert.equal(settingsFrom({ layout: "canvas" }).layout, "canvas");
   assert.equal(settingsFrom({ layout: "cards" }).layout, "cards");
   assert.equal(settingsFrom({ layout: "unknown" }).layout, "cards");
+});
+
+test("card text size persists, defaults for old settings, and stays within readable limits", () => {
+  assert.equal(settingsFrom({}).cardText, 100);
+  assert.equal(settingsFrom({ cardText: 140 }).cardText, 140);
+  assert.equal(settingsFrom({ cardText: 0 }).cardText, 50);
+  assert.equal(settingsFrom({ cardText: 999 }).cardText, 200);
+  for (const cardText of [NaN, Infinity, null, "large"])
+    assert.equal(settingsFrom({ cardText }).cardText, 100);
 });

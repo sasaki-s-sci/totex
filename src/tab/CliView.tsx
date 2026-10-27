@@ -264,7 +264,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
         event.altKey &&
         !event.metaKey &&
         !event.shiftKey &&
-        (event.key.toLowerCase() === "a" || ARROWS.has(event.key))
+        (["a", "x"].includes(event.key.toLowerCase()) || ARROWS.has(event.key))
       ) {
         return false;
       }

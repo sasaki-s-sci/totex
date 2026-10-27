@@ -277,3 +277,75 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     errors,
   };
 }
+
+/** Active terminals keep their pane when navigating and closing a split. */
+export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422", layout = "Cards") {
+  await page.goto(`${base}/tests/fixtures/pages.html?terminals`);
+  await page
+    .locator(".settings-page")
+    .getByRole("group", { name: "Layout", exact: true })
+    .getByRole("button", { name: layout, exact: true })
+    .click();
+  await page.locator('[data-terminal="terminal-one"] .xterm-screen').click();
+  await page.keyboard.press("Control+a");
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
+  );
+  await page.keyboard.press("Control+a");
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 3,
+  );
+  const ids = await page.evaluate(async () =>
+    (await window.pageSnapshot()).values["sessions.list"].map((s) => s.id),
+  );
+  await page.keyboard.press("Control+Alt+a");
+  const check = async (top, bottom, active) => {
+    await page.waitForFunction(
+      ({ top, bottom, active }) => {
+        const panes = [...document.querySelectorAll("[data-page-pane]")];
+        const pane = (id) => panes.find((e) => e.dataset.pagePane === `terminal:${id}`);
+        const a = pane(active);
+        return (
+          a?.dataset.active === "true" &&
+          a.contains(document.activeElement) &&
+          getComputedStyle(pane(top)).top === "0px" &&
+          (bottom === null ||
+            pane(bottom).getBoundingClientRect().top > pane(top).getBoundingClientRect().top)
+        );
+      },
+      { top, bottom, active },
+    );
+  };
+  await check(ids[2], ids[0], ids[0]);
+  await page.keyboard.press("Control+ArrowDown");
+  await check(ids[2], ids[1], ids[1]);
+  await page.keyboard.press("Control+ArrowDown");
+  await check(ids[2], ids[1], ids[2]);
+  await page.locator(`[data-terminal="${ids[1]}"] .xterm-screen`).click();
+  await check(ids[2], ids[1], ids[1]);
+  await page.keyboard.press("Control+Alt+x");
+  await page.waitForFunction(
+    (id) => window.pageCalls.some((c) => c.cmd === "pty_close" && c.args.id === id),
+    ids[1],
+  );
+  await check(ids[2], null, ids[2]);
+  assert.equal(await page.locator(`[data-terminal="${ids[1]}"]`).count(), 0);
+  await page.keyboard.press("Control+Alt+a");
+  await check(ids[2], ids[0], ids[0]);
+  await page.keyboard.press("Control+ArrowUp");
+  await check(ids[2], ids[0], ids[2]);
+  await page.keyboard.press("Control+Alt+x");
+  await page.waitForFunction((id) => !document.querySelector(`[data-terminal="${id}"]`), ids[2]);
+  await check(ids[0], null, ids[0]);
+  await page.keyboard.press("Control+Alt+a");
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
+  );
+  const fresh = await page.evaluate(
+    async () => (await window.pageSnapshot()).values["sessions.active"],
+  );
+  await check(ids[0], fresh, fresh);
+  await page.keyboard.press("Control+Alt+x");
+  await check(ids[0], null, ids[0]);
+  return "split focus, active-pane navigation, pointer selection, closing either pane";
+}

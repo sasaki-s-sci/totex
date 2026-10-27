@@ -315,6 +315,16 @@ const KIND_PATHS = {
 } as const;
 const KINDS = ["monitor", "subagent", "background", "shell"] as const;
 
+/** Folder cards put the workers on their heading, separately from each terminal's preview. */
+export function MonitorAgents({ id }: { id: string }) {
+  const { monitor } = useAppSettings();
+  const snapshot = useMonitorSnapshot(id);
+  const glance = useMonitorGlance(id);
+  if (!monitor.enabled || !monitorShows(monitor, "agents") || !isAgent(glance) || !snapshot)
+    return null;
+  return <AgentChips agents={snapshot.agents} />;
+}
+
 /** Each kind of observed worker as a chip: its glyph, how many, and the most pressing state of them. */
 function AgentChips({ agents }: { agents: MonitorSnapshot["agents"] }) {
   const { t } = useTranslation();

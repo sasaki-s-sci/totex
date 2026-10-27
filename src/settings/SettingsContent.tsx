@@ -40,6 +40,7 @@ export function SettingsContent() {
     >
       <SettingsSaveStatus />
       <LayoutRow />
+      <TextSizeRow place="card" />
       <SettingsMap>
         <Section name={t("settings.canvas")}>
           <Callout parts={["canvas"]} name={t("settings.moving")}>

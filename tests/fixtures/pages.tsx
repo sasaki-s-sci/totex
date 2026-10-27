@@ -11,14 +11,14 @@ keepFrontValue("sessions.showing", "terminal-one");
 keepFrontValue("files.open", [{ id: 1, path: "/tmp/note.txt", at: { x: 380, y: 240 } }]);
 keepFrontValue("window.settings", 1);
 keepFrontValue("canvas.viewport", { x: 0, y: 0, zoom: 1 });
-if (location.search.includes("offers")) {
+if (location.search.includes("offers") || location.search.includes("terminals")) {
   keepFrontValue("folders.panes", [
     {
       id: 0,
       kind: "folder",
       path: "/tmp",
       open: false,
-      graphed: ["/empty-a", "/empty-b"],
+      graphed: location.search.includes("terminals") ? ["/tmp"] : ["/empty-a", "/empty-b"],
       expanded: [],
       shown: {},
     },

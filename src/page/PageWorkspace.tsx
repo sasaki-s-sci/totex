@@ -21,6 +21,8 @@ type Workspace = {
   showing: string | null;
   /** The sidebar's lower pane, when it is split; never the page showing above it. */
   lower: string | null;
+  active: string | null;
+  activate: (id: string) => void;
   placement: (id: string) => PagePlacement;
   move: (id: string, to: PagePlacement) => void;
   show: (id: string) => void;
@@ -48,7 +50,7 @@ export function PageWorkspace({
 }) {
   const [docked, setDocked] = useFrontState<readonly string[]>("pages.dockedFiles", []);
   const [fileShowing, setFileShowing] = useFrontState<string | null>("pages.showingFile", null);
-  const [split, setSplit] = useFrontState<string | null>("pages.lowerSidebar", null);
+  const { split, setSplit, active, select } = sessions;
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
   const { sessions: terminals, showing, paged, page, dock, jump, hide, restore } = sessions;
@@ -75,24 +77,38 @@ export function PageWorkspace({
   const placement = useCallback((id: string) => placementOf(id, docked, paged), [docked, paged]);
   // A split whose lower page has since moved away, or that became the shown page, is no split.
   const lower =
-    split !== null && shownId !== null && split !== shownId && placement(split) === "sidebar"
+    split !== null &&
+    shownId !== null &&
+    split !== shownId &&
+    entries.some((entry) => entry.id === split) &&
+    placement(split) === "sidebar"
       ? split
       : null;
 
   // Ctrl+Alt+A: the lower pane takes the next page in the sidebar, else a new shell beside the
   // shown terminal. Again closes the split.
   const splitSidebar = useCallback(() => {
-    if (lower !== null) return setSplit(null);
+    if (lower !== null) {
+      setSplit(null);
+      select(showing);
+      return;
+    }
     if (shownId === null) return;
     const next = entries.find((entry) => entry.id !== shownId && placement(entry.id) === "sidebar");
-    if (next) return setSplit(next.id);
+    if (next) {
+      setSplit(next.id);
+      const terminal = terminals.find((session) => terminalPageId(session.id) === next.id);
+      if (terminal) select(terminal.id);
+      return;
+    }
     const shown = terminals.find((session) => terminalPageId(session.id) === shownId);
     if (!shown) return;
     // Restored, not opened: the shown terminal stays on top.
     const fresh = shellSession(shown.cwd, shown.branch, shown.folder);
     restore(fresh);
     setSplit(terminalPageId(fresh.id));
-  }, [lower, shownId, entries, placement, terminals, restore]);
+    select(fresh.id);
+  }, [lower, shownId, entries, placement, terminals, restore, showing, select, setSplit]);
   const latestSplit = useRef(splitSidebar);
   latestSplit.current = splitSidebar;
 
@@ -146,6 +162,14 @@ export function PageWorkspace({
     [terminals, jump, hide],
   );
 
+  const activate = useCallback(
+    (id: string) => {
+      const terminal = terminals.find((session) => terminalPageId(session.id) === id);
+      if (terminal) select(terminal.id);
+    },
+    [terminals, select],
+  );
+
   const hidePage = useCallback(() => {
     setFileShowing(null);
     hide();
@@ -155,13 +179,15 @@ export function PageWorkspace({
       entries,
       showing: shownId,
       lower,
+      active: active === null ? null : terminalPageId(active),
+      activate,
       placement,
       move,
       show,
       hide: hidePage,
       forget,
     }),
-    [entries, shownId, lower, placement, move, show, hidePage, forget],
+    [entries, shownId, lower, active, activate, placement, move, show, hidePage, forget],
   );
   const hosting = useMemo(
     () => ({ hosts, registerHost, registerPage }),
@@ -194,6 +220,7 @@ export function PagePortal({
   children,
 }: Entry & { place: PagePlacement | "pinned" | "cards"; focus?: string; children: ReactNode }) {
   const context = useContext(HostsContext);
+  const activate = usePageWorkspace()?.activate;
   const register = context?.registerPage;
   const target = context?.hosts.get(`${place}/${id}`);
   const [container] = useState(() => {
@@ -202,6 +229,16 @@ export function PagePortal({
     return element;
   });
   useLayoutEffect(() => register?.({ id, name }), [register, id, name]);
+  useEffect(() => {
+    const select = () => activate?.(id);
+    // Portal events follow the React tree, so observe focus on the actual page container.
+    container.addEventListener("focusin", select);
+    container.addEventListener("pointerdown", select);
+    return () => {
+      container.removeEventListener("focusin", select);
+      container.removeEventListener("pointerdown", select);
+    };
+  }, [container, activate, id]);
   useLayoutEffect(() => {
     target?.appendChild(container);
     return () => container.remove();

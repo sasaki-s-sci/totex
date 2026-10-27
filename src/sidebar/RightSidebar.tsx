@@ -11,7 +11,7 @@ export function RightSidebar() {
   const workspace = usePageWorkspace();
   const { t } = useTranslation();
   if (!workspace) return null;
-  const { entries, showing, lower, placement } = workspace;
+  const { entries, showing, lower, active, placement } = workspace;
   const pages = entries.filter((entry) => placement(entry.id) === "sidebar");
   const open = pages.some((entry) => entry.id === showing);
   return (
@@ -49,6 +49,8 @@ export function RightSidebar() {
             return (
               <Box
                 key={entry.id}
+                data-page-pane={entry.id}
+                data-active={entry.id === active || undefined}
                 sx={{
                   position: "absolute",
                   left: 0,
@@ -57,6 +59,12 @@ export function RightSidebar() {
                   bottom: top && lower ? "50%" : 0,
                   borderTop: bottom ? 1 : 0,
                   borderColor: "divider",
+                  outline:
+                    lower && entry.id === active
+                      ? "2px solid var(--mui-palette-primary-main)"
+                      : "none",
+                  outlineOffset: -2,
+                  zIndex: entry.id === active ? 1 : 0,
                   visibility: top || bottom ? "visible" : "hidden",
                 }}
               >

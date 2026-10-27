@@ -11,18 +11,28 @@ type Options = {
   showing: string | null;
   open: (session: Session, below?: string) => void;
   jump: (session: Session) => void;
+  end: (session: Session) => void;
 };
 
 const STEPS: Record<string, number> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 };
 
-export function useSessionKeys({ sessions, showing, open, jump }: Options) {
-  const latest = useRef({ sessions, showing, open, jump });
-  latest.current = { sessions, showing, open, jump };
+export function useSessionKeys({ sessions, showing, open, jump, end }: Options) {
+  const latest = useRef({ sessions, showing, open, jump, end });
+  latest.current = { sessions, showing, open, jump, end };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       // Ctrl+Alt+Arrow switches the shown shell to the one before or after it, wrapping round.
       if (event.ctrlKey && event.altKey && !event.metaKey && !event.shiftKey) {
+        if (event.key.toLowerCase() === "x") {
+          if (typing(event.target) && !terminal(event.target)) return;
+          const { sessions, showing, end } = latest.current;
+          const selected = sessions.find((session) => session.id === showing);
+          if (!selected) return;
+          event.preventDefault();
+          if (!event.repeat) end(selected);
+          return;
+        }
         const step = STEPS[event.key];
         if (!step || (typing(event.target) && !terminal(event.target))) return;
         event.preventDefault();

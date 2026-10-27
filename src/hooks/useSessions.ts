@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
 import { placeBeside, restored, type Session } from "../lib/session";
+import { terminalPageId } from "../page/placement";
 import { closing, dismiss } from "../resume/runtime";
 import { frontValue, useFrontState } from "../shell/state";
 
@@ -9,8 +10,26 @@ resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 export function useSessions() {
   const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
   const [showing, setShowing] = useFrontState<string | null>("sessions.showing", null);
+  const [split, setSplit] = useFrontState<string | null>("pages.lowerSidebar", null);
+  const [selected, select] = useFrontState<string | null>("sessions.active", null);
   // A terminal has one view; this records which host owns it.
   const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", []);
+
+  const lower =
+    showing === null
+      ? undefined
+      : sessions.find(
+          (session) =>
+            session.id !== showing &&
+            terminalPageId(session.id) === split &&
+            !paged.includes(session.id),
+        );
+  const active =
+    selected !== null &&
+    sessions.some((session) => session.id === selected) &&
+    (selected === showing || selected === lower?.id || paged.includes(selected))
+      ? selected
+      : showing;
 
   // Sessions outlive the window: pick up shells still running from before a reload.
   useEffect(() => {
@@ -49,6 +68,7 @@ export function useSessions() {
         : [...current.slice(0, at + 1), next, ...current.slice(at + 1)];
     });
     setShowing(next.id);
+    select(next.id);
   }, []);
 
   // A long press moves a terminal beside another in its row: the row is drawn in this order.
@@ -64,30 +84,46 @@ export function useSessions() {
     );
   }, []);
 
-  const show = useCallback((next: Session) => {
-    setPaged((current) => current.filter((id) => id !== next.id));
-    setShowing((current) => (current === next.id ? null : next.id));
-  }, []);
+  // Replace the active pane; choosing an already visible terminal only moves focus.
+  const jump = useCallback(
+    (next: Session) => {
+      setPaged((current) => current.filter((id) => id !== next.id));
+      if (next.id !== showing && next.id !== lower?.id) {
+        if (showing !== null && active === lower?.id) setSplit(terminalPageId(next.id));
+        else setShowing(next.id);
+      }
+      select(next.id);
+    },
+    [showing, lower?.id, active],
+  );
 
-  // Not the toggle: a jump names its terminal and must never close the panel.
-  const jump = useCallback((next: Session) => {
-    setPaged((current) => current.filter((id) => id !== next.id));
-    setShowing(next.id);
-  }, []);
+  const show = useCallback(
+    (next: Session) => {
+      if (next.id === showing && !lower) {
+        setShowing(null);
+        select(null);
+      } else jump(next);
+    },
+    [showing, lower, jump],
+  );
 
   // The panel's own close: the terminal stays open, only put away.
   const hide = useCallback(() => {
     setShowing(null);
+    setSplit(null);
+    select(null);
   }, []);
 
   const page = useCallback((next: Session) => {
     setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
     setShowing(null);
+    select(next.id);
   }, []);
 
   const dock = useCallback((next: Session) => {
     setPaged((current) => current.filter((id) => id !== next.id));
     setShowing(next.id);
+    select(next.id);
   }, []);
 
   const end = useCallback(
@@ -97,9 +133,16 @@ export function useSessions() {
       void kill(going);
       setSessions((current) => current.filter((session) => session.id !== going.id));
       setPaged((current) => current.filter((id) => id !== going.id));
-      setShowing((current) => (current === going.id ? null : current));
+      if (going.id === showing) {
+        setShowing(lower?.id ?? null);
+        setSplit(null);
+        select(lower?.id ?? null);
+      } else if (going.id === lower?.id) {
+        setSplit(null);
+        select(showing);
+      } else if (going.id === active) select(showing);
     },
-    [kill],
+    [kill, showing, lower?.id, active],
   );
 
   // Waits until the processes are gone: `git worktree remove` follows on that directory.
@@ -145,6 +188,10 @@ export function useSessions() {
   return {
     sessions,
     showing,
+    active,
+    select,
+    split,
+    setSplit,
     paged,
     attached,
     open,

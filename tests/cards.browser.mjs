@@ -13,6 +13,19 @@ export async function verifyCardLayout(page) {
   });
   await layout.getByRole("button", { name: "Cards", exact: true }).click();
   await page.getByRole("article", { name: "/tmp", exact: true }).waitFor();
+  const heading = page.getByRole("article", { name: "/tmp", exact: true }).locator("h3");
+  const initialSize = await heading.evaluate((element) =>
+    parseFloat(getComputedStyle(element).fontSize),
+  );
+  const cardSize = page.getByRole("slider", { name: "Card text size", exact: true });
+  await cardSize.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction((initial) => {
+    const heading = document.querySelector('[data-card-folder="/tmp"] h3');
+    return heading && parseFloat(getComputedStyle(heading).fontSize) > initial;
+  }, initialSize);
+  await page.keyboard.press("ArrowLeft");
+
   await page.getByRole("button", { name: "Open terminal in card", exact: true }).click();
   await page.locator('.card-board [data-terminal="terminal-one"] .xterm-screen').waitFor();
   assert.ok(

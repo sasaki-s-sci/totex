@@ -172,7 +172,7 @@ export function useGraphKeys({
     const walkTerminals = (direction: { x: number; y: number }) => {
       const by = direction.x + direction.y > 0 ? 1 : -1;
 
-      const standing = at.current ?? latest.current.shown;
+      const standing = latest.current.shown ?? at.current;
       const walk = direction.x ? neighbourRow : neighbour;
       const next = walk(standing, places.current, by, isWrapping());
       if (!next) return;
