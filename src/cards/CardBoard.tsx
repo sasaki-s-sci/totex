@@ -62,7 +62,12 @@ export function CardBoard({
         "& [data-card-folder] .monitor-badge__count": { display: "none" },
         "& .card-workers .monitor-badge__count": {
           display: "inline-flex",
-          fontSize: "calc(10px * var(--card-text-scale))",
+          fontSize: "calc(11px * var(--card-text-scale))",
+          gap: 0.5,
+        },
+        "& .card-workers .monitor-role svg, & [data-card-folder] .monitor-badge__row > svg": {
+          width: "calc(14px * var(--card-text-scale))",
+          height: "calc(14px * var(--card-text-scale))",
         },
       }}
     >
@@ -313,6 +318,7 @@ function WorkspaceCard({
 
                       "& .monitor-badge": {
                         display: "flex",
+                        gap: 0,
                         width: "100%",
                         maxWidth: "none",
                         height: "100%",

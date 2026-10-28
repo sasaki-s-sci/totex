@@ -24,7 +24,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -80,6 +80,7 @@ pub struct Serving {
     held: Arc<Persistent>,
     clients: Mutex<Vec<Arc<Client>>>,
     next: AtomicU64,
+    relaunching: AtomicUsize,
     ending: Ending,
     port: u16,
     token: String,
@@ -104,6 +105,7 @@ pub fn stand(held: Arc<Persistent>, home: &Path, ending: Ending) -> Result<Arc<S
         held: Arc::clone(&held),
         clients: Mutex::new(Vec::new()),
         next: AtomicU64::new(1),
+        relaunching: AtomicUsize::new(0),
         ending,
         port,
         token: token.clone(),
@@ -179,7 +181,10 @@ impl Serving {
 
     /// Ends this program if there is nothing left to hold.
     fn end_if_empty(&self) {
-        if self.clients() == 0 && self.held.sessions.count() == 0 {
+        if self.clients() == 0
+            && self.held.sessions.count() == 0
+            && self.relaunching.load(Ordering::SeqCst) == 0
+        {
             (self.ending)();
         }
     }
@@ -277,7 +282,10 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
                 &format!("the release did not go in: {error}"),
             );
         }
-        launch(&relaunch);
+        if let Err(error) = launch(&relaunch) {
+            update::note(&serving.home, &error);
+        }
+        serving.relaunching.fetch_sub(1, Ordering::SeqCst);
     }
     serving.end_if_empty();
 }
@@ -358,7 +366,12 @@ fn answer(
             .and_then(said)
         }),
         "relaunch" => read::<Relaunch>(with).map(|relaunch| {
-            *lock(&client.relaunch) = Some(relaunch);
+            let mut pending = lock(&client.relaunch);
+            if pending.is_none() {
+                // The last terminal can exit while the installer is still running.
+                serving.relaunching.fetch_add(1, Ordering::SeqCst);
+            }
+            *pending = Some(relaunch);
             Value::Null
         }),
         "stop" => {
@@ -485,7 +498,7 @@ fn write_address(home: &Path, address: &Address) -> Result<(), String> {
 /// Not this program's child in any sense the operating system would act on: it
 /// is given no pipes, its own process group, and on Windows its own console
 /// arrangements, so that neither of the two ending takes the other with it.
-pub fn launch(relaunch: &Relaunch) {
+pub fn launch(relaunch: &Relaunch) -> Result<(), String> {
     let mut command = Command::new(&relaunch.program);
     command
         .args(&relaunch.args)
@@ -493,7 +506,10 @@ pub fn launch(relaunch: &Relaunch) {
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     detach(&mut command);
-    let _ = command.spawn();
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("{} would not restart: {error}", relaunch.program.display()))
 }
 
 /// Leaves a program to be started as nobody's child.
@@ -512,4 +528,42 @@ pub fn detach(command: &mut Command) {
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
     const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
     command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::talk::Link;
+
+    #[test]
+    fn a_pending_relaunch_keeps_the_service_alive_and_logs_a_failed_spawn() {
+        let (temp, _program, serving, ended) = crate::tests::standing("relaunch-lifetime");
+        let link = Link::connect(temp.path()).unwrap();
+        let missing = temp.path().join("missing-program");
+        link.relaunch(&missing, &[], None).unwrap();
+        // Replacing a request must not leave an extra hold on the service.
+        link.relaunch(&missing, &[], None).unwrap();
+
+        // A failed broadcast can forget the window before installation finishes;
+        // the last terminal's exit then checks whether the service can end.
+        let id = lock(&serving.clients)[0].id;
+        serving.forget(id);
+        serving.end_if_empty();
+        assert!(!ended.load(Ordering::Relaxed), "relaunch is still pending");
+
+        drop(link);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !ended.load(Ordering::Relaxed) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "relaunch never finished"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let log = std::fs::read_to_string(temp.path().join("relaunch.log")).unwrap();
+        assert!(
+            log.contains("missing-program") && log.contains("would not restart"),
+            "{log}"
+        );
+    }
 }

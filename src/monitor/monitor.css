@@ -175,7 +175,17 @@
   top: 0;
   left: 3px;
   line-height: 1;
+  font-size: 13px;
+  gap: 4px;
   transform: translateY(calc(-100% - 4px));
+}
+.monitor-badge--canvas .monitor-role svg {
+  width: 18px;
+  height: 18px;
+}
+.monitor-badge--canvas .monitor-badge__row > svg {
+  width: 13px;
+  height: 13px;
 }
 .monitor-role {
   display: inline-flex;

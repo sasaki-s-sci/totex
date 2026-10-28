@@ -35,12 +35,13 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
     const took = await invoke<Took>("update_take", { layer, version, coming });
     if (took === "taken") {
       if (layer === "ephemeral") {
+        staged = true;
         if (connection) {
           await connection.activate(version ?? undefined);
+          staged = false;
           settlePress(layer, { stage: "swapped", progress: null });
           return "swapped";
         }
-        staged = true;
         undo = await swapEphemeral(version ?? undefined);
         await invoke("confirm_front", { version: ephemeralIdentity().version });
         staged = false;
