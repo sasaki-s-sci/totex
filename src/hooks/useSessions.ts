@@ -88,13 +88,10 @@ export function useSessions() {
     );
   }, []);
 
-  // Replace the active pane; choosing an already visible terminal only moves focus.
+  // Keyboard navigation opens the sidebar; an existing split keeps its active pane.
   const jump = useCallback(
     (next: Session) => {
-      if (activePlace === "cards") {
-        select(next.id);
-        return;
-      }
+      setActivePlace("sidebar");
       setPaged((current) => current.filter((id) => id !== next.id));
       if (next.id !== showing && next.id !== lower?.id) {
         if (showing !== null && active === lower?.id) setSplit(terminalPageId(next.id));
@@ -102,7 +99,7 @@ export function useSessions() {
       }
       select(next.id);
     },
-    [showing, lower?.id, active, activePlace],
+    [showing, lower?.id, active],
   );
 
   // The panel's own close: the terminal stays open, only put away.

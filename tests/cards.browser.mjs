@@ -321,7 +321,7 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     const body = await terminal(id).boundingBox();
     assert.ok(tools.x >= body.x + body.width - 1, "Controls sit beside the terminal");
   }
-  // Session shortcuts work across both nested panels and folder cards.
+  // Session shortcuts open the sidebar even when starting from a card.
   await terminal("terminal-one").locator(".xterm-screen").click();
   for (const [key, id] of [
     ["Control+ArrowDown", "terminal-two"],
@@ -339,10 +339,13 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
       id,
     );
     assert.ok(
-      await terminal(id).evaluate((node) => node.contains(document.activeElement)),
-      `${key} focuses ${id}`,
+      await page
+        .locator(`#cli-sidebar [data-terminal="${id}"]`)
+        .evaluate((node) => node.contains(document.activeElement)),
+      `${key} displays and focuses ${id} in the sidebar`,
     );
   }
+  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   await card("terminal-two")
     .getByRole("separator", { name: "Resize page height", exact: true })
     .focus();
@@ -537,10 +540,10 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
         window.groupIdentity.two === document.querySelector('[data-terminal="terminal-two"]') &&
         window.groupIdentity.header ===
           document.querySelector('[data-card-folder="/tmp"] > .page__header') &&
-        window.groupIdentity.attaches + 1 ===
+        window.groupIdentity.attaches + 3 ===
           window.pageCalls.filter((call) => call.cmd === "pty_attach").length,
     ),
-    "Opening a viewer preserves source runtimes and the shared header",
+    "Opening three viewers preserves source runtimes and the shared header",
   );
   await card("terminal-two").getByRole("button", { name: "Close worker", exact: true }).click();
   await terminal("terminal-two").waitFor({ state: "detached" });

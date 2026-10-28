@@ -22,6 +22,7 @@ export type PageProps = {
   name: string;
   title?: string;
   tools?: ReactNode;
+  heading?: ReactNode;
   toolsAtSide?: boolean;
   compact?: boolean;
   footnote?: ReactNode;
@@ -43,6 +44,7 @@ export function Page({
   name,
   title,
   tools,
+  heading,
   toolsAtSide = false,
   compact = false,
   footnote,
@@ -84,6 +86,7 @@ export function Page({
       ) : (
         <PageHeader
           name={name}
+          heading={heading}
           title={title}
           draggable={draggable}
           tabIndex={draggable ? 0 : undefined}
@@ -120,12 +123,14 @@ export function Page({
 export function PageHeader({
   name,
   status,
+  heading,
   children,
   style,
   ...props
 }: ComponentProps<"header"> & {
   name: string;
   status?: ReactNode;
+  heading?: ReactNode;
 }) {
   const { cardText } = useAppSettings();
   return (
@@ -134,10 +139,12 @@ export function PageHeader({
       className="page__header"
       style={{ fontSize: `${(11 * cardText) / 100}px`, ...style }}
     >
-      <div className="page__title">
-        <span className="page__name">{name}</span>
-        {status && <div className="page__status">{status}</div>}
-      </div>
+      {heading ?? (
+        <div className="page__title">
+          <span className="page__name">{name}</span>
+          {status && <div className="page__status">{status}</div>}
+        </div>
+      )}
       {children}
     </header>
   );

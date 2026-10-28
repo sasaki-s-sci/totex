@@ -13,6 +13,7 @@ import { FilePage } from "./FilePage";
 import { Page } from "./Page";
 import { type PageControls, PageTools } from "./PageTools";
 import { type PagePlacement, terminalPageId } from "./placement";
+import { TerminalList } from "./TerminalList";
 
 type Props = { placement: PagePlacement } & (
   | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions; scale: number }
@@ -99,6 +100,7 @@ function TerminalPage({
       placement={placement}
       kind="cli-page"
       name={name}
+      heading={placement === "sidebar" ? <TerminalList /> : undefined}
       title={displayPath(session.cwd)}
       keepMounted
       toolsAtSide={placement === "canvas"}

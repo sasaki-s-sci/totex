@@ -21,6 +21,7 @@ import {
 import type { Session } from "../lib/session";
 import { registerTerminalClipboard } from "../lib/terminalClipboard";
 import { openTerminalLink } from "../lib/terminalLinks";
+import { registerTerminalScroll } from "../lib/terminalScroll";
 import { useWheel, wheelFactor } from "../lib/wheel";
 import { ResumeBar } from "../resume/ResumeBar";
 import { frontInactive, readyAfter } from "../shell/bridge";
@@ -145,10 +146,12 @@ export function CliView({
     // Sixel and iTerm2 inline images; storage held small because there are several terminals.
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
+    const scrollSpace = registerTerminalScroll(terminal, element);
     drawn.current = terminal;
     const stateKey = `terminal.${viewer ? "viewer." : ""}${session.id}`;
     const forget = readOnSnapshot(stateKey, () => ({
       scroll: terminal.buffer.active.viewportY,
+      below: element.scrollTop,
       selection: terminal.getSelectionPosition(),
     }));
 
@@ -445,10 +448,12 @@ export function CliView({
         waiting.length = 0;
         const before = frontValue<{
           scroll: number;
+          below?: number;
           selection?: { start: { x: number; y: number }; end: { x: number; y: number } };
         }>(stateKey);
         if (before) {
           terminal.scrollToLine(before.scroll);
+          element.scrollTop = before.below ?? 0;
           const range = before.selection;
           if (range)
             terminal.select(
@@ -483,6 +488,7 @@ export function CliView({
       void finished.then((stop) => stop());
       // The shell is left running; closing the session is what ends it.
       clipboard.dispose();
+      scrollSpace.dispose();
       for (const handler of queryHandlers) handler.dispose();
       terminal.dispose();
       forget();

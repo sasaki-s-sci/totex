@@ -286,8 +286,13 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   const terminalHeader = sidebar.locator(".cli-page .page__header");
   await terminalHeader.locator(".page__window-controls button").first().waitFor();
   assert.equal(await terminalHeader.count(), 1);
-  assert.equal(await terminalHeader.locator(".page__name").textContent(), "main");
-  assert.equal(await terminalHeader.locator(".page__terminal-list, .monitor-badge").count(), 0);
+  assert.equal(await terminalHeader.locator(".page__terminal-name").textContent(), "main");
+  assert.equal(await terminalHeader.locator(".page__terminal-list").count(), 1);
+  assert.equal(
+    await terminalHeader.locator(".page__terminal-numbers [data-active=true]").textContent(),
+    "1",
+  );
+  assert.equal(await terminalHeader.locator(".monitor-badge").count(), 0);
   assert.equal(await terminalHeader.locator(".page__window-controls button").count(), 3);
 
   // Settings are an ordinary page and keep their form instance when docked.

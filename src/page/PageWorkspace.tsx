@@ -18,6 +18,7 @@ import { type PagePlacement, placementOf, terminalPageId } from "./placement";
 type Entry = { id: string; name: string };
 type Workspace = {
   entries: readonly Entry[];
+  terminals: ReturnType<typeof useSessions>["sessions"];
   expanded: readonly string[];
   toggleExpanded: (id: string) => void;
   showing: string | null;
@@ -198,6 +199,7 @@ export function PageWorkspace({
   const value = useMemo(
     () => ({
       entries,
+      terminals,
       expanded,
       toggleExpanded,
       showing: shownId,
@@ -213,6 +215,7 @@ export function PageWorkspace({
     }),
     [
       entries,
+      terminals,
       expanded,
       toggleExpanded,
       shownId,
