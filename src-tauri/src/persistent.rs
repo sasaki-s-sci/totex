@@ -126,6 +126,11 @@ fn placed(home: &Path) -> Result<PathBuf, String> {
         .filter(|program| program.is_file())
         .ok_or_else(|| format!("{PROGRAM} is not beside this program"))?;
 
+    // Development rebuilds can change the program without changing its version.
+    if cfg!(debug_assertions) {
+        return Ok(beside);
+    }
+
     let dir = home.join(totex_persistent::VERSION);
     let placed = dir.join(PROGRAM);
     if !placed.is_file() {

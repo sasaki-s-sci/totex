@@ -271,6 +271,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.page--canvas .page-terminal-number[data-active="true"] {
+  color: var(--mui-palette-info-main);
+  text-shadow: 0 0 8px currentColor;
+}
+
 .page-terminal-content {
   position: relative;
   display: flex;

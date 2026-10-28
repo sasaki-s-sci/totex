@@ -402,8 +402,13 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   const two = await card("terminal-two").boundingBox();
   assert.equal(one.y, two.y);
   assert.ok(two.x < one.x, "Terminals reorder inside their folder");
-  assert.equal(await card("terminal-one").locator(".page-terminal-number").textContent(), "1");
-  assert.equal(await card("terminal-two").locator(".page-terminal-number").textContent(), "2");
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-page-card="terminal:terminal-two"] .page-terminal-number')
+        ?.textContent === "1",
+  );
+  assert.equal(await card("terminal-one").locator(".page-terminal-number").textContent(), "2");
+  assert.equal(await card("terminal-two").locator(".page-terminal-number").textContent(), "1");
   assert.ok(Math.abs(one.x - two.x - two.width) < 1, "Columns share a divider without gaps");
   assert.equal(
     await card("terminal-one").evaluate((node) => getComputedStyle(node).borderLeftWidth),
@@ -422,7 +427,7 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
       .locator('#cli-sidebar .cli-page:has([data-terminal="terminal-two"])')
       .locator(".page-terminal-number")
       .textContent(),
-    "2",
+    "1",
     "Viewer keeps its source number",
   );
   await page.waitForFunction(

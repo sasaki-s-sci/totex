@@ -19,6 +19,7 @@ type Entry = { id: string; name: string };
 type Workspace = {
   entries: readonly Entry[];
   terminals: ReturnType<typeof useSessions>["sessions"];
+  reorderTerminals: ReturnType<typeof useSessions>["reorder"];
   expanded: readonly string[];
   toggleExpanded: (id: string) => void;
   showing: string | null;
@@ -200,6 +201,7 @@ export function PageWorkspace({
     () => ({
       entries,
       terminals,
+      reorderTerminals: sessions.reorder,
       expanded,
       toggleExpanded,
       showing: shownId,
@@ -216,6 +218,7 @@ export function PageWorkspace({
     [
       entries,
       terminals,
+      sessions.reorder,
       expanded,
       toggleExpanded,
       shownId,

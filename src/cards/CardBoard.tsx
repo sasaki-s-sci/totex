@@ -3,7 +3,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { Box, Button, Chip, IconButton, Tooltip } from "@mui/material";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { CanvasProps } from "../canvas/CanvasProps";
 import { useGraphActions } from "../canvas/graphActions";
@@ -31,6 +31,12 @@ export function CardBoard({
   const pages = usePageWorkspace();
   const actions = useGraphActions();
   const host = useRef<HTMLDivElement>(null);
+  const reorderTerminals = pages?.reorderTerminals;
+  const renumber = useCallback(() => {
+    const cards = host.current?.querySelectorAll<HTMLElement>('[data-page-card^="terminal:"]');
+    if (cards)
+      reorderTerminals?.(Array.from(cards, (card) => card.dataset.pageCard?.slice(9) ?? ""));
+  }, [reorderTerminals]);
   const { cardText } = useAppSettings();
   const groups = useMemo(
     () => cardGroups(workspace.repositories, folders, sessions),
@@ -66,6 +72,7 @@ export function CardBoard({
       }}
     >
       <PageBoard
+        onLayout={renumber}
         cards={[
           ...nodes.map((node) => {
             const id = filePageId(node.data.requestId);
@@ -87,7 +94,13 @@ export function CardBoard({
             cards.length
               ? cards.map((card) => ({
                   id: `folder:${card.path}`,
-                  content: <WorkspaceCard card={card} offered={offered === card.path} />,
+                  content: (
+                    <WorkspaceCard
+                      card={card}
+                      offered={offered === card.path}
+                      onLayout={renumber}
+                    />
+                  ),
                 }))
               : repository
                 ? [
@@ -129,7 +142,15 @@ export function CardBoard({
   );
 }
 
-function WorkspaceCard({ card, offered }: { card: FolderCard; offered: boolean }) {
+function WorkspaceCard({
+  card,
+  offered,
+  onLayout,
+}: {
+  card: FolderCard;
+  offered: boolean;
+  onLayout: () => void;
+}) {
   const pages = usePageWorkspace();
   const { t } = useTranslation();
   const actions = useGraphActions();
@@ -239,6 +260,7 @@ function WorkspaceCard({ card, offered }: { card: FolderCard; offered: boolean }
       </PageHeader>
       <PageBoard
         storageKey={`cards.layout.${path}`}
+        onLayout={onLayout}
         cards={sessions.map((session) => {
           const id = terminalPageId(session.id);
           return {

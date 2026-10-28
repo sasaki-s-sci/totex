@@ -12,6 +12,7 @@ import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
 import { Page } from "./Page";
 import { type PageControls, PageTools } from "./PageTools";
+import { usePageWorkspace } from "./PageWorkspace";
 import { type PagePlacement, terminalPageId } from "./placement";
 import { TerminalList } from "./TerminalList";
 
@@ -59,6 +60,7 @@ function TerminalPage({
 }: Extract<Props, { kind: "terminal" }>) {
   const { t } = useTranslation();
   const { fileTitle, monitor } = useAppSettings();
+  const workspace = usePageWorkspace();
   const glance = useMonitorGlance(session.id);
   const agent = monitor.enabled && isAgent(glance);
   const agentSummary = placement === "canvas" && compact && agent;
@@ -107,7 +109,11 @@ function TerminalPage({
       compact={compact}
       tools={<PageTools name={name} placement={placement} controls={controls} />}
     >
-      <span className="page-terminal-number" title={`${t("cli.shell")} ${number}`}>
+      <span
+        className="page-terminal-number"
+        data-active={workspace?.active === terminalPageId(session.id)}
+        title={`${t("cli.shell")} ${number}`}
+      >
         {number}
       </span>
       <div className="page-terminal-content">

@@ -16,9 +16,11 @@ const DRAG_TYPE = "application/x-totex-page";
 export function PageBoard({
   cards,
   storageKey = "cards.layout",
+  onLayout,
 }: {
   cards: Card[];
   storageKey?: string;
+  onLayout?: (rows: PageLayout) => void;
 }) {
   const [saved, setSaved] = useFrontState<PageLayout>(storageKey, []);
   const rows = useMemo(
@@ -37,6 +39,7 @@ export function PageBoard({
   const [drop, setDrop] = useState<Drop | null>(null);
   const host = useRef<HTMLDivElement>(null);
   const moving = useRef<string | null>(null);
+  useEffect(() => onLayout?.(rows), [rows, onLayout]);
 
   // Page portals follow a different React tree; drag events must follow the actual DOM hosts.
   useEffect(() => {

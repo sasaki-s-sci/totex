@@ -17,6 +17,23 @@ export type Session = {
 
 let started = 0;
 
+export function orderSessions(
+  sessions: readonly Session[],
+  ids: readonly string[],
+): readonly Session[] {
+  const remaining = new Map(sessions.map((session) => [session.id, session]));
+  const ordered: Session[] = [];
+  for (const id of ids) {
+    const session = remaining.get(id);
+    if (session) {
+      ordered.push(session);
+      remaining.delete(id);
+    }
+  }
+  ordered.push(...remaining.values());
+  return ordered.every((session, index) => session === sessions[index]) ? sessions : ordered;
+}
+
 /** Opaque to the side that holds it, so a field can be added without changing anything there. */
 type Kept = {
   branch: string;

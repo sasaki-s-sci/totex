@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
-import { restored, type Session } from "../lib/session";
+import { orderSessions, restored, type Session } from "../lib/session";
 import { terminalPageId } from "../page/placement";
 import { closing, dismiss } from "../resume/runtime";
 import { frontValue, useFrontState } from "../shell/state";
@@ -182,9 +182,13 @@ export function useSessions() {
   );
 
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
+  const reorder = useCallback((ids: readonly string[]) => {
+    setSessions((current) => orderSessions(current, ids));
+  }, []);
 
   return {
     sessions,
+    reorder,
     showing,
     active,
     activePlace,
