@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
 /** Real Window and xterm; only native IPC is mocked. */
-export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
+async function openPlaces(page, base, layout) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  await page.addInitScript((layout) => {
     let serial = 0;
     const callbacks = new Map();
     const repo = {
@@ -92,8 +92,8 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
         if (cmd === "app_settings_read")
           return {
             path: "/tmp/totex-place-settings.json",
-            text: JSON.stringify({ ...args.initial, language: "en" }),
-            value: { ...args.initial, language: "en" },
+            text: JSON.stringify({ ...args.initial, language: "en", layout }),
+            value: { ...args.initial, language: "en", layout },
           };
         if (
           [
@@ -111,9 +111,14 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
       },
     };
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
-  });
+  }, layout);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${base}/tests/fixtures/place-lifecycle.html`);
+  return errors;
+}
+
+export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
+  const errors = await openPlaces(page, base, "canvas");
   const canvasFolder = page.locator(".react-flow__node-folder");
   const canvasRepo = page.locator(".react-flow__node-repository");
   const sidebar = page.locator("#folder-sidebar");
@@ -239,4 +244,76 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     failedCloseRetryable: true,
     errors,
   };
+}
+
+/** Card removal uses the same native-session cleanup and sidebar graph state. */
+export async function verifyCardPlaces(page, base = "http://127.0.0.1:18422") {
+  const errors = await openPlaces(page, base, "cards");
+  const card = page.locator('[data-card-folder="/projects/notes"]');
+  const remove = card.getByRole("button", {
+    name: "Remove folder and end its terminals",
+    exact: true,
+  });
+  await remove.waitFor();
+  await page.evaluate(() => {
+    window.refusePlaceClose = true;
+  });
+  await remove.click();
+  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
+  assert.equal(await card.count(), 1);
+  await page.evaluate(() => {
+    window.refusePlaceClose = false;
+  });
+  await remove.click();
+  await card.waitFor({ state: "detached" });
+  const panes = await page.evaluate(
+    async () => (await window.placeSnapshot()).values["folders.panes"],
+  );
+  assert.deepEqual(panes.find((p) => p.id === 1).graphed, []);
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "folder-cli")),
+    false,
+  );
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "repo-cli")),
+    true,
+  );
+
+  await page.evaluate(() =>
+    window.nativePlaces.push({
+      id: "invisible-worktree",
+      cwd: "/worktrees/feature",
+      rows: 24,
+      cols: 80,
+      meta: '{"branch":"feature"}',
+    }),
+  );
+  await page
+    .locator(".card-board")
+    .getByRole("button", { name: "Remove repository and end its terminals", exact: true })
+    .click();
+  await page.waitForFunction(() => window.nativePlaces.length === 0);
+  await page.waitForFunction(() => !document.querySelector("[data-card-folder]"));
+  assert.equal(
+    await page.evaluate(() =>
+      window.placeCalls.some((c) => c.cmd === "fs_delete_folder" || c.cmd === "fs_delete_file"),
+    ),
+    false,
+  );
+  assert.deepEqual(errors, []);
+
+  await page.reload();
+  await card.waitFor();
+  const sidebarClose = page.locator("#folder-sidebar").getByRole("button", {
+    name: "Remove folder and end its terminals",
+    exact: true,
+  });
+  await sidebarClose.locator("../..").hover();
+  await sidebarClose.click();
+  await card.waitFor({ state: "detached" });
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "folder-cli")),
+    false,
+  );
+  return "card and sidebar lifecycle, failed removal retry, repository worktree cleanup";
 }

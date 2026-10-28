@@ -118,6 +118,15 @@ export function CardBoard({
                 >
                   {t("cards.newWorktree")}
                 </Button>
+                <Tooltip title={t("repository.remove")}>
+                  <IconButton
+                    size="small"
+                    aria-label={t("repository.remove")}
+                    onClick={() => actions.closeRepository(repository)}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               </Stack>
             )}
             <Box
@@ -250,6 +259,17 @@ function WorkspaceCard({
             <AddIcon fontSize="small" />
           </IconButton>
         </Tooltip>
+        {!repository && (
+          <Tooltip title={t("folder.remove")}>
+            <IconButton
+              size="small"
+              aria-label={t("folder.remove")}
+              onClick={() => actions.closeFolder(path)}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         <Box
           className="card-workers"
           sx={{ display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap" }}
