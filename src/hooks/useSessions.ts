@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
-import { placeBeside, restored, type Session } from "../lib/session";
+import { restored, type Session } from "../lib/session";
 import { terminalPageId } from "../page/placement";
 import { closing, dismiss } from "../resume/runtime";
 import { frontValue, useFrontState } from "../shell/state";
@@ -9,11 +9,18 @@ resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 
 export function useSessions() {
   const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
-  const [showing, setShowing] = useFrontState<string | null>("sessions.showing", null);
+  const [sidebarSession, setShowing] = useFrontState<string | null>("sessions.showing", null);
   const [split, setSplit] = useFrontState<string | null>("pages.lowerSidebar", null);
   const [selected, select] = useFrontState<string | null>("sessions.active", null);
-  // A terminal has one view; this records which host owns it.
-  const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", []);
+  const [activePlace, setActivePlace] = useState<"cards" | "sidebar">("cards");
+  // Sessions absent from this list are available in the sidebar viewer.
+  const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", () =>
+    sessions.map((session) => session.id),
+  );
+  const showing =
+    sidebarSession !== null && !paged.includes(sidebarSession) ? sidebarSession : null;
+  const currentSessions = useRef(sessions);
+  currentSessions.current = sessions;
 
   const lower =
     showing === null
@@ -25,11 +32,7 @@ export function useSessions() {
             !paged.includes(session.id),
         );
   const active =
-    selected !== null &&
-    sessions.some((session) => session.id === selected) &&
-    (selected === showing || selected === lower?.id || paged.includes(selected))
-      ? selected
-      : showing;
+    selected !== null && sessions.some((session) => session.id === selected) ? selected : showing;
 
   // Sessions outlive the window: pick up shells still running from before a reload.
   useEffect(() => {
@@ -37,14 +40,17 @@ export function useSessions() {
     runningShells()
       .then((running) => {
         if (!alive) return;
-        setSessions((current) => {
-          const known = new Set(current.map((session) => session.id));
-          // Anything opened while this was in flight is newer than what came back.
-          const found = restored(running).filter(
-            (session) => !known.has(session.id) && !shellEnded(session.id),
-          );
-          return found.length === 0 ? current : [...found, ...current];
-        });
+        const known = new Set(currentSessions.current.map((session) => session.id));
+        // Anything opened while this was in flight is newer than what came back.
+        const found = restored(running).filter(
+          (session) => !known.has(session.id) && !shellEnded(session.id),
+        );
+        if (!found.length) return;
+        setPaged((current) => [...new Set([...current, ...found.map((session) => session.id)])]);
+        setSessions((current) => [
+          ...found.filter((session) => !current.some((held) => held.id === session.id)),
+          ...current,
+        ]);
       })
       .catch(() => undefined);
     return () => {
@@ -67,18 +73,16 @@ export function useSessions() {
         ? [...current, next]
         : [...current.slice(0, at + 1), next, ...current.slice(at + 1)];
     });
-    setShowing(next.id);
+    setPaged((current) => [...current, next.id]);
+    setActivePlace("cards");
     select(next.id);
   }, []);
 
-  // A long press moves a terminal beside another in its row: the row is drawn in this order.
-  const place = useCallback((moved: Session, anchor: Session, below: boolean) => {
-    setSessions((current) => placeBeside(current, moved, anchor, below));
-  }, []);
-
   // A terminal put back after it was lost, where it stood, without taking the panel from anything.
-  const restore = useCallback((next: Session) => {
+  const restore = useCallback((next: Session, asPage = true) => {
     void startShell(next).catch(() => undefined);
+    if (asPage && !currentSessions.current.some((session) => session.id === next.id))
+      setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
     setSessions((current) =>
       current.some((session) => session.id === next.id) ? current : [...current, next],
     );
@@ -87,6 +91,10 @@ export function useSessions() {
   // Replace the active pane; choosing an already visible terminal only moves focus.
   const jump = useCallback(
     (next: Session) => {
+      if (activePlace === "cards") {
+        select(next.id);
+        return;
+      }
       setPaged((current) => current.filter((id) => id !== next.id));
       if (next.id !== showing && next.id !== lower?.id) {
         if (showing !== null && active === lower?.id) setSplit(terminalPageId(next.id));
@@ -94,35 +102,28 @@ export function useSessions() {
       }
       select(next.id);
     },
-    [showing, lower?.id, active],
-  );
-
-  const show = useCallback(
-    (next: Session) => {
-      if (next.id === showing && !lower) {
-        setShowing(null);
-        select(null);
-      } else jump(next);
-    },
-    [showing, lower, jump],
+    [showing, lower?.id, active, activePlace],
   );
 
   // The panel's own close: the terminal stays open, only put away.
   const hide = useCallback(() => {
     setShowing(null);
     setSplit(null);
-    select(null);
+    setActivePlace("cards");
   }, []);
 
   const page = useCallback((next: Session) => {
     setPaged((current) => (current.includes(next.id) ? current : [...current, next.id]));
-    setShowing(null);
+    setShowing((shown) => (shown === next.id ? null : shown));
+    setSplit((held) => (held === terminalPageId(next.id) ? null : held));
+    setActivePlace("cards");
     select(next.id);
   }, []);
 
   const dock = useCallback((next: Session) => {
     setPaged((current) => current.filter((id) => id !== next.id));
     setShowing(next.id);
+    setActivePlace("sidebar");
     select(next.id);
   }, []);
 
@@ -189,6 +190,8 @@ export function useSessions() {
     sessions,
     showing,
     active,
+    activePlace,
+    setActivePlace,
     select,
     split,
     setSplit,
@@ -196,8 +199,6 @@ export function useSessions() {
     attached,
     open,
     restore,
-    place,
-    show,
     jump,
     hide,
     page,

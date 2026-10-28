@@ -18,8 +18,6 @@ export function FileTools({
   onHide,
   changed,
   save,
-  onFit,
-  onShrink,
   wrapped,
   onWrap,
 }: {
@@ -30,8 +28,6 @@ export function FileTools({
   onHide?: () => void;
   changed: boolean;
   save: () => Promise<boolean>;
-  onFit: () => void;
-  onShrink: () => void;
   wrapped: boolean;
   /** Absent where the page shows no text to wrap. */
   onWrap?: () => void;
@@ -39,7 +35,7 @@ export function FileTools({
   const { t } = useTranslation();
   const config = useSettingsDocument();
   const isSettings = config?.path === data.path;
-  const { closeFilePreview, setFilePreviewView, pinFilePreview, previewFilePreview } = actions;
+  const { closeFilePreview, setFilePreviewView, previewFilePreview } = actions;
 
   const afterSave = (action: () => void) => () => {
     void save().then((saved) => saved && action());
@@ -48,13 +44,9 @@ export function FileTools({
     <PageTools
       name={data.name}
       placement={placement}
-      pinned={data.pinnedAt !== null}
       controls={{
         move: onMove && afterSave(onMove),
         hide: onHide,
-        pin: afterSave(() => pinFilePreview(data.requestId)),
-        fit: onFit,
-        shrink: onShrink,
         close: afterSave(() => closeFilePreview(data.requestId)),
       }}
     >

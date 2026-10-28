@@ -37,10 +37,6 @@
 .monitor-badge__row--request {
   color: var(--mui-palette-text-primary);
 }
-.monitor-badge--canvas {
-  position: relative;
-  width: var(--monitor-width);
-}
 .monitor-badge svg,
 .monitor-state svg,
 .monitor-agent svg {
@@ -166,27 +162,6 @@
   gap: 2px;
   font-size: 7px;
 }
-/* Above the transparent card, clear of its rows and border. */
-.monitor-badge--canvas {
-  overflow: visible;
-}
-.monitor-badge--canvas > .monitor-badge__count {
-  position: absolute;
-  top: 0;
-  left: 3px;
-  line-height: 1;
-  font-size: 13px;
-  gap: 4px;
-  transform: translateY(calc(-100% - 4px));
-}
-.monitor-badge--canvas .monitor-role svg {
-  width: 18px;
-  height: 18px;
-}
-.monitor-badge--canvas .monitor-badge__row > svg {
-  width: 13px;
-  height: 13px;
-}
 .monitor-role {
   display: inline-flex;
   align-items: center;
@@ -199,7 +174,4 @@
 }
 .monitor-badge__extra {
   flex: 0 1 auto;
-}
-.monitor-badge--canvas .monitor-badge__extra {
-  display: none;
 }

@@ -1,6 +1,5 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useLayoutEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FILE_LEAST, SETTINGS_LEAST } from "../canvas/hooks/filePreviewBox";
 import { useReadingSize } from "../canvas/hooks/useReadingSize";
 import {
   changed,
@@ -11,7 +10,6 @@ import {
   useFileDiff,
 } from "../canvas/nodes/preview/diff";
 import { useDraft } from "../canvas/nodes/preview/draft";
-import { widthWithout } from "../canvas/nodes/preview/measure";
 import { useReading } from "../canvas/nodes/preview/reading";
 import { insertTab, removeTab } from "../canvas/nodes/preview/text";
 import { rowOf, useWrappedRows, wrappedNumbers } from "../canvas/nodes/preview/wrap";
@@ -37,11 +35,6 @@ import { Page } from "./Page";
 import { usePageWorkspace } from "./PageWorkspace";
 import { filePageId, type PagePlacement } from "./placement";
 
-export const MIN_WIDTH = FILE_LEAST.width;
-export const MIN_HEIGHT = FILE_LEAST.height;
-
-const BORDERS = 2;
-
 // `MAX_FILE_HEAD` in src-tauri/src/fs_browse.
 const HEAD_KB = 64;
 
@@ -62,7 +55,7 @@ export function FilePage({
   const { t } = useTranslation();
   const { fileTitle, pageText } = useAppSettings();
   const Settings = settingsPart.use(data.view === "settings");
-  const { previewFilePreview, fitFilePreview } = actions;
+  const { previewFilePreview } = actions;
   const view = useReading();
   const {
     setBody,
@@ -119,11 +112,9 @@ export function FilePage({
       ? `data:image/svg+xml,${encodeURIComponent(reading)}`
       : data.picture;
   const ready = data.state === "ready" && (data.text !== null || picture !== null);
-  const bar = useRef<HTMLElement>(null);
   // Held by the page alone: it follows the page between hosts, as the scroll does.
   const [wrapped, setWrapped] = useState(false);
   const rows = useWrappedRows(paper, wrapped && data.view === "text", lines);
-  const drawing = useRef<HTMLImageElement>(null);
   const [undrawn, setUndrawn] = useState<string | null>(null);
   // The canvas zoom scales the whole card, so this keeps the text's ratio to the page.
   const size = (useReadingSize() * pageText) / 100;
@@ -138,22 +129,6 @@ export function FilePage({
   useLayoutEffect(() => {
     home();
   }, [data.view, patch, Markdown, home]);
-
-  function fitWidth() {
-    const header = widthWithout(bar.current, "width", "max-content");
-    const held =
-      data.view === "settings"
-        ? SETTINGS_LEAST.width
-        : nativeScroll || isDocument
-          ? (bar.current?.parentElement?.clientWidth ?? data.box.width) - BORDERS
-          : drawing.current?.naturalWidth || widthWithout(sheet.current, "minWidth", "0");
-    fitFilePreview(data.requestId, Math.max(MIN_WIDTH, Math.max(header, held) + BORDERS));
-  }
-
-  function shrink() {
-    const least = data.view === "settings" ? SETTINGS_LEAST : FILE_LEAST;
-    fitFilePreview(data.requestId, least.width, least.height);
-  }
 
   let footnote: string | null = null;
   if (data.view === "diff") {
@@ -171,7 +146,6 @@ export function FilePage({
       title={displayPath(data.path)}
       collapsed={placement === "canvas" && data.collapsed}
       pinned={placement === "canvas" && data.pinnedAt !== null}
-      headerRef={bar}
       bodyRef={setBody}
       onBodyWheel={data.view === "settings" || isDocument || nativeScroll ? undefined : onWheel}
       footnote={footnote}
@@ -224,10 +198,8 @@ export function FilePage({
             onHide={workspace?.hide}
             changed={changed(diff)}
             save={save}
-            onFit={fitWidth}
             wrapped={wrapped}
             onWrap={data.view === "text" ? () => setWrapped((held) => !held) : undefined}
-            onShrink={shrink}
           />
         </>
       }
@@ -319,7 +291,6 @@ export function FilePage({
             <img
               src={picture}
               alt={data.name}
-              ref={drawing}
               draggable={false}
               onError={() => setUndrawn(picture)}
             />

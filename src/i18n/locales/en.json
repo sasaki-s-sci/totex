@@ -1,14 +1,11 @@
 {
   "cards": {
     "title": "Cards",
-    "layout": "Layout",
-    "empty": "Open a folder or repository from the sidebar to get started.",
     "folders": "Folders",
     "newWorktree": "New workspace",
     "detached": "detached",
     "browse": "Browse workspace",
-    "worktreeMenu": "Workspace actions",
-    "inline": "Open terminal in card"
+    "worktreeMenu": "Workspace actions"
   },
   "terminal": {
     "copyFailed": "Could not copy. Select the text and try again.",
@@ -18,8 +15,12 @@
     "hideSidebar": "Hide page sidebar",
     "openSidebar": "Show page sidebar",
     "select": "Select page",
+    "openViewer": "Open {{name}} in sidebar viewer",
+    "closeViewer": "Close {{name}} viewer",
     "toSidebar": "Move {{name}} to the sidebar",
-    "toCanvas": "Move {{name}} to the canvas"
+    "toCanvas": "Move {{name}} to the cards",
+    "resizeHeight": "Resize page height",
+    "reorder": "Move {{name}} (Alt+Arrow keys to reorder)"
   },
   "window": {
     "minimise": "Minimise",
@@ -54,7 +55,7 @@
     "shell": "Shell",
     "listRepositories": "List the repositories in it",
     "gitMode": "Switch to git",
-    "takeOff": "Take off the canvas",
+    "takeOff": "Remove from cards",
     "remove": "Remove folder and end its terminals",
     "removeFailed": "Could not end all terminals. Try removing again."
   },
@@ -98,8 +99,8 @@
   },
   "repository": {
     "close": "Close",
-    "graph": "Put on the canvas",
-    "ungraph": "Take off the canvas",
+    "graph": "Show in cards",
+    "ungraph": "Remove from cards",
     "listing": "Looking for repositories",
     "none": "No repositories here",
     "cutShort": "Stopped looking part way: the folder is too deep",
@@ -113,14 +114,6 @@
     "head_remote": "{{name}} (has a remote)",
     "browse": "Go to the worktree for {{name}}",
     "fetch": "Fetch {{branch}} from {{remote}}"
-  },
-  "graph": {
-    "length": "Commits shown",
-    "lengthFollow": "Keep to the length as commits arrive",
-    "fold": "Fold",
-    "expand": "Expand",
-    "junction_one": "{{prefix}}/ — {{count}} branch",
-    "junction_other": "{{prefix}}/ — {{count}} branches"
   },
   "commit": {
     "branch": "Branch",
@@ -139,15 +132,11 @@
     "deleteConfirm": "Delete",
     "deleteFailed": "Could not delete"
   },
-  "tile": {
-    "shorter": "Shorten tile by one step",
-    "taller": "Make tile one step taller"
-  },
   "cli": {
     "shell": "Shell",
     "open": "Shell",
     "end": "End",
-    "page": "Stand this terminal on the canvas",
+    "page": "Open this terminal in a card",
     "collapsePanel": "Close the terminal panel",
     "dock": "Put {{name}} back in the panel"
   },
@@ -155,10 +144,6 @@
     "new": "New workspace",
     "newIn": "New workspace in {{name}}",
     "open": "Open a shell on {{name}}"
-  },
-  "tasks": {
-    "find": "What to run",
-    "empty": "Nothing here says what it can run"
   },
   "resume": {
     "title": "Resume",
@@ -189,18 +174,10 @@
     "prompt": "Prompt for an interrupted turn",
     "agentLine": "Start {{agent}} with"
   },
-  "report": {
-    "open": "Open the terminal",
-    "working": "is working"
-  },
   "settings": {
-    "canvas": "Canvas",
     "page": "Page",
-    "graph": "Graph",
     "terminal": "Terminal",
     "other": "Other",
-    "grid": "Grid",
-    "gridSnap": "Hold file cards to it",
     "fileTitle": "File title",
     "undoDepth": "Undo steps in a file",
     "fileName": "File name",
@@ -220,40 +197,20 @@
     "themesUnread": "Could not read the themes folder: {{error}}",
     "themeRefused": "{{file}}: {{error}}",
     "language": "Language",
-    "reveal": "Pan to selection",
-    "walkWrap": "Ctrl+Arrow comes round at the ends",
     "terminalUsage": "Terminal CPU and memory",
     "terminalSort": "Terminal sort",
     "createdWhere": "Created where",
     "createdAt": "Created at",
-    "groupGap": "Rows between repositories and folders",
-    "cliMarkSize": "Terminal icon size",
-    "folderMarkSize": "Folder icon size",
     "pageText": "Page text size",
     "cardText": "Card text size",
     "terminalText": "Terminal text size",
-    "canvasAlign": "Line groups up by",
-    "alignTerminal": "Terminals",
-    "alignInitial": "Start of history",
-    "historyLength": "Commits shown",
-    "historyFollow": "Keep to the length as commits arrive",
     "spareWorktree": "Keep a spare worktree for new branches",
     "follow": "Follow remotes",
     "fetch": "Fetch now",
     "now": "Fetch",
     "fetching": "Fetching…",
     "fetchFailed": "Could not reach",
-    "wheel": "Wheel",
-    "zoomSensitivity": "Zoom sensitivity",
-    "moving": "Moving around",
-    "background": "Background",
-    "marks": "Marks",
-    "layout": "Layout",
-    "history": "History",
-    "remote": "Remote",
-    "branches": "Branches",
-    "terminalView": "Terminal view",
-    "terminalMarks": "Terminal marks"
+    "wheel": "Wheel"
   },
   "update": {
     "title": "Updates",
@@ -280,11 +237,6 @@
     "english": "English",
     "japanese": "Japanese"
   },
-  "reveal": {
-    "never": "Never",
-    "edge": "At the edge",
-    "centre": "Always centre"
-  },
   "filePreview": {
     "unsaved": "{{name}} is unsaved",
     "unwritable": "{{name}} cannot be written",
@@ -296,15 +248,11 @@
     "saveAnew": "Save",
     "closeNow": "Close",
     "openAgain": "Open beside",
-    "pin": "Pin {{name}}",
-    "unpin": "Unpin {{name}}",
-    "fitWidth": "Fit {{name}} to its width",
     "showDiff": "Show what has changed in {{name}}",
     "showFile": "Show {{name}} itself",
     "preview": "Preview {{name}}",
     "expand": "Open {{name}}",
     "collapse": "Fold {{name}} away",
-    "shrink": "Shrink {{name}} to its smallest",
     "close": "Close {{name}}",
     "loading": "Loading…",
     "failed": "The file cannot be read",

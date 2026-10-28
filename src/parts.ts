@@ -12,9 +12,6 @@ export const sidebarPart = onDemand(() =>
 );
 /** Loaded by the shared page view when a terminal exists. */
 export const terminalPart = onDemand(() => import("./tab/CliView").then((part) => part.CliView));
-export const commitPart = onDemand(() =>
-  import("./menus/CommitMenu").then((part) => part.CommitMenu),
-);
 export const worktreePart = onDemand(() =>
   import("./menus/WorktreeMenu").then((part) => part.WorktreeMenu),
 );

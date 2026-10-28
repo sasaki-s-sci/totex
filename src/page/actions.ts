@@ -19,7 +19,6 @@ export type FilePageActions = {
   ) => Promise<boolean>;
   /** What the file now holds, read again because something wrote it. */
   refreshFilePreview: (id: number, read: FileReading) => void;
-  collapseFilePreview: (id: number) => void;
   setFilePreviewView: (id: number, view: FilePreviewView) => void;
   /** The file drawn as a page beside it; absent where there is no canvas to put that page on. */
   previewFilePreview?: (id: number) => void;
@@ -27,6 +26,4 @@ export type FilePageActions = {
   openFileAgain?: (id: number) => void;
   /** A file a link on the page points to, opened beside it. */
   openLinkedFile: (id: number, path: string) => void;
-  fitFilePreview: (id: number, width: number, height?: number) => void;
-  pinFilePreview: (id: number) => void;
 };

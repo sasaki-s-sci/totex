@@ -12,22 +12,17 @@ import {
   SETTINGS_REQUEST_ID,
 } from "../../lib/filePreview";
 import type { FilePreviewFlowNode, FilePreviewNodeData } from "../../lib/graph";
-import { gridNow, placeOnGrid } from "../../lib/grid";
 import { readyAfter } from "../../shell/bridge";
 import { frontValue } from "../../shell/state";
-import { FILE_LEAST, FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
-import { canvasMiddle, PAGE_HANDLE, PAGE_Z, pageCorner } from "./pagePlacing";
+import { FILE_PREVIEW_SIZE, fileNodeId, fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
-
-const BESIDE_GAP = 12;
 
 export function useFilePreviewPlacing(
   requests: readonly FilePreviewRequest[],
-  { host, instance, standing, setNodes, flowReady }: PageCanvas,
+  { standing, setNodes }: PageCanvas,
 ) {
   const placedFiles = useRef(new Set<number>());
   useEffect(() => {
-    if (!flowReady || !instance.current) return;
     const wanted = new Set([SETTINGS_REQUEST_ID, ...requests.map((preview) => preview.id)]);
     for (const id of placedFiles.current) {
       if (!wanted.has(id)) placedFiles.current.delete(id);
@@ -44,22 +39,24 @@ export function useFilePreviewPlacing(
       return;
     }
 
-    const bounds = host.current?.getBoundingClientRect();
-    const flow = instance.current;
-    const grid = gridNow();
     const additions: FilePreviewFlowNode[] = fresh.map((preview) => {
       placedFiles.current.add(preview.id);
       const kept = frontValue<FilePreviewFlowNode[]>("canvas.files")?.find(
         (node) => node.data.requestId === preview.id && node.data.path === preview.path,
       );
-      if (kept) return kept;
+      if (kept)
+        return {
+          ...kept,
+          hidden: false,
+          height: fileSize(kept).height,
+          data: { ...kept.data, collapsed: false, pinnedAt: null, pinnedScale: undefined },
+        };
 
       const from = standing.current.find(
         (node): node is FilePreviewFlowNode =>
           node.type === "file-preview" && node.data.requestId === preview.beside,
       );
-      const stagger = (placedFiles.current.size - 1) % 8;
-      const asked = preview.pinned
+      const box = preview.pinned
         ? preview.pinned.box
         : from
           ? fileSize(from)
@@ -69,35 +66,13 @@ export function useFilePreviewPlacing(
               /\.(csv|tsv)$/i.test(preview.path)
             ? { width: 560, height: 480 }
             : FILE_PREVIEW_SIZE;
-      const wanted = from
-        ? { x: from.position.x + asked.width + BESIDE_GAP, y: from.position.y }
-        : pageCorner(flow, preview.at ?? canvasMiddle(bounds, asked, stagger * 16), asked);
-
-      const { position: corner, box } =
-        grid.holding && !preview.pinned && !from?.data.pinnedAt
-          ? placeOnGrid(wanted, asked, grid.step, FILE_LEAST)
-          : { position: wanted, box: asked };
-
-      const pinnedAt = preview.pinned
-        ? preview.pinned.at
-        : from?.data.pinnedAt
-          ? {
-              x: from.data.pinnedAt.x + box.width * (from.data.pinnedScale ?? 1) + BESIDE_GAP,
-              y: from.data.pinnedAt.y,
-            }
-          : null;
-      const collapsed = preview.pinned?.collapsed ?? false;
       return {
         id: fileNodeId(preview.id),
         type: "file-preview",
-        position: corner,
-        hidden: pinnedAt !== null,
-        draggable: true,
-        dragHandle: PAGE_HANDLE,
-        zIndex: PAGE_Z,
+        position: { x: 0, y: 0 },
 
         width: box.width,
-        height: collapsed ? undefined : box.height,
+        height: box.height,
         data: {
           requestId: preview.id,
           path: preview.path,
@@ -108,10 +83,9 @@ export function useFilePreviewPlacing(
           truncated: false,
           state: "loading",
           view: preview.view ?? openingView(preview.path),
-          collapsed,
+          collapsed: false,
           box,
-          pinnedAt,
-          pinnedScale: preview.pinned?.scale ?? from?.data.pinnedScale,
+          pinnedAt: null,
         },
       };
     });
@@ -151,7 +125,7 @@ export function useFilePreviewPlacing(
           }),
       );
     }
-  }, [requests, flowReady, setNodes, host, instance, standing]);
+  }, [requests, setNodes, standing]);
 }
 
 export function readFilePreview(

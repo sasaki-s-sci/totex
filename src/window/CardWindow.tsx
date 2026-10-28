@@ -2,7 +2,6 @@
  * One card filling a torn-off window, drawn at the scale it was pinned at. See `lib/cardWindow`.
  */
 
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -43,15 +42,6 @@ import { keepFrontValue, readFrontValue } from "../shell/state";
 import "../canvas/styles/index.css";
 import "../canvas/styles/torn.css";
 
-/** The card's own edge; `BORDERS` in the card. */
-const BORDERS = 2;
-const HEADER_ROW = 20;
-
-function folded(card: HTMLElement | null, scale: number): number {
-  const header = card?.querySelector(".page__header")?.getBoundingClientRect();
-  return (header ? header.height / scale : HEADER_ROW) + BORDERS;
-}
-
 function opening(seed: CardSeed): FilePreviewNodeData {
   return {
     requestId: seed.requestId,
@@ -76,7 +66,6 @@ export function CardWindow() {
   const [data, setData] = useState<FilePreviewNodeData | null>(null);
   const seeded = useRef<CardSeed | null>(null);
   const scale = seeded.current?.scale ?? 1;
-  const card = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,12 +142,6 @@ export function CardWindow() {
     };
   }, [here, scale]);
 
-  const size = useCallback(
-    (width: number, height: number) =>
-      here.setSize(new LogicalSize(width * scale, height * scale)).catch(() => undefined),
-    [here, scale],
-  );
-
   const seedNow = useCallback(async (): Promise<CardSeed | null> => {
     const seed = seeded.current;
     if (!seed || !data) return null;
@@ -204,29 +187,9 @@ export function CardWindow() {
         }
       },
       refreshFilePreview: (_requestId, read) => setData((held) => held && { ...held, ...read }),
-      collapseFilePreview: () => {
-        if (!data) return;
-        const collapsed = !data.collapsed;
-        void size(data.box.width, collapsed ? folded(card.current, scale) : data.box.height);
-        setData({ ...data, collapsed });
-      },
       setFilePreviewView: (_requestId, view) => setData((held) => held && { ...held, view }),
-      fitFilePreview: (_requestId, width, tall) => {
-        if (!data) return;
-        const height = tall ?? data.box.height;
-        void size(width, data.collapsed ? folded(card.current, scale) : height);
-        setData({ ...data, box: { width, height } });
-      },
-      // The pin on a card out here is the way back in.
-      pinFilePreview: () => {
-        void Promise.all([here.innerPosition(), here.scaleFactor()])
-          .then(([position, factor]) =>
-            dropped({ x: position.x / factor, y: position.y / factor }, { x: 0, y: 0 }, true),
-          )
-          .catch(() => undefined);
-      },
     }),
-    [data, dropped, here, scale, size],
+    [data, here],
   );
 
   const drag = useRef<{ grab: Point; move: (at: Point) => void } | null>(null);
@@ -265,7 +228,6 @@ export function CardWindow() {
   if (!data) return null;
   return (
     <div
-      ref={card}
       className="card-window"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

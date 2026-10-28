@@ -1,70 +1,47 @@
-export { type Align, buildCommitGraph, type GraphInput } from "./build";
-export { clamp, wrap } from "./cells";
-export { isOpen } from "./folders";
-export {
-  circlesOf,
-  distanceTo,
-  downFrom,
-  elbowPath,
-  type LineShape,
-  midpointOf,
-  type Point,
-  samplesOf,
-  shortOf,
-  sigmoidPath,
-  straightPath,
-} from "./geometry";
-export { commitNodeId } from "./history";
-export { foldCell } from "./lines";
-export {
-  type AppNode,
-  type Band,
-  type BandLines,
-  type BranchHeadData,
-  type BranchHeadFlowNode,
-  type CliFlowNode,
-  type CliNodeData,
-  type CliPageFlowNode,
-  type CliPageNodeData,
-  COLUMN_WIDTH,
-  COMMIT_STEP,
-  type CollapseFlowNode,
-  type CommitFlowNode,
-  type CommitNodeData,
-  DOT_SIZE,
-  type Fetch,
-  type FilePreviewBox,
-  type FilePreviewFlowNode,
-  type FilePreviewNodeData,
-  FOLDER_INSET,
-  type FolderFlowNode,
-  type FolderNodeData,
-  type FoldTarget,
-  GROUP_GAP,
-  type GraphLine,
-  type GraphResult,
-  gridMove,
-  groupGapOf,
-  HEAD_SIZE,
-  type Hold,
-  JUNCTION_SIZE,
-  type JunctionFlowNode,
-  LANE_HEIGHT,
-  LINE_COLOR,
-  type LineEnd,
-  type OfferData,
-  type OfferFlowNode,
-  type Origin,
-  onCell,
-  REMOTE_HEAD_SIZE,
-  type RefKind,
-  type RepoMarkData,
-  type RepoMarkFlowNode,
-  type RepositoryFlowNode,
-  type RepositoryNodeData,
-  STEP,
-  type StrokeStyle,
-} from "./model";
-export { isPage } from "./pages";
-export type { CardStep, ReportCard, ReportFlowNode, ReportNodeData } from "./reporting";
-export { clampTile, TILE, TILE_WIDTH, type TileFlowNode, type TileNodeData } from "./tiles";
+import type { FilePreviewView } from "../filePreview";
+
+export type RefKind = "local" | "remote" | "worktree";
+
+export type Fetch = {
+  remote: string;
+  branch: string;
+  work: string | null;
+};
+
+export type Origin = {
+  head: string;
+  remote: string;
+  branch: string;
+};
+
+export type FilePreviewBox = { width: number; height: number };
+
+export type FilePreviewNodeData = {
+  requestId: number;
+  path: string;
+  name: string;
+  text: string | null;
+  /** A data URL of the whole file, or null when not a picture or too large to read. */
+  picture: string | null;
+  size: number | null;
+  truncated: boolean;
+  state: "loading" | "ready" | "failed";
+  view: FilePreviewView;
+  box: FilePreviewBox;
+  collapsed: boolean;
+  pinnedScale?: number;
+  pinnedAt: { x: number; y: number } | null;
+};
+
+/** File state retains its snapshot shape when restoring older workspaces. */
+export type FilePreviewFlowNode = {
+  id: string;
+  type: "file-preview";
+  data: FilePreviewNodeData;
+  position: { x: number; y: number };
+  hidden?: boolean;
+  width?: number;
+  height?: number;
+};
+
+export type AppNode = FilePreviewFlowNode;

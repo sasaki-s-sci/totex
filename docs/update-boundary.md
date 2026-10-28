@@ -53,17 +53,17 @@ old fronts remain available during the run, and the installed shell's original
 chunks remain available even when starting with a confirmed overlay.
 
 `src/shell/state.ts` carries structured-cloneable state under explicit keys,
-independent of hook order. Current coverage includes folders and graph roots,
-workspace readings, minimized folders/repositories and explorer panes, selected terminal, history depth and viewport, file cards
-and unsaved drafts. Drafts retain their original disk contents for conflict
+independent of hook order. Current coverage includes workspace roots and readings,
+explorer panes, selected terminals, card rows and heights, file pages and unsaved
+drafts. Drafts retain their original disk contents for conflict
 checking. Focus/selection and terminal scroll/selection are restored where their
 corresponding content remains available. Terminal replay is bounded by the
 service's retained output; a new emulator is not the original emulator instance.
 
 A program update or closing the window ends the process, so no frame is there
-to take a snapshot. The main-window front keeps the graph keys listed in
-`src/shell/carried.ts` (graph roots, explorer panes, the folder column and the
-canvas viewport) as the `totex.relaunch` document in the service's store as
+to take a snapshot. The main-window front keeps the workspace keys listed in
+`src/shell/carried.ts` (workspace roots, explorer panes and folder-column visibility)
+as the `totex.relaunch` document in the service's store as
 they change, debounced, and once more right before `update_restart`. The store
 is on disk, so the document outlives the window, a replaced service and an
 ordinary close. The first main-window front of every launch takes them back

@@ -22,10 +22,8 @@ fn validate(value: &Value) -> Result<(), String> {
     for (key, choices) in [
         ("theme", &["system", "light", "dark"][..]),
         ("language", &["system", "en", "ja"][..]),
-        ("reveal", &["never", "edge", "centre"][..]),
         ("fileTitle", &["name", "path"][..]),
         ("terminalSort", &["createdWhere", "createdAt"][..]),
-        ("canvasAlign", &["terminal", "initial"][..]),
     ] {
         if let Some(v) = object.get(key)
             && !v.as_str().is_some_and(|s| choices.contains(&s))
@@ -33,7 +31,7 @@ fn validate(value: &Value) -> Result<(), String> {
             return Err(format!("Invalid {key}"));
         }
     }
-    for key in ["follow", "mcpServing", "backgroundGrid", "terminalUsage"] {
+    for key in ["follow", "mcpServing", "terminalUsage"] {
         if object.get(key).is_some_and(|v| !v.is_boolean()) {
             return Err(format!("Invalid {key}"));
         }
@@ -43,7 +41,6 @@ fn validate(value: &Value) -> Result<(), String> {
     range(value, "cliWheel", 5, 400)?;
     range(value, "pageText", 50, 200)?;
     range(value, "terminalText", 50, 200)?;
-    range(value, "graphWheel", 5, 400)?;
     if let Some(monitor) = object.get("monitor") {
         validate_monitor(monitor)?;
     }
@@ -291,13 +288,35 @@ mod tests {
         );
         let next = patch(
             &temp.0,
-            &json!({"said":{"size":1}, "fileTitle":"path", "backgroundGrid":true}),
+            &json!({"said":{"size":1}, "fileTitle":"path", "terminalUsage":true}),
         )
         .unwrap();
-        assert_eq!(next.value["backgroundGrid"], true);
+        assert_eq!(next.value["terminalUsage"], true);
         assert_eq!(next.value["said"], json!({"size":1,"width":220}));
         assert_eq!(next.value["custom"], initial["custom"]);
         assert_eq!(next.value["theme"], "dark");
+        assert_eq!(read(&temp.0, &json!({})).unwrap().value, next.value);
+    }
+    #[test]
+    fn obsolete_graph_preferences_do_not_block_reading_or_patching() {
+        let temp = Temp::new();
+        let old = json!({
+            "theme": "dark", "layout": "canvas", "reveal": "old",
+            "canvasAlign": "old", "backgroundGrid": "old", "graphWheel": 999
+        });
+        let before = read(&temp.0, &old).unwrap();
+        assert_eq!(read(&temp.0, &json!({})).unwrap().text, before.text);
+        let next = patch(&temp.0, &json!({"theme": "light"})).unwrap();
+        assert_eq!(next.value["theme"], "light");
+        for key in [
+            "layout",
+            "reveal",
+            "canvasAlign",
+            "backgroundGrid",
+            "graphWheel",
+        ] {
+            assert_eq!(next.value[key], old[key]);
+        }
         assert_eq!(read(&temp.0, &json!({})).unwrap().value, next.value);
     }
     #[test]
@@ -352,11 +371,9 @@ mod tests {
             "{",
             "{\"said\":{\"size\":0}}",
             "{\"follow\":\"yes\"}",
-            "{\"backgroundGrid\":\"yes\"}",
             "{\"fileTitle\":\"bad\"}",
             "{\"terminalSort\":\"bad\"}",
             "{\"cliWheel\":0}",
-            "{\"graphWheel\":401}",
             "{\"undoDepth\":5}",
         ] {
             assert!(write(&temp.0, invalid, &before.text).is_err());

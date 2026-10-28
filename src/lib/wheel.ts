@@ -1,13 +1,13 @@
 import { useSyncExternalStore } from "react";
 import { settingsNow, subscribeSettings } from "./appSettings";
 
-export type WheelPlace = "cli" | "graph";
+export type WheelPlace = "cli";
 
 export const WHEEL = { least: 5, most: 400, start: 100 } as const;
 
 export const WHEEL_STEP = 1;
 
-const KEYS = { cli: "cliWheel", graph: "graphWheel" } as const;
+const KEYS = { cli: "cliWheel" } as const;
 
 export function wheelNow(place: WheelPlace): number {
   return settingsNow()[KEYS[place]];

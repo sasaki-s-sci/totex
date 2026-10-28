@@ -2,16 +2,11 @@ import { useEffect, useRef } from "react";
 import { refreshSettings, useSettingsDocument } from "../../lib/appSettings";
 import { SETTINGS_REQUEST_ID } from "../../lib/filePreview";
 import type { FilePreviewFlowNode } from "../../lib/graph";
-import { gridNow, placeOnGrid } from "../../lib/grid";
-import { fileNodeId, fileSize, SETTINGS_LEAST } from "./filePreviewBox";
-import { canvasMiddle, PAGE_HANDLE, PAGE_Z } from "./pagePlacing";
+import { fileNodeId, fileSize } from "./filePreviewBox";
 import type { PageCanvas } from "./useFilePreviews";
 
 const BOX = { width: 860, height: 480 };
-export function useSettingsPage(
-  request: number,
-  { host, instance, setNodes, flowReady }: PageCanvas,
-) {
+export function useSettingsPage(request: number, { setNodes }: PageCanvas) {
   const placed = useRef(0);
   const document = useSettingsDocument();
   useEffect(() => {
@@ -23,30 +18,19 @@ export function useSettingsPage(
       setNodes((current) => current.filter((node) => node.id !== fileNodeId(SETTINGS_REQUEST_ID)));
       return;
     }
-    if (!flowReady || !instance.current || placed.current === request) return;
+    if (placed.current === request) return;
     placed.current = request;
-    const center = instance.current.screenToFlowPosition(
-      canvasMiddle(host.current?.getBoundingClientRect(), BOX),
-    );
     setNodes((current) => {
       const existing = current.find(
         (node): node is FilePreviewFlowNode =>
           node.type === "file-preview" && node.data.requestId === SETTINGS_REQUEST_ID,
       );
-      if (existing?.data.pinnedAt) return current;
-      const asked = existing ? fileSize(existing) : BOX;
-      const middle = { x: center.x - asked.width / 2, y: center.y - asked.height / 2 };
-
-      const grid = gridNow();
-      const { position, box } = grid.holding
-        ? placeOnGrid(middle, asked, grid.step, SETTINGS_LEAST)
-        : { position: middle, box: asked };
+      const box = existing ? fileSize(existing) : BOX;
       if (existing)
         return current.map((node) =>
           node === existing
             ? {
                 ...node,
-                position,
                 width: box.width,
                 height: box.height,
                 data: { ...node.data, collapsed: false, box },
@@ -56,10 +40,7 @@ export function useSettingsPage(
       const node: FilePreviewFlowNode = {
         id: fileNodeId(SETTINGS_REQUEST_ID),
         type: "file-preview",
-        position,
-        draggable: true,
-        dragHandle: PAGE_HANDLE,
-        zIndex: PAGE_Z,
+        position: { x: 0, y: 0 },
         width: box.width,
         height: box.height,
         data: {
@@ -79,7 +60,7 @@ export function useSettingsPage(
       };
       return [...current, node];
     });
-  }, [request, flowReady, document, host, instance, setNodes]);
+  }, [request, document, setNodes]);
 
   // Form writes and file writes update every open view of this document.
   useEffect(() => {

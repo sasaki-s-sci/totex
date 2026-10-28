@@ -5,7 +5,7 @@ import ts from "typescript";
 import { build } from "vite";
 import { compileViews, splitViews } from "../scripts/ephemeral-build.mjs";
 
-test("production view manifests retain every stylesheet needed by the graph", async () => {
+test("production view manifests retain every stylesheet needed by pages", async () => {
   const { output } = await build({
     root: fileURLToPath(new URL("..", import.meta.url)),
     logLevel: "silent",
@@ -15,7 +15,7 @@ test("production view manifests retain every stylesheet needed by the graph", as
   const styles = output.filter((asset) => asset.fileName.endsWith(".css"));
   assert.ok(styles.length > 0);
   assert.deepEqual(manifest.styles.toSorted(), styles.map((asset) => asset.fileName).toSorted());
-  assert.ok(styles.some((asset) => String(asset.source).includes(".graph")));
+  assert.ok(styles.some((asset) => String(asset.source).includes(".page")));
 });
 
 function split(text) {

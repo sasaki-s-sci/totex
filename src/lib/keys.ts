@@ -12,10 +12,6 @@ export function typing(target: EventTarget | null): boolean {
   );
 }
 
-/** React Flow's focusable node wrapper counts as the card it holds. */
 export function reading(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    target.closest(".file-preview, .react-flow__node-file-preview") !== null
-  );
+  return target instanceof HTMLElement && target.closest(".file-preview") !== null;
 }

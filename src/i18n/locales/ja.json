@@ -1,14 +1,11 @@
 {
   "cards": {
     "title": "カード",
-    "layout": "表示方法",
-    "empty": "サイドバーからフォルダまたはリポジトリを開いてください。",
     "folders": "フォルダ",
     "newWorktree": "ワークスペースを作成",
     "detached": "detached",
     "browse": "ワークスペースを開く",
-    "worktreeMenu": "ワークスペースの操作",
-    "inline": "カード内でターミナルを開く"
+    "worktreeMenu": "ワークスペースの操作"
   },
   "terminal": {
     "copyFailed": "コピーできませんでした。文字を選択して、もう一度お試しください。",
@@ -18,8 +15,12 @@
     "hideSidebar": "ページのサイドバーを隠す",
     "openSidebar": "ページのサイドバーを開く",
     "select": "ページを選択",
+    "openViewer": "{{name}}をサイドバーのviewerで開く",
+    "closeViewer": "{{name}}のviewerを閉じる",
     "toSidebar": "{{name}}をサイドバーに移す",
-    "toCanvas": "{{name}}をキャンバスに移す"
+    "toCanvas": "{{name}}をカードに移す",
+    "resizeHeight": "ページの高さを変更",
+    "reorder": "{{name}}を移動（Alt+矢印キーで並べ替え）"
   },
   "window": {
     "minimise": "最小化",
@@ -54,7 +55,7 @@
     "shell": "シェル",
     "listRepositories": "配下のリポジトリを一覧する",
     "gitMode": "git モードにする",
-    "takeOff": "キャンバスから外す",
+    "takeOff": "カードから外す",
     "remove": "フォルダを外し、配下のターミナルをすべて終了",
     "removeFailed": "一部のターミナルを終了できませんでした。もう一度削除してください。"
   },
@@ -98,8 +99,8 @@
   },
   "repository": {
     "close": "閉じる",
-    "graph": "キャンバスに載せる",
-    "ungraph": "キャンバスから外す",
+    "graph": "カードに表示する",
+    "ungraph": "カードから外す",
     "listing": "リポジトリを探しています",
     "none": "リポジトリはありません",
     "cutShort": "途中で探索を打ち切りました（フォルダが深すぎます）",
@@ -113,14 +114,6 @@
     "head_remote": "{{name}}（リモートあり）",
     "browse": "{{name}} のワークツリーへ移動",
     "fetch": "{{remote}} から {{branch}} を取得"
-  },
-  "graph": {
-    "length": "表示するコミット数",
-    "lengthFollow": "コミットの更新時に長さへ追従",
-    "fold": "折り畳む",
-    "expand": "展開",
-    "junction_one": "{{prefix}}/ — {{count}} 本",
-    "junction_other": "{{prefix}}/ — {{count}} 本"
   },
   "commit": {
     "branch": "分岐",
@@ -139,15 +132,11 @@
     "deleteConfirm": "削除",
     "deleteFailed": "削除できませんでした"
   },
-  "tile": {
-    "shorter": "タイルを一段低くする",
-    "taller": "タイルを一段高くする"
-  },
   "cli": {
     "shell": "シェル",
     "open": "シェル",
     "end": "終了",
-    "page": "このターミナルをキャンバスに出す",
+    "page": "このターミナルをカードに開く",
     "collapsePanel": "ターミナルパネルを閉じる",
     "dock": "{{name}}をパネルに戻す"
   },
@@ -155,10 +144,6 @@
     "new": "新しいワークスペース",
     "newIn": "{{name}} に新しいワークスペース",
     "open": "{{name}} でシェルを開く"
-  },
-  "tasks": {
-    "find": "実行するもの",
-    "empty": "実行できるものがありません"
   },
   "resume": {
     "title": "再開",
@@ -189,18 +174,10 @@
     "prompt": "中断した作業に送る指示",
     "agentLine": "{{agent}} の起動コマンド"
   },
-  "report": {
-    "open": "ターミナルを開く",
-    "working": "作業中"
-  },
   "settings": {
-    "canvas": "キャンバス",
     "page": "ページ",
-    "graph": "グラフ",
     "terminal": "ターミナル",
     "other": "その他",
-    "grid": "グリッド",
-    "gridSnap": "ファイルカードを合わせる",
     "fileTitle": "ファイルの表示名",
     "undoDepth": "ファイルで戻せる回数",
     "fileName": "ファイル名",
@@ -220,40 +197,20 @@
     "themesUnread": "テーマフォルダを読めません: {{error}}",
     "themeRefused": "{{file}}: {{error}}",
     "language": "言語",
-    "reveal": "選択へ移動",
-    "walkWrap": "Ctrl+矢印で端まで行ったら反対側へ戻る",
     "terminalUsage": "端末の CPU・メモリ",
     "terminalSort": "ターミナルの並び",
     "createdWhere": "作った場所",
     "createdAt": "作った順",
-    "groupGap": "リポジトリ・フォルダの間隔（格子の行数）",
-    "cliMarkSize": "ターミナルのアイコンの大きさ",
-    "folderMarkSize": "フォルダのアイコンの大きさ",
     "pageText": "ページの文字サイズ",
     "cardText": "カードの文字サイズ",
     "terminalText": "ターミナルの文字サイズ",
-    "canvasAlign": "揃える位置",
-    "alignTerminal": "ターミナル",
-    "alignInitial": "履歴の始まり",
-    "historyLength": "表示するコミット数",
-    "historyFollow": "コミットの更新時に長さへ追従",
     "spareWorktree": "新しいブランチ用にワークツリーを先に用意",
     "follow": "リモートに追従",
     "fetch": "いま fetch する",
     "now": "fetch",
     "fetching": "fetch 中…",
     "fetchFailed": "届きませんでした",
-    "wheel": "ホイール",
-    "zoomSensitivity": "ズームの感度",
-    "moving": "移動",
-    "background": "背景",
-    "marks": "アイコン",
-    "layout": "並べ方",
-    "history": "履歴",
-    "remote": "リモート",
-    "branches": "ブランチ",
-    "terminalView": "ターミナル画面",
-    "terminalMarks": "ターミナルのアイコン"
+    "wheel": "ホイール"
   },
   "update": {
     "title": "Updates",
@@ -280,11 +237,6 @@
     "english": "英語",
     "japanese": "日本語"
   },
-  "reveal": {
-    "never": "動かさない",
-    "edge": "端に来たら",
-    "centre": "常に中央へ"
-  },
   "filePreview": {
     "unsaved": "{{name}}は未保存",
     "unwritable": "{{name}}を書き込めません",
@@ -296,15 +248,11 @@
     "saveAnew": "保存",
     "closeNow": "閉じる",
     "openAgain": "並べて開く",
-    "pin": "{{name}}をピン留めする",
-    "unpin": "{{name}}のピンを外す",
-    "fitWidth": "{{name}}の幅を合わせる",
     "showDiff": "{{name}}の変更点を表示",
     "showFile": "{{name}}のファイルを表示",
     "preview": "{{name}}をプレビュー",
     "expand": "{{name}}を開く",
     "collapse": "{{name}}をたたむ",
-    "shrink": "{{name}}を最小にする",
     "close": "{{name}}を閉じる",
     "loading": "読み込み中…",
     "failed": "ファイルを読み込めません",

@@ -34,7 +34,7 @@ export const NEST_SX = {
   borderColor: "divider",
 } as const;
 
-/** A top-level heading that folds its rows away; folded rows unmount, so their callouts leave the miniature. */
+/** A top-level heading that folds its rows away. */
 export function Section({ name, children }: { name: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   return (

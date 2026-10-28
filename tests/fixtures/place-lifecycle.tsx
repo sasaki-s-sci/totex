@@ -29,7 +29,6 @@ keepFrontValue("sessions.list", [
   { id: "repo-cli", cwd: "/projects/app", branch: "main" },
 ]);
 keepFrontValue("sessions.paged", ["repo-cli"]);
-keepFrontValue("canvas.viewport", { x: 0, y: 0, zoom: 1 });
 await loadSettings();
 const { default: App } = await import("../../src/App");
 Object.assign(window, { placeSnapshot: snapshot });

@@ -30,7 +30,6 @@ import {
 import { agentLabel, type MonitorModel, useMonitorModels } from "../monitor/models";
 import { useMonitorError } from "../monitor/runtime";
 import { Group, PICK_SX, Row, TICK_SX } from "./Row";
-import { Callout } from "./SettingsMap";
 
 const FIELD_WIDTH = 200;
 
@@ -148,7 +147,7 @@ export function MonitorRows() {
           </Row>
         ))}
       </Group>
-      <Callout parts={["monitor"]} name={t("monitor.preview")}>
+      <Group name={t("monitor.preview")}>
         <Row label={t("monitor.text")}>
           <Select
             size="small"
@@ -195,7 +194,7 @@ export function MonitorRows() {
             />
           </Row>
         ))}
-      </Callout>
+      </Group>
       <Group name={t("monitor.browser")}>
         <Row label={t("monitor.browserEnabled")}>
           <Checkbox

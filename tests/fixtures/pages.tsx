@@ -1,16 +1,22 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { loadSettings, updateSettings } from "../../src/lib/appSettings";
+import { loadSettings } from "../../src/lib/appSettings";
 import { keepFrontValue, snapshot } from "../../src/shell/state";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
 
-keepFrontValue("sessions.list", [{ id: "terminal-one", cwd: "/tmp", branch: "main" }]);
-keepFrontValue("sessions.showing", "terminal-one");
+keepFrontValue("sessions.list", [
+  { id: "terminal-one", cwd: "/tmp", branch: "main" },
+  ...(location.search.includes("grouped")
+    ? [
+        { id: "terminal-two", cwd: "/tmp", branch: "worker" },
+        { id: "terminal-other", cwd: "/elsewhere", branch: "other" },
+      ]
+    : []),
+]);
 keepFrontValue("files.open", [{ id: 1, path: "/tmp/note.txt", at: { x: 380, y: 240 } }]);
 keepFrontValue("window.settings", 1);
-keepFrontValue("canvas.viewport", { x: 0, y: 0, zoom: 1 });
 if (location.search.includes("offers") || location.search.includes("terminals")) {
   keepFrontValue("folders.panes", [
     {
@@ -25,7 +31,6 @@ if (location.search.includes("offers") || location.search.includes("terminals"))
   ]);
 }
 await loadSettings();
-updateSettings({ layout: "canvas" });
 const { colors, style } = appearanceNow();
 const theme = themeFrom(colors, style);
 const { Window } = await import("../../src/window/Window");

@@ -193,32 +193,6 @@
   color: var(--mui-palette-error-main);
 }
 
-.react-flow__node.is-picked .mark,
-.react-flow__node.is-picked .cli__open,
-.react-flow__node.is-picked .folder__name {
-  color: var(--mui-palette-primary-main);
-}
-
-.react-flow__node.is-picked .mark,
-.react-flow__node.is-picked .folder__name {
-  filter: var(--lit);
-}
-
-.react-flow__node-report.is-picked,
-.react-flow__node-file-preview.is-picked {
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--mui-palette-primary-main) 55%, transparent));
-}
-
-.react-flow__controls {
-  box-shadow: var(--mui-shadows-3);
-}
-
-.react-flow__controls-button {
-  border-bottom-color: var(--mui-palette-divider);
-  background: var(--mui-palette-background-paper);
-  fill: var(--mui-palette-text-primary);
-}
-
 .file-preview__document {
   display: flex;
   flex-direction: column;

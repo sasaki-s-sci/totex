@@ -32,56 +32,14 @@ export type BranchPick = {
   at: { x: number; y: number };
 };
 
-/** Through context, not node data: React Flow redraws by comparing node data, and a rebuilt callback would make every node look changed. */
 export type GraphActions = FilePageActions & {
   openWork: (request: WorkRequest) => void;
-
-  /** A branch cut off the repository's main line, a worktree for it, and a terminal in that. */
   newWork: (repository: Repository) => void;
-
   browseWorktree: (request: WorktreeBrowseRequest) => void;
-
   pickBranch: (pick: BranchPick) => void;
-
-  dragBranch: (repository: Repository, branch: string, event: React.PointerEvent) => void;
-
-  fetchBranch: (request: FetchRequest) => void;
-
   closeRepository: (repository: Repository) => void;
-
-  /** Removes the folder and ends its terminal sessions. */
   closeFolder: (root: string) => void;
-
-  openRepository: (repository: string) => void;
-
-  foldRepository: (repository: string) => void;
-
-  toggleJunction: (junction: string) => void;
-
-  /** Resize units for a plain terminal's tile; clamped to `TILE`. */
-  resizeTile: (session: string, units: number) => void;
-
-  expand: (repository: string) => void;
-
-  fold: (repository: string, shown: number) => void;
-
-  /** As `fold`, but the canvas stays where it is: the rail asking stands on the heading, which must not leave the pointer. */
-  setLength: (repository: string, shown: number) => void;
-
-  reachFold: (repository: string, shown: number | null) => void;
-
-  keepFold: (repository: string) => void;
-
-  showSession: (session: Session) => void;
-
   endSession: (session: Session) => void;
-
-  /** Moves a terminal just before or after another in the same row. */
-  placeSession: (moved: Session, anchor: Session, below: boolean) => void;
-
-  collapseCliPage: (sessionId: string) => void;
-
-  fitCliPage: (sessionId: string, width: number, height: number) => void;
 };
 
 export const NO_ACTIONS: GraphActions = {
@@ -89,33 +47,15 @@ export const NO_ACTIONS: GraphActions = {
   newWork: () => {},
   browseWorktree: () => {},
   pickBranch: () => {},
-  dragBranch: () => {},
-  fetchBranch: () => {},
   closeRepository: () => {},
   closeFolder: () => {},
-  openRepository: () => {},
-  foldRepository: () => {},
-  toggleJunction: () => {},
-  resizeTile: () => {},
-  expand: () => {},
-  fold: () => {},
-  setLength: () => {},
-  reachFold: () => {},
-  keepFold: () => {},
-  showSession: () => {},
   endSession: () => {},
-  placeSession: () => {},
-  collapseCliPage: () => {},
-  fitCliPage: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,
   refreshFilePreview: () => {},
-  collapseFilePreview: () => {},
   setFilePreviewView: () => {},
   previewFilePreview: () => {},
   openLinkedFile: () => {},
-  fitFilePreview: () => {},
-  pinFilePreview: () => {},
 };
 
 const GraphActionsContext = createContext<GraphActions>(NO_ACTIONS);

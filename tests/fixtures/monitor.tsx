@@ -1,31 +1,22 @@
 import { Box, CssBaseline, Stack, Typography } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { ReactFlow } from "@xyflow/react";
-import { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CliJumpsProvider } from "../../src/canvas/cliJumps";
-import { GraphLines } from "../../src/canvas/GraphLines";
 import { GraphActionsProvider, NO_ACTIONS } from "../../src/canvas/graphActions";
-import { CliNode } from "../../src/canvas/nodes/CliNode";
-import { FolderNode } from "../../src/canvas/nodes/FolderNode";
-import { OfferNode } from "../../src/canvas/nodes/OfferNode";
-import { TileNode } from "../../src/canvas/nodes/TileNode";
-import { loadSettings, updateSettings, useAppSettings } from "../../src/lib/appSettings";
+import { CardBoard } from "../../src/cards/CardBoard";
+import { loadSettings, updateSettings } from "../../src/lib/appSettings";
 import {
   DEFAULT_SETTINGS,
   mergeMonitor,
   type SettingsPatch,
   settingsFrom,
 } from "../../src/lib/appSettingsModel";
-import { buildCommitGraph } from "../../src/lib/graph/build";
 import type { Session } from "../../src/lib/session";
 import { MonitorBadge } from "../../src/monitor/MonitorBadge";
 import { useMonitorRuntime } from "../../src/monitor/runtime";
 import { MonitorRows } from "../../src/settings/MonitorRows";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
-import "../../src/canvas/styles/index.css";
 
 let value = settingsFrom({
   ...DEFAULT_SETTINGS,
@@ -85,7 +76,7 @@ mockIPC((cmd, payload) => {
   if (cmd === "monitor_configure" || cmd === "monitor_refresh") return null;
   if (cmd === "pty_standing")
     return [
-      ...["running", "permission", "failure"].map((id) => ({
+      ...["running", "permission", "failure", "terminal"].map((id) => ({
         id,
         doing: id === "running" ? "working" : "agent",
         asking: id === "permission",
@@ -122,7 +113,7 @@ mockIPC((cmd, payload) => {
     );
   }
   if (cmd === "monitor_snapshots")
-    return ["running", "permission", "failure"].map((status) => ({
+    return ["running", "permission", "failure", "terminal"].map((status) => ({
       id: status,
       environment: "SSH · workstation",
       source: "inferred",
@@ -175,50 +166,8 @@ mockIPC((cmd, payload) => {
 });
 await loadSettings();
 const { colors, style } = appearanceNow();
-function fixtureGraph(cardWidth: number) {
-  const graph = buildCommitGraph({
-    workspace: { root: "/tmp", repositories: [], warnings: [] },
-    folders: [
-      { root: "/tmp", name: "tmp", kind: "folder", repositories: [] },
-      { root: "/tmp/empty", name: "empty", kind: "folder", repositories: [] },
-    ],
-    sessions: ["running", "terminal"].map((id) => ({
-      id,
-      cwd: "/tmp",
-      branch: "tmp",
-      folder: true,
-    })),
-    visible: new Map(),
-    opened: new Map(),
-    closed: new Set(),
-    tiles: new Map(),
-    cardWidth,
-    step: 24,
-    showing: "running",
-    reports: new Map(),
-    reaching: null,
-    places: new Map(),
-  });
-  graph.nodes = graph.nodes.map((node) => ({
-    ...node,
-    className: node.id === "tileterminal" ? "fixture-terminal" : undefined,
-  }));
-  return graph;
-}
-const nodeTypes = { cli: CliNode, folder: FolderNode, tile: TileNode, offer: OfferNode };
-const jumps = {
-  showing: "sessionrunning",
-  numbers: new Map([
-    ["sessionrunning", 1],
-    ["sessionterminal", 2],
-  ]),
-};
 function Fixture() {
   useMonitorRuntime();
-  const { monitor } = useAppSettings();
-  const [offering, setOffering] = useState(false);
-  Object.assign(window, { monitorOffers: setOffering });
-  const graph = useMemo(() => fixtureGraph(monitor.previewWidth), [monitor.previewWidth]);
   return (
     <Stack direction="row" spacing={4} sx={{ p: 3, alignItems: "flex-start" }}>
       <Box sx={{ width: 420 }}>
@@ -226,29 +175,23 @@ function Fixture() {
         <MonitorRows />
       </Box>
       <Stack spacing={3} sx={{ pt: 5 }}>
-        {["running", "permission", "failure"].map((id) => (
+        {["running", "permission", "failure", "terminal"].map((id) => (
           <MonitorBadge key={id} id={id} />
         ))}
-        <Box className="graph fixture-graph" sx={{ width: 480, height: 200 }}>
+        <Box className="fixture-cards" sx={{ position: "relative", width: 480, height: 500 }}>
           <GraphActionsProvider value={graphActions}>
-            <CliJumpsProvider value={jumps}>
-              <ReactFlow
-                nodes={offering ? [...graph.nodes, ...graph.offers] : graph.nodes}
-                nodeTypes={nodeTypes}
-                fitView
-                maxZoom={1}
-                proOptions={{ hideAttribution: true }}
-              >
-                <GraphLines
-                  {...graph}
-                  selected={null}
-                  picked={null}
-                  offering={offering}
-                  reading={false}
-                  onCommit={() => {}}
-                />
-              </ReactFlow>
-            </CliJumpsProvider>
+            <CardBoard
+              workspace={{ root: "/tmp", repositories: [], warnings: [] }}
+              folders={[{ root: "/tmp", name: "tmp", kind: "folder", repositories: [] }]}
+              sessions={["running", "terminal"].map((id) => ({
+                id,
+                cwd: "/tmp",
+                branch: "tmp",
+                folder: true,
+              }))}
+              showing="running"
+              nodes={[]}
+            />
           </GraphActionsProvider>
         </Box>
       </Stack>

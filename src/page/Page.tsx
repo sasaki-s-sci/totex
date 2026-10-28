@@ -1,4 +1,5 @@
 import type {
+  ComponentProps,
   CSSProperties,
   KeyboardEventHandler,
   PointerEventHandler,
@@ -6,6 +7,8 @@ import type {
   Ref,
   WheelEventHandler,
 } from "react";
+import { useTranslation } from "react-i18next";
+import { useAppSettings } from "../lib/appSettings";
 import { PageHeaderSlot } from "./PageWorkspace";
 import "./page.css";
 
@@ -19,11 +22,11 @@ export type PageProps = {
   name: string;
   title?: string;
   tools?: ReactNode;
-  heading?: ReactNode;
+  toolsAtSide?: boolean;
+  compact?: boolean;
   footnote?: ReactNode;
   collapsed?: boolean;
   pinned?: boolean;
-  headerRef?: Ref<HTMLElement>;
   bodyRef?: Ref<HTMLDivElement>;
   onBodyWheel?: WheelEventHandler<HTMLDivElement>;
   style?: CSSProperties;
@@ -40,11 +43,11 @@ export function Page({
   name,
   title,
   tools,
-  heading,
+  toolsAtSide = false,
+  compact = false,
   footnote,
   collapsed = false,
   pinned = false,
-  headerRef,
   bodyRef,
   onBodyWheel,
   style,
@@ -52,20 +55,51 @@ export function Page({
   onKeyDown,
   children,
 }: PageProps) {
+  const { t } = useTranslation();
+  const draggable = !!pageId && placement === "canvas";
   return (
     <article
-      className={`page page--${placement} ${kind}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}`}
+      className={`page page--${placement} ${kind}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}${toolsAtSide ? " page--tools-side" : ""}${compact ? " is-compact" : ""}`}
       tabIndex={-1}
       style={style}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
     >
-      <header className="page__header" title={title} ref={headerRef}>
-        {placement === "sidebar" && <span className="page__window-drag" data-tauri-drag-region />}
-        {heading ?? <span className="page__name">{name}</span>}
-        {tools}
-        {placement === "sidebar" && pageId && <PageHeaderSlot id={pageId} />}
-      </header>
+      {toolsAtSide ? (
+        <div
+          className="page__tools page__drag"
+          draggable={draggable}
+          tabIndex={draggable ? 0 : undefined}
+          aria-description={draggable ? t("page.reorder", { name }) : undefined}
+          onPointerDown={(event) => {
+            if (draggable)
+              event.currentTarget.draggable = !(event.target as Element).closest("button");
+          }}
+          role="toolbar"
+          aria-label={name}
+          aria-orientation="vertical"
+        >
+          {tools}
+        </div>
+      ) : (
+        <PageHeader
+          name={name}
+          title={title}
+          draggable={draggable}
+          tabIndex={draggable ? 0 : undefined}
+          aria-description={draggable ? t("page.reorder", { name }) : undefined}
+          onPointerDown={(event) => {
+            if (!draggable) return;
+            event.currentTarget.draggable = !(
+              event.target instanceof Element && event.target.closest("button, input, select, a")
+            );
+          }}
+        >
+          {placement === "sidebar" && <span className="page__window-drag" data-tauri-drag-region />}
+          {tools}
+          {placement === "sidebar" && pageId && <PageHeaderSlot id={pageId} />}
+        </PageHeader>
+      )}
 
       {/* Stateful runtimes such as xterm stay mounted even while folded. */}
       {(!collapsed || keepMounted) && (
@@ -80,6 +114,32 @@ export function Page({
       )}
       {!collapsed && footnote && <footer className="page__footer">{footnote}</footer>}
     </article>
+  );
+}
+
+export function PageHeader({
+  name,
+  status,
+  children,
+  style,
+  ...props
+}: ComponentProps<"header"> & {
+  name: string;
+  status?: ReactNode;
+}) {
+  const { cardText } = useAppSettings();
+  return (
+    <header
+      {...props}
+      className="page__header"
+      style={{ fontSize: `${(11 * cardText) / 100}px`, ...style }}
+    >
+      <div className="page__title">
+        <span className="page__name">{name}</span>
+        {status && <div className="page__status">{status}</div>}
+      </div>
+      {children}
+    </header>
   );
 }
 

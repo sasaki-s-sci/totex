@@ -1,21 +1,14 @@
 import CloseIcon from "@mui/icons-material/Close";
-import CloseFullscreenIcon from "@mui/icons-material/CloseFullscreen";
-import HeightIcon from "@mui/icons-material/Height";
 import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import PushPinIcon from "@mui/icons-material/PushPin";
-import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
-import ViewSidebarOutlinedIcon from "@mui/icons-material/ViewSidebarOutlined";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { Frame } from "../marks";
 import { PageTool } from "./Page";
 import type { PagePlacement } from "./placement";
 
 export type PageControls = {
+  viewer?: boolean;
   move?: () => void;
-  pin?: () => void;
-  fit?: () => void;
-  shrink?: () => void;
   close?: () => void;
   hide?: () => void;
 };
@@ -25,13 +18,11 @@ export function PageTools({
   name,
   placement,
   controls,
-  pinned = false,
   children,
 }: {
   name: string;
   placement: PagePlacement;
   controls: PageControls;
-  pinned?: boolean;
   children?: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -42,37 +33,32 @@ export function PageTools({
       {controls.move && (
         <PageTool
           className={placement === "sidebar" ? "page__to-canvas" : undefined}
-          label={t(placement === "canvas" ? "page.toSidebar" : "page.toCanvas", { name })}
+          label={t(
+            controls.viewer
+              ? placement === "canvas"
+                ? "page.openViewer"
+                : "page.closeViewer"
+              : placement === "canvas"
+                ? "page.toSidebar"
+                : "page.toCanvas",
+            { name },
+          )}
           onClick={controls.move}
         >
-          {placement === "canvas" ? (
-            <ViewSidebarOutlinedIcon sx={icon} />
-          ) : (
-            <OpenInNewIcon sx={icon} />
-          )}
+          <Frame size={12}>
+            {placement === "canvas" ? (
+              <>
+                <rect x="3" y="4" width="18" height="16" rx="2" />
+                <path d="M15 4v16M6 12h6m-3-3 3 3-3 3" />
+              </>
+            ) : (
+              <>
+                <rect x="3" y="4" width="7" height="16" rx="1" />
+                <rect x="14" y="4" width="7" height="16" rx="1" />
+              </>
+            )}
+          </Frame>
         </PageTool>
-      )}
-      {placement === "canvas" && (
-        <>
-          {controls.pin && (
-            <PageTool
-              label={t(pinned ? "filePreview.unpin" : "filePreview.pin", { name })}
-              onClick={controls.pin}
-            >
-              {pinned ? <PushPinIcon sx={icon} /> : <PushPinOutlinedIcon sx={icon} />}
-            </PageTool>
-          )}
-          {controls.fit && (
-            <PageTool label={t("filePreview.fitWidth", { name })} onClick={controls.fit}>
-              <HeightIcon sx={{ ...icon, transform: "rotate(90deg)" }} />
-            </PageTool>
-          )}
-          {controls.shrink && (
-            <PageTool label={t("filePreview.shrink", { name })} onClick={controls.shrink}>
-              <CloseFullscreenIcon sx={icon} />
-            </PageTool>
-          )}
-        </>
       )}
       {controls.close && (
         <PageTool label={t("filePreview.close", { name })} onClick={controls.close}>

@@ -17,7 +17,7 @@ pub(super) fn fields(features: &Features) -> Vec<(&'static str, &'static str)> {
     let f = features;
     [
         (f.status, "status", "One of unknown, running, permission, stopped, success, failure. Use unknown when unsupported by evidence."),
-        (f.agents, "agents", "Array of observed workers: {id,kind: monitor|shell|background|subagent,label,status,detail,progress: number 0..100 or null}. Only count workers explicitly evidenced in the transcript; absence is not proof of zero."),
+        (f.agents, "agents", "Array of observed workers: {id,kind: monitor|shell|background|subagent,label,status,detail,progress: number 0..100 or null}. Only count additional workers spawned for tasks and explicitly evidenced in the transcript, including additional task shells. Exclude the primary observed coding CLI and the shell hosting or launching it; opening the CLI does not add a shell worker. Exclude these host entries even if a previous observation included them; never carry them forward. Absence is not proof of zero."),
         (f.task_summary, "taskSummary", "Exactly one short sentence: the agent's conclusion so far, or the action it is asking for when it waits on the user (approval, a choice, a missing input). Never a bare status such as completed or generating. Never summarise idle indicators, warning counts, composer hints or an unsent draft; null if no conclusion or requested action is visible."),
         (f.request_summary, "requestSummary", "Exactly one short sentence summarising the user's submitted request, or null. An unsent composer draft is not a request. Never invent an unseen request."),
         (f.estimate, "estimate", "Remaining implementation time as {seconds,confidence: low|medium|high}, or null if evidence is insufficient. This is an estimate, not a deadline."),
@@ -203,6 +203,28 @@ mod tests {
         assert!(all.contains("Never summarise idle indicators"));
         assert!(all.contains("24 full-width characters or 42 ASCII characters"));
         assert!(!prompt(&some(), 19, "x", None).contains("previous_observation"));
+    }
+
+    #[test]
+    fn worker_prompt_excludes_the_cli_host_even_from_previous_observations() {
+        let text = prompt(
+            &Features {
+                agents: true,
+                ..Features::default()
+            },
+            24,
+            "$ codex",
+            Some(&json!({"agents": [{"id": "host", "kind": "shell"}]})),
+        );
+        assert!(text.contains("including additional task shells"));
+        assert!(text.contains(
+            "Exclude the primary observed coding CLI and the shell hosting or launching it"
+        ));
+        assert!(
+            text.contains(
+                "Exclude these host entries even if a previous observation included them"
+            )
+        );
     }
 
     #[test]

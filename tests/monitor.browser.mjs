@@ -7,10 +7,17 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
   await page.goto(`${base}/tests/fixtures/monitor.html`);
   await page.locator(".monitor-role").first().waitFor();
   const badges = page.locator(".monitor-badge");
-  await page.locator('.fixture-terminal [data-role="terminal"]').first().waitFor();
-  assert.equal(await badges.count(), 5);
+  await page.locator('.monitor-badge [data-role="terminal"]').first().waitFor();
+  assert.equal(await page.locator(".card-session-preview").count(), 0);
+  assert.equal(await badges.count(), 4);
   for (const width of [1200, 800]) {
     await page.setViewportSize({ width, height: 850 });
+    const folderHeader = page.locator(".fixture-cards [data-card-folder] > .page__header").first();
+    assert.equal(
+      await folderHeader.locator(".monitor-role, .card-workers").count(),
+      0,
+      "Folder headers do not combine unrelated agents' workers",
+    );
     const sizes = await badges.evaluateAll((nodes) =>
       nodes.map((node) => ({
         width: node.clientWidth,
@@ -39,87 +46,11 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
     await badges.first().locator('.monitor-badge__row[data-status="running"]').count(),
     1,
   );
-  assert.equal(
-    await page
-      .locator(".fixture-graph .tile")
-      .first()
-      .evaluate((node) => node.offsetWidth),
-    220,
-  );
-  const lefts = await page
-    .locator(".fixture-graph .monitor-badge")
-    .evaluateAll((nodes) =>
-      nodes.map(
-        (node) =>
-          node.closest(".tile")?.getBoundingClientRect().left ?? node.getBoundingClientRect().left,
-      ),
-    );
-  assert.ok(Math.abs(lefts[0] - lefts[1]) < 1, JSON.stringify(lefts));
-  await page.evaluate(() => window.monitorSummaries(false));
-  await page.waitForFunction(
-    () =>
-      !document.querySelector(
-        '.monitor-badge--canvas [data-role="request"] .monitor-badge__summary',
-      ),
-  );
-  for (const [width, wide, ascii] of [
-    [160, 17, 29],
-    [220, 24, 42],
-    [320, 37, 64],
-    [420, 49, 85],
-  ]) {
-    await page.evaluate((width) => window.monitorWidth(width), width);
-    const canvas = page.locator(".fixture-graph .tile").first();
-    await page.waitForFunction(
-      (width) =>
-        document.querySelector(".monitor-badge--canvas")?.getAttribute("data-width") ===
-        String(width),
-      width,
-    );
-    assert.equal(await canvas.evaluate((node) => node.offsetWidth), width);
-    assert.equal(await canvas.evaluate((node) => node.offsetHeight), 32);
-    assert.ok(
-      await canvas.evaluate(
-        (node) => getComputedStyle(node).backgroundColor === "rgba(0, 0, 0, 0)",
-      ),
-    );
-    // The prompt's text budgets must fit the actual default font, including the row icon.
-    const measured = await canvas.evaluate(
-      (node, [wide, ascii]) => {
-        const badge = node.querySelector(".monitor-badge");
-        const context = document.createElement("canvas").getContext("2d");
-        context.font = getComputedStyle(badge).font;
-        return {
-          available: badge.querySelector(".monitor-badge__row").clientWidth - 11,
-          wide: context.measureText("あ".repeat(wide)).width,
-          ascii: context.measureText(
-            "Add keyboard navigation and check focus behavior. ".repeat(3).slice(0, ascii),
-          ).width,
-        };
-      },
-      [wide, ascii],
-    );
-    assert.ok(measured.wide <= measured.available, JSON.stringify(measured));
-    assert.ok(measured.ascii <= measured.available, JSON.stringify(measured));
-  }
-  await page.evaluate(() => window.monitorWidth(220));
-  await page.evaluate(() => window.monitorSummaries(true));
-  await page.waitForFunction(() =>
-    Boolean(
-      document.querySelector(
-        '.monitor-badge--canvas [data-role="request"] .monitor-badge__summary',
-      ),
-    ),
-  );
-  const terminalRows = page.locator('.fixture-terminal [data-role="terminal"]');
+  const terminalRows = page.locator('.monitor-badge [data-role="terminal"]');
   assert.deepEqual(await terminalRows.allTextContents(), [
     "first output line",
     "  last output line",
   ]);
-  assert.equal(
-    await page.locator(".fixture-terminal .tile").evaluate((node) => node.offsetHeight),
-    32,
-  );
   for (const [tail, expected] of [
     ["updated output\n$ ", ["updated output", "$ "]],
     ["single line", ["single line", ""]],
@@ -130,7 +61,7 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
     await page.waitForFunction(
       (expected) =>
         JSON.stringify(
-          [...document.querySelectorAll('.fixture-terminal [data-role="terminal"]')].map(
+          [...document.querySelectorAll('.monitor-badge [data-role="terminal"]')].map(
             (node) => node.textContent,
           ),
         ) === JSON.stringify(expected),
@@ -140,52 +71,11 @@ export async function verifyMonitorCards(page, base = "http://127.0.0.1:18422") 
   }
   assert.equal(
     await page
-      .locator(".fixture-terminal .monitor-badge")
+      .locator(".monitor-badge")
+      .filter({ has: page.locator('[data-role="terminal"]') })
       .evaluate((node) => node.scrollWidth <= node.clientWidth),
     true,
   );
-  await page.setViewportSize({ width: 1200, height: 850 });
-  const numbers = await page
-    .locator(".fixture-graph .edge__number textPath")
-    .evaluateAll((labels) =>
-      labels.map((label) => ({
-        text: label.textContent,
-        length: document.getElementById(label.getAttribute("href").slice(1)).getTotalLength(),
-      })),
-    );
-  assert.deepEqual(
-    numbers.map((label) => label.text),
-    ["1", "2"],
-  );
-  assert.ok(numbers.every((label) => label.length > 0));
-  assert.equal(await page.locator(".cli__number").count(), 0);
-  await page.evaluate(() => window.monitorOffers(true));
-  const offer = page.getByRole("button", { name: "Open a shell on empty", exact: true });
-  await offer.waitFor();
-  const offered = await offer.boundingBox();
-  const existing = await page.locator(".fixture-graph .tile").first().boundingBox();
-  assert.ok(Math.abs(offered.x - existing.x) < 1);
-  assert.ok(Math.abs(offered.width - existing.width) < 1);
-  assert.equal(await offer.evaluate((node) => getComputedStyle(node).borderStyle), "dashed");
-  await offer.click();
-  assert.deepEqual(await page.evaluate(() => window.monitorOpened), ["/tmp/empty"]);
-  await page.evaluate(() => window.monitorOffers(false));
-  const cards = page.locator(".fixture-graph .tile");
-  for (let at = 0; at < 2; at++) {
-    const card = cards.nth(at);
-    const close = card.locator(".cli__end");
-    await card.hover();
-    const box = await card.boundingBox();
-    const end = await close.boundingBox();
-    assert.ok(end.x > box.x + box.width);
-    assert.ok(Math.abs(end.y + end.height / 2 - box.y - box.height / 2) < 1);
-    if (at === 0) await close.click();
-    else {
-      await close.focus();
-      await close.press("Enter");
-    }
-  }
-  assert.deepEqual(await page.evaluate(() => window.monitorEnded), ["running", "terminal"]);
   assert.equal(await page.locator(".MuiPopover-root").count(), 0);
   assert.deepEqual(errors, []);
 }

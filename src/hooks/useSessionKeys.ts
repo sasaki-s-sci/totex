@@ -21,9 +21,23 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
   latest.current = { sessions, showing, open, jump, end };
 
   useEffect(() => {
+    let typed: { number: number; at: number } | null = null;
     const onKeyDown = (event: KeyboardEvent) => {
-      // Ctrl+Alt+Arrow switches the shown shell to the one before or after it, wrapping round.
-      if (event.ctrlKey && event.altKey && !event.metaKey && !event.shiftKey) {
+      // Navigation belongs to the sessions, independently of where their pages are shown.
+      if (event.ctrlKey && !event.metaKey && !event.shiftKey) {
+        if (typing(event.target) && !terminal(event.target)) return;
+        const { sessions, showing, jump } = latest.current;
+        if (!event.altKey && /^[0-9]$/.test(event.key)) {
+          event.preventDefault();
+          if (event.repeat) return;
+          const digit = Number(event.key);
+          const combined = typed && Date.now() - typed.at < 700 ? typed.number * 10 + digit : digit;
+          const number = combined > sessions.length ? digit : combined;
+          const next = sessions[number - 1];
+          typed = next ? { number, at: Date.now() } : null;
+          if (next) jump(next);
+          return;
+        }
         if (event.key.toLowerCase() === "x") {
           if (typing(event.target) && !terminal(event.target)) return;
           const { sessions, showing, end } = latest.current;
@@ -34,14 +48,22 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
           return;
         }
         const step = STEPS[event.key];
-        if (!step || (typing(event.target) && !terminal(event.target))) return;
-        event.preventDefault();
-        if (event.repeat) return;
-        const { sessions, showing, jump } = latest.current;
-        const at = sessions.findIndex((session) => session.id === showing);
-        if (at < 0) return;
-        jump(sessions[(at + step + sessions.length) % sessions.length]);
-        return;
+        if (!step) {
+          if (event.altKey) return;
+        } else {
+          event.preventDefault();
+          if (event.repeat) return;
+          typed = null;
+          const at = sessions.findIndex((session) => session.id === showing);
+          if (at < 0) return;
+          let next = (at + step + sessions.length) % sessions.length;
+          if (!event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+            while (next !== at && sessions[next].cwd === sessions[at].cwd)
+              next = (next + step + sessions.length) % sessions.length;
+          }
+          jump(sessions[next]);
+          return;
+        }
       }
 
       if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;

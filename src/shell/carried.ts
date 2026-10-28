@@ -1,23 +1,9 @@
-/**
- * What of the front's state outlives the process: the restart a program update takes, and the
- * window being closed and opened again.
- *
- * A live handoff passes every value from one frame to the next, but installing a program or closing
- * the window ends this process, and the next page would start from nothing: an empty canvas, the
- * explorers back at their seeds. So the graph is kept in the service's store, which is on disk, as
- * it changes, and the first page of every launch takes it back.
- */
+/** Workspace roots and sidebar explorers that survive closing the process. */
 // Named for the update it was first kept for; a program before this one still writes it there.
 export const CARRIED = "totex.relaunch";
 
-// Plain JSON, and all of it the graph. Terminals are found running again, or are gone with a
-// replaced service; scanned readings are read again rather than drawn stale.
-export const CARRIES = [
-  "window.roots",
-  "window.foldersOpen",
-  "folders.panes",
-  "canvas.viewport",
-] as const;
+// Terminals are recovered from the service; file IDs and page layout belong to the live process.
+export const CARRIES = ["window.roots", "window.foldersOpen", "folders.panes"] as const;
 
 /** The document to keep: only the carried keys this front holds. */
 export function pickCarried(values: Readonly<Record<string, unknown>>): {

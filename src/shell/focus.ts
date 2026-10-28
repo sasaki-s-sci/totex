@@ -5,11 +5,11 @@ export function captureFocus(): void {
   const element = document.activeElement;
   if (!(element instanceof HTMLElement) || element === document.body) return;
   const terminal = element.closest<HTMLElement>("[data-terminal]");
-  const card = element.closest<HTMLElement>(".react-flow__node[data-id]");
+  const card = element.closest<HTMLElement>(".page-slot[data-page-id]");
   const scope = terminal
     ? `[data-terminal="${CSS.escape(terminal.dataset.terminal ?? "")}"] `
     : card
-      ? `[data-id="${CSS.escape(card.dataset.id ?? "")}"] `
+      ? `[data-page-id="${CSS.escape(card.dataset.pageId ?? "")}"] `
       : "";
   const selector =
     scope +

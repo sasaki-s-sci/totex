@@ -1,5 +1,3 @@
-import { useStore } from "@xyflow/react";
-import { type ReactNode, useEffect, useState } from "react";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import type { AppNode } from "../lib/graph";
@@ -8,28 +6,17 @@ import { PageView } from "../page/PageView";
 import { PagePortal, usePageWorkspace } from "../page/PageWorkspace";
 import { filePageId, terminalPageId } from "../page/placement";
 import { useGraphActions } from "./graphActions";
-import { MIN_HEIGHT, MIN_WIDTH } from "./nodes/CliPageNode";
 
 export function Pages({
   nodes,
   sessions,
-  terminalList,
-  cards = false,
 }: {
   nodes: readonly AppNode[];
   sessions: readonly Session[];
-  terminalList?: ReactNode;
-  cards?: boolean;
 }) {
   const workspace = usePageWorkspace();
   const actions = useGraphActions();
   const { fileTitle } = useAppSettings();
-  const zoom = useStore((state) => state.transform[2]);
-  const [scale, setScale] = useState(zoom);
-  useEffect(() => {
-    const timer = setTimeout(() => setScale(Math.round(zoom * 100) / 100), 150);
-    return () => clearTimeout(timer);
-  }, [zoom]);
   if (!workspace) return null;
   return (
     <>
@@ -43,62 +30,83 @@ export function Pages({
             key={id}
             id={id}
             name={name}
-            place={
-              placement === "canvas"
-                ? cards
-                  ? "cards"
-                  : node.data.pinnedAt
-                    ? "pinned"
-                    : "canvas"
-                : placement
-            }
+            place={placement === "canvas" ? "cards" : placement}
           >
             <PageView
               kind="file"
               data={node.data}
               actions={actions}
               placement={placement}
-              scale={placement === "canvas" && !cards ? scale : 1}
+              scale={1}
             />
           </PagePortal>
         );
       })}
-      {sessions.map((session) => {
+      {sessions.map((session, index) => {
         const id = terminalPageId(session.id);
-        const placement = workspace.placement(id);
-        const node = nodes.find(
-          (one) => one.type === "cli-page" && one.data.session.id === session.id,
-        );
-        const collapsed = !cards && node?.type === "cli-page" && node.data.collapsed;
-        const shown =
-          placement === "sidebar" ? workspace.showing === id || workspace.lower === id : !collapsed;
+        const viewing = workspace.showing === id || workspace.lower === id;
         const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
         return (
-          <PagePortal
-            key={id}
-            id={id}
-            name={name}
-            place={cards && placement === "canvas" ? "cards" : placement}
-            focus={shown && workspace.active === id ? ".xterm-helper-textarea" : undefined}
-          >
-            <PageView
-              kind="terminal"
-              terminalList={terminalList}
-              session={session}
-              placement={placement}
-              scale={placement === "canvas" && !cards ? scale : 1}
-              shown={shown}
-              collapsed={collapsed}
-              controls={{
-                move: () => workspace.move(id, placement === "canvas" ? "sidebar" : "canvas"),
-                hide: workspace.hide,
-                shrink: cards
-                  ? undefined
-                  : () => actions.fitCliPage(session.id, MIN_WIDTH, MIN_HEIGHT),
-              }}
-              onEnded={() => actions.endSession(session)}
-            />
-          </PagePortal>
+          <span key={id} style={{ display: "contents" }}>
+            <PagePortal
+              id={id}
+              name={name}
+              place="cards"
+              focus={
+                workspace.active === id && workspace.activePlace === "cards"
+                  ? ".page-agent button, .xterm-helper-textarea"
+                  : undefined
+              }
+            >
+              <PageView
+                kind="terminal"
+                session={session}
+                number={index + 1}
+                placement="canvas"
+                scale={1}
+                shown
+                compact={!workspace.expanded.includes(id)}
+                resize={!viewing}
+                controls={{
+                  viewer: true,
+                  move: () => workspace.move(id, "sidebar"),
+                  close: () => actions.endSession(session),
+                }}
+                onEnded={() => actions.endSession(session)}
+              />
+            </PagePortal>
+            {workspace.placement(id) === "sidebar" && (
+              <PagePortal
+                id={id}
+                name={name}
+                place="sidebar"
+                registerEntry={false}
+                focus={
+                  viewing && workspace.active === id && workspace.activePlace === "sidebar"
+                    ? ".xterm-helper-textarea"
+                    : undefined
+                }
+              >
+                <PageView
+                  kind="terminal"
+                  session={session}
+                  number={index + 1}
+                  placement="sidebar"
+                  scale={1}
+                  viewer
+                  shown={viewing}
+                  compact={false}
+                  resize={viewing}
+                  controls={{
+                    viewer: true,
+                    move: () => workspace.move(id, "canvas"),
+                    hide: workspace.hide,
+                  }}
+                  onEnded={() => undefined}
+                />
+              </PagePortal>
+            )}
+          </span>
         );
       })}
     </>

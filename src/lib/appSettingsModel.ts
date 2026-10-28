@@ -123,30 +123,11 @@ export type AppSettings = {
   /** Theme ids per layer; see src/theme/declaration.ts. */
   appearance: { colors: string; style: string; effects: string };
   language: "system" | "en" | "ja";
-  reveal: "never" | "edge" | "centre";
-  /** Whether Ctrl+Arrow, at the last terminal or group, comes round to the first. */
-  walkWrap: boolean;
   /** Where Ctrl+A puts its terminal: after the one it was pressed in, or after every other. */
   terminalSort: "createdWhere" | "createdAt";
   follow: boolean;
   /** Whether a worktree is kept checked out ahead of time for the next branch to take. */
   spareWorktree: boolean;
-  backgroundGrid: boolean;
-  gridStep: number;
-  gridSnap: boolean;
-  /** Pixels the canvas draws a terminal's mark at; see `src/canvas/markSizes.ts`. */
-  cliMarkSize: number;
-  /** Pixels the canvas draws a folder's mark at. */
-  folderMarkSize: number;
-  /** Grid rows of air between one repository or folder and the next, measured from their outermost nodes. */
-  groupGap: number;
-  /** What the canvas lines its groups up by: their terminal stacks, or where their histories start. */
-  canvasAlign: "terminal" | "initial";
-  layout: "cards" | "canvas";
-  /** Commits a band shows from its tip; at `HISTORY_ALL` or past it, every one read. */
-  historyLength: number;
-  /** Whether a band is cut back to that length as commits arrive, rather than growing with them. */
-  historyFollow: boolean;
   mcpServing: boolean;
   /** Whether the left sidebar shows each terminal's CPU and memory; see `src/sidebar/left/UsagePanel.tsx`. */
   terminalUsage: boolean;
@@ -156,8 +137,6 @@ export type AppSettings = {
   undoDepth: number;
   /** Percent of xterm's own wheel distance. */
   cliWheel: number;
-  /** Percent of the canvas's own wheel distance. */
-  graphWheel: number;
   /** Percent of the file page's own text size, where 100 is `readingSize`. */
   pageText: number;
   /** Percent of the terminal's own text size. */
@@ -172,37 +151,21 @@ export type SettingsPatch = Omit<Partial<AppSettings>, "appearance" | "monitor" 
   appearance?: Partial<AppSettings["appearance"]>;
 };
 
-/** What the backend reads of a repository unless told otherwise, so as many as there are to show. */
-export const HISTORY_ALL = 300;
-
 export const DEFAULT_SETTINGS: AppSettings = {
   monitor: DEFAULT_MONITOR,
   resume: DEFAULT_RESUME,
   theme: "system",
   appearance: { colors: "neon", style: "default", effects: "none" },
   language: "system",
-  reveal: "edge",
-  walkWrap: true,
   terminalSort: "createdWhere",
   follow: false,
   spareWorktree: true,
-  backgroundGrid: false,
-  gridStep: 24,
-  gridSnap: false,
-  cliMarkSize: 11,
-  folderMarkSize: 15,
-  groupGap: 2,
-  canvasAlign: "terminal",
-  layout: "cards",
-  historyLength: 3,
-  historyFollow: false,
   mcpServing: false,
   terminalUsage: false,
   fileTitle: "name",
   readingSize: 11,
   undoDepth: 200,
   cliWheel: 100,
-  graphWheel: 10,
   pageText: 100,
   terminalText: 100,
   cardText: 100,
@@ -212,12 +175,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
 export function settingsFrom(value: SettingsPatch): AppSettings {
   return {
     ...DEFAULT_SETTINGS,
-    ...value,
+    ...Object.fromEntries(
+      Object.entries(value).filter(([key]) => Object.hasOwn(DEFAULT_SETTINGS, key)),
+    ),
     cardText:
       typeof value.cardText === "number" && Number.isFinite(value.cardText)
         ? Math.min(200, Math.max(50, value.cardText))
         : DEFAULT_SETTINGS.cardText,
-    layout: value.layout === "canvas" ? "canvas" : "cards",
     monitor: mergeMonitor(value.monitor),
     resume: mergeResume(value.resume),
     appearance: { ...DEFAULT_SETTINGS.appearance, ...value.appearance },
@@ -243,28 +207,15 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
       colors: pick("totex.preset", ["neon", "classic"], "neon"),
     },
     language: pick("totex.language", ["system", "en", "ja"], "system"),
-    reveal: pick("totex.reveal", ["never", "edge", "centre"], "edge"),
-    walkWrap: true,
     terminalSort: "createdWhere",
     follow: read("totex.follow") === "on",
     spareWorktree: true,
-    backgroundGrid: false,
-    gridStep: 24,
-    gridSnap: false,
-    cliMarkSize: 11,
-    folderMarkSize: 15,
-    groupGap: 2,
-    canvasAlign: "terminal",
-    layout: "cards",
-    historyLength: 3,
-    historyFollow: false,
     mcpServing: read("totex.mcp.serving") === "yes",
     terminalUsage: false,
     fileTitle: "name",
     readingSize: number("totex.reading.size", 8, 20, 11),
     undoDepth: 200,
     cliWheel: 100,
-    graphWheel: 10,
     pageText: 100,
     terminalText: 100,
     cardText: 100,

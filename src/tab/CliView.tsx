@@ -51,10 +51,22 @@ type Props = {
   onEnded: () => void;
   /** Drawn this many times larger and scaled back, so a zoomed page does not stretch xterm's canvas. */
   scale?: number;
+  compact?: boolean;
+  viewer?: boolean;
+  resize?: boolean;
   background?: "paper" | "default";
 };
 
-export function CliView({ session, shown, onEnded, scale = 1, background = "paper" }: Props) {
+export function CliView({
+  session,
+  shown,
+  onEnded,
+  scale = 1,
+  compact = false,
+  viewer = false,
+  resize = true,
+  background = "paper",
+}: Props) {
   // State, not a ref: a view update can swap the node, and the effect must re-attach.
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const drawn = useRef<Terminal | null>(null);
@@ -96,10 +108,18 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
   }, [onEnded]);
   const { terminalText } = useAppSettings();
   const drawnAt = useRef(scale);
+  const compactAt = useRef(compact);
   const textAt = useRef(terminalText);
   const settle = useRef<(() => void) | null>(null);
   const showing = useRef(shown);
   const catchUpNow = useRef<(() => void) | null>(null);
+  const resizeAt = useRef(resize);
+  const reclaimSize = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    resizeAt.current = resize;
+    if (resize) reclaimSize.current?.();
+  }, [resize]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session is the identity; the colours are read once here and kept up to date below
   useEffect(() => {
@@ -126,7 +146,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
     drawn.current = terminal;
-    const stateKey = `terminal.${session.id}`;
+    const stateKey = `terminal.${viewer ? "viewer." : ""}${session.id}`;
     const forget = readOnSnapshot(stateKey, () => ({
       scroll: terminal.buffer.active.viewportY,
       selection: terminal.getSelectionPosition(),
@@ -147,6 +167,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
     let lastGrid: { rows: number; cols: number } | null = null;
     const tell = (grid: { rows: number; cols: number }) => {
+      if (!resizeAt.current) return;
       if (lastGrid?.rows === grid.rows && lastGrid.cols === grid.cols) return;
       lastGrid = grid;
       void resizeShell(session.id, grid.rows, grid.cols).catch(() => undefined);
@@ -155,7 +176,25 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     const measure = () => {
       const face = (FONT * drawnAt.current * textAt.current) / 100;
       if (terminal.options.fontSize !== face) terminal.options.fontSize = face;
-      fit.fit();
+      if (compactAt.current) {
+        const proposed = fit.proposeDimensions();
+        if (proposed) terminal.resize(proposed.cols, 2);
+        const wrapper = element.closest<HTMLElement>(".resizable-page");
+        const page = element.closest<HTMLElement>(".page");
+        const header = page?.querySelector<HTMLElement>(".page__header");
+        const screen = terminal.element?.querySelector<HTMLElement>(".xterm-screen");
+        if (wrapper && page && screen && terminal.element && screen.clientHeight > 0) {
+          const padding = getComputedStyle(terminal.element);
+          const border = getComputedStyle(page);
+          const height =
+            (header?.offsetHeight ?? 0) +
+            screen.getBoundingClientRect().height +
+            (parseFloat(padding.paddingTop) + parseFloat(padding.paddingBottom)) / drawnAt.current +
+            parseFloat(border.borderTopWidth) +
+            parseFloat(border.borderBottomWidth);
+          wrapper.style.setProperty("--compact-height", `${height}px`);
+        }
+      } else fit.fit();
       const { rows, cols } = terminal;
       tell({ rows, cols });
     };
@@ -164,10 +203,46 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       if (element.clientWidth === 0 || element.clientHeight === 0) return;
       measure();
     };
-    if (element.clientWidth > 0 && element.clientHeight > 0) fit.fit();
+    reclaimSize.current = () => {
+      // Another view may have changed the PTY size since this view last owned it.
+      lastGrid = null;
+      settle.current?.();
+    };
+    if (element.clientWidth > 0 && element.clientHeight > 0) {
+      fit.fit();
+      if (compactAt.current) terminal.resize(terminal.cols, 2);
+    }
 
     let live = true;
     let replaying = true;
+    // Both views parse output, but only the size owner answers terminal queries.
+    // A newly opened viewer must not answer queries from its historical backlog.
+    const ignoreQuery = () => !resizeAt.current || (viewer && replaying);
+    const queryHandlers = [
+      ...[
+        { final: "c" },
+        { prefix: ">", final: "c" },
+        { final: "n" },
+        { prefix: "?", final: "n" },
+        { intermediates: "$", final: "p" },
+        { prefix: "?", intermediates: "$", final: "p" },
+      ].map((id) => terminal.parser.registerCsiHandler(id, ignoreQuery)),
+      terminal.parser.registerCsiHandler(
+        { final: "t" },
+        (params) => ignoreQuery() && [14, 16, 18, 20, 21].includes(Number(params[0])),
+      ),
+      terminal.parser.registerCsiHandler(
+        { prefix: "?", final: "S" },
+        (params) => ignoreQuery() && [1, 4].includes(Number(params[1])),
+      ),
+      terminal.parser.registerDcsHandler({ intermediates: "$", final: "q" }, ignoreQuery),
+      ...[4, 10, 11, 12].map((id) =>
+        terminal.parser.registerOscHandler(
+          id,
+          (data) => ignoreQuery() && data.split(";").includes("?"),
+        ),
+      ),
+    ];
     const reportCopyFailure = (error: unknown) => {
       console.error("Could not copy terminal text", error);
       if (live) setCopyFailed(true);
@@ -359,6 +434,8 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
         await sized;
         if (!live) return;
+        // An earlier resize can precede shell startup; send its actual grid after attaching.
+        lastGrid = null;
         measure();
         await new Promise<void>((resolve) => terminal.write(held.text, resolve));
         if (!live) return;
@@ -387,6 +464,10 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
 
     const resize = new ResizeObserver(() => settle.current?.());
     resize.observe(element);
+    const screen = terminal.element?.querySelector(".xterm-screen");
+    const header = element.closest(".page")?.querySelector(".page__header");
+    if (screen) resize.observe(screen);
+    if (header) resize.observe(header);
 
     return () => {
       live = false;
@@ -394,6 +475,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       catchUpNow.current = null;
       drawn.current = null;
       settle.current = null;
+      reclaimSize.current = null;
       resize.disconnect();
       stopSizing();
       element.removeEventListener("paste", onPaste, true);
@@ -401,10 +483,11 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       void finished.then((stop) => stop());
       // The shell is left running; closing the session is what ends it.
       clipboard.dispose();
+      for (const handler of queryHandlers) handler.dispose();
       terminal.dispose();
       forget();
     };
-  }, [host, session.id, session.cwd]);
+  }, [host, session.id, session.cwd, viewer]);
 
   // Told rather than rebuilt: a rebuilt terminal loses its scrollback.
   useEffect(() => {
@@ -430,13 +513,17 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
     settle.current?.();
   }, [scale]);
   useEffect(() => {
+    compactAt.current = compact;
+    settle.current?.();
+  }, [compact]);
+  useEffect(() => {
     textAt.current = terminalText;
     settle.current?.();
   }, [terminalText]);
   useEffect(() => {
     showing.current = shown;
     if (shown) catchUpNow.current?.();
-    if (shown && host) drawn.current?.focus();
+    if (shown && host && resizeAt.current) drawn.current?.focus();
   }, [shown, host]);
 
   return (
@@ -444,6 +531,7 @@ export function CliView({ session, shown, onEnded, scale = 1, background = "pape
       ref={setHost}
       data-terminal={session.id}
       data-terminal-shown={shown}
+      data-terminal-viewer={viewer || undefined}
       sx={{
         position: "absolute",
         top: 0,

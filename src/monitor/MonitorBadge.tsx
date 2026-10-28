@@ -80,7 +80,7 @@ function StatusIcon({ status }: { status: string }) {
     </svg>
   );
 }
-export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: boolean }) {
+export function MonitorBadge({ id, workers = true }: { id: string; workers?: boolean }) {
   const { monitor } = useAppSettings();
   const snapshot = useMonitorSnapshot(id);
   const glance = useMonitorGlance(id);
@@ -103,7 +103,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
     agent && monitor.text !== "none" && shown("requestSummary")
       ? snapshot?.requestSummary || null
       : null;
-  const agents = shown("agents") && snapshot && snapshot.agents.length > 0 && (
+  const agents = workers && shown("agents") && snapshot && snapshot.agents.length > 0 && (
     <AgentChips agents={snapshot.agents} />
   );
   // Top row first: a single line of output is the first line, not the bottom one.
@@ -112,7 +112,7 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
     <>
       <button
         type="button"
-        className={`monitor-badge nodrag nopan${canvas ? " monitor-badge--canvas" : ""}`}
+        className="monitor-badge"
         data-status={status}
         data-width={monitor.previewWidth}
         aria-label={`${t("monitor.title")} · ${t(`monitor.states.${status}`)}`}
@@ -144,10 +144,8 @@ export function MonitorBadge({ id, canvas = false }: { id: string; canvas?: bool
               {shown("estimate") && estimate !== null && (
                 <span className="monitor-badge__extra">≈{estimate}m</span>
               )}
-              {!canvas && agents}
+              {agents}
             </span>
-            {/* On the card's top edge, not in its rows: the line runs through the icons. */}
-            {canvas && agents}
           </>
         ) : (
           ["previous", "last"].map((row, at) => (
@@ -315,12 +313,17 @@ const KIND_PATHS = {
 } as const;
 const KINDS = ["monitor", "subagent", "background", "shell"] as const;
 
-/** Folder cards put the workers on their heading, separately from each terminal's preview. */
+/** Worker indicators shared by compact summaries and expanded agent pages. */
 export function MonitorAgents({ id }: { id: string }) {
   const { monitor } = useAppSettings();
   const snapshot = useMonitorSnapshot(id);
   const glance = useMonitorGlance(id);
-  if (!monitor.enabled || !monitorShows(monitor, "agents") || !isAgent(glance) || !snapshot)
+  if (
+    !monitor.enabled ||
+    !monitorShows(monitor, "agents") ||
+    !isAgent(glance) ||
+    !snapshot?.agents.length
+  )
     return null;
   return <AgentChips agents={snapshot.agents} />;
 }

@@ -22,28 +22,15 @@ test("migrates the user preferences that survive, reading the reading size", () 
       theme: "dark",
       appearance: { colors: "classic", style: "default", effects: "none" },
       language: "ja",
-      reveal: "centre",
-      walkWrap: true,
       terminalSort: "createdWhere",
       follow: true,
       spareWorktree: true,
-      backgroundGrid: false,
-      gridStep: 24,
-      gridSnap: false,
-      cliMarkSize: 11,
-      folderMarkSize: 15,
-      groupGap: 2,
-      canvasAlign: "terminal",
-      layout: "cards",
-      historyLength: 3,
-      historyFollow: false,
       mcpServing: true,
       terminalUsage: false,
       fileTitle: "name",
       readingSize: 14,
       undoDepth: 200,
       cliWheel: 100,
-      graphWheel: 10,
       pageText: 100,
       terminalText: 100,
       cardText: 100,
@@ -97,10 +84,25 @@ test("monitor feature patches preserve independent defaults", () => {
   assert.equal(DEFAULT_SETTINGS.monitor.features.agents, true);
 });
 
-test("layout is persisted and unsupported values fall back to cards", () => {
-  assert.equal(settingsFrom({ layout: "canvas" }).layout, "canvas");
-  assert.equal(settingsFrom({ layout: "cards" }).layout, "cards");
-  assert.equal(settingsFrom({ layout: "unknown" }).layout, "cards");
+test("obsolete graph preferences do not enter runtime settings", () => {
+  const removed = {
+    walkWrap: false,
+    layout: "canvas",
+    reveal: "centre",
+    backgroundGrid: true,
+    gridStep: 48,
+    gridSnap: true,
+    cliMarkSize: 20,
+    folderMarkSize: 20,
+    groupGap: 6,
+    canvasAlign: "initial",
+    historyLength: 100,
+    historyFollow: true,
+    graphWheel: 200,
+  };
+  const settings = settingsFrom({ ...removed, cardText: 120 });
+  for (const key of Object.keys(removed)) assert.equal(key in settings, false);
+  assert.equal(settings.cardText, 120);
 });
 
 test("card text size persists, defaults for old settings, and stays within readable limits", () => {

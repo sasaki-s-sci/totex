@@ -5,8 +5,6 @@ import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
 import { useDrops } from "../hooks/useDrops";
 import { useFileDrops } from "../hooks/useFileDrops";
-import { useMarks } from "../hooks/useMarks";
-import { useReports } from "../hooks/useReports";
 import { useServing } from "../hooks/useServing";
 import { useSessionKeys } from "../hooks/useSessionKeys";
 import { useSessions } from "../hooks/useSessions";
@@ -20,7 +18,7 @@ import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { useMonitorRuntime } from "../monitor/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
-import { canvasPart, commitPart, EMPTY_WORKSPACE, sidebarPart, worktreePart } from "../parts";
+import { canvasPart, EMPTY_WORKSPACE, sidebarPart, worktreePart } from "../parts";
 import { useResumeRuntime } from "../resume/runtime";
 import { useFrontState } from "../shell/state";
 import {
@@ -40,7 +38,7 @@ import { HEADER_INSET, WindowControls } from "./WindowControls";
 /** LeftSidebar | Canvas | RightSidebar, and the menus drawn over them. */
 export function Window() {
   const { t } = useTranslation();
-  const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", false);
+  const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", true);
   const [destination, setDestination] = useState<FolderDestination | null>(null);
   const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
   const [removeFailed, setRemoveFailed] = useState(false);
@@ -49,11 +47,11 @@ export function Window() {
   useServing();
   useMonitorRuntime();
   const canvasHost = useRef<HTMLElement>(null);
-  const { marks, fail, hold, release } = useMarks();
+  const [workFailed, setWorkFailed] = useState(false);
+  const fail = useCallback(() => setWorkFailed(true), []);
 
   const sessions = useSessions();
   useResumeRuntime(sessions);
-  const reports = useReports();
   useSessionKeys({
     sessions: sessions.sessions,
     showing: sessions.active,
@@ -118,15 +116,11 @@ export function Window() {
   const work = useCanvasWork({
     openSession: sessions.open,
     fail,
-    hold,
-    release,
-    setCommitMenu: menus.setCommit,
     onBrowseFolder: browseFolder,
   });
 
   const Canvas = canvasPart.use();
   const RightSidebar = sidebarPart.use();
-  const CommitMenu = commitPart.use(useEver(menus.commit !== null));
   const WorktreeMenu = worktreePart.use(useEver(menus.worktree !== null));
 
   return (
@@ -191,30 +185,18 @@ export function Window() {
             <Canvas
               workspace={workspace ?? EMPTY_WORKSPACE}
               folders={graphed}
-              browsing={folders.browsing}
               sessions={sessions.sessions}
               showing={sessions.active}
-              paged={sessions.paged}
-              reports={reports}
-              marks={marks}
-              onSelect={work.pickCommit}
               onNewWork={work.newWork}
               onOpenWork={work.openWork}
               onBrowseWorktree={work.browseWorktree}
               onPickBranch={menus.setWorktree}
               onCloseRepository={closeRepository}
               onCloseFolder={closeFolder}
-              onMerge={work.merge}
-              onSync={work.sync}
-              onFetch={work.fetch}
-              onShowSession={sessions.show}
-              onJumpSession={sessions.jump}
               onEndSession={sessions.end}
-              onPlaceSession={sessions.place}
               filePreviews={files.filePreviews}
               onPreviewFile={files.previewFile}
               onCloseFilePreview={files.closeFilePreview}
-              onOpenPinned={files.openPinned}
               settingsRequest={menus.settingsRequest}
               onCloseSettings={menus.closeSettings}
             />
@@ -231,9 +213,12 @@ export function Window() {
           </Alert>
         </Snackbar>
 
-        {CommitMenu && (
-          <CommitMenu target={menus.commit} onClose={menus.closeCommit} onOpen={sessions.open} />
-        )}
+        <Snackbar open={workFailed} onClose={() => setWorkFailed(false)}>
+          <Alert severity="error" onClose={() => setWorkFailed(false)}>
+            {t("file.failed")}
+          </Alert>
+        </Snackbar>
+
         {WorktreeMenu && (
           <WorktreeMenu
             target={menus.worktree}

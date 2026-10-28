@@ -1,10 +1,12 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import type { FilePreviewNodeData } from "../lib/graph";
 import type { Session } from "../lib/session";
-import { MonitorBadge } from "../monitor/MonitorBadge";
+import { MonitorAgents, MonitorBadge } from "../monitor/MonitorBadge";
+import { isAgent } from "../monitor/model";
+import { useMonitorGlance } from "../monitor/runtime";
 import { terminalPart } from "../parts";
 import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
@@ -17,16 +19,18 @@ type Props = { placement: PagePlacement } & (
   | {
       kind: "terminal";
       session: Session;
+      number: number;
       shown: boolean;
       scale: number;
-      collapsed: boolean;
+      compact: boolean;
+      viewer?: boolean;
+      resize?: boolean;
       controls: PageControls;
-      terminalList?: ReactNode;
       onEnded: () => void;
     }
 );
 
-/** Both hosts render exactly the same content and header; only layout capabilities differ. */
+/** The same terminal and file views stay mounted while their hosts change. */
 export function PageView(props: Props) {
   if (props.kind === "file")
     return (
@@ -42,16 +46,51 @@ export function PageView(props: Props) {
 
 function TerminalPage({
   session,
+  number,
   placement,
   shown,
   scale,
-  collapsed,
+  compact,
+  viewer,
+  resize,
   controls,
-  terminalList,
   onEnded,
 }: Extract<Props, { kind: "terminal" }>) {
   const { t } = useTranslation();
-  const { fileTitle } = useAppSettings();
+  const { fileTitle, monitor } = useAppSettings();
+  const glance = useMonitorGlance(session.id);
+  const agent = monitor.enabled && isAgent(glance);
+  const agentSummary = placement === "canvas" && compact && agent;
+  const terminalBody = useRef<HTMLDivElement>(null);
+  const focused = useRef(false);
+  const previousView = useRef({ agentSummary, compact });
+  useLayoutEffect(() => {
+    const page = terminalBody.current?.closest(".page");
+    const trackFocus = (event: Event) => {
+      focused.current = event.target instanceof Node && Boolean(page?.contains(event.target));
+    };
+    focused.current = Boolean(page?.contains(document.activeElement));
+    document.addEventListener("focusin", trackFocus);
+    document.addEventListener("pointerdown", trackFocus, true);
+    return () => {
+      document.removeEventListener("focusin", trackFocus);
+      document.removeEventListener("pointerdown", trackFocus, true);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const previous = previousView.current;
+    previousView.current = { agentSummary, compact };
+    if (
+      !focused.current ||
+      (previous.agentSummary === agentSummary && previous.compact === compact)
+    )
+      return;
+    // Remember focus before the old view is hidden or removed; idle cards never take it.
+    terminalBody.current
+      ?.closest(".page")
+      ?.querySelector<HTMLElement>(agentSummary ? ".page-agent button" : ".xterm-helper-textarea")
+      ?.focus({ preventScroll: true });
+  }, [agentSummary, compact]);
   const Terminal = terminalPart.use(true);
   const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
   return (
@@ -61,29 +100,47 @@ function TerminalPage({
       kind="cli-page"
       name={name}
       title={displayPath(session.cwd)}
-      collapsed={placement === "canvas" && collapsed}
       keepMounted
-      heading={placement === "sidebar" ? terminalList : undefined}
-      tools={
-        <>
-          {placement !== "sidebar" && <MonitorBadge id={session.id} />}
-          <PageTools name={name} placement={placement} controls={controls} />
-        </>
-      }
+      toolsAtSide={placement === "canvas"}
+      compact={compact}
+      tools={<PageTools name={name} placement={placement} controls={controls} />}
     >
-      <div className="cli-page__terminal nodrag nopan nowheel">
-        {Terminal ? (
-          <Terminal
-            session={session}
-            shown={shown}
-            scale={scale}
-            onEnded={onEnded}
-            background={placement === "sidebar" ? "default" : "paper"}
-          />
-        ) : (
-          <p className="file-preview__message">{t("filePreview.loading")}</p>
+      <span className="page-terminal-number" title={`${t("cli.shell")} ${number}`}>
+        {number}
+      </span>
+      <div className="page-terminal-content">
+        {agentSummary && (
+          <div className="page-agent nodrag nopan nowheel">
+            <MonitorBadge id={session.id} workers={false} />
+          </div>
         )}
+        <div
+          ref={terminalBody}
+          className="cli-page__terminal nodrag nopan nowheel"
+          aria-hidden={agentSummary || undefined}
+          inert={agentSummary}
+        >
+          {Terminal ? (
+            <Terminal
+              session={session}
+              shown={shown}
+              compact={compact}
+              viewer={viewer}
+              resize={resize}
+              scale={scale}
+              onEnded={onEnded}
+              background={placement === "sidebar" ? "default" : "paper"}
+            />
+          ) : (
+            <p className="file-preview__message">{t("filePreview.loading")}</p>
+          )}
+        </div>
       </div>
+      {agent && (
+        <div className="page-agent-workers">
+          <MonitorAgents id={session.id} />
+        </div>
+      )}
     </Page>
   );
 }

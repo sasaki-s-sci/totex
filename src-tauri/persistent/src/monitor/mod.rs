@@ -860,7 +860,7 @@ mod tests {
     }
     #[test]
     fn untrusted_report_cannot_spoof_measured_nodes_or_overflow_progress() {
-        let mut report: Report = serde_json::from_value(serde_json::json!({"agents":[{"id":"totex-monitor","kind":"monitor","label":"fake","status":"success"},{"id":"real","kind":"subagent","label":"test","status":"running","progress":500}]})).unwrap();
+        let mut report: Report = serde_json::from_value(serde_json::json!({"agents":[{"id":"totex-monitor","kind":"monitor","label":"fake","status":"success"},{"id":"totex-shell","kind":"shell","label":"CLI host","status":"running"},{"id":"real","kind":"subagent","label":"test","status":"running","progress":500},{"id":"test-shell","kind":"shell","label":"cargo test","status":"running"}]})).unwrap();
         sanitize(
             &mut report,
             &Features {
@@ -868,8 +868,11 @@ mod tests {
                 ..Features::default()
             },
         );
-        assert_eq!(report.agents.len(), 1);
+        assert_eq!(report.agents.len(), 2);
+        assert_eq!(report.agents[0].id, "real");
         assert_eq!(report.agents[0].progress, Some(100.0));
+        assert_eq!(report.agents[1].id, "test-shell");
+        assert!(matches!(report.agents[1].kind, Kind::Shell));
     }
     #[test]
     fn the_agent_sessions_outlive_a_configuration_and_are_replaced_whole() {

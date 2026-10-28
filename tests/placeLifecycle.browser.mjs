@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 
 /** Real Window and xterm; only native IPC is mocked. */
-async function openPlaces(page, base, layout) {
+async function openPlaces(page, base) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript((layout) => {
+  await page.addInitScript(() => {
     let serial = 0;
     const callbacks = new Map();
     const repo = {
@@ -92,8 +92,8 @@ async function openPlaces(page, base, layout) {
         if (cmd === "app_settings_read")
           return {
             path: "/tmp/totex-place-settings.json",
-            text: JSON.stringify({ ...args.initial, language: "en", layout }),
-            value: { ...args.initial, language: "en", layout },
+            text: JSON.stringify({ ...args.initial, language: "en" }),
+            value: { ...args.initial, language: "en" },
           };
         if (
           [
@@ -111,32 +111,26 @@ async function openPlaces(page, base, layout) {
       },
     };
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
-  }, layout);
+  });
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${base}/tests/fixtures/place-lifecycle.html`);
   return errors;
 }
 
 export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
-  const errors = await openPlaces(page, base, "canvas");
-  const canvasFolder = page.locator(".react-flow__node-folder");
-  const canvasRepo = page.locator(".react-flow__node-repository");
+  const errors = await openPlaces(page, base);
+  const folderCard = page.locator('[data-card-folder="/projects/notes"]');
+  const repositoryCard = page.locator('[data-card-folder="/worktrees/feature"]');
   const sidebar = page.locator("#folder-sidebar");
   const folderLabel = "Remove folder and end its terminals";
   const repoLabel = "Remove repository and end its terminals";
-  const removeRepo = canvasRepo.locator(`[aria-label="${repoLabel}"]`);
-  const removeFolder = canvasFolder.locator(`[aria-label="${folderLabel}"]`);
+  const removeRepo = repositoryCard.locator(`[aria-label="${repoLabel}"]`);
+  const removeFolder = folderCard.locator(`[aria-label="${folderLabel}"]`);
   await removeRepo.waitFor({ state: "attached" });
   await removeFolder.waitFor({ state: "attached" });
   const terminal = page.locator('[data-terminal="repo-cli"]');
   await terminal.locator(".xterm-screen").waitFor();
-  // Move the fixture's top-edge folder heading below the window drag region.
-  await page.mouse.move(1300, 600);
-  await page.mouse.down();
-  await page.mouse.move(1300, 800, { steps: 10 });
-  await page.mouse.up();
-
-  // Controls must appear on hover, including the sidebar's folder header.
+  // The sidebar exposes its close control on hover; card controls stay visible.
   async function assertControlShown(control, shown) {
     const handle = await control.elementHandle();
     await page.waitForFunction(
@@ -154,20 +148,14 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     await handle.dispose();
   }
   await page.mouse.move(1590, 990);
-  await assertControlShown(removeRepo, false);
-  await assertControlShown(removeFolder, false);
+  await assertControlShown(removeRepo, true);
+  await assertControlShown(removeFolder, true);
   const sidebarFolderClose = sidebar.locator(`[aria-label="${folderLabel}"]`).first();
   await assertControlShown(sidebarFolderClose, false);
   await sidebarFolderClose.locator("../..").hover();
   await assertControlShown(sidebarFolderClose, true);
-  await canvasRepo.locator(".band__name").hover();
-  await assertControlShown(removeRepo, true);
-  await canvasFolder.locator(".folder__heading").hover();
-  await assertControlShown(removeFolder, true);
-  await assertControlShown(removeRepo, false);
-  await assertControlShown(sidebarFolderClose, false);
   await page.mouse.move(1590, 990);
-  await assertControlShown(removeFolder, false);
+  await assertControlShown(sidebarFolderClose, false);
   assert.equal(
     await page.getByRole("button", { name: /^Minimize (folder|repository)$/ }).count(),
     0,
@@ -188,10 +176,9 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     });
     window.refusePlaceClose = true;
   });
-  await canvasRepo.locator(".band__name").hover();
   await removeRepo.click();
   await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
-  assert.equal(await canvasRepo.count(), 1);
+  assert.equal(await repositoryCard.count(), 1);
   assert.equal(await terminal.isVisible(), true);
   assert.equal(
     await page.evaluate(() => window.nativePlaces.some(({ id }) => id === "repo-cli")),
@@ -218,16 +205,16 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     async () =>
       !(await window.placeSnapshot()).values["sessions.list"].some(({ id }) => id === "repo-cli"),
   );
-  await page.waitForFunction(() => !document.querySelector(".react-flow__node-repository"));
+  await repositoryCard.waitFor({ state: "detached" });
   assert.equal(await terminal.count(), 0);
-  // Closing through the folder pane must also dispose its graph and PTY.
+  // Closing through the folder pane must also remove its card and PTY.
   await sidebarFolderClose.locator("../..").hover();
   await sidebarFolderClose.click();
   await page.waitForFunction(() => window.nativePlaces.length === 0);
   await page.waitForFunction(
     async () => (await window.placeSnapshot()).values["sessions.list"].length === 0,
   );
-  await page.waitForFunction(() => !document.querySelector(".react-flow__node-folder"));
+  await folderCard.waitFor({ state: "detached" });
   assert.equal(await page.getByRole("region", { name: "Minimized", exact: true }).count(), 0);
   assert.equal(
     await page.evaluate(() =>
@@ -237,7 +224,7 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   );
   assert.deepEqual(errors, []);
   return {
-    hoverOnlyClose: true,
+    sidebarHoverClose: true,
     frontendAndNativeTerminalsEnded: true,
     noMinimizedTray: true,
     invisibleWorktreeEnded: true,
@@ -246,9 +233,9 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   };
 }
 
-/** Card removal uses the same native-session cleanup and sidebar graph state. */
+/** Card removal uses the same native-session cleanup and sidebar workspace state. */
 export async function verifyCardPlaces(page, base = "http://127.0.0.1:18422") {
-  const errors = await openPlaces(page, base, "cards");
+  const errors = await openPlaces(page, base);
   const card = page.locator('[data-card-folder="/projects/notes"]');
   const remove = card.getByRole("button", {
     name: "Remove folder and end its terminals",
