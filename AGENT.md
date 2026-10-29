@@ -1,3 +1,4 @@
 - Write every comment in english
 - plan better model
 - use multiple agents for each implementation of independent component
+- When the user asks to publish or says "配信して", publish through GitHub Releases using the repository's release workflow.

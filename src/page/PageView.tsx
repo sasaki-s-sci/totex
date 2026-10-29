@@ -109,13 +109,15 @@ function TerminalPage({
       compact={compact}
       tools={<PageTools name={name} placement={placement} controls={controls} />}
     >
-      <span
-        className="page-terminal-number"
-        data-active={workspace?.active === terminalPageId(session.id)}
-        title={`${t("cli.shell")} ${number}`}
-      >
-        {number}
-      </span>
+      {placement === "canvas" && (
+        <span
+          className="page-terminal-number"
+          data-active={workspace?.active === terminalPageId(session.id)}
+          title={`${t("cli.shell")} ${number}`}
+        >
+          {number}
+        </span>
+      )}
       <div className="page-terminal-content">
         {agentSummary && (
           <div className="page-agent nodrag nopan nowheel">

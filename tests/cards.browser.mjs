@@ -426,9 +426,9 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     await page
       .locator('#cli-sidebar .cli-page:has([data-terminal="terminal-two"])')
       .locator(".page-terminal-number")
-      .textContent(),
-    "1",
-    "Viewer keeps its source number",
+      .count(),
+    0,
+    "Viewer has no terminal number element",
   );
   await page.waitForFunction(
     () =>
