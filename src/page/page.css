@@ -4,6 +4,7 @@
   height: 100%;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: contain;
   border: 1px solid var(--mui-palette-divider);
   border-radius: 7px;
   background: var(--mui-palette-background-paper);
