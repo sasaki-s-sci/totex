@@ -138,53 +138,54 @@ export function PageBoard({
     };
   }, [rows, cards]);
 
+  // One parent keeps page hosts and measured terminal heights intact when cards change rows.
   return (
     <Box
       ref={host}
       className="page-board"
-      sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+      sx={{
+        "--page-gap": (theme) => theme.spacing(2),
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "start",
+        gap: "var(--page-gap)",
+      }}
     >
-      {visible.map((row) => (
-        <Box
-          key={row[0]}
-          className="page-board__row"
-          sx={{
-            display: "grid",
-            gridTemplateColumns: `repeat(${row.length}, minmax(0, 1fr))`,
-            gap: 2,
-            alignItems: "start",
-          }}
-        >
-          {row.map((id) => {
-            const card = cards.find((card) => card.id === id);
-            if (!card) return null;
-            return (
-              <Box
-                key={id}
-                data-page-card={id}
-                data-drop-side={drop?.id === id ? drop.side : undefined}
-                sx={{
-                  position: "relative",
-                  minWidth: 0,
-                  "&[data-drop-side]::after": {
-                    content: '""',
-                    position: "absolute",
-                    zIndex: 5,
-                    pointerEvents: "none",
-                    bgcolor: "primary.main",
-                  },
-                  "&[data-drop-side=left]::after": { top: 0, bottom: 0, left: -5, width: 3 },
-                  "&[data-drop-side=right]::after": { top: 0, bottom: 0, right: -5, width: 3 },
-                  "&[data-drop-side=top]::after": { top: -5, left: 0, right: 0, height: 3 },
-                  "&[data-drop-side=bottom]::after": { bottom: -5, left: 0, right: 0, height: 3 },
-                }}
-              >
-                {card.content}
-              </Box>
-            );
-          })}
-        </Box>
-      ))}
+      {visible.flatMap((row, rowIndex) =>
+        row.map((id, columnIndex) => {
+          const card = cards.find((card) => card.id === id);
+          if (!card) return null;
+          return (
+            <Box
+              key={id}
+              data-page-card={id}
+              data-page-row={rowIndex}
+              data-page-column={columnIndex}
+              data-drop-side={drop?.id === id ? drop.side : undefined}
+              sx={{
+                position: "relative",
+                minWidth: 0,
+                boxSizing: "border-box",
+                width: `calc((100% - ${row.length - 1} * var(--page-gap)) / ${row.length})`,
+                flexShrink: 0,
+                "&[data-drop-side]::after": {
+                  content: '""',
+                  position: "absolute",
+                  zIndex: 5,
+                  pointerEvents: "none",
+                  bgcolor: "primary.main",
+                },
+                "&[data-drop-side=left]::after": { top: 0, bottom: 0, left: -5, width: 3 },
+                "&[data-drop-side=right]::after": { top: 0, bottom: 0, right: -5, width: 3 },
+                "&[data-drop-side=top]::after": { top: -5, left: 0, right: 0, height: 3 },
+                "&[data-drop-side=bottom]::after": { bottom: -5, left: 0, right: 0, height: 3 },
+              }}
+            >
+              {card.content}
+            </Box>
+          );
+        }),
+      )}
     </Box>
   );
 }

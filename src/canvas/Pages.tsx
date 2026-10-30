@@ -44,7 +44,8 @@ export function Pages({
       })}
       {sessions.map((session, index) => {
         const id = terminalPageId(session.id);
-        const viewing = workspace.showing === id || workspace.lower === id;
+        const viewing =
+          workspace.sidebarOpen && (workspace.showing === id || workspace.lower === id);
         const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
         return (
           <span key={id} style={{ display: "contents" }}>

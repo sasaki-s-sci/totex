@@ -295,6 +295,17 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   assert.equal(await terminalHeader.locator(".monitor-badge").count(), 0);
   assert.equal(await terminalHeader.locator(".page__window-controls button").count(), 3);
 
+  await note.click();
+  await page.keyboard.press("Control+ArrowRight");
+  assert.ok(
+    await sidebar
+      .locator('[data-terminal="terminal-one"]')
+      .evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Right moves from a file editor to the sidebar",
+  );
+  await page.keyboard.press("Control+ArrowLeft");
+  assert.ok(await note.evaluate((node) => node === document.activeElement));
+
   // Settings are an ordinary page and keep their form instance when docked.
   await page.getByRole("button", { name: "Move totex.json to the sidebar", exact: true }).click();
   await sidebar.locator(".settings-page").waitFor();
@@ -308,7 +319,20 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     true,
   );
   assert.equal(await sidebar.getByRole("combobox", { name: "Select page" }).count(), 0);
+  await note.click();
+  await page.keyboard.press("Control+ArrowRight");
+  assert.ok(
+    await sidebar
+      .locator(".settings-page")
+      .evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Right restores the displayed non-terminal page",
+  );
+  await page.keyboard.press("Control+ArrowLeft");
+  assert.ok(await note.evaluate((node) => node === document.activeElement));
+  await page.keyboard.press("Control+ArrowRight");
   await page.getByRole("button", { name: "Move totex.json to the cards", exact: true }).click();
+  assert.ok(await sidebar.isVisible(), "Moving a page out keeps the sidebar open");
+  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Close main viewer", exact: true }).click();
   await page.locator('.card-board [data-terminal="terminal-one"]').waitFor();
@@ -374,6 +398,17 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     snapshot.values["canvas.files"].find((node) => node.data.requestId === 1).data.text,
     "edited content",
   );
+  await note.focus();
+  await page.keyboard.press("Control+ArrowDown");
+  assert.ok(
+    await sidebar
+      .locator('[data-terminal="terminal-one"]')
+      .evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Down selects a terminal even when editing a sidebar file",
+  );
+  await sidebar.getByRole("button", { name: "Close main viewer", exact: true }).click();
+  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
+  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
   await page.getByRole("button", { name: "Close note.txt", exact: true }).click();
   await page.waitForFunction(
     () => !document.querySelector('[role="textbox"][aria-label="note.txt"]'),
@@ -382,11 +417,17 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
     false,
   );
-  await page.locator(".cli-page").getByRole("button", { name: "Close main", exact: true }).click();
+  await page.locator("button.page-terminal-number").click();
+  await page.keyboard.press("Control+x");
   await page.waitForFunction(() =>
     window.pageCalls.some((call) => call.cmd === "pty_close" && call.args.id === "terminal-one"),
   );
   assert.equal(await terminal.count(), 0);
+  assert.ok(await sidebar.isVisible(), "Killing the last terminal keeps the sidebar open");
+  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
+  assert.equal(await sidebar.isVisible(), false);
+  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
+  assert.ok(await sidebar.isVisible(), "An empty sidebar can be reopened explicitly");
   assert.equal(errors.length, 0, errors.join("\n"));
   return {
     passed:

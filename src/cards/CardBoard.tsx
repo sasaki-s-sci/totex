@@ -64,6 +64,12 @@ export function CardBoard({
         inset: "30px 0 0",
         overflow: "auto",
         p: 2,
+        "&::after": {
+          content: '""',
+          display: "block",
+          height: "50%",
+          pointerEvents: "none",
+        },
         "--card-text-scale": cardText / 100,
         "& [data-card-folder] .monitor-badge__row > svg": {
           width: "calc(14px * var(--card-text-scale))",

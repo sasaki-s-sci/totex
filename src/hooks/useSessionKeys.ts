@@ -25,7 +25,13 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
     const onKeyDown = (event: KeyboardEvent) => {
       // Navigation belongs to the sessions, independently of where their pages are shown.
       if (event.ctrlKey && !event.metaKey && !event.shiftKey) {
-        if (typing(event.target) && !terminal(event.target)) return;
+        if (!event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) return;
+        const sidebarArrow =
+          !event.altKey &&
+          (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+          event.target instanceof Element &&
+          event.target.closest(".page--sidebar");
+        if (typing(event.target) && !terminal(event.target) && !sidebarArrow) return;
         const { sessions, showing, jump } = latest.current;
         if (!event.altKey && /^[0-9]$/.test(event.key)) {
           event.preventDefault();
@@ -55,12 +61,13 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
           if (event.repeat) return;
           typed = null;
           const at = sessions.findIndex((session) => session.id === showing);
-          if (at < 0) return;
-          let next = (at + step + sessions.length) % sessions.length;
-          if (!event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-            while (next !== at && sessions[next].cwd === sessions[at].cwd)
-              next = (next + step + sessions.length) % sessions.length;
-          }
+          if (sessions.length === 0) return;
+          const next =
+            at < 0
+              ? step > 0
+                ? 0
+                : sessions.length - 1
+              : (at + step + sessions.length) % sessions.length;
           jump(sessions[next]);
           return;
         }

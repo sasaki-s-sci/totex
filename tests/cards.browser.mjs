@@ -96,6 +96,9 @@ export async function verifyCardLayout(page) {
   }
   // Keep both header and drop edge visible during native browser dragging.
   await page.setViewportSize({ width: 1600, height: 1600 });
+  await page.locator(".card-board").evaluate((node) => {
+    node.scrollTop = 0;
+  });
   const card = (id) => page.locator(`[data-page-card="${id}"]`);
   const drag = async (source, target, side) => {
     const targetCard = card(target);
@@ -114,11 +117,13 @@ export async function verifyCardLayout(page) {
   const layoutIs = async (rows) => {
     await page.waitForFunction((expected) => {
       const board = document.querySelector(".card-board .page-board");
-      return (
-        JSON.stringify(
-          [...board.children].map((row) => [...row.children].map((card) => card.dataset.pageCard)),
-        ) === JSON.stringify(expected)
-      );
+      const rows = [];
+      for (const card of board.children) {
+        const index = Number(card.dataset.pageRow);
+        rows[index] ??= [];
+        rows[index].push(card.dataset.pageCard);
+      }
+      return JSON.stringify(rows) === JSON.stringify(expected);
     }, rows);
     assert.deepEqual(
       (await page.evaluate(() => window.pageSnapshot())).values["cards.layout"],
@@ -175,6 +180,18 @@ export async function verifyCardLayout(page) {
     "Resizing does not recreate the terminal or reattach its shell",
   );
   await page.setViewportSize({ width: 1600, height: 1000 });
+  const scrollSpace = await page.locator(".card-board").evaluate((board) => {
+    board.scrollTop = board.scrollHeight;
+    const viewport = board.getBoundingClientRect();
+    const content = board.querySelector(":scope > .page-board").getBoundingClientRect();
+    const space = viewport.bottom - content.bottom;
+    board.scrollTop = 0;
+    return { space, height: board.clientHeight };
+  });
+  assert.ok(
+    Math.abs(scrollSpace.space - scrollSpace.height / 2) < 20,
+    "Canvas can scroll half a viewport beyond its final page",
+  );
   await page
     .locator(".cli-page")
     .getByRole("button", { name: "Open main in sidebar viewer", exact: true })
@@ -262,7 +279,7 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   assert.equal(await group.locator(".cli-page .page__header").count(), 0);
   assert.equal(await group.locator("[data-terminal]").count(), 2);
   assert.equal(await other.locator("[data-terminal]").count(), 1);
-  const stacked = await group.locator(".page-board__row").evaluateAll((rows) =>
+  const stacked = await group.locator("[data-page-card]").evaluateAll((rows) =>
     rows.map((row) => ({
       gap: getComputedStyle(row).gap,
       borderTop: getComputedStyle(row).borderTopWidth,
@@ -323,12 +340,17 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   }
   // Session shortcuts open the sidebar even when starting from a card.
   await terminal("terminal-one").locator(".xterm-screen").click();
+  await page.keyboard.press("Control+ArrowRight");
+  assert.ok(
+    await page
+      .locator('#cli-sidebar [data-terminal="terminal-one"]')
+      .evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Right opens and focuses the selected terminal in the sidebar",
+  );
   for (const [key, id] of [
     ["Control+ArrowDown", "terminal-two"],
     ["Control+ArrowDown", "terminal-other"],
     ["Control+ArrowUp", "terminal-two"],
-    ["Control+ArrowRight", "terminal-other"],
-    ["Control+ArrowLeft", "terminal-two"],
     ["Control+1", "terminal-one"],
     ["Control+3", "terminal-other"],
     ["Control+2", "terminal-two"],
@@ -345,6 +367,18 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
       `${key} displays and focuses ${id} in the sidebar`,
     );
   }
+  await page.keyboard.press("Control+ArrowLeft");
+  assert.ok(
+    await terminal("terminal-one").evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Left returns to the last active canvas terminal",
+  );
+  await page.keyboard.press("Control+ArrowRight");
+  assert.ok(
+    await page
+      .locator('#cli-sidebar [data-terminal="terminal-two"]')
+      .evaluate((node) => node.contains(document.activeElement)),
+    "Ctrl+Right returns to the displayed sidebar terminal without switching it",
+  );
   await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   await card("terminal-two")
     .getByRole("separator", { name: "Resize page height", exact: true })
@@ -385,6 +419,16 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   await resizeWorker(-220);
   await rows("terminal-two", 2);
 
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_attach").length),
+    await page.evaluate(() => window.groupIdentity.attaches + 3),
+    "Opening three viewers adds only their own connections",
+  );
+  await group.evaluate((node) => {
+    window.movingCard = node.querySelector('[data-page-card="terminal:terminal-two"]');
+    window.movingSlot = window.movingCard.querySelector(".page-slot");
+    window.targetCard = node.querySelector('[data-page-card="terminal:terminal-one"]');
+  });
   const target = card("terminal-one");
   const box = await target.boundingBox();
   await card("terminal-two")
@@ -397,6 +441,17 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     async () =>
       JSON.stringify((await window.pageSnapshot()).values["cards.layout./tmp"]) ===
       JSON.stringify([["terminal:terminal-two", "terminal:terminal-one"]]),
+  );
+  assert.ok(
+    await card("terminal-two").evaluate(
+      (node) =>
+        node === window.movingCard && node.querySelector(".page-slot") === window.movingSlot,
+    ),
+    "Reordering preserves the card and its mounted page host",
+  );
+  assert.ok(
+    await card("terminal-one").evaluate((node) => node === window.targetCard),
+    "Reordering also preserves the destination card",
   );
   const one = await card("terminal-one").boundingBox();
   const two = await card("terminal-two").boundingBox();
@@ -416,11 +471,19 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   );
   assert.equal(await group.locator(".page__header").count(), 1);
 
-  await card("terminal-two")
-    .getByRole("button", { name: "Open worker in sidebar viewer", exact: true })
-    .click();
+  // StrictMode replays effects on reordered fibers; reopening an existing viewer must not.
+  await page.evaluate(() => {
+    window.groupIdentity.afterReorder = window.pageCalls.filter(
+      (call) => call.cmd === "pty_attach",
+    ).length;
+  });
+  await card("terminal-two").locator("button.page-terminal-number").click();
   const viewer = page.locator('#cli-sidebar [data-terminal="terminal-two"]');
   await viewer.waitFor();
+  assert.ok(
+    await viewer.evaluate((node) => node.contains(document.activeElement)),
+    "Clicking a terminal number focuses its sidebar viewer",
+  );
   assert.equal(await viewer.getAttribute("data-terminal-viewer"), "true");
   assert.equal(
     await page
@@ -545,10 +608,10 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
         window.groupIdentity.two === document.querySelector('[data-terminal="terminal-two"]') &&
         window.groupIdentity.header ===
           document.querySelector('[data-card-folder="/tmp"] > .page__header') &&
-        window.groupIdentity.attaches + 3 ===
+        window.groupIdentity.afterReorder ===
           window.pageCalls.filter((call) => call.cmd === "pty_attach").length,
     ),
-    "Opening three viewers preserves source runtimes and the shared header",
+    "Reopening a viewer preserves source runtimes, connections and the shared header",
   );
   await card("terminal-two").getByRole("button", { name: "Close worker", exact: true }).click();
   await terminal("terminal-two").waitFor({ state: "detached" });
@@ -642,9 +705,8 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     window.pageAgent = false;
   });
   await card("terminal-one").locator(".page-agent").waitFor({ state: "detached" });
-  await card("terminal-one")
-    .getByRole("button", { name: "Open main in sidebar viewer", exact: true })
-    .click();
+  await card("terminal-one").locator("button.page-terminal-number").focus();
+  await page.keyboard.press("Enter");
   await page.locator('#cli-sidebar [data-terminal="terminal-one"]').waitFor();
   await page.evaluate(() => window.pageEmit("pty:exit", "terminal-one"));
   await page.waitForFunction(() => !document.querySelector('[data-terminal="terminal-one"]'));

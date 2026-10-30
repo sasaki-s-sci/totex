@@ -11,18 +11,18 @@ export function RightSidebar() {
   const workspace = usePageWorkspace();
   const { t } = useTranslation();
   if (!workspace) return null;
-  const { entries, showing, lower, active, placement } = workspace;
+  const { entries, showing, lower, active, placement, sidebarOpen: open } = workspace;
   const pages = entries.filter((entry) => placement(entry.id) === "sidebar");
-  const open = pages.some((entry) => entry.id === showing);
+  const empty = !pages.some((entry) => entry.id === showing);
   return (
     <>
-      {!open && pages.length > 0 && (
+      {!open && (
         <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_MARKS, zIndex: 1200 }}>
           <MarkButton
             label={t("page.openSidebar")}
             aria-expanded={false}
             aria-controls="cli-sidebar"
-            onClick={() => workspace.show(pages[0].id)}
+            onClick={workspace.openSidebar}
           >
             <Frame>
               <path d="m15 6-6 6 6 6" />
@@ -36,7 +36,22 @@ export function RightSidebar() {
         side="right"
         open={open}
         sizing={SIZING}
-        band={null}
+        band={
+          empty ? (
+            <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_MARKS }}>
+              <MarkButton
+                label={t("page.hideSidebar")}
+                aria-expanded={true}
+                aria-controls="cli-sidebar"
+                onClick={workspace.hide}
+              >
+                <Frame>
+                  <path d="m9 6 6 6-6 6" />
+                </Frame>
+              </MarkButton>
+            </Box>
+          ) : null
+        }
         sx={{
           "--page-header-height": `${HEADER_HEIGHT}px`,
         }}

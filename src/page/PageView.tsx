@@ -110,13 +110,16 @@ function TerminalPage({
       tools={<PageTools name={name} placement={placement} controls={controls} />}
     >
       {placement === "canvas" && (
-        <span
+        <button
+          type="button"
           className="page-terminal-number"
           data-active={workspace?.active === terminalPageId(session.id)}
-          title={`${t("cli.shell")} ${number}`}
+          aria-label={`${t("cli.shell")} ${number}: ${t("page.openViewer", { name })}`}
+          title={t("page.openViewer", { name })}
+          onClick={() => workspace?.show(terminalPageId(session.id))}
         >
           {number}
-        </span>
+        </button>
       )}
       <div className="page-terminal-content">
         {agentSummary && (

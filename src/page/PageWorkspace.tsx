@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import type { useSessions } from "../hooks/useSessions";
 import { shellSession } from "../lib/session";
 import { useFrontState } from "../shell/state";
@@ -23,6 +23,8 @@ type Workspace = {
   expanded: readonly string[];
   toggleExpanded: (id: string) => void;
   showing: string | null;
+  sidebarOpen: boolean;
+  openSidebar: () => void;
   /** The sidebar's lower pane, when it is split; never the page showing above it. */
   lower: string | null;
   active: string | null;
@@ -62,8 +64,17 @@ export function PageWorkspace({
   const { split, setSplit, active, activePlace, setActivePlace, select } = sessions;
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
+  const lastPage = useRef<{ cards: string | null; sidebar: string | null }>({
+    cards: null,
+    sidebar: null,
+  });
   const { sessions: terminals, showing, paged, page, dock, hide, restore } = sessions;
   const shownId = showing === null ? fileShowing : terminalPageId(showing);
+  const [sidebarOpen, setSidebarOpen] = useFrontState("pages.sidebarOpen", shownId !== null);
+
+  useLayoutEffect(() => {
+    if (shownId !== null) setSidebarOpen(true);
+  }, [shownId]);
 
   useEffect(() => {
     if (showing !== null) setFileShowing(null);
@@ -186,14 +197,62 @@ export function PageWorkspace({
 
   const activate = useCallback(
     (id: string, place: string) => {
-      setActivePlace(place === "sidebar" ? "sidebar" : "cards");
+      const side = place === "sidebar" ? "sidebar" : "cards";
+      lastPage.current[side] = id;
+      setActivePlace(side);
       const terminal = terminals.find((session) => terminalPageId(session.id) === id);
       if (terminal) select(terminal.id);
     },
     [terminals, select, setActivePlace],
   );
 
+  const openSidebar = useCallback(() => {
+    setSidebarOpen(true);
+    if (shownId !== null) return;
+    const next = entries.find((entry) => placement(entry.id) === "sidebar");
+    if (next) show(next.id);
+    else if (terminals[0]) show(terminalPageId(terminals[0].id));
+  }, [shownId, entries, placement, show, terminals]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const side = event.key === "ArrowLeft" ? "cards" : "sidebar";
+      const previous = lastPage.current[side];
+      const id =
+        side === "sidebar"
+          ? previous && (previous === shownId || previous === lower)
+            ? previous
+            : shownId
+          : previous && hosts.has(`cards/${previous}`)
+            ? previous
+            : active !== null
+              ? terminalPageId(active)
+              : entries.find((entry) => hosts.has(`cards/${entry.id}`))?.id;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.repeat) return;
+      if (side === "sidebar" && !id) {
+        if (active !== null) show(terminalPageId(active));
+        return;
+      }
+      if (!id) return;
+      const host = hosts.get(`${side}/${id}`);
+      if (!host?.isConnected) return;
+      flushSync(() => activate(id, side));
+      const target =
+        host.querySelector<HTMLElement>(
+          '.page-agent button, .xterm-helper-textarea, [contenteditable]:not([contenteditable="false"])',
+        ) ?? host.querySelector<HTMLElement>(".page");
+      target?.focus({ preventScroll: true });
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [hosts, entries, shownId, lower, active, show, activate]);
+
   const hidePage = useCallback(() => {
+    setSidebarOpen(false);
     setFileShowing(null);
     hide();
   }, [hide]);
@@ -205,6 +264,8 @@ export function PageWorkspace({
       expanded,
       toggleExpanded,
       showing: shownId,
+      sidebarOpen,
+      openSidebar,
       lower,
       active: active === null ? null : terminalPageId(active),
       activePlace,
@@ -222,6 +283,8 @@ export function PageWorkspace({
       expanded,
       toggleExpanded,
       shownId,
+      sidebarOpen,
+      openSidebar,
       lower,
       active,
       activePlace,
