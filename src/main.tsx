@@ -19,6 +19,7 @@ import {
 } from "./lib/appSettings";
 import { prime } from "./lib/remembered";
 import { isCardWindow } from "./lib/thisWindow";
+import { askStanding } from "./lib/update/store";
 import { applyStoredMode } from "./theme";
 import { loadThemes } from "./theme/registry";
 
@@ -61,7 +62,11 @@ connection?.install({
   views: () => ephemeralIdentity().contract,
   version: () => ephemeralIdentity().version,
   swap: swapEphemeral,
-  focus: restoreFocus,
+  focus() {
+    restoreFocus();
+    // Startup can read the previous version before the shell confirms this frontend.
+    void askStanding(true);
+  },
 });
 
 Promise.all([

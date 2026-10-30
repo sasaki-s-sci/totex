@@ -54,12 +54,55 @@ fn file_operations_agree_on_missing_paths_and_directories() {
         let raw = path.to_string_lossy();
         assert_eq!(read_file(&raw).unwrap_err(), error);
         assert_eq!(duplicate_file(&raw).unwrap_err(), error);
-        assert_eq!(rename_file(&raw, "renamed").unwrap_err(), error);
         assert_eq!(delete_file(&raw).unwrap_err(), error);
         // Names are checked before paths, even when both are invalid.
         assert_eq!(rename_file(&raw, "..").unwrap_err(), "invalid-name");
     }
+    assert_eq!(
+        rename_file(&missing.to_string_lossy(), "renamed").unwrap_err(),
+        "no-such-file"
+    );
     assert!(root.is_dir(), "refusing a file operation leaves the folder");
+    fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
+fn renames_a_folder_without_replacing_existing_entries() {
+    let root = temp_dir("folder-rename");
+    let raw_root = root.to_string_lossy();
+    let folder = create_entry(&raw_root, "project", true).expect("create folder");
+    create_entry(&folder, "notes.txt", false).expect("create file inside");
+    create_entry(&raw_root, "occupied", true).expect("create another folder");
+    assert_eq!(
+        rename_file(&folder, "occupied").unwrap_err(),
+        "already-exists"
+    );
+    assert_eq!(
+        rename_file(&folder, "../outside").unwrap_err(),
+        "invalid-name"
+    );
+    let renamed = rename_file(&folder, "project.new").expect("rename folder");
+    assert!(Path::new(&renamed).join("notes.txt").is_file());
+    assert!(!Path::new(&folder).exists());
+    assert_eq!(rename_file(&renamed, "project.new").unwrap(), renamed);
+    #[cfg(unix)]
+    assert_eq!(rename_file("/", "renamed-root").unwrap_err(), "no-parent");
+    fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
+#[cfg(unix)]
+fn renaming_a_folder_link_leaves_its_target_in_place() {
+    let root = temp_dir("folder-link-rename");
+    let folder = root.join("project");
+    fs::create_dir(&folder).expect("create folder");
+    let link = root.join("shortcut");
+    std::os::unix::fs::symlink(&folder, &link).expect("link to folder");
+    let renamed = rename_file(&link.to_string_lossy(), "renamed").expect("rename link");
+    assert!(fs::symlink_metadata(&renamed).unwrap().is_symlink());
+    assert_eq!(fs::read_link(&renamed).unwrap(), folder);
+    assert!(folder.is_dir());
+    assert!(!link.exists());
     fs::remove_dir_all(root).expect("clean temp dir");
 }
 

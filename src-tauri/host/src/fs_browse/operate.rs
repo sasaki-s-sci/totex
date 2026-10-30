@@ -129,10 +129,13 @@ fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
     path == folder || path.starts_with(&format!("{folder}{separator}"))
 }
 
-/// Gives one file another name in the same directory.
+/// Gives one file or folder another name in the same directory.
 pub fn rename_file(raw_path: &str, raw_name: &str) -> Result<String, String> {
     let name = valid_name(raw_name)?;
-    let (host, path) = resolve_file(raw_path)?;
+    let (host, path) = resolve(raw_path)?;
+    if host.stat(&path).is_none() {
+        return Err("no-such-file".to_string());
+    }
     let parent = host.parent(&path).ok_or_else(|| "no-parent".to_string())?;
     let destination = host.join(&parent, name);
     if destination == path {

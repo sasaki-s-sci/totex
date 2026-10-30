@@ -101,14 +101,19 @@ export function RepoPane({
 }: RepoPaneProps) {
   const { t } = useTranslation();
   const { rows, listing, failed, truncated } = useRepositoryList(path, onListed);
-  const { selected, pick, point } = useSelection();
+  const { selected, pick, point, pane, onKeyDown } = useSelection(path);
   const name = baseName(path);
   // A root that is a repository lists itself and nothing else: the row says all the header would,
   // so it stands alone and takes the header's close.
   const alone = rows.length === 1 && rows[0].path === path;
 
   return (
-    <Box component="section" sx={{ position: "relative", pb: 0.5 }}>
+    <Box
+      component="section"
+      ref={pane}
+      onKeyDown={onKeyDown}
+      sx={{ position: "relative", pb: 0.5 }}
+    >
       {!alone && (
         <Stack
           direction="row"
@@ -231,7 +236,7 @@ export function RepoPane({
                     event.stopPropagation();
                     onMenu({
                       path: reading,
-                      paths: [reading],
+                      entries: [{ path: reading, isDir: true }],
                       name: repository.name,
                       isDir: true,
                       into: reading,

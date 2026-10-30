@@ -24,6 +24,7 @@ import {
   Snackbar,
 } from "@mui/material";
 import { type ReactNode, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
   copyInto,
@@ -33,19 +34,17 @@ import {
   duplicateFile,
   readFile,
 } from "../../folder/api";
-import { displayPath } from "../../folder/format";
+import { baseName, displayPath } from "../../folder/format";
 import { copyText } from "../../lib/clipboard";
+import { type SelectionEntry, topLevelEntries } from "../../lib/fileSelection";
 import type { Naming } from "./NameField";
 
 export type FileMenuTarget = {
-  /** The row pointed at: what is renamed, removed or downloaded. */
+  /** The row pointed at; single-entry actions require it to be the only selection. */
   path: string;
-  /** What `Copy` holds: the pane's pick when the row is in it, else the row alone. */
-  paths: readonly string[];
+  entries: readonly SelectionEntry[];
+  action?: "delete";
   name: string;
-  /**
-   * Folders are offered less: copy and rename are refused underneath; removal is `deleteFolder`.
-   */
   isDir: boolean;
   /** Inside a folder, or beside a file in the directory listing it; also where a name is typed. */
   into: string;
@@ -71,20 +70,54 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [went, setWent] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<readonly SelectionEntry[] | null>(null);
+  const [naming, setNaming] = useState(false);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the target itself is the opening
   useEffect(() => {
-    setDeleting(false);
+    setDeleting(target?.action === "delete");
+    setRemaining(null);
+    setNaming(false);
     setBusy(null);
     setFailed(false);
     setWent(null);
   }, [target]);
 
   if (!target) return null;
-  const { path, paths, isDir, root } = target;
+  const { path, isDir, root } = target;
+  const entries = topLevelEntries(target.entries);
+  const paths = entries.map((entry) => entry.path);
+  const selectedPaths = target.entries.map((entry) => entry.path);
+  const single = target.entries.length === 1;
+  const pending = remaining ?? entries;
   // The folder a pane stands in is not offered for removal: the pane would be left showing a folder
   // that is not there.
-  const removable = !isDir || path !== root;
+  const removable = entries.length > 0 && entries.every((entry) => entry.path !== root);
+
+  function name(kind: Naming["kind"]) {
+    // Finish menu focus restoration before mounting the inline name field.
+    flushSync(() => setNaming(true));
+    onName(kind);
+  }
+
+  async function remove() {
+    if (!removable) return;
+    setBusy("delete");
+    setFailed(false);
+    const refused: SelectionEntry[] = [];
+    for (const entry of pending) {
+      try {
+        await (entry.isDir ? deleteFolder(entry.path) : deleteFile(entry.path));
+      } catch {
+        refused.push(entry);
+      }
+    }
+    if (refused.length === 0) onClose();
+    else {
+      setRemaining(refused);
+      setFailed(true);
+    }
+    setBusy(null);
+  }
 
   /** The menu shuts on its way out, except `tell`: an answer worth reading keeps it open. */
   const run = async (
@@ -110,6 +143,7 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
     <>
       <Menu
         open={!deleting}
+        disableRestoreFocus={naming}
         onClose={busy ? undefined : onClose}
         anchorReference="anchorPosition"
         anchorPosition={{ top: target.at.y, left: target.at.x }}
@@ -120,13 +154,13 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
           icon={<InsertDriveFileOutlinedIcon />}
           label={t("file.newFile")}
           disabled={busy !== null}
-          onClick={() => onName("new-file")}
+          onClick={() => name("new-file")}
         />
         <FileItem
           icon={<FolderOutlinedIcon />}
           label={t("file.newFolder")}
           disabled={busy !== null}
-          onClick={() => onName("new-folder")}
+          onClick={() => name("new-folder")}
         />
         <Divider />
         <FileItem
@@ -148,7 +182,7 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
             onClick={() => void run("paste", () => copyInto([...copied], target.into))}
           />
         )}
-        {!isDir && (
+        {single && !isDir && (
           <FileItem
             icon={<NotesOutlinedIcon />}
             label={t("file.copyContents")}
@@ -156,7 +190,7 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
             onClick={() => void run("copy-contents", () => copyContents(path))}
           />
         )}
-        {!isDir && (
+        {single && !isDir && (
           <FileItem
             icon={<FileCopyOutlinedIcon />}
             label={t("file.duplicate")}
@@ -184,27 +218,35 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
           icon={<RouteOutlinedIcon />}
           label={t("file.copyPath")}
           disabled={busy !== null}
-          onClick={() => void run("copy-path", () => copyText(path))}
+          onClick={() => void run("copy-path", () => copyText(selectedPaths.join("\n")))}
         />
         <FileItem
           icon={<RouteOutlinedIcon />}
           label={t("file.copyRelativePath")}
           disabled={busy !== null}
-          onClick={() => void run("copy-relative-path", () => copyText(relativePath(root, path)))}
+          onClick={() =>
+            void run("copy-relative-path", () =>
+              copyText(selectedPaths.map((one) => relativePath(root, one)).join("\n")),
+            )
+          }
         />
         {removable && <Divider />}
-        {!isDir && (
+        {single && removable && (
           <FileItem
             icon={<DriveFileRenameOutlineIcon />}
             label={t("file.rename")}
             disabled={busy !== null}
-            onClick={() => onName("rename")}
+            onClick={() => name("rename")}
           />
         )}
         {removable && (
           <FileItem
             icon={<DeleteOutlinedIcon />}
-            label={t("file.delete")}
+            label={
+              entries.length > 1
+                ? t("file.deleteMany", { count: entries.length })
+                : t("file.delete")
+            }
             disabled={busy !== null}
             colour="error.main"
             onClick={() => {
@@ -228,24 +270,37 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
         </Alert>
       </Snackbar>
 
-      <Dialog open={deleting} onClose={busy ? undefined : () => setDeleting(false)}>
-        <DialogTitle>{t("file.deleteTitle", { name: target.name })}</DialogTitle>
+      <Dialog open={deleting} onClose={busy ? undefined : onClose}>
+        <DialogTitle>
+          {pending.length > 1
+            ? t("file.deleteManyTitle", { count: pending.length })
+            : t("file.deleteTitle", { name: baseName(pending[0]?.path ?? path) })}
+        </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {isDir ? t("file.deleteFolderBody") : t("file.deleteBody")}
+            {pending.length > 1
+              ? t("file.deleteManyBody")
+              : pending[0]?.isDir
+                ? t("file.deleteFolderBody")
+                : t("file.deleteBody")}
           </DialogContentText>
+          {target.entries.length > 1 && (
+            <ul>
+              {pending.map((entry) => (
+                <li key={entry.path}>{displayPath(entry.path)}</li>
+              ))}
+            </ul>
+          )}
           {failed && <DialogContentText color="error">{t("file.failed")}</DialogContentText>}
         </DialogContent>
         <DialogActions>
-          <Button disabled={busy !== null} onClick={() => setDeleting(false)}>
+          <Button disabled={busy !== null} onClick={onClose}>
             {t("file.cancel")}
           </Button>
           <Button
             color="error"
-            disabled={busy !== null}
-            onClick={() =>
-              void run("delete", () => (isDir ? deleteFolder(path) : deleteFile(path)))
-            }
+            disabled={busy !== null || !removable}
+            onClick={() => void remove()}
           >
             {t("file.delete")}
           </Button>

@@ -3,10 +3,10 @@ import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createEntry, renameFile } from "../folder/api";
 import { DROP_INTO, folderUnder } from "../folder/dropInto";
-import { baseName } from "../folder/format";
+import { baseName, folderOf } from "../folder/format";
 import type { Drops } from "../hooks/useDrops";
 import { useAppSettings } from "../lib/appSettings";
-import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import { hasFileDrag, readFileDrag } from "../lib/filePreview";
 import type { Graphed, PaneSeed } from "../lib/graphed";
 import type { Homes } from "../lib/worktrees";
 import { AddMark, Frame, MARK_BUTTON, MarkButton, SettingsMark } from "../marks";
@@ -129,7 +129,7 @@ export function LeftSidebar({
     setNaming({
       pane: target.pane,
       kind,
-      folder: target.into,
+      folder: kind === "rename" ? (folderOf(target.path) ?? target.into) : target.into,
       path: kind === "rename" ? target.path : null,
       from: kind === "rename" ? target.name : "",
     });
@@ -151,8 +151,6 @@ export function LeftSidebar({
     else await createEntry(naming.folder, name, naming.kind === "new-folder");
     setNaming(null);
   }
-
-  const carrying = (transfer: DataTransfer) => transfer.types.includes(FILE_DRAG_TYPE);
 
   // A pane picked up by its header goes before the pane the pointer is over; the canvas draws its
   // places in the column's order, so it moves there too.
@@ -193,7 +191,7 @@ export function LeftSidebar({
       open={open}
       sizing={SIZING}
       onDragOver={(event) => {
-        if (!carrying(event.dataTransfer)) return;
+        if (!hasFileDrag(event.dataTransfer)) return;
         const folder = folderUnder(event.clientX, event.clientY);
         drops.mark(folder);
         if (!folder) return;
@@ -204,13 +202,16 @@ export function LeftSidebar({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drops.mark(null);
       }}
       onDrop={(event) => {
-        if (!carrying(event.dataTransfer)) return;
-        const path = event.dataTransfer.getData(FILE_DRAG_TYPE);
+        if (!hasFileDrag(event.dataTransfer)) return;
+        const entries = readFileDrag(event.dataTransfer);
         const folder = folderUnder(event.clientX, event.clientY);
         drops.mark(null);
-        if (!path || !folder) return;
+        if (!entries.length || !folder) return;
         event.preventDefault();
-        drops.take([path], folder);
+        drops.take(
+          entries.map((entry) => entry.path),
+          folder,
+        );
       }}
       band={
         <>
@@ -389,7 +390,7 @@ export function LeftSidebar({
                   event.preventDefault();
                   setMenu({
                     path: under.path,
-                    paths: [under.path],
+                    entries: [{ path: under.path, isDir: true }],
                     name: baseName(under.path),
                     isDir: true,
                     into: under.path,

@@ -10,7 +10,7 @@ import { useSessionKeys } from "../hooks/useSessionKeys";
 import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useWorkspaces } from "../hooks/useWorkspace";
-import { FILE_DRAG_TYPE } from "../lib/filePreview";
+import { hasFileDrag, readFileDrag } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
 import { useEver } from "../lib/onDemand";
 import { sessionsInPlaces } from "../lib/placeSessions";
@@ -168,15 +168,17 @@ export function Window() {
           ref={canvasHost}
           component="main"
           onDragOver={(event) => {
-            if (!event.dataTransfer.types.includes(FILE_DRAG_TYPE)) return;
+            if (!hasFileDrag(event.dataTransfer)) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
           }}
           onDrop={(event) => {
-            const path = event.dataTransfer.getData(FILE_DRAG_TYPE);
-            if (!path) return;
+            const paths = readFileDrag(event.dataTransfer)
+              .filter((entry) => !entry.isDir)
+              .map((entry) => entry.path);
+            if (!paths.length) return;
             event.preventDefault();
-            files.openFiles([path], { x: event.clientX, y: event.clientY });
+            files.openFiles(paths, { x: event.clientX, y: event.clientY });
           }}
           sx={{ position: "relative", flex: 1, minWidth: 0 }}
         >

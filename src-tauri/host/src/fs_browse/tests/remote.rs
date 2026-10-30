@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use super::super::operate::{copy_into, delete_folder};
+use super::super::operate::{copy_into, delete_folder, rename_file};
 use super::super::read::{read_directory, read_file_head, write_file};
 use super::remote_dirs;
 use crate::host::Host;
@@ -244,6 +244,21 @@ fn a_folder_the_far_machine_copies_for_itself_keeps_its_links_as_links() {
             );
             std::fs::remove_dir_all(root).expect("clean temp dir");
         }
+    }
+}
+
+#[test]
+fn a_folder_on_a_far_machine_keeps_its_contents_when_renamed() {
+    for (host, dir) in remote_dirs("folder-rename") {
+        let project = host.join(Path::new(&dir), "project");
+        host.create_dir(&project).expect("create folder");
+        let notes = host.join(&project, "notes.txt");
+        host.create_file(&notes).expect("create file inside");
+        let renamed = rename_file(&project.to_string_lossy(), "renamed").expect("rename folder");
+        assert!(host.stat(&project).is_none());
+        assert!(host.is_dir(Path::new(&renamed)));
+        assert!(host.exists(&host.join(Path::new(&renamed), "notes.txt")));
+        assert_eq!(Host::of_str(&renamed), host);
     }
 }
 

@@ -42,7 +42,7 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
   const hold = useRef<HTMLInputElement>(null);
   const wanted = name.trim();
 
-  // Focused as it appears; a rename selects the part before the extension. A leading dot is the
+  // Focused as it appears; a file rename selects the part before the extension. A leading dot is the
   // name itself.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the field is focused as it appears and never again
   useEffect(() => {
@@ -50,7 +50,7 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
     if (!input) return;
     input.focus();
     const dot = from.lastIndexOf(".");
-    input.setSelectionRange(0, dot > 0 ? dot : from.length);
+    input.setSelectionRange(0, !isDir && dot > 0 ? dot : from.length);
   }, []);
 
   function drop() {

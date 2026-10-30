@@ -30,6 +30,7 @@ const server = await createServer({
   ],
 });
 const { take } = await server.ssrLoadModule("/src/lib/update/take.ts");
+const store = await server.ssrLoadModule("/src/lib/update/store.ts");
 after(() => server.close());
 afterEach(() => {
   clearMocks();
@@ -37,6 +38,26 @@ afterEach(() => {
 });
 globalThis.window ??= {};
 window.crypto ??= globalThis.crypto;
+
+test("a late startup response cannot replace standing refreshed after activation", async () => {
+  for (const fails of [false, true]) {
+    const pending = [];
+    mockIPC((command) => {
+      assert.equal(command, "update_standing");
+      return new Promise((resolve, reject) => pending.push({ resolve, reject }));
+    });
+    const startup = store.askStanding(true);
+    const refreshed = store.askStanding(true);
+    const current = [{ layer: "ephemeral", at: "1.2.4" }];
+    pending[1].resolve(current);
+    await refreshed;
+    if (fails) pending[0].reject(new Error("Startup request failed"));
+    else pending[0].resolve([{ layer: "ephemeral", at: "1.2.3" }]);
+    await startup;
+    assert.deepEqual(store.state.rungs, current);
+    assert.deepEqual(await store.askStanding(), current);
+  }
+});
 
 test("a shell refusing activation rolls back the staged patch so it can be retried", async () => {
   const calls = [];

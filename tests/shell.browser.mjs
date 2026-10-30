@@ -10,6 +10,7 @@ export async function verifyShell(
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
+    localStorage.setItem("totex.language", "en");
     if (window.parent !== window) {
       // WebView2 installs these read-only globals in every frame. Frontend
       // callbacks must still use the shell's registry, not these local ones.
@@ -42,7 +43,10 @@ export async function verifyShell(
               "window.foldersOpen": true,
               "sessions.list": sessions,
               "sessions.showing": sessions[1].id,
+              "sessions.paged": [sessions[0].id, sessions[2].id],
+              "sessions.active": sessions[1].id,
               "files.open": [{ id: 1, path: "/tmp/note.txt", at: null }],
+              "window.settings": 1,
             },
           };
           return connection;
@@ -51,6 +55,8 @@ export async function verifyShell(
       },
     });
     window.calls = [];
+    let confirmedVersion = "99.0.0";
+    let fileText = "saved text";
     window.listenerCount = () => listeners.size;
     window.__TAURI_INTERNALS__ = {
       transformCallback(callback) {
@@ -84,16 +90,19 @@ export async function verifyShell(
         }
         if (cmd === "pty_attach")
           return running.has(args.id) ? { text: `Running ${args.id}\r\n`, upto: 0 } : null;
-        if (
-          [
-            "pty_doing",
-            "mcp_reports",
-            "list_roots",
-            "describe_folders",
-            "update_standing",
-          ].includes(cmd)
-        )
-          return [];
+        if (["pty_doing", "mcp_reports", "list_roots", "describe_folders"].includes(cmd)) return [];
+        if (cmd === "update_standing")
+          return ["persistent", "ephemeral"].map((layer) => ({
+            layer,
+            at: layer === "persistent" ? "99.0.0" : confirmedVersion,
+            can: true,
+            picked: null,
+            ephemeralContract: "test-runtime",
+          }));
+        if (cmd === "update_choices")
+          return [
+            { version: "99.0.1", ephemeralContract: "test-runtime", persistentAvailable: true },
+          ];
         if (cmd === "app_settings_read")
           return {
             path: "/tmp/settings.json",
@@ -104,14 +113,20 @@ export async function verifyShell(
           return {
             path: args.path,
             name: "note.txt",
-            text: "saved text",
-            size: 10,
+            text: fileText,
+            size: fileText.length,
             truncated: false,
           };
+        if (cmd === "write_file") {
+          fileText = args.text;
+          return fileText.length;
+        }
         if (cmd === "file_diff")
           return { standing: "unknown", patch: "", truncated: false, runs: [] };
-        if (cmd === "confirm_front" && window.failConfirmation)
-          throw new Error("Confirmation refused");
+        if (cmd === "confirm_front") {
+          if (window.failConfirmation) throw new Error("Confirmation refused");
+          if (args.version) confirmedVersion = args.version;
+        }
         return null;
       },
     };
@@ -168,7 +183,11 @@ export async function verifyShell(
   await draft.fill("unsaved words");
   await draft.focus();
   await page.waitForFunction(
-    () => window.calls.filter((call) => call.cmd === "pty_attach").length === 3,
+    () => window.calls.filter((call) => call.cmd === "pty_attach").length === 4,
+  );
+  check(
+    await front.getByRole("button", { name: "patch 99.0.1", exact: true }).isEnabled(),
+    "The new patch must be offered before confirmation",
   );
   await page.evaluate(() => {
     window.before = {
@@ -231,16 +250,28 @@ export async function verifyShell(
     (await front.evaluate(() => document.documentElement.dataset.frontRevision)) === "next",
     "New executable frontend did not run",
   );
+  // The candidate reads the old committed version during startup, before the shell confirms it.
+  await front.getByRole("button", { name: "patch", exact: true }).waitFor();
+  check(
+    await front.getByRole("button", { name: "patch", exact: true }).isDisabled(),
+    "The activated frontend must stop offering the patch it just applied",
+  );
+  check(
+    (await front.getByRole("button", { name: "patch", exact: true }).getAttribute("title")) ===
+      "patch up to date",
+    "Settings must reflect the confirmed patch version",
+  );
   check(
     (await front.getByRole("textbox", { name: "note.txt" }).innerText()) === "unsaved words",
     "Draft was not handed off",
   );
   check(
-    (await front.locator('[data-terminal-shown="true"]').getAttribute("data-terminal")) ===
-      "/tmp cli 2",
+    (await front
+      .locator('#cli-sidebar [data-terminal-shown="true"]')
+      .getAttribute("data-terminal")) === "/tmp cli 2",
     "Selected terminal changed",
   );
-  check((await front.locator(".xterm").count()) === 3, "A terminal disappeared");
+  check((await front.locator(".xterm").count()) === 4, "A terminal disappeared");
   check(
     (await front.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "note.txt",
     "Draft focus was not restored",
@@ -262,21 +293,23 @@ export async function verifyShell(
     listeners: window.listenerCount(),
     before: window.before.listeners,
     forbidden: window.calls.filter((call) =>
-      ["pty_close", "pty_open", "update_restart", "write_file"].includes(call.cmd),
+      ["pty_close", "pty_open", "update_restart"].includes(call.cmd),
     ),
   }));
   check(result.documentKept, "Shell document was replaced");
   check(result.listeners === result.before, "Native listeners leaked across swaps");
-  check(result.forbidden.length === 0, "Swap restarted a process or saved the draft");
+  check(result.forbidden.length === 0, "Swap restarted a process");
   check(errors.length === 0, `Browser errors: ${errors.join(", ")}`);
   // A newly opened session must reserve a fresh ID and await its actual startup.
-  await front.locator('[data-terminal-shown="true"] .xterm-helper-textarea').press("Control+a");
-  await front.waitForFunction(() => document.querySelectorAll(".xterm").length === 4);
+  await front
+    .locator('#cli-sidebar [data-terminal-shown="true"] .xterm-helper-textarea')
+    .press("Control+a");
+  await front.waitForFunction(() => document.querySelectorAll(".card-board .xterm").length === 4);
   await page.waitForFunction(() =>
     window.calls.some((call) => call.cmd === "pty_attach" && call.args.id === "/tmp cli 4"),
   );
   check(
-    (await front.locator('[data-terminal="/tmp cli 4"]').count()) === 1,
+    (await front.locator('.card-board [data-terminal="/tmp cli 4"]').count()) === 1,
     "New terminal reused a transferred ID or attached before startup",
   );
   return { ...result, errors };

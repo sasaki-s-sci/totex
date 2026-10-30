@@ -5,8 +5,8 @@ import { type MouseEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
-import { isInside } from "../../folder/format";
-import { FILE_DRAG_TYPE } from "../../lib/filePreview";
+import { baseName, folderOf, isInside } from "../../folder/format";
+import { writeFileDrag } from "../../lib/filePreview";
 import { FolderMark, GitMark, GraphFolderMark, JumpMark, MarkButton, SIZE } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
@@ -20,7 +20,7 @@ import {
   ROW_INDENT,
   TAKING_DROP,
 } from "./rows";
-import { PICK_ROW, picksMore } from "./selection";
+import { PICK_DIRECTORY, PICK_ROW, picksMore, type SelectionEntry } from "./selection";
 import { useLevel } from "./useLevel";
 
 interface LevelProps {
@@ -29,13 +29,13 @@ interface LevelProps {
   depth: number;
   graphed: readonly string[];
   /** The pane's pick, across every level it has open; see `useSelection`. */
-  selected: readonly string[];
+  selected: readonly SelectionEntry[];
   /** Anywhere in the column; every level is told, and the one row that is it draws itself. */
   dropping: string | null;
   refused: string | null;
-  onPick: (path: string, event: MouseEvent<HTMLElement>) => void;
+  onPick: (entry: SelectionEntry, event: MouseEvent<HTMLElement>) => void;
   /** Answers what the menu is for: the pick if the row is in it, else the row alone. */
-  onPoint: (path: string) => readonly string[];
+  onPoint: (entry: SelectionEntry) => readonly SelectionEntry[];
   /** Absent under a repository's row: the files shown are read where they are, with no pane to move. */
   onNavigate?: (path: string) => void;
   /** Absent where a folder cannot go on the canvas; the row then has no mark for it. */
@@ -160,16 +160,15 @@ export function Level({
         return (
           <Box key={entry.path}>
             <ListItemButton
-              selected={selected.includes(entry.path)}
-              {...{ [PICK_ROW]: entry.path }}
-              draggable={!entry.isDir}
+              selected={selected.some((one) => one.path === entry.path)}
+              aria-pressed={selected.some((one) => one.path === entry.path)}
+              {...{ [PICK_ROW]: entry.path, [PICK_DIRECTORY]: entry.isDir }}
+              draggable
               {...{ [DROP_INTO]: into }}
               sx={{ pl: indent, pr: 0.5, gap: 0.5, ...mark }}
               onDragStart={(event) => {
-                if (entry.isDir) return;
-                event.dataTransfer.effectAllowed = "copy";
-                event.dataTransfer.setData(FILE_DRAG_TYPE, entry.path);
-                event.dataTransfer.setData("text/plain", entry.path);
+                event.stopPropagation();
+                writeFileDrag(event.dataTransfer, onPoint(entry));
               }}
               onDoubleClick={(event) => {
                 if (entry.isDir) return;
@@ -180,10 +179,10 @@ export function Level({
                 event.preventDefault();
                 // The row answers for itself: the menu is asked of what was pointed at.
                 event.stopPropagation();
-                const paths = onPoint(entry.path);
+                const entries = onPoint(entry);
                 onMenu({
                   path: entry.path,
-                  paths,
+                  entries,
                   name: entry.name,
                   isDir: entry.isDir,
                   into,
@@ -191,8 +190,28 @@ export function Level({
                   at: { x: event.clientX, y: event.clientY },
                 });
               }}
+              onKeyDown={(event) => {
+                if (event.key !== "Delete" || event.ctrlKey || event.metaKey || event.altKey)
+                  return;
+                if (event.target !== event.currentTarget) return;
+                event.preventDefault();
+                event.stopPropagation();
+                const box = event.currentTarget.getBoundingClientRect();
+                const entries = selected.length ? selected : [entry];
+                const target = entries.find((one) => one.path === entry.path) ?? entries[0];
+                onMenu({
+                  path: target.path,
+                  entries,
+                  name: baseName(target.path),
+                  isDir: target.isDir,
+                  into: target.isDir ? target.path : (folderOf(target.path) ?? path),
+                  root,
+                  action: "delete",
+                  at: { x: box.left, y: box.bottom },
+                });
+              }}
               onClick={(event) => {
-                onPick(entry.path, event);
+                onPick(entry, event);
                 // A folder opens where it is; going to it is the mark beside the name. One picked
                 // alongside others stays as it is.
                 if (entry.isDir && !picksMore(event)) toggle(entry.path);

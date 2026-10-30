@@ -1,4 +1,48 @@
+import { type SelectionEntry, topLevelEntries } from "./fileSelection.ts";
+
 export const FILE_DRAG_TYPE = "application/x-totex-file";
+export const FILES_DRAG_TYPE = "application/x-totex-files";
+
+export function hasFileDrag(transfer: Pick<DataTransfer, "types">): boolean {
+  return transfer.types.includes(FILES_DRAG_TYPE) || transfer.types.includes(FILE_DRAG_TYPE);
+}
+
+export function writeFileDrag(transfer: DataTransfer, entries: readonly SelectionEntry[]): void {
+  const picked = topLevelEntries(entries);
+  transfer.effectAllowed = "copy";
+  transfer.setData(
+    FILES_DRAG_TYPE,
+    JSON.stringify(picked.map(({ path, isDir }) => ({ path, isDir }))),
+  );
+  if (picked.length === 1 && !picked[0].isDir) transfer.setData(FILE_DRAG_TYPE, picked[0].path);
+  transfer.setData("text/plain", picked.map((entry) => entry.path).join("\n"));
+}
+
+export function readFileDrag(transfer: Pick<DataTransfer, "getData">): SelectionEntry[] {
+  const multiple = transfer.getData(FILES_DRAG_TYPE);
+  if (multiple) {
+    try {
+      const entries: unknown = JSON.parse(multiple);
+      if (
+        !Array.isArray(entries) ||
+        !entries.every(
+          (entry) =>
+            entry !== null &&
+            typeof entry === "object" &&
+            typeof entry.path === "string" &&
+            entry.path.length > 0 &&
+            typeof entry.isDir === "boolean",
+        )
+      )
+        return [];
+      return topLevelEntries(entries.map(({ path, isDir }) => ({ path, isDir })));
+    } catch {
+      return [];
+    }
+  }
+  const path = transfer.getData(FILE_DRAG_TYPE);
+  return path ? [{ path, isDir: false }] : [];
+}
 
 export type FilePreviewView =
   | "text"

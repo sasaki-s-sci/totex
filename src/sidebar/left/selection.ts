@@ -1,64 +1,117 @@
-import { type MouseEvent, useRef, useState } from "react";
+import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";
+import type { SelectionEntry } from "../../lib/fileSelection";
+import { typing } from "../../lib/keys";
 
-/** Set on every row a pane can pick, so a range is read in the order the rows are drawn. */
+export type { SelectionEntry } from "../../lib/fileSelection";
+
+/** Set on every row a pane can pick, so ranges follow the visible tree order. */
 export const PICK_ROW = "data-pick-row";
+export const PICK_DIRECTORY = "data-pick-directory";
 
-/**
- * Held by a pane. A plain click picks one row; Ctrl adds or takes one away; Shift picks the rows
- * between the last plain or Ctrl pick and this one, and Ctrl+Shift adds them to what is picked.
- */
-export function useSelection() {
-  const [selected, setSelected] = useState<readonly string[]>([]);
+export function useSelection(scope: string) {
+  const [selected, setSelected] = useState<readonly SelectionEntry[]>([]);
   const anchor = useRef<string | null>(null);
+  const pane = useRef<HTMLElement | null>(null);
 
-  function pick(path: string, event: MouseEvent<HTMLElement>) {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigating the pane resets its selection
+  useEffect(() => {
+    setSelected([]);
+    anchor.current = null;
+    const node = pane.current;
+    if (!node) return;
+    const prune = () => {
+      const visible = new Map(rowsOf(node).map((entry) => [entry.path, entry]));
+      setSelected((held) => {
+        const next = held.flatMap((entry) => {
+          const current = visible.get(entry.path);
+          return current ? [current] : [];
+        });
+        return next.length === held.length &&
+          next.every((entry, index) => entry.isDir === held[index].isDir)
+          ? held
+          : next;
+      });
+      if (anchor.current && !visible.has(anchor.current)) anchor.current = null;
+    };
+    const observer = new MutationObserver(prune);
+    observer.observe(node, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: [PICK_DIRECTORY],
+    });
+    return () => observer.disconnect();
+  }, [scope]);
+
+  function pick({ path, isDir }: SelectionEntry, event: MouseEvent<HTMLElement>) {
+    const entry = { path, isDir };
     const adding = event.ctrlKey || event.metaKey;
     if (event.shiftKey && anchor.current) {
-      const range = between(rowsOf(event.currentTarget), anchor.current, path);
+      const range = between(rowsOf(event.currentTarget), anchor.current, entry.path);
       if (range) {
-        setSelected((held) => (adding ? [...new Set([...held, ...range])] : range));
+        setSelected((held) =>
+          adding
+            ? [...held, ...range.filter((one) => !held.some((item) => item.path === one.path))]
+            : range,
+        );
         return;
       }
     }
-    anchor.current = path;
+    anchor.current = entry.path;
     if (adding) {
       setSelected((held) =>
-        held.includes(path) ? held.filter((one) => one !== path) : [...held, path],
+        held.some((one) => one.path === entry.path)
+          ? held.filter((one) => one.path !== entry.path)
+          : [...held, entry],
       );
-    } else {
-      setSelected([path]);
+    } else setSelected([entry]);
+  }
+
+  /** Right-click and drag preserve the selection only when their row belongs to it. */
+  function point({ path, isDir }: SelectionEntry): readonly SelectionEntry[] {
+    const entry = { path, isDir };
+    if (selected.some((one) => one.path === entry.path)) return selected;
+    anchor.current = entry.path;
+    setSelected([entry]);
+    return [entry];
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (typing(event.target)) return;
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      event.stopPropagation();
+      const rows = rowsOf(event.currentTarget);
+      setSelected(rows);
+      anchor.current = rows[0]?.path ?? null;
+    } else if (event.key === "Escape") {
+      event.stopPropagation();
+      setSelected([]);
+      anchor.current = null;
     }
   }
 
-  /** A row pointed at for its menu keeps what is picked if it is among it, else is picked alone. */
-  function point(path: string): readonly string[] {
-    if (selected.includes(path)) return selected;
-    anchor.current = path;
-    setSelected([path]);
-    return [path];
-  }
-
-  return { selected, pick, point };
+  return { selected, pick, point, pane, onKeyDown };
 }
 
-/** Whether a click asks for more than the row: a folder picked this way is not opened. */
+/** A folder picked alongside other rows does not open or close. */
 export function picksMore(event: MouseEvent): boolean {
   return event.ctrlKey || event.metaKey || event.shiftKey;
 }
 
-/** The pane's rows as drawn, folders opened out included. */
-function rowsOf(row: HTMLElement): string[] {
+function rowsOf(row: HTMLElement): SelectionEntry[] {
   const pane = row.closest("section");
   if (!pane) return [];
-  return [...pane.querySelectorAll<HTMLElement>(`[${PICK_ROW}]`)].map(
-    (one) => one.getAttribute(PICK_ROW) ?? "",
-  );
+  return [...pane.querySelectorAll<HTMLElement>(`[${PICK_ROW}]`)].map((one) => ({
+    path: one.getAttribute(PICK_ROW) ?? "",
+    isDir: one.getAttribute(PICK_DIRECTORY) === "true",
+  }));
 }
 
-/** The anchor may have gone out of sight with a folder shut; then there is no range to take. */
-function between(rows: string[], from: string, to: string): string[] | null {
-  const start = rows.indexOf(from);
-  const end = rows.indexOf(to);
+/** A collapsed anchor cannot select rows hidden beneath it. */
+function between(rows: SelectionEntry[], from: string, to: string): SelectionEntry[] | null {
+  const start = rows.findIndex((entry) => entry.path === from);
+  const end = rows.findIndex((entry) => entry.path === to);
   if (start < 0 || end < 0) return null;
   return rows.slice(Math.min(start, end), Math.max(start, end) + 1);
 }

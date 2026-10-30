@@ -78,7 +78,7 @@ export function FolderPane({
 }: FolderPaneProps) {
   const { t } = useTranslation();
   const root = usePaneRoot(path);
-  const { selected, pick, point } = useSelection();
+  const { selected, pick, point, pane, onKeyDown } = useSelection(path);
   // The space this pane stands in, which is rarely this folder: a pane inside a checkout stands in
   // the space at its root.
   const { standing, tell } = useSpace(path);
@@ -107,12 +107,14 @@ export function FolderPane({
     /* Anything that is not a row answers for the pane's own folder; a row stops the press first. */
     <Box
       component="section"
+      ref={pane}
+      onKeyDown={onKeyDown}
       sx={{ pb: 0.5 }}
       onContextMenu={(event) => {
         event.preventDefault();
         onMenu({
           path,
-          paths: [path],
+          entries: [{ path, isDir: true }],
           name,
           isDir: true,
           into: path,

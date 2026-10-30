@@ -56,20 +56,21 @@ export async function declare(version: string | null): Promise<void> {
 let asking: Promise<Rung[]> | null = null;
 
 export function askStanding(again = false): Promise<Rung[]> {
-  if (again) asking = null;
-  asking ??= invoke<Rung[]>("update_standing").then(
+  if (asking && !again) return asking;
+  const request = invoke<Rung[]>("update_standing").then(
     (rungs) => {
-      settle({ rungs });
+      if (asking === request) settle({ rungs });
       return rungs;
     },
 
     () => {
       // No answer means no update rows, as an old copy shows.
-      settle({ rungs: [] });
+      if (asking === request) settle({ rungs: [] });
       return [];
     },
   );
-  return asking;
+  asking = request;
+  return request;
 }
 
 const EVERY = 30 * 60_000;
