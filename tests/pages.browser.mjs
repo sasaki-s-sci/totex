@@ -44,7 +44,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
           return [
             { id: "terminal-one", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"main"}' },
           ];
-        if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
+        if (cmd === "pty_attach")
+          return window.pageBacklog ?? { text: "Retained terminal\r\n", upto: 0 };
         if (cmd === "pty_standing")
           return window.pageAgent
             ? [
@@ -440,17 +441,41 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
 export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422") {
   await page.goto(`${base}/tests/fixtures/pages.html?terminals`);
   await page.locator('[data-terminal="terminal-one"] .xterm-screen').click();
+  // ConPTY waits for this response before the new shell can print its prompt.
+  await page.evaluate(() => {
+    window.pageBacklog = { text: "\x1b[6n", upto: 4 };
+  });
   await page.keyboard.press("Control+a");
   await page.waitForFunction(
     async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
   );
   const checkOpened = async () => {
+    const id = await page.evaluate(
+      async () => (await window.pageSnapshot()).values["sessions.list"].at(-1).id,
+    );
     await page.waitForFunction(async () => {
       const { values } = await window.pageSnapshot();
       const id = values["sessions.active"];
       const terminal = document.querySelector(`#cli-sidebar [data-terminal="${id}"]`);
       return values["sessions.showing"] === id && terminal?.contains(document.activeElement);
     });
+    await page.waitForFunction(
+      (id) =>
+        window.pageCalls.some(
+          (call) =>
+            call.cmd === "pty_write" && call.args.id === id && call.args.data === "\x1b[1;1R",
+        ),
+      id,
+    );
+    assert.equal(
+      await page.evaluate(
+        (id) =>
+          window.pageCalls.filter((call) => call.cmd === "pty_write" && call.args.id === id).length,
+        id,
+      ),
+      1,
+      "Only the sidebar answers the pending ConPTY startup query",
+    );
   };
   await checkOpened();
   await page.keyboard.press("Control+a");
@@ -461,6 +486,13 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
   const ids = await page.evaluate(async () =>
     (await window.pageSnapshot()).values["sessions.list"].map((s) => s.id),
   );
+  const writesBeforeReplay = await page.evaluate(
+    () => window.pageCalls.filter((call) => call.cmd === "pty_write").length,
+  );
+  await page.evaluate(() => {
+    // A cursor query retained later in the session must not be answered again.
+    window.pageBacklog = { text: "\x1b[6n", upto: 1004 };
+  });
   const previousSize = await page.evaluate(
     (id) =>
       window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
@@ -477,6 +509,14 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
   );
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_write").length),
+    writesBeforeReplay,
+    "Opening another viewer does not answer historical cursor queries",
+  );
+  await page.evaluate(() => {
+    window.pageBacklog = undefined;
+  });
   assert.deepEqual(
     await page.evaluate(
       (id) =>
@@ -491,6 +531,20 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
   await page.waitForFunction(
     async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
     ids[2],
+  );
+  const resizeCount = await page.evaluate(
+    () => window.pageCalls.filter((call) => call.cmd === "pty_resize").length,
+  );
+  for (const key of ["Control+ArrowUp", "Control+ArrowDown"]) {
+    await page.keyboard.press(key);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+  }
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_resize").length),
+    resizeCount,
+    "Switching sidebar terminals does not trigger a redundant ConPTY repaint",
   );
   // Explicit controls open viewers while source cards remain editable.
   for (const id of ids) {

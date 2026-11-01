@@ -440,6 +440,8 @@ export function CliView({
         // An earlier resize can precede shell startup; send its actual grid after attaching.
         lastGrid = null;
         measure();
+        // ConPTY's initial cursor query is still waiting for an answer, even in the backlog.
+        replaying = held.upto !== 4 || held.text !== "\x1b[6n";
         await new Promise<void>((resolve) => terminal.write(held.text, resolve));
         if (!live) return;
         replaying = false;

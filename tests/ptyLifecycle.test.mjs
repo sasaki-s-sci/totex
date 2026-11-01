@@ -4,7 +4,8 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { createServer } from "vite";
 
 const server = await createServer({ configFile: false, server: { watch: null } });
-const { startShell, endShell, shellEnded } = await server.ssrLoadModule("/src/lib/pty.ts");
+const { startShell, endShell, shellEnded, resizeShell } =
+  await server.ssrLoadModule("/src/lib/pty.ts");
 after(() => server.close());
 afterEach(() => clearMocks());
 globalThis.window ??= {};
@@ -45,4 +46,45 @@ test("a failed close remains retryable and does not start another shell", async 
   refused = false;
   await endShell(session.id);
   assert.deepEqual(calls, ["pty_open", "pty_close", "pty_close"]);
+});
+
+test("switching views sends a terminal size only when it changes", async () => {
+  const sizes = [];
+  mockIPC((command, args) => {
+    if (command === "pty_resize") sizes.push([args.rows, args.cols]);
+  });
+  const id = "switch-views";
+  await startShell({ id, cwd: "/repo", branch: "main" });
+  await Promise.all([resizeShell(id, 42, 91), resizeShell(id, 42, 91)]);
+  await resizeShell(id, 42, 91);
+  await resizeShell(id, 2, 91);
+  await resizeShell(id, 42, 91);
+  assert.deepEqual(sizes, [
+    [42, 91],
+    [2, 91],
+    [42, 91],
+  ]);
+});
+
+test("a resize before startup is sent again after the shell opens", async () => {
+  const calls = [];
+  mockIPC((command) => {
+    calls.push(command);
+  });
+  const session = { id: "early-resize", cwd: "/repo", branch: "main" };
+  await resizeShell(session.id, 42, 91);
+  await startShell(session);
+  await resizeShell(session.id, 42, 91);
+  assert.deepEqual(calls, ["pty_resize", "pty_open", "pty_resize"]);
+});
+
+test("a failed resize can be retried at the same size", async () => {
+  let calls = 0;
+  mockIPC((command) => {
+    if (command === "pty_resize" && ++calls === 1) throw new Error("resize refused");
+  });
+  await assert.rejects(resizeShell("retry-resize", 42, 91), /resize refused/);
+  await resizeShell("retry-resize", 42, 91);
+  await resizeShell("retry-resize", 42, 91);
+  assert.equal(calls, 2);
 });

@@ -38,6 +38,7 @@ const COLS = 80;
 
 const started = new Map<string, Promise<void>>();
 const ended = new Set<string>();
+const sizes = new Map<string, { rows: number; cols: number; sent: Promise<void> }>();
 
 export function shellEnded(id: string): boolean {
   return ended.has(id);
@@ -65,10 +66,15 @@ export function startShell(session: Session): Promise<void> {
     cols: COLS,
     // Kept beside the process unread, so a window that forgot the session gets it back.
     meta: sessionMeta(session),
-  }).catch((cause) => {
-    started.delete(session.id);
-    throw cause;
-  });
+  })
+    .then(() => {
+      // A resize sent before startup may have reached no shell.
+      sizes.delete(session.id);
+    })
+    .catch((cause) => {
+      started.delete(session.id);
+      throw cause;
+    });
 
   started.set(session.id, starting);
   return starting;
@@ -127,7 +133,19 @@ function send(id: string, data: string): Promise<void> {
 }
 
 export function resizeShell(id: string, rows: number, cols: number): Promise<void> {
-  return invoke<void>("pty_resize", { id, rows, cols });
+  // ConPTY repaints even an unchanged size; share this across the card and sidebar.
+  const previous = sizes.get(id);
+  if (previous?.rows === rows && previous.cols === cols) return previous.sent;
+  const next = {
+    rows,
+    cols,
+    sent: invoke<void>("pty_resize", { id, rows, cols }).catch((cause) => {
+      if (sizes.get(id) === next) sizes.delete(id);
+      throw cause;
+    }),
+  };
+  sizes.set(id, next);
+  return next.sent;
 }
 
 export async function endShell(id: string): Promise<void> {
@@ -138,6 +156,7 @@ export async function endShell(id: string): Promise<void> {
   if (starting) await starting.catch(() => undefined);
   try {
     await invoke<void>("pty_close", { id });
+    sizes.delete(id);
   } catch (cause) {
     ended.delete(id);
     if (starting) started.set(id, starting);
