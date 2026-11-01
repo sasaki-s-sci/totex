@@ -53,7 +53,7 @@
     "door": "Agents report from {{space}}",
     "move": "Move",
     "shell": "Shell",
-    "listRepositories": "List the repositories in it",
+    "addPane": "Open in a new folder pane",
     "gitMode": "Switch to git",
     "takeOff": "Remove from cards",
     "remove": "Remove folder and end its terminals",

@@ -14,6 +14,7 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
       ["/files/beta.txt", false],
       ["/files/gamma.txt", false],
     ]);
+    if (location.search.includes("git")) entries.set("/files/.git", true);
     const parent = (path) => path.slice(0, path.lastIndexOf("/")) || "/";
     const name = (path) => path.slice(path.lastIndexOf("/") + 1);
     const listeners = new Map();
@@ -68,11 +69,17 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
               }))
               .sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name)),
           };
+        if (cmd === "list_repositories")
+          return {
+            root: args.root,
+            repositories: [{ path: args.root, name: name(args.root) }],
+            truncated: false,
+            warnings: [],
+          };
         if (cmd === "describe_folders")
           return args.paths.map((path) => ({ path, label: name(path), display: path }));
         if (cmd === "directory_changes") return {};
-        if (["list_roots", "folders_holding_repositories", "terminal_usage"].includes(cmd))
-          return [];
+        if (["list_roots", "terminal_usage"].includes(cmd)) return [];
         if (cmd === "fs_rename_file") {
           const next = `${parent(args.path)}/${args.name}`;
           if (entries.has(next)) throw new Error("already-exists");
@@ -277,6 +284,26 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
   await row("folder.dir").getByRole("button", { name: "Go to", exact: true }).click();
   await row("folder.dir/child.txt").waitFor();
   assert.deepEqual(await selected(), [], "Navigating resets the pane selection");
+  await page.getByRole("button", { name: "Open in a new folder pane", exact: true }).click();
+  const added = page.locator("[data-folder-pane]").last();
+  await added.locator('[data-pick-row="/files/folder.dir/child.txt"]').waitFor();
+  assert.equal(await page.locator("[data-folder-pane]").count(), 2);
+  assert.equal(await added.locator("[data-repo-row]").count(), 0);
+  await page.goto(`${base}/tests/fixtures/files.html?git`);
+  const child = page.locator('[data-pick-row="/files/folder.dir"]');
+  await child.waitFor();
+  const left = await child.evaluate(
+    (element) => element.querySelector("svg").getBoundingClientRect().left,
+  );
+  await page.getByRole("button", { name: "Switch to git", exact: true }).click();
+  await child.waitFor();
+  assert.equal(
+    await child.evaluate((element) => element.querySelector("svg").getBoundingClientRect().left),
+    left,
+    "Git and folder modes align their children",
+  );
+  await page.getByRole("button", { name: "Switch to folder", exact: true }).click();
+  await child.waitFor();
   assert.deepEqual(errors, []);
   return "file/folder rename, range/toggle selection, batch paste/delete, nested deletion, retry and keyboard selection";
 }

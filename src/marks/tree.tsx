@@ -45,55 +45,34 @@ export function GraphRepoMark({ on, size = SIZE }: { on: boolean; size?: number 
   );
 }
 
-/**
- * A repository, by git's own figure: a line with a branch off it. `on` fills the points, which is a
- * row opened out to its files.
- */
+/** Open nodes and a curved branch share the theme's one-pixel stroke. */
 export function GitMark({ on = false, size = ROW_SIZE }: { on?: boolean; size?: number }) {
-  const fill = on ? "currentColor" : "none";
   return (
     <Frame size={size}>
-      <path d="M6 7.6 V16.4 M18 10.6 C18 14.6 6 12.6 6 16.4" />
-      <circle cx="6" cy="5" r="2.6" fill={fill} />
-      <circle cx="6" cy="19" r="2.6" fill={fill} />
-      <circle cx="18" cy="8" r="2.6" fill={fill} />
+      <path d="M7 7 V17 M17 9 V10 C17 14 7 12 7 17" />
+      <circle cx="7" cy="5" r="2" />
+      <circle cx="7" cy="19" r="2" />
+      <circle cx="17" cy="7" r="2" />
+      {on && <circle cx="7" cy="19" r="0.75" fill="currentColor" stroke="none" />}
     </Frame>
   );
 }
 
-/** The header of a pane listing repositories: git's figure with its points filled, as the folder pane's header is a filled folder. */
 export function PaneRepoMark({ size = ROW_SIZE }: { size?: number }) {
-  return <GitMark on size={size} />;
+  return <GitMark size={size} />;
 }
 
-const GIT_SCALE = 0.6;
-
-/**
- * `git` puts git's figure on the folder's lower right: the folder is a checkout. The disc behind it
- * is in the pane header's colour, so the figure reads against the filled folder.
- */
+/** Keep the branch inside the folder outline, without a background-coloured badge. */
 export function PaneFolderMark({ size = ROW_SIZE, git }: { size?: number; git?: boolean }) {
   return (
-    <Frame size={size} spill={git}>
-      <path d={SHUT} fill="currentColor" />
+    <Frame size={size}>
+      <path d="M3 19 V5 H9 L11 8 H21 V19 Z" />
       {git && (
         <>
-          <circle
-            cx="17.5"
-            cy="17"
-            r="7.5"
-            stroke="none"
-            style={{ fill: "var(--mui-palette-background-paper)" }}
-          />
-          <g
-            transform={`translate(10.5 9.8) scale(${GIT_SCALE})`}
-            strokeWidth={struck(size) / GIT_SCALE}
-          >
-            <path d="M6 7.6 V16.4 M18 10.6 C18 14.6 6 12.6 6 16.4" />
-            <circle cx="6" cy="5" r="2.6" fill="currentColor" />
-            <circle cx="6" cy="19" r="2.6" fill="currentColor" />
-            <circle cx="18" cy="8" r="2.6" fill="currentColor" />
-          </g>
+          <path d="M10 11 V16 M16 11 V12 C16 14 10 13 10 16" />
+          <circle cx="10" cy="11" r="0.8" fill="currentColor" stroke="none" />
+          <circle cx="16" cy="11" r="0.8" fill="currentColor" stroke="none" />
+          <circle cx="10" cy="16" r="0.8" fill="currentColor" stroke="none" />
         </>
       )}
     </Frame>

@@ -360,7 +360,8 @@ export function PagePortal({
     return () => container.remove();
   }, [container, target]);
   useLayoutEffect(() => {
-    if (target?.isConnected && focus) container.querySelector<HTMLElement>(focus)?.focus();
+    if (target?.isConnected && focus)
+      container.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true });
   }, [container, target, focus]);
   return createPortal(children, container);
 }

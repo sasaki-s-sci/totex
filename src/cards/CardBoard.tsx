@@ -32,6 +32,7 @@ export function CardBoard({
   const actions = useGraphActions();
   const host = useRef<HTMLDivElement>(null);
   const reorderTerminals = pages?.reorderTerminals;
+  const activePlace = pages?.activePlace;
   const renumber = useCallback(() => {
     const cards = host.current?.querySelectorAll<HTMLElement>('[data-page-card^="terminal:"]');
     if (cards)
@@ -50,11 +51,15 @@ export function CardBoard({
     card?.scrollIntoView({ block: "nearest" });
   }, [offered]);
   useEffect(() => {
+    if (activePlace === "sidebar") return;
     const page = Array.from(
       host.current?.querySelectorAll<HTMLElement>("[data-page-card]") ?? [],
     ).find((element) => element.dataset.pageCard === terminalPageId(showing ?? ""));
-    page?.scrollIntoView({ block: "nearest" });
-  }, [showing]);
+    const folder = page?.closest<HTMLElement>(".folder-card");
+    const target =
+      folder && folder.offsetHeight <= (host.current?.clientHeight ?? 0) ? folder : page;
+    target?.scrollIntoView({ block: "nearest" });
+  }, [showing, activePlace]);
   return (
     <Box
       ref={host}

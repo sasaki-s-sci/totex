@@ -53,7 +53,7 @@
     "door": "{{space}} のエージェントの報告",
     "move": "動かす",
     "shell": "シェル",
-    "listRepositories": "配下のリポジトリを一覧する",
+    "addPane": "新しいフォルダーペインで開く",
     "gitMode": "git モードにする",
     "takeOff": "カードから外す",
     "remove": "フォルダを外し、配下のターミナルをすべて終了",

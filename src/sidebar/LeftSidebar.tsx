@@ -362,7 +362,7 @@ export function LeftSidebar({
                 }}
                 onToggleOpen={() => panes.update(pane.id, { open: !pane.open })}
                 onToggleGraph={(path) => panes.toggleGraph(pane.id, path)}
-                onListRepositories={(path) => panes.addPane(path, "repository")}
+                onAddFolder={(path) => panes.addPane(path, "folder")}
                 onGitMode={() => {
                   if (naming?.pane === pane.id) setNaming(null);
                   panes.toRepository(pane.id);

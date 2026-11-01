@@ -73,8 +73,8 @@ export function useSessions() {
         ? [...current, next]
         : [...current.slice(0, at + 1), next, ...current.slice(at + 1)];
     });
-    setPaged((current) => [...current, next.id]);
-    setActivePlace("cards");
+    setShowing(next.id);
+    setActivePlace("sidebar");
     select(next.id);
   }, []);
 

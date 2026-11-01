@@ -444,17 +444,48 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
   await page.waitForFunction(
     async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
   );
+  const checkOpened = async () => {
+    await page.waitForFunction(async () => {
+      const { values } = await window.pageSnapshot();
+      const id = values["sessions.active"];
+      const terminal = document.querySelector(`#cli-sidebar [data-terminal="${id}"]`);
+      return values["sessions.showing"] === id && terminal?.contains(document.activeElement);
+    });
+  };
+  await checkOpened();
   await page.keyboard.press("Control+a");
   await page.waitForFunction(
     async () => (await window.pageSnapshot()).values["sessions.list"].length === 3,
   );
+  await checkOpened();
   const ids = await page.evaluate(async () =>
     (await window.pageSnapshot()).values["sessions.list"].map((s) => s.id),
   );
+  const previousSize = await page.evaluate(
+    (id) =>
+      window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
+        ?.args,
+    ids[2],
+  );
+  assert.ok(previousSize.rows > 2);
   await page.keyboard.press("Control+1");
   await page.waitForFunction(
     async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
     ids[0],
+  );
+  await page.locator(`#cli-sidebar [data-terminal="${ids[0]}"] .xterm-screen`).waitFor();
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  assert.deepEqual(
+    await page.evaluate(
+      (id) =>
+        window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
+          ?.args,
+      ids[2],
+    ),
+    previousSize,
+    "Switching terminals preserves the previous shell's full-size grid",
   );
   await page.keyboard.press("Control+3");
   await page.waitForFunction(
@@ -468,6 +499,32 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
       .getByRole("button", { name: /^Open .* in sidebar viewer$/ })
       .click();
   }
+  await page.setViewportSize({ width: 1600, height: 400 });
+  await page.locator(".card-board").evaluate((board) => {
+    board.scrollTop = 0;
+  });
+  await page.keyboard.press("Control+ArrowUp");
+  await page.waitForFunction(
+    async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
+    ids[1],
+  );
+  assert.equal(
+    await page.locator(".card-board").evaluate((board) => board.scrollTop),
+    0,
+    "Selecting a sidebar terminal leaves the canvas and its folder headings in place",
+  );
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.keyboard.press("Control+ArrowLeft");
+  assert.ok(
+    await page.locator('.folder-card[data-card-folder="/tmp"]').evaluate((folder) => {
+      const header = folder.querySelector(".page__header").getBoundingClientRect();
+      const board = folder.closest(".card-board").getBoundingClientRect();
+      return header.top >= board.top && header.bottom <= board.bottom;
+    }),
+    "Returning to the canvas keeps the terminal's folder path in view",
+  );
+  await page.keyboard.press("Control+ArrowRight");
+  await page.keyboard.press("Control+ArrowDown");
   await page.keyboard.press("Control+Alt+a");
   const check = async (top, bottom, active) => {
     await page.waitForFunction(

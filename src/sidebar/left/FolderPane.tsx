@@ -5,18 +5,16 @@ import { DROP_INTO } from "../../folder/dropInto";
 import { baseName } from "../../folder/format";
 import { useSpace } from "../../lib/space";
 import {
+  AddMark,
   Frame,
-  GitMark,
   GraphFolderMark,
   MarkButton,
   McpMark,
   PaneFolderMark,
-  SIZE,
   UpMark,
 } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
-import { useHolding } from "./holding";
 import type { Naming } from "./NameField";
 import type { PaneGrip } from "./paneOrder";
 import { CHANGE_COLOUR, PANE_ROW, REFUSED_DROP, TAKING_DROP } from "./rows";
@@ -37,8 +35,8 @@ export interface FolderPaneProps {
   onToggleOpen: () => void;
   /** The only way onto the graph, and as a folder: nothing under it is scanned. */
   onToggleGraph: (path: string) => void;
-  /** The other way onto the canvas: a pane listing the repositories under the folder. */
-  onListRepositories: (path: string) => void;
+  /** Opens the directory in a separate folder pane. */
+  onAddFolder: (path: string) => void;
   /** The pane turns into the repository pane for the checkout it stands in. */
   onGitMode: () => void;
   onOpenFile?: (path: string) => void;
@@ -66,7 +64,7 @@ export function FolderPane({
   onNavigate,
   onToggleOpen,
   onToggleGraph,
-  onListRepositories,
+  onAddFolder,
   onGitMode,
   onOpenFile,
   onMenu,
@@ -99,9 +97,6 @@ export function FolderPane({
     undefined,
   );
   const colour = change ? CHANGE_COLOUR[change] : "text.primary";
-  // The list is offered where it would have a row other than the pane's own: a checkout switches
-  // in place instead.
-  const holds = useHolding([path], root?.entries.length).has(path) && !isRepository;
 
   return (
     /* Anything that is not a row answers for the pane's own folder; a row stops the press first. */
@@ -156,7 +151,7 @@ export function FolderPane({
               flex: "none",
               display: "flex",
               p: 0,
-              mr: 0.75,
+              mr: 0.5,
               border: "none",
               background: "none",
               color: "text.primary",
@@ -205,11 +200,9 @@ export function FolderPane({
             <McpMark on={standing.settings.mcp} />
           </MarkButton>
         )}
-        {holds && (
-          <MarkButton label={t("folder.listRepositories")} onClick={() => onListRepositories(path)}>
-            <GitMark size={SIZE} />
-          </MarkButton>
-        )}
+        <MarkButton label={t("folder.addPane")} onClick={() => onAddFolder(path)}>
+          <AddMark />
+        </MarkButton>
         {showing && parent && (
           <MarkButton label={t("folder.up")} onClick={() => onNavigate(parent)}>
             <UpMark />
@@ -233,7 +226,7 @@ export function FolderPane({
           onPoint={point}
           onNavigate={onNavigate}
           onToggleGraph={onToggleGraph}
-          onListRepositories={onListRepositories}
+          onAddFolder={onAddFolder}
           onOpenFile={onOpenFile}
           // The levels below know nothing about which pane draws them.
           onMenu={(target) => onMenu({ ...target, pane: id })}

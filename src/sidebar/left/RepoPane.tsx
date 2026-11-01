@@ -141,7 +141,7 @@ export function RepoPane({
             aria-label={t("repository.folderMode")}
             title={t("repository.folderMode")}
             onClick={onFolderMode}
-            sx={{ ...BARE_BUTTON, mr: 0.75, color: "text.primary" }}
+            sx={{ ...BARE_BUTTON, mr: 0.5, color: "text.primary" }}
           >
             <PaneRepoMark />
           </Box>
@@ -331,7 +331,7 @@ export function RepoPane({
                   <Level
                     path={reading}
                     root={reading}
-                    depth={1}
+                    depth={alone ? 0 : 1}
                     graphed={NOTHING_GRAPHED}
                     selected={selected}
                     dropping={dropping}

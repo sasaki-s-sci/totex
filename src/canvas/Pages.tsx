@@ -67,7 +67,8 @@ export function Pages({
                 scale={1}
                 shown
                 compact={!workspace.expanded.includes(id)}
-                resize={!viewing}
+                // Switching viewers must not shrink the previous shell to its two-row preview.
+                resize={!workspace.sidebarOpen || workspace.placement(id) === "canvas"}
                 controls={{
                   viewer: true,
                   move: () => workspace.move(id, "sidebar"),

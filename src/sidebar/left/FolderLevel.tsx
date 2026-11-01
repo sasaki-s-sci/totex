@@ -7,7 +7,7 @@ import type { Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, folderOf, isInside } from "../../folder/format";
 import { writeFileDrag } from "../../lib/filePreview";
-import { FolderMark, GitMark, GraphFolderMark, JumpMark, MarkButton, SIZE } from "../../marks";
+import { AddMark, FolderMark, GraphFolderMark, JumpMark, MarkButton } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
 import { NameField, type Naming } from "./NameField";
@@ -40,11 +40,8 @@ interface LevelProps {
   onNavigate?: (path: string) => void;
   /** Absent where a folder cannot go on the canvas; the row then has no mark for it. */
   onToggleGraph?: (path: string) => void;
-  /**
-   * Starts a pane listing the repositories under the folder: the git way onto the canvas. Offered
-   * only by a folder that holds a repository; any folder goes on as a folder.
-   */
-  onListRepositories?: (path: string) => void;
+  /** Opens the directory in a separate folder pane. */
+  onAddFolder?: (path: string) => void;
   onOpenFile?: (path: string) => void;
   /** The menu belongs to the column so one is open at a time; the pane says which pane. */
   onMenu: (target: Omit<FileMenuTarget, "pane">) => void;
@@ -68,7 +65,7 @@ export function Level({
   onPoint,
   onNavigate,
   onToggleGraph,
-  onListRepositories,
+  onAddFolder,
   onOpenFile,
   onMenu,
   naming,
@@ -87,9 +84,8 @@ export function Level({
     changes,
     allIgnored,
     ignored,
-    holding,
     drawMore,
-  } = useLevel(path, depth, onNavigate, onListing, onListRepositories !== undefined);
+  } = useLevel(path, depth, onNavigate, onListing);
 
   function toggle(folder: string) {
     setExpanded((held) =>
@@ -235,17 +231,17 @@ export function Level({
                 }}
               />
               {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
-              {entry.isDir && (onNavigate || onToggleGraph || onListRepositories) && (
+              {entry.isDir && (onNavigate || onToggleGraph || onAddFolder) && (
                 <Stack direction="row" sx={{ ml: "auto", flex: "none", gap: 0.25 }}>
-                  {onListRepositories && holding.has(entry.path) && (
+                  {onAddFolder && (
                     <MarkButton
-                      label={t("folder.listRepositories")}
+                      label={t("folder.addPane")}
                       onClick={(event) => {
                         event.stopPropagation();
-                        onListRepositories(entry.path);
+                        onAddFolder(entry.path);
                       }}
                     >
-                      <GitMark size={SIZE} />
+                      <AddMark />
                     </MarkButton>
                   )}
                   {onNavigate && (
@@ -287,7 +283,7 @@ export function Level({
                 onPoint={onPoint}
                 onNavigate={onNavigate}
                 onToggleGraph={onToggleGraph}
-                onListRepositories={onListRepositories}
+                onAddFolder={onAddFolder}
                 onOpenFile={onOpenFile}
                 onMenu={onMenu}
                 naming={naming}
