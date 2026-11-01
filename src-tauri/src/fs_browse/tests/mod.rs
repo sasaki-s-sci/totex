@@ -1,5 +1,8 @@
 //! A temp directory on this machine, and one inside a distribution.
 
+#[path = "../../../host/src/host/tests/support.rs"]
+mod host_support;
+
 mod copy;
 mod download;
 mod operate;
@@ -22,12 +25,12 @@ pub(super) fn temp_dir(name: &str) -> PathBuf {
 
 /// A folder on every far machine there is to reach, named the way the window
 /// names it — the same path string the picker hands back is the one that comes
-/// back in here. See `crate::host::tests::reachable` for which machines.
+/// back in here. See `host_support::reachable` for which machines.
 pub(super) fn remote_dirs(name: &str) -> Vec<(Host, String)> {
-    crate::host::tests::reachable()
+    host_support::reachable()
         .into_iter()
         .map(|host| {
-            let dir = crate::host::tests::scratch(&host, &format!("browse-{name}"));
+            let dir = host_support::scratch(&host, &format!("browse-{name}"));
             (host, dir.to_string_lossy().into_owned())
         })
         .collect()

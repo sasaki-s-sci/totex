@@ -1,6 +1,6 @@
 //! The same reading and writing, of a path on a far machine — every far
 //! machine there is to reach, one after the other. On Linux that is always the
-//! fake ssh host; see `crate::host::tests`.
+//! fake ssh host; see `super::host_support`.
 
 use std::path::Path;
 
@@ -73,7 +73,7 @@ fn a_climbing_path_on_a_far_machine_is_folded_before_it_is_read() {
 
 #[test]
 fn the_home_row_of_a_far_machine_opens_the_folder_of_the_account_it_runs_as() {
-    for host in crate::host::tests::reachable() {
+    for host in super::host_support::reachable() {
         // The path the rail offers names no account — nothing on this side
         // knows one — and what it lands in is the home of whichever account
         // the far machine runs as.

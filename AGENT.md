@@ -2,3 +2,4 @@
 - plan better model
 - use multiple agents for each implementation of independent component
 - When the user asks to publish or says "配信して", publish through GitHub Releases using the repository's release workflow.
+- Keep minor releases limited to changes that require replacing the running terminal service. Put window-only behavior in the window or frontend so it can ship as a patch; native code alone is not a reason for a minor. Follow docs/update-boundary.md and verify the release classification before publishing.

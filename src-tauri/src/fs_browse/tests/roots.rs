@@ -55,7 +55,7 @@ fn roots_always_offer_a_starting_point() {
 #[test]
 fn ssh_hosts_are_offered_at_home_without_being_contacted() {
     let roots = list_roots();
-    let hosts = crate::ssh::hosts();
+    let hosts = totex_host::ssh::hosts();
     let offered: Vec<_> = roots
         .iter()
         .filter(|root| root.kind == RootKind::SshHost)

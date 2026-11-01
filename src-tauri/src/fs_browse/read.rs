@@ -6,6 +6,7 @@ use super::model::{Entry, FileData, FileHead, FileStamp, Listing};
 use super::path::resolve;
 use super::{MAX_ENTRIES, MAX_FILE_DATA, MAX_FILE_HEAD};
 use crate::host::Host;
+use base64::Engine;
 
 /// Reads `raw_path` and returns its children, sorted directories first.
 pub fn read_directory(raw_path: &str, show_hidden: bool) -> Result<Listing, String> {
@@ -113,7 +114,9 @@ pub(super) fn encode_file_data(bytes: &[u8], size: u64) -> Result<Option<String>
     if bytes.len() as u64 != size {
         return Err("changed".to_string());
     }
-    Ok(Some(crate::base64::encode(bytes)))
+    Ok(Some(
+        base64::engine::general_purpose::STANDARD.encode(bytes),
+    ))
 }
 
 /// Writes a card's reading back to the file it came from.

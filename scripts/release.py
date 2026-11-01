@@ -2,7 +2,7 @@
 
 The version number says what a release costs the terminals. A minor release is
 exactly a release that changes the line: the CLI service (`src-tauri/persistent`)
-and the host crate compiled into it, with the dependencies they lock. Taking it
+and the shared host primitives compiled into it, with the dependencies they lock. Taking it
 replaces the service and closes every terminal. A patch release leaves the line
 alone, and is one of two things: pages alone, applied live in the running shell,
 or a program change -- anything else the shell contract hashes, `src-tauri/src`
@@ -44,8 +44,8 @@ CONTRACT = json.loads((Path(__file__).parent / "shell-contract.json").read_text(
 CONTRACT_DIRECTORIES = tuple(d.rstrip("/") + "/" for d in CONTRACT["directories"])
 CONTRACT_FILES = frozenset(CONTRACT["files"])
 # What is compiled into the CLI service, which only a minor replaces. The host
-# crate is here whole: the service links all of it, and a list of the modules it
-# happens to use would be wrong the day one more is used.
+# crate contains shared machine primitives only. Window-only browsing, settings
+# and themes live under src-tauri/src, so their changes stay program patches.
 LINE_DIRECTORIES = (PERSISTENT + "src/", HOST + "src/")
 LINE_FILES = frozenset((PERSISTENT + "Cargo.toml", HOST + "Cargo.toml"))
 # The lock packages the service is built from, read off the lock itself.
@@ -143,7 +143,9 @@ def service_closure(packages):
 def lock_changes(old, new):
     """Which lock changes reach the service: (line changed, anything else changed)."""
     before, after = locked(old), locked(new)
-    changed = set(before) ^ set(after)
+    changed = {
+        key for key in before.keys() | after.keys() if before.get(key) != after.get(key)
+    }
     if not changed:
         return False, False
     reaching = service_closure(before) | service_closure(after)

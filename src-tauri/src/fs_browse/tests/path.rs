@@ -90,14 +90,14 @@ fn the_home_of_a_distribution_is_named_the_way_a_shell_names_it() {
 fn the_home_of_an_ssh_host_is_named_the_way_a_shell_names_it() {
     // The rail's row for a machine across the network carries the same marker
     // a distribution's does, read back the same way.
-    let offered = crate::ssh::url("box", "/~");
+    let offered = totex_host::ssh::url("box", "/~");
     assert_eq!(offered, "ssh://box/~");
-    let found = crate::ssh::locate(&offered).expect("a machine");
+    let found = totex_host::ssh::locate(&offered).expect("a machine");
     assert_eq!(found.host, "box");
     assert_eq!(home_tail(&found.path), Some(""));
     assert_eq!(
         home_tail(
-            &crate::ssh::locate("ssh://box/~/repo")
+            &totex_host::ssh::locate("ssh://box/~/repo")
                 .expect("a machine")
                 .path
         ),

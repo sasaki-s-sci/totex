@@ -3,6 +3,7 @@ mod ask;
 mod derived;
 mod display;
 mod front;
+pub mod fs_browse;
 mod fs_watch;
 mod git;
 mod mcp;
@@ -25,7 +26,7 @@ mod usage;
 /// Everything here goes on being `crate::host`, `crate::wsl` and the rest to
 /// the program around it, because which crate a question is answered in is not
 /// something the asking should have to know.
-pub use totex_host::{fs_browse, host, remote, sync, wsl};
+pub use totex_host::{host, remote, sync, wsl};
 
 use std::sync::Arc;
 

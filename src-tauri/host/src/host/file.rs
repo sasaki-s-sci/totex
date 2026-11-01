@@ -62,7 +62,7 @@ impl Host {
     }
 
     /// Writes a file in place, refusing when it is no longer `expect` bytes long
-    /// — see [`crate::fs_browse::write_file`], which is what this is for.
+    /// — used by the window to save edited files.
     pub fn write(&self, path: &Path, text: &str, expect: u64) -> Result<u64, String> {
         match self {
             Self::Local => {

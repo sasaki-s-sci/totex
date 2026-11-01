@@ -1,7 +1,8 @@
 //! Application preferences in the user's home, shared by the form and file editor.
 use serde_json::Value;
 use std::{path::PathBuf, sync::Mutex};
-use totex_host::app_settings::{self, Document};
+mod document;
+use document::{self as app_settings, Document};
 static WRITES: Mutex<()> = Mutex::new(());
 fn path() -> Result<PathBuf, String> {
     dirs::home_dir()

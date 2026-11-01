@@ -1,7 +1,8 @@
 //! User theme files under ~/.totex/themes, read whole for the window to judge.
 use std::path::PathBuf;
 use tauri_plugin_opener::OpenerExt;
-use totex_host::themes::{self, ThemeFile};
+mod files;
+use files::{self as themes, ThemeFile};
 fn dir() -> Result<PathBuf, String> {
     dirs::home_dir()
         .map(|home| home.join(".totex").join("themes"))

@@ -1,9 +1,5 @@
-//! Base64, which two things in here need bytes turned into.
-//!
-//! A command crosses a channel's pipe as one line, and a path is allowed to
-//! hold a newline; a picture crosses the layer's own pipe as JSON, and a byte
-//! written as a number is four characters where this is one and a third.
-//! Written out rather than depended on: it is sixteen lines.
+//! Base64 for commands crossing a channel's pipe as one line. Paths may contain
+//! newlines, so their bytes must not be sent directly into that framing.
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

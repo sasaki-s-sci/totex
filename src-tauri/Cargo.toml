@@ -1,7 +1,6 @@
 [workspace]
-# What the app knows about the machine -- which host a path is on, reading
-# through a WSL distribution, browsing a folder -- is a crate of its own, so
-# that every program in this workspace can link it without linking the window.
+# Shared machine primitives live in host; window-only browsing and settings
+# stay in this crate so they can update without replacing the service.
 # See host/src/lib.rs.
 members = ["host", "persistent"]
 # Built whenever the app is, so that the program the window starts beside

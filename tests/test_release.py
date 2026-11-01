@@ -187,10 +187,22 @@ version = "1.0.0"
         self.assertEqual(self.plan()["part"], "patch")
 
     def test_shared_host_is_on_the_line(self):
-        # The service links the whole host crate, so all of it turns the line.
+        # Shared machine primitives are compiled into the running service.
         self.write("src-tauri/host/src/host/file.rs", "updated\n")
         self.commit()
         self.assertEqual(self.plan()["part"], "minor")
+
+    def test_window_file_operations_settings_and_themes_are_program_patches(self):
+        paths = [
+            "src-tauri/src/fs_browse/operate.rs",
+            "src-tauri/src/app_settings/document.rs",
+            "src-tauri/src/themes/files.rs",
+        ]
+        for path in paths:
+            self.write(path, "updated\n")
+        self.commit()
+        self.assertEqual(self.plan()["part"], "patch")
+        self.assertEqual(self.changes(), ([], sorted(paths), []))
 
     def test_window_client_is_on_the_line(self):
         # The socket client is the service's own source, whichever side runs it.
@@ -389,6 +401,22 @@ version = "1.0.0"
                     f'name = "{name}"\nversion = "1.0.1"',
                 )
                 self.write(release.LOCK, updated)
+                self.commit()
+                self.assertEqual(self.plan()["part"], part)
+
+    def test_dependency_edges_change_without_package_version_changes(self):
+        original = (self.root / release.LOCK).read_text()
+        for old, new, part in (
+            ('dependencies = ["leaf"]', 'dependencies = ["leaf", "window"]', "minor"),
+            ('dependencies = ["leaf"]', 'dependencies = []', "minor"),
+            (
+                'dependencies = ["totex-persistent", "window", "testing"]',
+                'dependencies = ["totex-persistent", "window", "testing", "leaf"]',
+                "patch",
+            ),
+        ):
+            with self.subTest(dependencies=new):
+                self.write(release.LOCK, original.replace(old, new))
                 self.commit()
                 self.assertEqual(self.plan()["part"], part)
 

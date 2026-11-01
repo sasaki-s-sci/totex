@@ -18,7 +18,7 @@ A signed schema-2 `ephemeral.json` declares two identities:
 The native download path verifies the artifact signature and shell identity.
 The version number says what a release costs the terminals. A minor release is
 exactly a release that changes the line: the CLI service under
-`src-tauri/persistent`, the host crate compiled into it, and the dependencies
+`src-tauri/persistent`, the shared host primitives compiled into it, and the dependencies
 they lock. Taking one installs the bundle and restarts with the service it
 carries, which closes every terminal. A patch release leaves the line alone and
 never closes a terminal. It is one of two things, which `contract` says: pages
@@ -30,6 +30,30 @@ which is installed and the window reopened over the service already running.
 `scripts/ephemeral-build.mjs` hashes, normalising release numbers the same way,
 so a patch can never carry a line change. The first migration from the previous
 schema-1 architecture also requires an installation.
+
+## Keep the service boundary small
+
+Choose ownership by whether the running service must execute the changed code,
+not by whether the change is Rust, a new feature, or large. Window UI, filesystem
+browsing and mutations, preferences and theme files belong to the patch side.
+`src-tauri/src/fs_browse`, `src-tauri/src/app_settings` and
+`src-tauri/src/themes` are compiled into the window only; the service cannot
+import them. The host crate retains the home-directory helper and machine
+primitives used for starting and maintaining local, WSL and SSH sessions.
+Keep new window-only behavior out of that shared crate.
+
+The persistent service still owns PTYs, its wire protocol, retained output,
+session monitoring and its own installation/restart operations. Changes there
+or in its shared machine primitives require a minor release because leaving the
+old service running would leave the old implementation active. Do not exempt
+individual shared files from the release check to force a patch classification.
+A patch may replace the whole frontend or install/reopen the native window;
+neither path may terminate the running terminals.
+
+Moving browsing, preferences and themes out of the host crate is a one-time
+service-source change and is conservatively classified as minor. Once that
+boundary is installed, subsequent changes to those window modules are program
+patches. Previously published minor releases are not renumbered by this change.
 
 ## Full frontend replacement
 

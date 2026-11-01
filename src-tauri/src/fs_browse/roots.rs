@@ -4,7 +4,7 @@
 
 use super::model::{Root, RootKind};
 use super::path::home_dir;
-use crate::ssh;
+use totex_host::ssh;
 
 /// The home directory first, then whatever this platform can reach, then the
 /// machines across the network.
