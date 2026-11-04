@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { verifyFileDragging } from "./fileDrag.browser.mjs";
 
 /** Real explorer, menu and inline naming field; only filesystem IPC is replaced. */
 export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
@@ -15,10 +16,18 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
       ["/files/gamma.txt", false],
     ]);
     if (location.search.includes("git")) entries.set("/files/.git", true);
+    if (location.search.includes("many"))
+      for (let number = 0; number < 100; number++)
+        entries.set(`/files/z-extra-${String(number).padStart(3, "0")}.txt`, false);
     const parent = (path) => path.slice(0, path.lastIndexOf("/")) || "/";
     const name = (path) => path.slice(path.lastIndexOf("/") + 1);
     const listeners = new Map();
     const callbacks = new Map();
+    window.fsEmit = (event, payload) => {
+      for (const listener of listeners.values()) {
+        if (listener.event === event) callbacks.get(listener.handler)?.({ event, payload });
+      }
+    };
     let serial = 0;
     window.fsCalls = [];
     window.fsRefused = null;
@@ -38,6 +47,7 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
       },
       async invoke(cmd, args) {
         window.fsCalls.push({ cmd, args });
+        if (cmd === "plugin:window|scale_factor") return 2;
         if (cmd === "plugin:event|listen") {
           listeners.set(++serial, args);
           return serial;
@@ -304,6 +314,7 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
   );
   await page.getByRole("button", { name: "Switch to folder", exact: true }).click();
   await child.waitFor();
+  await verifyFileDragging(page, base);
   assert.deepEqual(errors, []);
   return "file/folder rename, range/toggle selection, batch paste/delete, nested deletion, retry and keyboard selection";
 }

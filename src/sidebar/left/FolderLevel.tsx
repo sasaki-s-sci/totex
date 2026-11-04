@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, folderOf, isInside } from "../../folder/format";
-import { writeFileDrag } from "../../lib/filePreview";
+import { startFileDrag } from "../../lib/fileDrag";
 import { AddMark, FolderMark, GraphFolderMark, JumpMark, MarkButton } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
@@ -159,13 +159,9 @@ export function Level({
               selected={selected.some((one) => one.path === entry.path)}
               aria-pressed={selected.some((one) => one.path === entry.path)}
               {...{ [PICK_ROW]: entry.path, [PICK_DIRECTORY]: entry.isDir }}
-              draggable
               {...{ [DROP_INTO]: into }}
               sx={{ pl: indent, pr: 0.5, gap: 0.5, ...mark }}
-              onDragStart={(event) => {
-                event.stopPropagation();
-                writeFileDrag(event.dataTransfer, onPoint(entry));
-              }}
+              onPointerDown={(event) => startFileDrag(event, () => onPoint(entry))}
               onDoubleClick={(event) => {
                 if (entry.isDir) return;
                 event.stopPropagation();
