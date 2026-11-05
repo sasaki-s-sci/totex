@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { endShell, resumeShells, runningShells, shellEnded, startShell } from "../lib/pty";
+import {
+  endShell,
+  resumeShells,
+  runningShells,
+  shellClosing,
+  shellEnded,
+  shellExited,
+  startShell,
+} from "../lib/pty";
 import { orderSessions, restored, type Session } from "../lib/session";
 import { terminalPageId } from "../page/placement";
 import { closing, dismiss } from "../resume/runtime";
@@ -13,6 +21,8 @@ export function useSessions() {
   const [split, setSplit] = useFrontState<string | null>("pages.lowerSidebar", null);
   const [selected, select] = useFrontState<string | null>("sessions.active", null);
   const [activePlace, setActivePlace] = useState<"cards" | "sidebar">("cards");
+  const [closeFailed, setCloseFailed] = useState(false);
+  const clearCloseFailure = useCallback(() => setCloseFailed(false), []);
   // Sessions absent from this list are available in the sidebar viewer.
   const [paged, setPaged] = useFrontState<readonly string[]>("sessions.paged", () =>
     sessions.map((session) => session.id),
@@ -33,6 +43,8 @@ export function useSessions() {
         );
   const active =
     selected !== null && sessions.some((session) => session.id === selected) ? selected : showing;
+  const placement = useRef({ showing, lower: lower?.id, active });
+  placement.current = { showing, lower: lower?.id, active };
 
   // Sessions outlive the window: pick up shells still running from before a reload.
   useEffect(() => {
@@ -56,10 +68,6 @@ export function useSessions() {
     return () => {
       alive = false;
     };
-  }, []);
-
-  const kill = useCallback((going: Session): Promise<unknown> => {
-    return endShell(going.id).catch(() => undefined);
   }, []);
 
   // `below` puts it straight after that terminal, wherever it stands; otherwise it goes last.
@@ -88,20 +96,6 @@ export function useSessions() {
     );
   }, []);
 
-  // Keyboard navigation opens the sidebar; an existing split keeps its active pane.
-  const jump = useCallback(
-    (next: Session) => {
-      setActivePlace("sidebar");
-      setPaged((current) => current.filter((id) => id !== next.id));
-      if (next.id !== showing && next.id !== lower?.id) {
-        if (showing !== null && active === lower?.id) setSplit(terminalPageId(next.id));
-        else setShowing(next.id);
-      }
-      select(next.id);
-    },
-    [showing, lower?.id, active],
-  );
-
   // The panel's own close: the terminal stays open, only put away.
   const hide = useCallback(() => {
     setShowing(null);
@@ -117,68 +111,82 @@ export function useSessions() {
     select(next.id);
   }, []);
 
-  const dock = useCallback((next: Session) => {
+  const dock = useCallback((next: Session, below = false) => {
     setPaged((current) => current.filter((id) => id !== next.id));
-    setShowing(next.id);
+    if (below) setSplit(terminalPageId(next.id));
+    else setShowing(next.id);
     setActivePlace("sidebar");
     select(next.id);
   }, []);
 
-  const end = useCallback(
-    (going: Session) => {
-      // Closed from the window: whatever totex started in it can be had back for a while.
-      closing(going.id);
-      void kill(going);
-      setSessions((current) => current.filter((session) => session.id !== going.id));
-      setPaged((current) => current.filter((id) => id !== going.id));
-      if (going.id === showing) {
-        setShowing(lower?.id ?? null);
-        setSplit(null);
-        select(lower?.id ?? null);
-      } else if (going.id === lower?.id) {
-        setSplit(null);
-        select(showing);
-      } else if (going.id === active) select(showing);
-    },
-    [kill, showing, lower?.id, active],
-  );
+  const forget = useCallback((ended: ReadonlySet<string>) => {
+    const { showing, lower, active } = placement.current;
+    const remaining = (id: string | null | undefined) => (id && !ended.has(id) ? id : null);
+    const next = remaining(showing) ?? remaining(lower);
+    // Exit events may arrive together, before React renders the first removal.
+    placement.current = {
+      showing: showing && ended.has(showing) ? next : showing,
+      lower: (showing && ended.has(showing)) || (lower && ended.has(lower)) ? undefined : lower,
+      active: active && ended.has(active) ? next : active,
+    };
+    currentSessions.current = currentSessions.current.filter((session) => !ended.has(session.id));
+    setSessions((current) => current.filter((session) => !ended.has(session.id)));
+    setPaged((current) => current.filter((id) => !ended.has(id)));
+    if (showing && ended.has(showing)) {
+      setShowing(next);
+      setSplit(null);
+    } else if (lower && ended.has(lower)) setSplit(null);
+    if (active && ended.has(active)) select(next);
+  }, []);
 
-  // Waits until the processes are gone: `git worktree remove` follows on that directory.
-  const endIn = useCallback(
-    async (cwd: string) => {
-      const going = sessions.filter((session) => session.cwd === cwd);
-      if (going.length === 0) return;
-      // The directory is about to go, and the jobs in it with it.
-      for (const session of going) dismiss(session.id);
-      await Promise.all(going.map(kill));
-      setSessions((current) => current.filter((session) => session.cwd !== cwd));
-      setPaged((current) => current.filter((id) => going.every((session) => session.id !== id)));
-      setShowing((current) => (going.some((session) => session.id === current) ? null : current));
+  const end = useCallback(
+    async (going: Session, exited = false): Promise<boolean> => {
+      if (exited) {
+        const requested = shellClosing(going.id);
+        shellExited(going.id);
+        if (requested) return true;
+      } else {
+        try {
+          await endShell(going.id);
+          closing(going.id);
+          setCloseFailed(false);
+        } catch {
+          setCloseFailed(true);
+          return false;
+        }
+      }
+      forget(new Set([going.id]));
+      return true;
     },
-    [kill, sessions],
+    [forget],
   );
 
   // Include native sessions that have no current graph or terminal view.
   const endMatching = useCallback(
     async (matches: (session: Session) => boolean) => {
       const native = restored(await runningShells());
-      const all = new Map([...native, ...sessions].map((session) => [session.id, session]));
+      const all = new Map(
+        [...native, ...currentSessions.current].map((session) => [session.id, session]),
+      );
       const going = [...all.values()].filter(matches);
-      // Taken off the canvas on purpose, which is not losing them.
-      for (const session of going) dismiss(session.id);
       const results = await Promise.allSettled(going.map((session) => endShell(session.id)));
       const ended = new Set(
         going
           .filter((_, index) => results[index].status === "fulfilled")
           .map((session) => session.id),
       );
-      setSessions((current) => current.filter((session) => !ended.has(session.id)));
-      setPaged((current) => current.filter((id) => !ended.has(id)));
-      setShowing((current) => (current !== null && ended.has(current) ? null : current));
+      for (const id of ended) dismiss(id);
+      forget(ended);
       if (results.some((result) => result.status === "rejected"))
         throw new Error("terminal removal failed");
     },
-    [sessions],
+    [forget],
+  );
+
+  // Deleting a worktree must wait for confirmed termination, including unseen native sessions.
+  const endIn = useCallback(
+    (cwd: string) => endMatching((session) => session.cwd === cwd),
+    [endMatching],
   );
 
   const attached = useMemo(() => sessions.map((session) => session.cwd), [sessions]);
@@ -200,12 +208,13 @@ export function useSessions() {
     attached,
     open,
     restore,
-    jump,
     hide,
     page,
     dock,
     end,
     endIn,
     endMatching,
+    closeFailed,
+    clearCloseFailure,
   };
 }

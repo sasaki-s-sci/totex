@@ -10,16 +10,20 @@ import {
   useState,
 } from "react";
 import { createPortal, flushSync } from "react-dom";
+import { usePageKeys } from "../hooks/usePageKeys";
 import type { useSessions } from "../hooks/useSessions";
+import { settingsNow } from "../lib/appSettings";
 import { shellSession } from "../lib/session";
 import { useFrontState } from "../shell/state";
 import { type PagePlacement, placementOf, terminalPageId } from "./placement";
 
-type Entry = { id: string; name: string };
+type Entry = { id: string; name: string; folder?: string };
 type Workspace = {
   entries: readonly Entry[];
+  numbered: readonly Entry[];
   terminals: ReturnType<typeof useSessions>["sessions"];
-  reorderTerminals: ReturnType<typeof useSessions>["reorder"];
+  reorder: (ids: readonly string[]) => void;
+  registerClose: (id: string, close: () => Promise<boolean>) => () => void;
   expanded: readonly string[];
   toggleExpanded: (id: string) => void;
   showing: string | null;
@@ -62,7 +66,42 @@ export function PageWorkspace({
   const [docked, setDocked] = useFrontState<readonly string[]>("pages.dockedFiles", []);
   const [fileShowing, setFileShowing] = useFrontState<string | null>("pages.showingFile", null);
   const { split, setSplit, active, activePlace, setActivePlace, select } = sessions;
-  const [entries, setEntries] = useState<readonly Entry[]>([]);
+  const [registered, setEntries] = useState<readonly Entry[]>([]);
+  const [order, setOrder] = useFrontState<readonly string[]>("pages.order", []);
+  const entries = useMemo(
+    () => [
+      ...order.flatMap((id) => registered.filter((entry) => entry.id === id)),
+      ...registered.filter((entry) => !order.includes(entry.id)),
+    ],
+    [registered, order],
+  );
+  const numbered = useMemo(() => entries.filter((entry) => entry.id !== "file:-1"), [entries]);
+  const reorderTerminals = sessions.reorder;
+  const reorder = useCallback(
+    (ids: readonly string[]) => {
+      const next = ids.filter((id) => id !== "file:-1");
+      setOrder((held) =>
+        held.length === next.length && held.every((id, index) => id === next[index]) ? held : next,
+      );
+      reorderTerminals(next.filter((id) => id.startsWith("terminal:")).map((id) => id.slice(9)));
+    },
+    [reorderTerminals],
+  );
+  const [selection, setSelection] = useState({
+    id: active === null ? null : terminalPageId(active),
+    terminal: active,
+  });
+  const selected =
+    active !== null && selection.terminal !== active ? terminalPageId(active) : selection.id;
+  const activePage = useRef(selected);
+  activePage.current = selected;
+  const closers = useRef(new Map<string, () => Promise<boolean>>());
+  const registerClose = useCallback((id: string, close: () => Promise<boolean>) => {
+    closers.current.set(id, close);
+    return () => {
+      closers.current.delete(id);
+    };
+  }, []);
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
   const lastPage = useRef<{ cards: string | null; sidebar: string | null }>({
     cards: null,
@@ -79,6 +118,13 @@ export function PageWorkspace({
   useEffect(() => {
     if (showing !== null) setFileShowing(null);
   }, [showing]);
+
+  useLayoutEffect(() => {
+    if (active !== null)
+      setSelection((held) =>
+        held.terminal === active ? held : { id: terminalPageId(active), terminal: active },
+      );
+  }, [active]);
 
   const registerHost = useCallback((key: string, host: HTMLElement | null) => {
     setHosts((held) => {
@@ -105,21 +151,33 @@ export function PageWorkspace({
       ? split
       : null;
 
+  const activate = useCallback(
+    (id: string, place: string) => {
+      const side = place === "sidebar" ? "sidebar" : "cards";
+      lastPage.current[side] = id;
+      activePage.current = id;
+      const terminal = terminals.find((session) => terminalPageId(session.id) === id);
+      setSelection({ id, terminal: terminal?.id ?? active });
+      setActivePlace(side);
+      if (terminal) select(terminal.id);
+    },
+    [terminals, select, setActivePlace, active],
+  );
+
   // Ctrl+Alt+A: the lower pane takes the next page in the sidebar, else a new shell beside the
   // shown terminal. Again closes the split.
   const splitSidebar = useCallback(() => {
     setActivePlace("sidebar");
     if (lower !== null) {
       setSplit(null);
-      select(showing);
+      if (shownId) activate(shownId, "sidebar");
       return;
     }
     if (shownId === null) return;
     const next = entries.find((entry) => entry.id !== shownId && placement(entry.id) === "sidebar");
     if (next) {
       setSplit(next.id);
-      const terminal = terminals.find((session) => terminalPageId(session.id) === next.id);
-      if (terminal) select(terminal.id);
+      activate(next.id, "sidebar");
       return;
     }
     const shown = terminals.find((session) => terminalPageId(session.id) === shownId);
@@ -128,19 +186,8 @@ export function PageWorkspace({
     const fresh = shellSession(shown.cwd, shown.branch, shown.folder);
     restore(fresh, false);
     setSplit(terminalPageId(fresh.id));
-    select(fresh.id);
-  }, [
-    lower,
-    shownId,
-    entries,
-    placement,
-    terminals,
-    restore,
-    showing,
-    select,
-    setSplit,
-    setActivePlace,
-  ]);
+    activate(terminalPageId(fresh.id), "sidebar");
+  }, [lower, shownId, entries, placement, terminals, restore, activate, setSplit, setActivePlace]);
   const latestSplit = useRef(splitSidebar);
   latestSplit.current = splitSidebar;
 
@@ -156,55 +203,92 @@ export function PageWorkspace({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const forget = useCallback((id: string) => {
-    setDocked((held) => held.filter((one) => one !== id));
-    setFileShowing((held) => (held === id ? null : held));
-  }, []);
-
-  const move = useCallback(
-    (id: string, to: PagePlacement) => {
-      const terminal = terminals.find((session) => terminalPageId(session.id) === id);
-      setFileShowing(null);
-      if (terminal) {
-        if (to === "canvas") page(terminal);
-        else dock(terminal);
-        return;
-      }
-      if (to === "canvas") forget(id);
-      else {
-        setDocked((held) => (held.includes(id) ? held : [...held, id]));
-        setFileShowing(id);
-        hide();
-      }
+  const forget = useCallback(
+    (id: string) => {
+      setDocked((held) => held.filter((one) => one !== id));
+      setFileShowing((held) => (held === id ? null : held));
+      setSplit((held) => (held === id ? null : held));
     },
-    [terminals, page, dock, forget, hide],
+    [setSplit],
   );
 
   const show = useCallback(
-    (id: string) => {
-      setActivePlace("sidebar");
-      const terminal = terminals.find((session) => terminalPageId(session.id) === id);
-      if (terminal) {
-        setFileShowing(null);
-        dock(terminal);
-      } else {
-        setFileShowing(id);
-        hide();
+    (id: string, closing?: string) => {
+      setSidebarOpen(true);
+      if ((id !== shownId && id !== lower) || closing === shownId) {
+        const below = lower !== null && activePage.current === lower && closing !== shownId;
+        if (closing === shownId) setSplit(null);
+        const terminal = terminals.find((session) => terminalPageId(session.id) === id);
+        if (terminal) {
+          if (!below) setFileShowing(null);
+          dock(terminal, below);
+        } else {
+          setDocked((held) => (held.includes(id) ? held : [...held, id]));
+          if (below) setSplit(id);
+          else {
+            hide();
+            setSplit(closing === shownId ? null : lower);
+            setFileShowing(id);
+          }
+        }
       }
+      activate(id, "sidebar");
     },
-    [terminals, dock, hide, setActivePlace],
+    [terminals, dock, hide, lower, shownId, activate, setSplit],
   );
 
-  const activate = useCallback(
-    (id: string, place: string) => {
-      const side = place === "sidebar" ? "sidebar" : "cards";
-      lastPage.current[side] = id;
-      setActivePlace(side);
+  const move = useCallback(
+    (id: string, to: PagePlacement) => {
+      if (to === "sidebar") {
+        show(id);
+        return;
+      }
       const terminal = terminals.find((session) => terminalPageId(session.id) === id);
-      if (terminal) select(terminal.id);
+      if (terminal) page(terminal);
+      else forget(id);
+      activate(id, "cards");
     },
-    [terminals, select, setActivePlace],
+    [terminals, page, forget, show, activate],
   );
+
+  const pending = useRef(new Set<string>());
+  const currentEntries = useRef(entries);
+  currentEntries.current = entries;
+  const close = useCallback(
+    async (id: string) => {
+      if (pending.current.has(id)) return;
+      const terminal = terminals.find((session) => terminalPageId(session.id) === id);
+      const end = terminal ? () => sessions.end(terminal) : closers.current.get(id);
+      if (!end) return;
+      const at = numbered.findIndex((entry) => entry.id === id);
+      const next = [...numbered.slice(at + 1), ...numbered.slice(0, at)];
+      pending.current.add(id);
+      try {
+        if (!(await end()) || activePage.current !== id) return;
+        const following = next.find((entry) =>
+          currentEntries.current.some((one) => one.id === entry.id),
+        );
+        if (following) show(following.id, id);
+      } finally {
+        pending.current.delete(id);
+      }
+    },
+    [numbered, terminals, sessions.end, show],
+  );
+  usePageKeys({
+    entries: numbered,
+    active: selected,
+    show,
+    close,
+    create: () => {
+      const terminal = terminals.find((session) => terminalPageId(session.id) === selected);
+      if (terminal)
+        sessions.open(
+          shellSession(terminal.cwd, terminal.branch, terminal.folder),
+          settingsNow().terminalSort === "createdWhere" ? terminal.id : undefined,
+        );
+    },
+  });
 
   const openSidebar = useCallback(() => {
     setSidebarOpen(true);
@@ -259,15 +343,17 @@ export function PageWorkspace({
   const value = useMemo(
     () => ({
       entries,
+      numbered,
       terminals,
-      reorderTerminals: sessions.reorder,
+      reorder,
+      registerClose,
       expanded,
       toggleExpanded,
       showing: shownId,
       sidebarOpen,
       openSidebar,
       lower,
-      active: active === null ? null : terminalPageId(active),
+      active: selected,
       activePlace,
       activate,
       placement,
@@ -278,15 +364,17 @@ export function PageWorkspace({
     }),
     [
       entries,
+      numbered,
       terminals,
-      sessions.reorder,
+      reorder,
+      registerClose,
       expanded,
       toggleExpanded,
       shownId,
       sidebarOpen,
       openSidebar,
       lower,
-      active,
+      selected,
       activePlace,
       activate,
       placement,
@@ -322,6 +410,7 @@ export function PageSlot({ id, place }: { id: string; place: PagePlacement | "pi
 export function PagePortal({
   id,
   name,
+  folder,
   place,
   focus,
   registerEntry = true,
@@ -342,8 +431,8 @@ export function PagePortal({
     return element;
   });
   useLayoutEffect(
-    () => (registerEntry ? register?.({ id, name }) : undefined),
-    [register, registerEntry, id, name],
+    () => (registerEntry ? register?.({ id, name, folder }) : undefined),
+    [register, registerEntry, id, name, folder],
   );
   useEffect(() => {
     const select = () => activate?.(id, place);

@@ -1,4 +1,4 @@
-import { displayPath } from "../folder/format";
+import { displayPath, folderOf } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import type { AppNode } from "../lib/graph";
 import type { Session } from "../lib/session";
@@ -30,6 +30,8 @@ export function Pages({
             key={id}
             id={id}
             name={name}
+            folder={node.data.folder ?? folderOf(node.data.path) ?? node.data.path}
+            focus={workspace.active === id && placement === "sidebar" ? ".page" : undefined}
             place={placement === "canvas" ? "cards" : placement}
           >
             <PageView
@@ -42,7 +44,7 @@ export function Pages({
           </PagePortal>
         );
       })}
-      {sessions.map((session, index) => {
+      {sessions.map((session) => {
         const id = terminalPageId(session.id);
         const viewing =
           workspace.sidebarOpen && (workspace.showing === id || workspace.lower === id);
@@ -52,6 +54,7 @@ export function Pages({
             <PagePortal
               id={id}
               name={name}
+              folder={session.cwd}
               place="cards"
               focus={
                 workspace.active === id && workspace.activePlace === "cards"
@@ -62,7 +65,6 @@ export function Pages({
               <PageView
                 kind="terminal"
                 session={session}
-                number={index + 1}
                 placement="canvas"
                 scale={1}
                 shown
@@ -74,7 +76,7 @@ export function Pages({
                   move: () => workspace.move(id, "sidebar"),
                   close: () => actions.endSession(session),
                 }}
-                onEnded={() => actions.endSession(session)}
+                onEnded={() => actions.endSession(session, true)}
               />
             </PagePortal>
             {workspace.placement(id) === "sidebar" && (
@@ -92,7 +94,6 @@ export function Pages({
                 <PageView
                   kind="terminal"
                   session={session}
-                  number={index + 1}
                   placement="sidebar"
                   scale={1}
                   viewer

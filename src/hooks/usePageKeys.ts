@@ -1,29 +1,27 @@
-// Ctrl+A: a second terminal in the shown session's workspace.
+// Files and terminals share numbering and navigation; editors keep their text shortcuts.
 
 import { useEffect, useRef } from "react";
 
-import { settingsNow } from "../lib/appSettings";
 import { terminal, typing } from "../lib/keys";
-import { type Session, shellSession } from "../lib/session";
 
 type Options = {
-  sessions: readonly Session[];
-  showing: string | null;
-  open: (session: Session, below?: string) => void;
-  jump: (session: Session) => void;
-  end: (session: Session) => void;
+  entries: readonly { id: string }[];
+  active: string | null;
+  show: (id: string) => void;
+  close: (id: string) => Promise<void>;
+  create: () => void;
 };
 
 const STEPS: Record<string, number> = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 };
 
-export function useSessionKeys({ sessions, showing, open, jump, end }: Options) {
-  const latest = useRef({ sessions, showing, open, jump, end });
-  latest.current = { sessions, showing, open, jump, end };
+export function usePageKeys({ entries, active, show, close, create }: Options) {
+  const latest = useRef({ entries, active, show, close, create });
+  latest.current = { entries, active, show, close, create };
 
   useEffect(() => {
     let typed: { number: number; at: number } | null = null;
     const onKeyDown = (event: KeyboardEvent) => {
-      // Navigation belongs to the sessions, independently of where their pages are shown.
+      // Navigation belongs to the pages, independently of where their pages are shown.
       if (event.ctrlKey && !event.metaKey && !event.shiftKey) {
         if (!event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) return;
         const sidebarArrow =
@@ -31,26 +29,30 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
           (event.key === "ArrowUp" || event.key === "ArrowDown") &&
           event.target instanceof Element &&
           event.target.closest(".page--sidebar");
-        if (typing(event.target) && !terminal(event.target) && !sidebarArrow) return;
-        const { sessions, showing, jump } = latest.current;
+        const fileNumber =
+          !event.altKey &&
+          /^[0-9]$/.test(event.key) &&
+          event.target instanceof Element &&
+          event.target.closest(".file-preview");
+        if (typing(event.target) && !terminal(event.target) && !sidebarArrow && !fileNumber) return;
+        const { entries, active, show } = latest.current;
         if (!event.altKey && /^[0-9]$/.test(event.key)) {
           event.preventDefault();
           if (event.repeat) return;
           const digit = Number(event.key);
           const combined = typed && Date.now() - typed.at < 700 ? typed.number * 10 + digit : digit;
-          const number = combined > sessions.length ? digit : combined;
-          const next = sessions[number - 1];
+          const number = combined > entries.length ? digit : combined;
+          const next = entries[number - 1];
           typed = next ? { number, at: Date.now() } : null;
-          if (next) jump(next);
+          if (next) show(next.id);
           return;
         }
         if (event.key.toLowerCase() === "x") {
           if (typing(event.target) && !terminal(event.target)) return;
-          const { sessions, showing, end } = latest.current;
-          const selected = sessions.find((session) => session.id === showing);
-          if (!selected) return;
+          if (!active) return;
           event.preventDefault();
-          if (!event.repeat) end(selected);
+          if (event.repeat) return;
+          void latest.current.close(active);
           return;
         }
         const step = STEPS[event.key];
@@ -60,15 +62,15 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
           event.preventDefault();
           if (event.repeat) return;
           typed = null;
-          const at = sessions.findIndex((session) => session.id === showing);
-          if (sessions.length === 0) return;
+          const at = entries.findIndex((entry) => entry.id === active);
+          if (entries.length === 0) return;
           const next =
             at < 0
               ? step > 0
                 ? 0
-                : sessions.length - 1
-              : (at + step + sessions.length) % sessions.length;
-          jump(sessions[next]);
+                : entries.length - 1
+              : (at + step + entries.length) % entries.length;
+          show(entries[next].id);
           return;
         }
       }
@@ -79,15 +81,8 @@ export function useSessionKeys({ sessions, showing, open, jump, end }: Options) 
       // in `CliView`.
       if (typing(event.target) && !terminal(event.target)) return;
 
-      const { sessions, showing, open } = latest.current;
-      const shown = sessions.find((session) => session.id === showing);
-      if (!shown) return;
-
       event.preventDefault();
-      // Not on repeat.
-      if (event.repeat) return;
-      const below = settingsNow().terminalSort === "createdWhere" ? shown.id : undefined;
-      open(shellSession(shown.cwd, shown.branch, shown.folder), below);
+      if (!event.repeat) latest.current.create();
     };
 
     window.addEventListener("keydown", onKeyDown);

@@ -1,5 +1,6 @@
 import { Box } from "@mui/material";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { startPointerDrag } from "../lib/pointerDrag";
 import { useFrontState } from "../shell/state";
 import { movePage, type PageLayout, type PageSide, reconcileLayout } from "./pageLayout";
 
@@ -66,15 +67,26 @@ export function PageBoard({
       edges.sort((a, b) => a[1] - b[1]);
       return { id: card.dataset.pageCard, side: edges[0][0] };
     };
-    const start = (event: DragEvent) => {
+    const pointer = (event: PointerEvent) => {
       const header =
-        event.target instanceof Element ? event.target.closest(".page__header, .page__drag") : null;
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>(".page__header, .page__drag")
+          : null;
       if (header?.closest(".page-board") !== board) return;
-      const card = header && cardAt(header);
-      if (!card?.dataset.pageCard || !event.dataTransfer) return;
-      moving.current = card.dataset.pageCard;
-      event.dataTransfer.setData(DRAG_TYPE, moving.current);
-      event.dataTransfer.effectAllowed = "move";
+      const card = cardAt(header);
+      const id = card?.dataset.pageCard;
+      if (!id) return;
+      startPointerDrag(
+        event,
+        header,
+        (data) => {
+          moving.current = id;
+          data.setData(DRAG_TYPE, id);
+          data.effectAllowed = "move";
+          return header.textContent?.trim() || id;
+        },
+        board.closest<HTMLElement>(".card-board"),
+      );
     };
     const over = (event: DragEvent) => {
       if (!moving.current) return;
@@ -87,6 +99,10 @@ export function PageBoard({
     const end = () => {
       moving.current = null;
       setDrop(null);
+    };
+    const leave = (event: DragEvent) => {
+      if (!(event.relatedTarget instanceof Node) || !board.contains(event.relatedTarget))
+        setDrop(null);
     };
     const place = (event: DragEvent) => {
       const source = moving.current;
@@ -124,14 +140,16 @@ export function PageBoard({
         });
       }
     };
-    board.addEventListener("dragstart", start);
+    board.addEventListener("pointerdown", pointer);
     board.addEventListener("dragover", over);
+    board.addEventListener("dragleave", leave);
     board.addEventListener("drop", place);
     board.addEventListener("dragend", end);
     board.addEventListener("keydown", key);
     return () => {
-      board.removeEventListener("dragstart", start);
+      board.removeEventListener("pointerdown", pointer);
       board.removeEventListener("dragover", over);
+      board.removeEventListener("dragleave", leave);
       board.removeEventListener("drop", place);
       board.removeEventListener("dragend", end);
       board.removeEventListener("keydown", key);
@@ -147,12 +165,15 @@ export function PageBoard({
         "--page-gap": (theme) => theme.spacing(2),
         display: "flex",
         flexWrap: "wrap",
-        alignItems: "start",
+        alignItems: "stretch",
         gap: "var(--page-gap)",
       }}
     >
-      {visible.flatMap((row, rowIndex) =>
-        row.map((id, columnIndex) => {
+      {rows.flatMap((savedRow) =>
+        savedRow.map((id) => {
+          const rowIndex = visible.findIndex((row) => row.includes(id));
+          const row = visible[rowIndex] ?? [];
+          const columnIndex = row.indexOf(id);
           const card = cards.find((card) => card.id === id);
           if (!card) return null;
           return (
@@ -164,6 +185,7 @@ export function PageBoard({
               data-drop-side={drop?.id === id ? drop.side : undefined}
               sx={{
                 position: "relative",
+                display: rowIndex < 0 ? "none" : "grid",
                 minWidth: 0,
                 boxSizing: "border-box",
                 width: `calc((100% - ${row.length - 1} * var(--page-gap)) / ${row.length})`,

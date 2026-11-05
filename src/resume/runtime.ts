@@ -138,9 +138,13 @@ function lose(id: string, why: Why): void {
   touched();
 }
 
-/** Called as a terminal is closed from the window, before its shell is ended. */
+/** A confirmed user close takes precedence over an exit event that arrived first. */
 export function closing(id: string): void {
-  lose(id, "close");
+  const job = jobs.get(id);
+  if (job?.running) {
+    job.lost = { why: "close", at: Date.now() };
+    touched();
+  }
   offers.delete(id);
 }
 

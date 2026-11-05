@@ -46,7 +46,7 @@ export interface RepoPaneProps {
   onListed: (repositories: string[]) => void;
   /** The pane turns back into the folder pane on the checkout it lists alone. */
   onFolderMode: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (path: string, folder: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
   naming: Naming | null;

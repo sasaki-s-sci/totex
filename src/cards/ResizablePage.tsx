@@ -34,7 +34,9 @@ export function ResizablePage({
       className="resizable-page"
       sx={{
         position: "relative",
-        height: compact ? "var(--compact-height, 64px)" : height,
+        contain: "size",
+        minHeight: compact ? "var(--compact-height, 64px)" : height,
+        height: "100%",
         minWidth: 0,
         flexShrink: 0,
       }}

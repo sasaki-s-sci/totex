@@ -62,6 +62,7 @@ export type FilePreviewView =
 export type FilePreviewRequest = {
   id: number;
   path: string;
+  folder?: string;
   at: { x: number; y: number } | null;
   view?: FilePreviewView;
   /** Placed beside the card it was opened from — see `useFilePreviewPlacing`. */

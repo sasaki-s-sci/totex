@@ -39,7 +39,7 @@ export interface FolderPaneProps {
   onAddFolder: (path: string) => void;
   /** The pane turns into the repository pane for the checkout it stands in. */
   onGitMode: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (path: string, folder: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
   naming: Naming | null;

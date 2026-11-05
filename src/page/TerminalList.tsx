@@ -1,29 +1,24 @@
-import { displayPath } from "../folder/format";
-import type { Session } from "../lib/session";
+import { baseName, displayPath } from "../folder/format";
 import { usePageWorkspace } from "./PageWorkspace";
-import { terminalPageId } from "./placement";
 
 export function TerminalList() {
   const workspace = usePageWorkspace();
   if (!workspace) return null;
-  const groups: { session: Session; start: number; sessions: Session[] }[] = [];
-  // Consecutive groups keep the numbers in the same order as the terminal shortcuts.
-  workspace.terminals.forEach((session, index) => {
+  const groups: { folder: string; start: number; ids: string[] }[] = [];
+  workspace.numbered.forEach((entry, index) => {
+    const folder = entry.folder ?? entry.name;
     const last = groups.at(-1);
-    if (last?.session.cwd === session.cwd) last.sessions.push(session);
-    else groups.push({ session, start: index + 1, sessions: [session] });
+    if (last?.folder === folder) last.ids.push(entry.id);
+    else groups.push({ folder, start: index + 1, ids: [entry.id] });
   });
   return (
     <div className="page__terminal-list" aria-hidden="true">
-      {groups.map(({ session, start, sessions }) => (
-        <div className="page__terminal-group" key={session.id} title={displayPath(session.cwd)}>
-          <span className="page__terminal-name">{session.branch}</span>
+      {groups.map(({ folder, start, ids }) => (
+        <div className="page__terminal-group" key={ids[0]} title={displayPath(folder)}>
+          <span className="page__terminal-name">{baseName(folder)}</span>
           <div className="page__terminal-numbers">
-            {sessions.map((terminal, index) => (
-              <span
-                key={terminal.id}
-                data-active={workspace.showing === terminalPageId(terminal.id)}
-              >
+            {ids.map((id, index) => (
+              <span key={id} data-active={workspace.active === id}>
                 {start + index}
               </span>
             ))}

@@ -196,7 +196,11 @@
   box-shadow: none;
 }
 
-.page--tools-side > .page__body {
+.page__content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -208,6 +212,15 @@
   gap: 0;
   order: 1;
   padding: 1px 2px;
+}
+
+.page__tools .page__name {
+  writing-mode: vertical-rl;
+  max-height: 100px;
+  flex: 0 1 auto;
+  font-size: calc(11px * var(--card-text-scale, 1));
+  font-weight: 400;
+  margin-bottom: 4px;
 }
 
 .page__drag {
@@ -258,7 +271,7 @@
   height: 10px;
 }
 
-.page.cli-page > .page__body {
+.page.cli-page .page__body {
   display: flex;
   flex-direction: row;
 }

@@ -19,6 +19,7 @@ export type FilePreviewBox = { width: number; height: number };
 export type FilePreviewNodeData = {
   requestId: number;
   path: string;
+  folder?: string;
   name: string;
   text: string | null;
   /** A data URL of the whole file, or null when not a picture or too large to read. */

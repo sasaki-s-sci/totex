@@ -11,8 +11,8 @@ import { terminalPart } from "../parts";
 import type { FilePageActions } from "./actions";
 import { FilePage } from "./FilePage";
 import { Page } from "./Page";
+import { PageNumber } from "./PageNumber";
 import { type PageControls, PageTools } from "./PageTools";
-import { usePageWorkspace } from "./PageWorkspace";
 import { type PagePlacement, terminalPageId } from "./placement";
 import { TerminalList } from "./TerminalList";
 
@@ -21,7 +21,6 @@ type Props = { placement: PagePlacement } & (
   | {
       kind: "terminal";
       session: Session;
-      number: number;
       shown: boolean;
       scale: number;
       compact: boolean;
@@ -48,7 +47,6 @@ export function PageView(props: Props) {
 
 function TerminalPage({
   session,
-  number,
   placement,
   shown,
   scale,
@@ -60,7 +58,6 @@ function TerminalPage({
 }: Extract<Props, { kind: "terminal" }>) {
   const { t } = useTranslation();
   const { fileTitle, monitor } = useAppSettings();
-  const workspace = usePageWorkspace();
   const glance = useMonitorGlance(session.id);
   const agent = monitor.enabled && isAgent(glance);
   const agentSummary = placement === "canvas" && compact && agent;
@@ -106,21 +103,10 @@ function TerminalPage({
       title={displayPath(session.cwd)}
       keepMounted
       toolsAtSide={placement === "canvas"}
+      leading={placement === "canvas" && <PageNumber id={terminalPageId(session.id)} name={name} />}
       compact={compact}
       tools={<PageTools name={name} placement={placement} controls={controls} />}
     >
-      {placement === "canvas" && (
-        <button
-          type="button"
-          className="page-terminal-number"
-          data-active={workspace?.active === terminalPageId(session.id)}
-          aria-label={`${t("cli.shell")} ${number}: ${t("page.openViewer", { name })}`}
-          title={t("page.openViewer", { name })}
-          onClick={() => workspace?.show(terminalPageId(session.id))}
-        >
-          {number}
-        </button>
-      )}
       <div className="page-terminal-content">
         {agentSummary && (
           <div className="page-agent nodrag nopan nowheel">

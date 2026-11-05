@@ -38,10 +38,15 @@ const COLS = 80;
 
 const started = new Map<string, Promise<void>>();
 const ended = new Set<string>();
+const stopping = new Map<string, Promise<void>>();
 const sizes = new Map<string, { rows: number; cols: number; sent: Promise<void> }>();
 
 export function shellEnded(id: string): boolean {
-  return ended.has(id);
+  return ended.has(id) || stopping.has(id);
+}
+
+export function shellClosing(id: string): boolean {
+  return stopping.has(id);
 }
 
 export function resumeShells(sessions: readonly Session[]): void {
@@ -55,7 +60,7 @@ export function resumeShells(sessions: readonly Session[]): void {
  * Called by the opener and by every terminal; a failed start is forgotten so the next asks again.
  */
 export function startShell(session: Session): Promise<void> {
-  if (ended.has(session.id)) return Promise.reject(new Error("terminal has ended"));
+  if (shellEnded(session.id)) return Promise.reject(new Error("terminal has ended"));
   const already = started.get(session.id);
   if (already) return already;
 
@@ -148,18 +153,39 @@ export function resizeShell(id: string, rows: number, cols: number): Promise<voi
   return next.sent;
 }
 
-export async function endShell(id: string): Promise<void> {
-  // A close must follow an in-flight open, or the terminal could appear after deletion.
-  const starting = started.get(id);
+export function shellExited(id: string): void {
   ended.add(id);
   started.delete(id);
-  if (starting) await starting.catch(() => undefined);
-  try {
-    await invoke<void>("pty_close", { id });
-    sizes.delete(id);
-  } catch (cause) {
-    ended.delete(id);
-    if (starting) started.set(id, starting);
-    throw cause;
-  }
+  sizes.delete(id);
+}
+
+export function endShell(id: string): Promise<void> {
+  const pending = stopping.get(id);
+  if (pending) return pending;
+  if (ended.has(id)) return Promise.resolve();
+  // A close must follow an in-flight open, or the terminal could appear after deletion.
+  const starting = started.get(id);
+  started.delete(id);
+  const closing = Promise.resolve().then(async () => {
+    let opened = false;
+    if (starting)
+      await starting.then(
+        () => {
+          opened = true;
+        },
+        () => undefined,
+      );
+    try {
+      await invoke<void>("pty_close", { id });
+      shellExited(id);
+    } catch (cause) {
+      if (ended.has(id)) return;
+      if (starting && opened) started.set(id, starting);
+      throw cause;
+    } finally {
+      stopping.delete(id);
+    }
+  });
+  stopping.set(id, closing);
+  return closing;
 }

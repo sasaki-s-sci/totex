@@ -42,7 +42,7 @@ interface LevelProps {
   onToggleGraph?: (path: string) => void;
   /** Opens the directory in a separate folder pane. */
   onAddFolder?: (path: string) => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (path: string, folder: string) => void;
   /** The menu belongs to the column so one is open at a time; the pane says which pane. */
   onMenu: (target: Omit<FileMenuTarget, "pane">) => void;
   /** Drawn by the level it is a row of; deeper down, the levels open the folder on the way. */
@@ -165,7 +165,7 @@ export function Level({
               onDoubleClick={(event) => {
                 if (entry.isDir) return;
                 event.stopPropagation();
-                onOpenFile?.(entry.path);
+                onOpenFile?.(entry.path, root);
               }}
               onContextMenu={(event) => {
                 event.preventDefault();

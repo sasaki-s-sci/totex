@@ -31,17 +31,18 @@ export function CardBoard({
   const pages = usePageWorkspace();
   const actions = useGraphActions();
   const host = useRef<HTMLDivElement>(null);
-  const reorderTerminals = pages?.reorderTerminals;
+  const reorderPages = pages?.reorder;
   const activePlace = pages?.activePlace;
   const renumber = useCallback(() => {
-    const cards = host.current?.querySelectorAll<HTMLElement>('[data-page-card^="terminal:"]');
-    if (cards)
-      reorderTerminals?.(Array.from(cards, (card) => card.dataset.pageCard?.slice(9) ?? ""));
-  }, [reorderTerminals]);
+    const cards = host.current?.querySelectorAll<HTMLElement>(
+      '[data-page-card^="terminal:"], [data-page-card^="file:"]',
+    );
+    if (cards) reorderPages?.(Array.from(cards, (card) => card.dataset.pageCard ?? ""));
+  }, [reorderPages]);
   const { cardText } = useAppSettings();
   const groups = useMemo(
-    () => cardGroups(workspace.repositories, folders, sessions),
-    [workspace.repositories, folders, sessions],
+    () => cardGroups(workspace.repositories, folders, sessions, nodes),
+    [workspace.repositories, folders, sessions, nodes],
   );
   const offered = useCardOffers(groups, actions.openWork);
   useEffect(() => {
@@ -85,22 +86,24 @@ export function CardBoard({
       <PageBoard
         onLayout={renumber}
         cards={[
-          ...nodes.map((node) => {
-            const id = filePageId(node.data.requestId);
-            return {
-              id,
-              visible: pages?.placement(id) !== "sidebar",
-              content: (
-                <ResizablePage
-                  id={id}
-                  initialHeight={node.height ?? 460}
-                  minHeight={node.data.view === "settings" ? 220 : 96}
-                >
-                  <PageSlot id={id} place="cards" />
-                </ResizablePage>
-              ),
-            };
-          }),
+          ...nodes
+            .filter((node) => node.data.view === "settings")
+            .map((node) => {
+              const id = filePageId(node.data.requestId);
+              return {
+                id,
+                visible: pages?.placement(id) !== "sidebar",
+                content: (
+                  <ResizablePage
+                    id={id}
+                    initialHeight={node.height ?? 460}
+                    minHeight={node.data.view === "settings" ? 220 : 96}
+                  >
+                    <PageSlot id={id} place="cards" />
+                  </ResizablePage>
+                ),
+              };
+            }),
           ...groups.flatMap(({ repository, cards }) =>
             cards.length
               ? cards.map((card) => ({
@@ -165,7 +168,7 @@ function WorkspaceCard({
   const pages = usePageWorkspace();
   const { t } = useTranslation();
   const actions = useGraphActions();
-  const { repository, worktree, path, name, sessions } = card;
+  const { repository, worktree, path, name, sessions, files } = card;
   const branch = worktree?.branch ?? worktree?.shortHead ?? name;
   const request = { repository, cwd: path, branch };
   return (
@@ -272,24 +275,38 @@ function WorkspaceCard({
       <PageBoard
         storageKey={`cards.layout.${path}`}
         onLayout={onLayout}
-        cards={sessions.map((session) => {
-          const id = terminalPageId(session.id);
-          return {
-            id,
-            content: (
-              <ResizablePage
-                id={id}
-                initialHeight={340}
-                minHeight={180}
-                compact={!pages?.expanded.includes(id)}
-                onExpand={() => pages?.toggleExpanded(id)}
-                onCompact={() => pages?.toggleExpanded(id)}
-              >
-                <PageSlot id={id} place="cards" />
-              </ResizablePage>
-            ),
-          };
-        })}
+        cards={[
+          ...sessions.map((session) => {
+            const id = terminalPageId(session.id);
+            return {
+              id,
+              content: (
+                <ResizablePage
+                  id={id}
+                  initialHeight={340}
+                  minHeight={180}
+                  compact={!pages?.expanded.includes(id)}
+                  onExpand={() => pages?.toggleExpanded(id)}
+                  onCompact={() => pages?.toggleExpanded(id)}
+                >
+                  <PageSlot id={id} place="cards" />
+                </ResizablePage>
+              ),
+            };
+          }),
+          ...files.map((node) => {
+            const id = filePageId(node.data.requestId);
+            return {
+              id,
+              visible: pages?.placement(id) !== "sidebar",
+              content: (
+                <ResizablePage id={id} initialHeight={node.height ?? 460} minHeight={96}>
+                  <PageSlot id={id} place="cards" />
+                </ResizablePage>
+              ),
+            };
+          }),
+        ]}
       />
     </Box>
   );

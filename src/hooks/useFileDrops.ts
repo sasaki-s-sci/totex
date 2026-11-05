@@ -26,16 +26,20 @@ export function useFileDrops() {
   );
   const nextFilePreview = useRef(Math.max(-1, ...filePreviews.map((file) => file.id)) + 1);
 
-  const openFiles = useCallback((paths: readonly string[], at: { x: number; y: number } | null) => {
-    setFilePreviews((current) => [
-      ...current,
-      ...paths.map((path, index) => ({
-        id: nextFilePreview.current++,
-        path,
-        at: at ? { x: at.x + index * 18, y: at.y + index * 18 } : null,
-      })),
-    ]);
-  }, []);
+  const openFiles = useCallback(
+    (paths: readonly string[], at: { x: number; y: number } | null, folder?: string) => {
+      setFilePreviews((current) => [
+        ...current,
+        ...paths.map((path, index) => ({
+          id: nextFilePreview.current++,
+          path,
+          folder,
+          at: at ? { x: at.x + index * 18, y: at.y + index * 18 } : null,
+        })),
+      ]);
+    },
+    [],
+  );
 
   // One preview per file: a second press is answered by the card already standing. A view asked
   // for by name is held to that view alone. `again` opens one more whatever stands, to be read
@@ -52,7 +56,17 @@ export function useFileDrops() {
           return asked ? standing === asked : drawn(standing);
         })
           ? current
-          : [...current, { id, path, at: null, view, beside }],
+          : [
+              ...current,
+              {
+                id,
+                path,
+                at: null,
+                view,
+                beside,
+                folder: current.find((preview) => preview.id === beside)?.folder,
+              },
+            ],
       );
     },
     [],

@@ -4,7 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { createServer } from "vite";
 
 const server = await createServer({ configFile: false, server: { watch: null } });
-const { startShell, endShell, shellEnded, resizeShell } =
+const { startShell, endShell, shellEnded, shellExited, attachShell, resizeShell } =
   await server.ssrLoadModule("/src/lib/pty.ts");
 after(() => server.close());
 afterEach(() => clearMocks());
@@ -46,6 +46,68 @@ test("a failed close remains retryable and does not start another shell", async 
   refused = false;
   await endShell(session.id);
   assert.deepEqual(calls, ["pty_open", "pty_close", "pty_close"]);
+});
+
+test("overlapping close requests share the acknowledgement and retain a failed session", async () => {
+  let rejectClose;
+  let closes = 0;
+  let entered;
+  const closingStarted = new Promise((resolve) => {
+    entered = resolve;
+  });
+  mockIPC((command) => {
+    if (command === "pty_close") {
+      closes++;
+      return new Promise((_, reject) => {
+        rejectClose = reject;
+        entered();
+      });
+    }
+  });
+  const session = { id: "overlapping-close", cwd: "/repo", branch: "main" };
+  await startShell(session);
+  const first = endShell(session.id);
+  const second = endShell(session.id);
+  await closingStarted;
+  assert.equal(first, second);
+  rejectClose(new Error("close refused"));
+  const results = await Promise.allSettled([first, second]);
+  assert.ok(results.every((result) => result.status === "rejected"));
+  assert.equal(closes, 1);
+  assert.equal(shellEnded(session.id), false);
+});
+
+test("a failed opening followed by a failed close can start again", async () => {
+  let refused = true;
+  let opens = 0;
+  mockIPC((command) => {
+    if (command === "pty_open") opens++;
+    if (refused) throw new Error("runtime unavailable");
+  });
+  const session = { id: "failed-open-close", cwd: "/repo", branch: "main" };
+  await Promise.allSettled([startShell(session), endShell(session.id)]);
+  refused = false;
+  await startShell(session);
+  assert.equal(opens, 2);
+});
+
+test("confirmed natural exit does not issue a redundant close", async () => {
+  const calls = [];
+  mockIPC((command) => {
+    calls.push(command);
+  });
+  shellExited("naturally-ended");
+  await endShell("naturally-ended");
+  assert.deepEqual(calls, []);
+});
+
+test("attachment errors remain distinct from a missing terminal", async () => {
+  mockIPC(() => {
+    throw new Error("attachment transport failed");
+  });
+  await assert.rejects(attachShell("attach-error"), /attachment transport failed/);
+  mockIPC(() => null);
+  assert.equal(await attachShell("missing"), null);
 });
 
 test("switching views sends a terminal size only when it changes", async () => {

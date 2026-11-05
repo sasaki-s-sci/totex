@@ -15,16 +15,25 @@ keepFrontValue("sessions.list", [
       ]
     : []),
 ]);
-keepFrontValue("files.open", [{ id: 1, path: "/tmp/note.txt", at: { x: 380, y: 240 } }]);
+keepFrontValue(
+  "files.open",
+  location.search.includes("onlyterminals")
+    ? []
+    : [{ id: 1, path: "/tmp/note.txt", folder: "/tmp", at: { x: 380, y: 240 } }],
+);
 keepFrontValue("window.settings", 1);
-if (location.search.includes("offers") || location.search.includes("terminals")) {
+if (
+  location.search.includes("offers") ||
+  location.search.includes("terminals") ||
+  location.search.includes("mixed")
+) {
   keepFrontValue("folders.panes", [
     {
       id: 0,
       kind: "folder",
       path: "/tmp",
-      open: false,
-      graphed: location.search.includes("terminals") ? ["/tmp"] : ["/empty-a", "/empty-b"],
+      open: location.search.includes("mixed"),
+      graphed: !location.search.includes("offers") ? ["/tmp"] : ["/empty-a", "/empty-b"],
       expanded: [],
       shown: {},
     },

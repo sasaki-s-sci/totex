@@ -24,6 +24,7 @@ export type PageProps = {
   tools?: ReactNode;
   heading?: ReactNode;
   toolsAtSide?: boolean;
+  leading?: ReactNode;
   compact?: boolean;
   footnote?: ReactNode;
   collapsed?: boolean;
@@ -46,6 +47,7 @@ export function Page({
   tools,
   heading,
   toolsAtSide = false,
+  leading,
   compact = false,
   footnote,
   collapsed = false,
@@ -81,6 +83,11 @@ export function Page({
           aria-label={name}
           aria-orientation="vertical"
         >
+          {kind !== "cli-page" && (
+            <span className="page__name" title={title}>
+              {name}
+            </span>
+          )}
           {tools}
         </div>
       ) : (
@@ -104,18 +111,21 @@ export function Page({
         </PageHeader>
       )}
 
-      {/* Stateful runtimes such as xterm stay mounted even while folded. */}
-      {(!collapsed || keepMounted) && (
-        <div
-          className="page__body nodrag nowheel"
-          hidden={collapsed}
-          ref={bodyRef}
-          onWheel={onBodyWheel}
-        >
-          {children}
-        </div>
-      )}
-      {!collapsed && footnote && <footer className="page__footer">{footnote}</footer>}
+      {leading}
+      <div className="page__content">
+        {/* Stateful runtimes such as xterm stay mounted even while folded. */}
+        {(!collapsed || keepMounted) && (
+          <div
+            className="page__body nodrag nowheel"
+            hidden={collapsed}
+            ref={bodyRef}
+            onWheel={onBodyWheel}
+          >
+            {children}
+          </div>
+        )}
+        {!collapsed && footnote && <footer className="page__footer">{footnote}</footer>}
+      </div>
     </article>
   );
 }

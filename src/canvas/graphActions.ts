@@ -39,7 +39,7 @@ export type GraphActions = FilePageActions & {
   pickBranch: (pick: BranchPick) => void;
   closeRepository: (repository: Repository) => void;
   closeFolder: (root: string) => void;
-  endSession: (session: Session) => void;
+  endSession: (session: Session, exited?: boolean) => void;
 };
 
 export const NO_ACTIONS: GraphActions = {

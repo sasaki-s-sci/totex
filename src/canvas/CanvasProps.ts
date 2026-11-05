@@ -22,7 +22,7 @@ export type CanvasProps = {
 
   onCloseFolder: (root: string) => void;
 
-  onEndSession: (session: Session) => void;
+  onEndSession: (session: Session, exited?: boolean) => void;
 
   filePreviews: readonly FilePreviewRequest[];
 

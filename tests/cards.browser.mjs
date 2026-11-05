@@ -100,17 +100,19 @@ export async function verifyCardLayout(page) {
     node.scrollTop = 0;
   });
   const card = (id) => page.locator(`[data-page-card="${id}"]`);
+  await page.evaluate(() => {
+    document.addEventListener("dragstart", (event) => event.preventDefault(), true);
+  });
   const drag = async (source, target, side) => {
     const targetCard = card(target);
     const box = await targetCard.boundingBox();
     await card(source)
-      .locator(".page__header")
+      .locator(".page__header .page__name, .page__tools .page__name")
       .first()
       .dragTo(targetCard, {
-        sourcePosition: { x: 12, y: 10 },
         targetPosition: {
           x: side === "left" ? 4 : side === "right" ? box.width - 4 : box.width / 2,
-          y: side === "bottom" ? box.height - 4 : box.height / 2,
+          y: side === "top" ? 4 : side === "bottom" ? box.height - 4 : box.height / 2,
         },
       });
   };
@@ -130,33 +132,47 @@ export async function verifyCardLayout(page) {
       rows,
     );
   };
-  await drag("folder:/tmp", "file:1", "right");
-  await layoutIs([["file:1", "folder:/tmp"], ["file:-1"]]);
-  const fileBox = await card("file:1").boundingBox();
+  await drag("folder:/tmp", "file:-1", "right");
+  await layoutIs([["file:-1", "folder:/tmp"]]);
+  const fileBox = await card("file:-1").boundingBox();
   const folderBox = await card("folder:/tmp").boundingBox();
-  assert.equal(fileBox.y, folderBox.y, "File and folder group share a row");
+  assert.equal(fileBox.y, folderBox.y, "Settings and folder group share a row");
+  assert.equal(fileBox.height, folderBox.height, "Cards in a row share a height");
   assert.ok(folderBox.x > fileBox.x, "Dropping the group on the right adds a column");
-  await drag("file:-1", "folder:/tmp", "right");
-  await layoutIs([["file:1", "folder:/tmp", "file:-1"]]);
-  await drag("file:-1", "file:1", "left");
-  await layoutIs([["file:-1", "file:1", "folder:/tmp"]]);
-  await drag("folder:/tmp", "file:1", "bottom");
-  await layoutIs([["file:-1", "file:1"], ["folder:/tmp"]]);
-  await card("file:1").locator(".page__header").focus();
-  await page.keyboard.press("Alt+ArrowLeft");
-  await layoutIs([["file:1", "file:-1"], ["folder:/tmp"]]);
-  assert.equal(
-    (await card("file:1").boundingBox()).height,
-    fileBox.height,
-    "Reordering keeps resized height",
+  const held = await card("file:-1").locator(".page__name").first().boundingBox();
+  await page.mouse.move(held.x + held.width / 2, held.y + held.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(folderBox.x + 3, folderBox.y + folderBox.height / 2, { steps: 8 });
+  await page.waitForFunction(
+    () => document.querySelector('[data-page-card="folder:/tmp"]').dataset.dropSide === "left",
   );
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await layoutIs([["file:-1", "folder:/tmp"]]);
+  await page.waitForFunction(() => !document.querySelector("[data-drop-side]"));
+  await drag("folder:/tmp", "file:-1", "bottom");
+  await layoutIs([["file:-1"], ["folder:/tmp"]]);
+  await card("folder:/tmp").locator(":scope > .folder-card > .page__header").focus();
+  await page.keyboard.press("Alt+ArrowLeft");
+  await layoutIs([["folder:/tmp", "file:-1"]]);
+  await drag("file:-1", "folder:/tmp", "top");
+  await layoutIs([["file:-1"], ["folder:/tmp"]]);
+  // A file and terminal share the folder's inner layout and keep their live content.
+  await drag("file:1", "terminal:terminal-one", "right");
+  const file = await card("file:1").boundingBox();
+  const terminalBox = await card("terminal:terminal-one").boundingBox();
+  assert.equal(file.y, terminalBox.y);
+  assert.equal(file.height, terminalBox.height, "Mixed cards stretch to the same height");
+  assert.ok(file.x > terminalBox.x);
+  const tools = await card("file:1").locator(".page__tools").boundingBox();
+  const body = await card("file:1").locator(".page__body").boundingBox();
+  assert.ok(tools.x >= body.x + body.width - 1, "File header controls are on the right");
+  assert.equal(await card("file:1").locator(".page-terminal-number").textContent(), "2");
+  await drag("file:1", "terminal:terminal-one", "bottom");
+  const beforeHeight = (await card("file:1").boundingBox()).height;
   await card("file:1").getByRole("separator", { name: "Resize page height" }).focus();
   await page.keyboard.press("ArrowDown");
-  assert.equal(
-    (await card("file:1").boundingBox()).height,
-    fileBox.height + 16,
-    "Resizing still works after reordering",
-  );
+  assert.equal((await card("file:1").boundingBox()).height, beforeHeight + 16);
   assert.equal(
     await page.getByRole("textbox", { name: "note.txt", exact: true }).textContent(),
     "saved text",
@@ -249,7 +265,7 @@ export async function verifyCardOffers(page, base = "http://127.0.0.1:18422") {
 /** Same-folder terminals share one header while keeping independent live runtimes and controls. */
 export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") {
   await page.setViewportSize({ width: 1600, height: 1600 });
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped`);
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
   const group = page.locator('[data-card-folder="/tmp"]');
   const other = page.locator('[data-card-folder="/elsewhere"]');
   const terminal = (id) => page.locator(`.card-board [data-terminal="${id}"]`);
@@ -717,8 +733,8 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
           (call) => call.cmd === "pty_close" && call.args.id === "terminal-one",
         ).length,
     ),
-    1,
-    "A shared process exit closes the session exactly once",
+    0,
+    "A shared process exit removes the session without another close request",
   );
   assert.equal(await terminal("terminal-other").count(), 1);
   await page.setViewportSize({ width: 1600, height: 1000 });

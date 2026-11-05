@@ -16,6 +16,8 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       }
     };
     window.pageCalls = [];
+    window.pageCloseRefused = false;
+    window.pageClosePending = false;
     window.pageWriteRefused = false;
     window.pageFileText = "saved text";
     window.pageClipboard = "日本語\nsecond line";
@@ -46,6 +48,18 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
           ];
         if (cmd === "pty_attach")
           return window.pageBacklog ?? { text: "Retained terminal\r\n", upto: 0 };
+        if (cmd === "pty_close") {
+          if (window.pageCloseRefused) throw new Error("Temporary close failure");
+          if (window.pageClosePending)
+            return new Promise((resolve) => {
+              window.releaseClose = () => {
+                window.pageEmit("pty:exit", args.id);
+                resolve(null);
+              };
+            });
+          window.pageEmit("pty:exit", args.id);
+          return null;
+        }
         if (cmd === "pty_standing")
           return window.pageAgent
             ? [
@@ -126,10 +140,29 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
         }
         if (cmd === "app_settings_write")
           return { path: "/tmp/totex.json", text: args.text, value: JSON.parse(args.text) };
+        if (cmd === "read_directory")
+          return {
+            path: args.path,
+            name: args.path.split("/").at(-1),
+            parent: "/tmp",
+            distro: null,
+            truncated: false,
+            entries: [
+              {
+                name: args.path === "/tmp" ? "sub" : "child.txt",
+                path: args.path === "/tmp" ? "/tmp/sub" : "/tmp/sub/child.txt",
+                isDir: args.path === "/tmp",
+                isSymlink: false,
+                isHidden: false,
+                size: 10,
+                modifiedMs: 0,
+              },
+            ],
+          };
         if (cmd === "read_file_head")
           return {
             path: args.path,
-            name: "note.txt",
+            name: args.path.split("/").at(-1),
             text: window.pageFileText,
             size: window.pageFileText.length,
             truncated: false,
@@ -287,7 +320,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   const terminalHeader = sidebar.locator(".cli-page .page__header");
   await terminalHeader.locator(".page__window-controls button").first().waitFor();
   assert.equal(await terminalHeader.count(), 1);
-  assert.equal(await terminalHeader.locator(".page__terminal-name").textContent(), "main");
+  assert.equal(await terminalHeader.locator(".page__terminal-name").textContent(), "tmp");
   assert.equal(await terminalHeader.locator(".page__terminal-list").count(), 1);
   assert.equal(
     await terminalHeader.locator(".page__terminal-numbers [data-active=true]").textContent(),
@@ -429,6 +462,53 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   assert.equal(await sidebar.isVisible(), false);
   await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
   assert.ok(await sidebar.isVisible(), "An empty sidebar can be reopened explicitly");
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
+  await page.locator('[data-terminal="terminal-two"] .xterm-screen').waitFor();
+  await page.keyboard.press("Control+2");
+  await page.evaluate(() => {
+    window.pageCloseRefused = true;
+  });
+  await page.keyboard.press("Control+x");
+  await page
+    .getByText("Could not end the terminal. It is still open; try again.", { exact: true })
+    .waitFor();
+  const refused = await page.evaluate(() => window.pageSnapshot());
+  assert.equal(refused.values["sessions.active"], "terminal-two");
+  assert.equal(refused.values["sessions.list"].length, 3, "A failed close retains every terminal");
+  await page.evaluate(() => {
+    window.pageCloseRefused = false;
+  });
+  await page.keyboard.press("Control+x");
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.active"] === "terminal-other",
+  );
+  assert.equal(
+    await page.locator('#cli-sidebar [data-terminal="terminal-other"]').isVisible(),
+    true,
+  );
+  assert.equal((await page.locator('[data-terminal="terminal-one"]').count()) > 0, true);
+  await page.keyboard.press("Control+x");
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.active"] === "terminal-one",
+  );
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
+  await page.locator('[data-terminal="terminal-two"] .xterm-screen').waitFor();
+  await page.keyboard.press("Control+2");
+  await page.evaluate(() => {
+    window.pageClosePending = true;
+  });
+  await page.keyboard.press("Control+x");
+  await page.waitForFunction(() => window.releaseClose);
+  await page.keyboard.press("Control+1");
+  await page.evaluate(() => window.releaseClose());
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
+  );
+  assert.equal(
+    (await page.evaluate(() => window.pageSnapshot())).values["sessions.active"],
+    "terminal-one",
+    "A delayed close must not override navigation performed while it was pending",
+  );
   assert.equal(errors.length, 0, errors.join("\n"));
   return {
     passed:
@@ -439,7 +519,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
 
 /** Active terminals keep their pane when navigating and closing a split. */
 export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422") {
-  await page.goto(`${base}/tests/fixtures/pages.html?terminals`);
+  await page.goto(`${base}/tests/fixtures/pages.html?terminals&onlyterminals`);
   await page.locator('[data-terminal="terminal-one"] .xterm-screen').click();
   // ConPTY waits for this response before the new shell can print its prompt.
   await page.evaluate(() => {
@@ -629,4 +709,93 @@ export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422")
   await page.keyboard.press("Control+Alt+x");
   await check(ids[0], null, ids[0]);
   return "split focus, active-pane navigation, pointer selection, closing either pane";
+}
+
+export async function verifyMixedPages(page, base = "http://127.0.0.1:18422") {
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
+  const file = page.locator('[data-page-card="file:1"]');
+  await file.locator(".page-terminal-number").waitFor();
+  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  assert.equal(await file.locator(".page-terminal-number").textContent(), "3");
+  assert.equal(
+    await file.locator("xpath=ancestor::*[@data-card-folder]").getAttribute("data-card-folder"),
+    "/tmp",
+  );
+  await page.keyboard.press("Control+3");
+  await page.locator("#cli-sidebar .file-preview").waitFor();
+  await page.keyboard.press("Control+ArrowDown");
+  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
+  await page.keyboard.press("Control+ArrowUp");
+  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
+  const note = page.getByRole("textbox", { name: "note.txt", exact: true });
+  await note.click();
+  await page.keyboard.press("Control+4");
+  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
+  await page.keyboard.press("Control+3");
+  await note.click();
+  await page.keyboard.press("Control+x");
+  assert.equal(await note.count(), 1, "Ctrl+X in an editor keeps the file open");
+  await page.evaluate(() => {
+    window.pageWriteRefused = true;
+  });
+  await note.fill("keep this draft");
+  await page.locator("#cli-sidebar .file-preview").focus();
+  await page.keyboard.press("Control+x");
+  await page.locator(".file-preview__unsaved.is-refused").waitFor();
+  assert.equal(await note.textContent(), "keep this draft", "Failed save retains the open draft");
+  await page.evaluate(() => {
+    window.pageWriteRefused = false;
+  });
+  await page.keyboard.press("Control+x");
+  await note.waitFor({ state: "detached" });
+  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
+  assert.equal(await page.evaluate(() => window.pageFileText), "keep this draft");
+  await page.keyboard.press("Control+x");
+  await page.locator('#cli-sidebar [data-terminal="terminal-one"]').waitFor({ state: "visible" });
+
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
+  await file.locator(".page-terminal-number").waitFor();
+  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  await page.keyboard.press("Control+2");
+  await page.keyboard.press("Control+x");
+  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
+  assert.equal(
+    (await page.evaluate(() => window.pageSnapshot())).values["pages.showingFile"],
+    "file:1",
+    "Closing terminal 2 selects the following file",
+  );
+  await page.keyboard.press("Control+x");
+  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
+
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
+  await page.locator('[data-pick-row="/tmp/sub"]').click();
+  await page.locator('[data-pick-row="/tmp/sub/child.txt"]').dblclick();
+  const child = page.locator('[data-page-card="file:2"]');
+  await child.locator(".page-terminal-number").waitFor();
+  assert.equal(
+    await child.locator("xpath=ancestor::*[@data-card-folder]").getAttribute("data-card-folder"),
+    "/tmp",
+  );
+  const snapshot = await page.evaluate(() => window.pageSnapshot());
+  assert.equal(snapshot.values["files.open"].find((file) => file.id === 2).folder, "/tmp");
+  assert.equal(
+    snapshot.values["canvas.files"].find((file) => file.data.requestId === 2).data.folder,
+    "/tmp",
+  );
+  await page.keyboard.press("Control+3");
+  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
+  await page.keyboard.press("Control+1");
+  await page.keyboard.press("Control+Alt+a");
+  await page.waitForFunction(
+    () => document.querySelector('[data-page-pane="file:1"]')?.dataset.active === "true",
+  );
+  await page.keyboard.press("Control+x");
+  await page.waitForFunction(
+    () => document.querySelector('[data-page-pane="file:2"]')?.dataset.active === "true",
+  );
+  await page.keyboard.press("Control+x");
+  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
+  return "shared numbering, mixed next-on-close, failed-save protection, editor cut, sidebar origin";
 }

@@ -76,6 +76,7 @@ export function useFilePreviewPlacing(
         data: {
           requestId: preview.id,
           path: preview.path,
+          folder: preview.folder ?? from?.data.folder,
           name: baseName(preview.path),
           text: null,
           picture: null,

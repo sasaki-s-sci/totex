@@ -44,7 +44,7 @@ export interface LeftSidebarProps {
   /** The directories being read: they light the worktrees they stand in. */
   onBrowsingChange?: (paths: string[]) => void;
   onOpenSettings?: () => void;
-  onOpenFile?: (path: string) => void;
+  onOpenFile?: (path: string, folder: string) => void;
   drops: Drops;
   destination?: FolderDestination | null;
   /** The canvas asking for a folder to come off it. */

@@ -6,7 +6,6 @@ import { useCanvasWork } from "../hooks/useCanvasWork";
 import { useDrops } from "../hooks/useDrops";
 import { useFileDrops } from "../hooks/useFileDrops";
 import { useServing } from "../hooks/useServing";
-import { useSessionKeys } from "../hooks/useSessionKeys";
 import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useWorkspaces } from "../hooks/useWorkspace";
@@ -52,13 +51,6 @@ export function Window() {
 
   const sessions = useSessions();
   useResumeRuntime(sessions);
-  useSessionKeys({
-    sessions: sessions.sessions,
-    showing: sessions.active,
-    open: sessions.open,
-    jump: sessions.jump,
-    end: sessions.end,
-  });
 
   const { workspace, folders: graphed } = useWorkspaces(folders.roots);
   const homes = useMemo(() => worktreeHomes(workspace), [workspace]);
@@ -155,7 +147,7 @@ export function Window() {
           onPanesChange={folders.keep}
           onBrowsingChange={folders.browse}
           onOpenSettings={menus.openSettings}
-          onOpenFile={(path) => files.openFiles([path], null)}
+          onOpenFile={(path, folder) => files.openFiles([path], null, folder)}
           drops={drops}
           destination={destination}
           ungraph={ungraph}
@@ -209,6 +201,11 @@ export function Window() {
 
         <WindowControls />
         <SshPassword />
+        <Snackbar open={sessions.closeFailed} onClose={sessions.clearCloseFailure}>
+          <Alert severity="error" onClose={sessions.clearCloseFailure}>
+            {t("terminal.closeFailed")}
+          </Alert>
+        </Snackbar>
         <Snackbar open={removeFailed} onClose={() => setRemoveFailed(false)}>
           <Alert severity="error" onClose={() => setRemoveFailed(false)}>
             {t("folder.removeFailed")}

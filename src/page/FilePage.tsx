@@ -1,4 +1,4 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useReadingSize } from "../canvas/hooks/useReadingSize";
 import {
@@ -32,8 +32,10 @@ import type { FilePageActions } from "./actions";
 import { FileStanding } from "./FileStanding";
 import { FileTools } from "./FileTools";
 import { Page } from "./Page";
+import { PageNumber } from "./PageNumber";
 import { usePageWorkspace } from "./PageWorkspace";
 import { filePageId, type PagePlacement } from "./placement";
+import { TerminalList } from "./TerminalList";
 
 // `MAX_FILE_HEAD` in src-tauri/src/fs_browse.
 const HEAD_KB = 64;
@@ -86,6 +88,16 @@ export function FilePage({
     typing,
     onInput,
   } = useDraft(data, view, actions);
+  const registerClose = workspace?.registerClose;
+  useEffect(
+    () =>
+      registerClose?.(pageId, async () => {
+        if (!(await save())) return false;
+        actions.closeFilePreview(data.requestId);
+        return true;
+      }),
+    [registerClose, pageId, save, actions.closeFilePreview, data.requestId],
+  );
   // A page drawn of a file is not the card asking; the card beside it is.
   const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);
   const runs = fileRuns(diff, lines);
@@ -144,6 +156,9 @@ export function FilePage({
       kind={data.view === "settings" ? "settings-page" : "file-preview"}
       name={fileTitle === "path" ? displayPath(data.path) : data.name}
       title={displayPath(data.path)}
+      toolsAtSide={placement === "canvas" && data.view !== "settings"}
+      heading={placement === "sidebar" && data.view !== "settings" ? <TerminalList /> : undefined}
+      leading={placement === "canvas" && <PageNumber id={pageId} name={data.name} />}
       collapsed={placement === "canvas" && data.collapsed}
       pinned={placement === "canvas" && data.pinnedAt !== null}
       bodyRef={setBody}

@@ -89,3 +89,31 @@ test("SSH hosts stay separate and missing or bare worktrees do not offer shells"
     ["ssh://two/repo", "/gone"],
   );
 });
+
+test("files follow the sidebar root, with the same worktree and folder grouping as terminals", () => {
+  const files = [
+    { data: { path: "/repo/src/one.ts", folder: "/repo", requestId: 1 } },
+    { data: { path: "/plain/sub/two.txt", folder: "/plain", requestId: 2 } },
+    { data: { path: "/repo/nested/three.ts", requestId: 3 } },
+    { data: { path: "/outside/topic/four.ts", requestId: 4 } },
+    { data: { path: "/other/five.txt", requestId: 5 } },
+  ];
+  const groups = cardGroups(
+    [repo("one", ["/repo", "/outside/topic"]), repo("nested", ["/repo/nested"])],
+    [],
+    [session("a", "/repo/src"), session("b", "/plain")],
+    files,
+  );
+  assert.deepEqual(
+    groups.flatMap((group) =>
+      group.cards.map((card) => [card.path, card.files.map((file) => file.data.requestId)]),
+    ),
+    [
+      ["/repo", [1]],
+      ["/outside/topic", [4]],
+      ["/repo/nested", [3]],
+      ["/plain", [2]],
+      ["/other", [5]],
+    ],
+  );
+});
