@@ -27,7 +27,7 @@ export function useFilePreviewCard(
             ? await writeSettingsText(text, expected ?? node.data.text ?? "")
             : create
               ? await writeAnew(node.data.path, text)
-              : await writeFile(node.data.path, text, node.data.size);
+              : await writeFile(node.data.path, text, expected ?? node.data.text ?? "");
 
         setNodes((current) =>
           current.map((one) =>

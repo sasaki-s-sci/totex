@@ -1,8 +1,7 @@
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import { Box, InputBase, ListItemIcon } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FolderMark } from "../../marks";
+import { FileMark, FolderMark } from "../../marks";
 import { ICON } from "./rows";
 
 /**
@@ -40,7 +39,6 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
   // Set as the field is answered, so the blur that follows is not a second answer.
   const settled = useRef(false);
   const hold = useRef<HTMLInputElement>(null);
-  const wanted = name.trim();
 
   // Focused as it appears; a file rename selects the part before the extension. A leading dot is the
   // name itself.
@@ -61,11 +59,11 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
   async function settle() {
     if (settled.current || busy) return;
     // Nothing typed or nothing changed: renaming to the same name fails for no useful reason.
-    if (!wanted || wanted === from) return drop();
+    if (!name || name === from) return drop();
     setBusy(true);
     setFailed(false);
     try {
-      await onDone(wanted);
+      await onDone(name);
       settled.current = true;
     } catch {
       setFailed(true);
@@ -80,9 +78,7 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
       // yet.
       onContextMenu={(event) => event.stopPropagation()}
     >
-      <ListItemIcon sx={ICON}>
-        {isDir ? <FolderMark on={false} /> : <DescriptionOutlinedIcon fontSize="small" />}
-      </ListItemIcon>
+      <ListItemIcon sx={ICON}>{isDir ? <FolderMark on={false} /> : <FileMark />}</ListItemIcon>
       <InputBase
         inputRef={hold}
         fullWidth
@@ -97,6 +93,7 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
         }}
         onBlur={() => void settle()}
         onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Enter") {
             event.preventDefault();
             void settle();

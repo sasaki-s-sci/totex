@@ -25,12 +25,10 @@ export function draftKey(requestId: number, path: string): string {
 }
 
 /**
- * `auto` is the page saving on its own, `quiet` a save on the way to something else (a blur, a
- * close, a move), `asked` one the person asked for. Only `asked` writes over a file that changed
- * the same place, or writes a deleted one back: the other two leave a page that has stopped
- * following its file alone.
+ * Only `asked` writes over a conflict or recreates a deleted file. A `quiet` blur or move
+ * keeps the draft, while `close` must not discard a draft it cannot save.
  */
-export type SaveMode = "auto" | "quiet" | "asked";
+export type SaveMode = "auto" | "quiet" | "close" | "asked";
 
 /** How long typing has to pause before what was typed is written. */
 const AUTO_SAVE_MS = 600;
@@ -157,7 +155,7 @@ export function useDraft(
       cancelSave();
       if (writing.current && !(await writing.current)) return false;
       const held = mode !== "asked" && (clashed.current || missing.current);
-      if (held) return mode !== "auto";
+      if (held) return mode === "quiet";
       // A drawing of a deleted file has no paper; what it was read from is written back.
       if (!paper || !editable) {
         if (!missing.current || data.text === null || data.truncated) return true;

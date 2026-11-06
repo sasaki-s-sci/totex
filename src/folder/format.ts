@@ -17,6 +17,7 @@ function split(path: string): { root: string; rest: string } {
 
 /** Roots such as `/`, `C:\\` or `ssh://box/` keep their full spelling. */
 export function baseName(path: string): string {
+  if (/^[a-z]:[\\/]+$/i.test(path)) return path;
   const { rest } = split(path);
   const trimmed = rest.replace(/[\\/]+$/, "");
   const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
@@ -36,6 +37,7 @@ export function folderOf(path: string): string | null {
   }
   const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
   if (cut < 0) return null;
+  if (cut === 2 && /^[a-z]:/i.test(trimmed)) return trimmed.slice(0, cut + 1);
   // A path whose only separator is the leading one is inside the root itself.
   return trimmed.slice(0, cut) || trimmed.slice(0, cut + 1);
 }

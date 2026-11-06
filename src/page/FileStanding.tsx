@@ -35,17 +35,14 @@ export function FileStanding({
           {t(gone ? "filePreview.saveAnew" : "filePreview.saveOver")}
         </button>
       )}
-      {gone ? (
-        <button type="button" onClick={() => closeFilePreview(data.requestId)}>
-          {t("filePreview.closeNow")}
+      {!gone && openFileAgain && (
+        <button type="button" onClick={() => openFileAgain(data.requestId)}>
+          {t("filePreview.openAgain")}
         </button>
-      ) : (
-        openFileAgain && (
-          <button type="button" onClick={() => openFileAgain(data.requestId)}>
-            {t("filePreview.openAgain")}
-          </button>
-        )
       )}
+      <button type="button" onClick={() => closeFilePreview(data.requestId)}>
+        {t("filePreview.discardAndClose")}
+      </button>
     </span>
   );
 }

@@ -10,6 +10,65 @@ use super::remote_dirs;
 use crate::host::Host;
 
 #[test]
+fn far_machine_operations_keep_trailing_spaces_and_refuse_same_size_edits() {
+    for (host, dir) in remote_dirs("exact-path-and-write") {
+        let root = Path::new(&dir);
+        let plain = host.join(root, "folder");
+        let spaced = host.join(root, "folder ");
+        host.create_dir(&plain).unwrap();
+        host.create_dir(&spaced).unwrap();
+        host.write_new(&host.join(&plain, "keep"), b"keep").unwrap();
+        delete_folder(&spaced.to_string_lossy()).unwrap();
+        assert!(!host.exists(&spaced));
+        assert_eq!(host.read(&host.join(&plain, "keep")), Ok(b"keep".to_vec()));
+        let file = host.join(root, "note ");
+        host.write_new(&file, b"one\n").unwrap();
+        let head = read_file_head(&file.to_string_lossy()).unwrap();
+        host.write_checked(&file, "two\n", "one\n").unwrap();
+        assert_eq!(
+            write_file(
+                &file.to_string_lossy(),
+                "mine",
+                head.text.as_deref().unwrap()
+            ),
+            Err("changed".into())
+        );
+        assert_eq!(host.read(&file), Ok(b"two\n".to_vec()));
+    }
+}
+
+#[test]
+fn far_machine_copy_and_move_collisions_preserve_the_existing_directory() {
+    for (host, dir) in remote_dirs("copy-and-move-collision") {
+        let root = Path::new(&dir);
+        let source = host.join(root, "folder ");
+        let into = host.join(root, "into");
+        let target = host.join(&into, "folder ");
+        host.create_dir(&source).unwrap();
+        host.create_dir(&into).unwrap();
+        host.create_dir(&target).unwrap();
+        host.write_new(&host.join(&source, "source"), b"source")
+            .unwrap();
+        host.write_new(&host.join(&target, "keep"), b"keep")
+            .unwrap();
+        let stat = host.stat(&source).unwrap();
+        assert!(super::super::copy::copy_tree(&host, &source, &stat, &host, &target).is_err());
+        assert!(super::super::operate::move_entry(&host, &source, &target).is_err());
+        assert_eq!(
+            host.read(&host.join(&source, "source")),
+            Ok(b"source".to_vec())
+        );
+        assert_eq!(host.read(&host.join(&target, "keep")), Ok(b"keep".to_vec()));
+        assert_eq!(host.read_dir(&target).unwrap().len(), 1);
+        assert_eq!(
+            host.read_dir(&into).unwrap().len(),
+            1,
+            "private staging is cleaned"
+        );
+    }
+}
+
+#[test]
 fn a_folder_on_a_far_machine_is_listed_from_there() {
     for (host, dir) in remote_dirs("listing") {
         host.exec(
@@ -106,13 +165,16 @@ fn a_card_reads_and_writes_a_file_on_the_far_machine() {
         assert_eq!(head.text.as_deref(), Some("one\ntwo\n"));
         assert!(!head.truncated);
 
-        assert_eq!(write_file(&file, "one\ntwo\nthree\n", head.size), Ok(14));
+        assert_eq!(
+            write_file(&file, "one\ntwo\nthree\n", head.text.as_deref().unwrap()),
+            Ok(14)
+        );
         assert_eq!(
             read_file_head(&file).expect("a reading").text.as_deref(),
             Some("one\ntwo\nthree\n")
         );
         // The reading the card holds is stale now, so its write is refused.
-        assert!(write_file(&file, "mine\n", head.size).is_err());
+        assert!(write_file(&file, "mine\n", head.text.as_deref().unwrap()).is_err());
         assert!(read_file_head(&dir).is_err(), "a folder is not a card");
     }
 }

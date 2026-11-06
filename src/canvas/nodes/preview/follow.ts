@@ -38,27 +38,23 @@ export function useFollow(
     let stopped = false;
     let busy = false;
     let again = false;
-    // The first stat only marks where the file stood when the page was read.
+    // Revalidate the opening read too: the file may have changed before watching began.
     let stamp: FileStamp | null = null;
-    let marked = false;
     const step = async () => {
       await wait.current();
       let now: FileStamp;
       try {
         now = await statFile(followed);
       } catch (error) {
-        if (!stopped && String(error).includes("no-such-file")) setGone(true);
+        if (!stopped && String(error).includes("no-such-file")) {
+          stamp = null;
+          setGone(true);
+        }
         return;
       }
       if (stopped) return;
       setGone(false);
-      if (!marked) {
-        marked = true;
-        stamp = now;
-        return;
-      }
       if (same(stamp, now)) return;
-      stamp = now;
       const page = known.current;
       const read: FileReading = whole
         ? await readFilePreview(followed, page.view).then((fresh) => ({
@@ -73,6 +69,7 @@ export function useFollow(
             truncated: head.truncated,
           }));
       if (stopped) return;
+      stamp = now;
       const held = known.current;
       if (
         read.text === held.text &&

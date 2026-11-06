@@ -8,6 +8,8 @@ test("a root keeps its spelling and anything else is its last step", () => {
   assert.equal(baseName("/home/a"), "a");
   assert.equal(baseName("/home/a/"), "a");
   assert.equal(baseName("C:\\Users"), "Users");
+  assert.equal(baseName("C:\\"), "C:\\");
+  assert.equal(baseName("C:/"), "C:/");
   assert.equal(baseName("C:\\Users\\a"), "a");
   assert.equal(baseName("\\\\wsl.localhost\\Ubuntu\\home\\a"), "a");
   assert.equal(baseName("ssh://box/"), "ssh://box/");
@@ -23,6 +25,8 @@ test("the folder of a path is spelled the way the path was", () => {
   assert.equal(folderOf("/home/a"), "/home");
   assert.equal(folderOf("/home/a/"), "/home");
   assert.equal(folderOf("C:\\"), null);
+  assert.equal(folderOf("C:\\note.txt"), "C:\\");
+  assert.equal(folderOf("C:/note.txt"), "C:/");
   assert.equal(folderOf("C:\\Users\\a"), "C:\\Users");
   assert.equal(folderOf("\\\\wsl.localhost\\Ubuntu\\home\\a"), "\\\\wsl.localhost\\Ubuntu\\home");
   assert.equal(folderOf("ssh://box/"), null);

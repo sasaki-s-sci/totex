@@ -27,6 +27,7 @@ export function Canvas({
   onPickBranch,
   onCloseRepository,
   onCloseFolder,
+  onCloseWorkspace,
   onEndSession,
   filePreviews,
   onPreviewFile,
@@ -80,6 +81,7 @@ export function Canvas({
     pickBranch: onPickBranch,
     closeRepository: onCloseRepository,
     closeFolder: onCloseFolder,
+    closeWorkspace: onCloseWorkspace,
     endSession: onEndSession,
   };
   return (

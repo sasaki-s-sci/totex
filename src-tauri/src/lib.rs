@@ -1,5 +1,6 @@
 mod app_settings;
 mod ask;
+mod clipboard;
 mod derived;
 mod display;
 mod front;
@@ -88,8 +89,8 @@ fn read_file_data(path: String) -> Result<FileData, String> {
 
 /// Writes an edited card back to its file, and answers with how long it now is.
 #[tauri::command(async)]
-fn write_file(path: String, text: String, expect_size: u64) -> Result<u64, String> {
-    fs_browse::write_file(&path, &text, expect_size)
+fn write_file(path: String, text: String, expected: String) -> Result<u64, String> {
+    fs_browse::write_file(&path, &text, &expected)
 }
 
 #[tauri::command(async)]
@@ -132,6 +133,11 @@ fn fs_download(path: String) -> Result<String, String> {
 #[tauri::command(async)]
 fn fs_copy_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String> {
     fs_browse::copy_into(&paths, &into)
+}
+
+#[tauri::command(async)]
+fn fs_move_into(paths: Vec<String>, into: String) -> Result<Vec<String>, String> {
+    fs_browse::move_into(&paths, &into)
 }
 
 /// Whatever is left to do on the way out, which is one thing: the shells are
@@ -257,6 +263,10 @@ pub fn run() {
             fs_delete_folder,
             fs_download,
             fs_copy_into,
+            fs_move_into,
+            clipboard::paste_media,
+            clipboard::clipboard_files,
+            clipboard::terminal_paths,
             update::update_standing,
             update::update_take,
             update::update_pick,

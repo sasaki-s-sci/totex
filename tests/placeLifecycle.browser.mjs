@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 /** Real Window and xterm; only native IPC is mocked. */
-async function openPlaces(page, base) {
+async function openPlaces(page, base, query = "") {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
@@ -22,10 +22,29 @@ async function openPlaces(page, base) {
       historyTruncated: false,
       worktrees: [
         {
+          id: "main",
+          repoId: "repo",
+          name: "main",
+          path: "/projects/app",
+          head: null,
+          shortHead: null,
+          branch: "refs/heads/main",
+          detached: false,
+          bare: false,
+          locked: false,
+          lockReason: null,
+          prunable: false,
+          prunableReason: null,
+          isMain: true,
+          exists: true,
+        },
+        {
           id: "wt",
           repoId: "repo",
           name: "feature",
-          path: "/worktrees/feature",
+          path: location.search.includes("workspaces")
+            ? "/projects/app/.worktrees/feature"
+            : "/worktrees/feature",
           head: null,
           shortHead: null,
           branch: null,
@@ -52,6 +71,14 @@ async function openPlaces(page, base) {
       },
       { id: "repo-cli", cwd: "/projects/app", rows: 24, cols: 80, meta: '{"branch":"main"}' },
     ];
+    if (location.search.includes("workspaces"))
+      window.nativePlaces.push({
+        id: "feature-cli",
+        cwd: "/projects/app/.worktrees/feature",
+        rows: 24,
+        cols: 80,
+        meta: '{"branch":"feature"}',
+      });
     window.__TAURI_INTERNALS__ = {
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
       transformCallback(callback) {
@@ -113,7 +140,7 @@ async function openPlaces(page, base) {
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${base}/tests/fixtures/place-lifecycle.html`);
+  await page.goto(`${base}/tests/fixtures/place-lifecycle.html${query}`);
   return errors;
 }
 
@@ -124,12 +151,21 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   const sidebar = page.locator("#folder-sidebar");
   const folderLabel = "Remove folder and end its terminals";
   const repoLabel = "Remove repository and end its terminals";
-  const removeRepo = repositoryCard.locator(`[aria-label="${repoLabel}"]`);
+  const removeRepo = repositoryCard.getByRole("button", {
+    name: "Close workspace and end its terminals",
+    exact: true,
+  });
   const removeFolder = folderCard.locator(`[aria-label="${folderLabel}"]`);
   await removeRepo.waitFor({ state: "attached" });
   await removeFolder.waitFor({ state: "attached" });
   const terminal = page.locator('[data-terminal="repo-cli"]');
   await terminal.locator(".xterm-screen").waitFor();
+  assert.ok(
+    !(
+      await page.locator('[data-card-folder="/projects/app"] > .page__header').innerText()
+    ).includes("refs/heads/"),
+    "Cards show the local branch name returned as a full ref by Git",
+  );
   // The sidebar exposes its close control on hover; card controls stay visible.
   async function assertControlShown(control, shown) {
     const handle = await control.elementHandle();
@@ -176,7 +212,8 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     });
     window.refusePlaceClose = true;
   });
-  await removeRepo.click();
+  await sidebar.getByRole("button", { name: repoLabel, exact: true }).locator("../..").hover();
+  await sidebar.getByRole("button", { name: repoLabel, exact: true }).click();
   await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
   assert.equal(await repositoryCard.count(), 1);
   assert.equal(await terminal.isVisible(), true);
@@ -193,7 +230,8 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   await page.evaluate(() => {
     window.refusePlaceClose = false;
   });
-  await removeRepo.click();
+  await sidebar.getByRole("button", { name: repoLabel, exact: true }).locator("../..").hover();
+  await sidebar.getByRole("button", { name: repoLabel, exact: true }).click();
   await page.waitForFunction(() => window.nativePlaces.length === 1);
   const closed = await page.evaluate(() =>
     window.placeCalls.filter(({ cmd }) => cmd === "pty_close").map(({ args }) => args.id),
@@ -276,11 +314,19 @@ export async function verifyCardPlaces(page, base = "http://127.0.0.1:18422") {
     }),
   );
   await page
-    .locator(".card-board")
-    .getByRole("button", { name: "Remove repository and end its terminals", exact: true })
+    .locator('[data-card-folder="/worktrees/feature"]')
+    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
+    .first()
     .click();
-  await page.waitForFunction(() => window.nativePlaces.length === 0);
-  await page.waitForFunction(() => !document.querySelector("[data-card-folder]"));
+  await page.waitForFunction(() => window.nativePlaces.length === 1);
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces[0].id),
+    "repo-cli",
+    "Closing the feature workspace keeps the main workspace terminal",
+  );
+  await page.waitForFunction(
+    () => !document.querySelector('[data-card-folder="/worktrees/feature"]'),
+  );
   assert.equal(
     await page.evaluate(() =>
       window.placeCalls.some((c) => c.cmd === "fs_delete_folder" || c.cmd === "fs_delete_file"),
@@ -303,4 +349,37 @@ export async function verifyCardPlaces(page, base = "http://127.0.0.1:18422") {
     false,
   );
   return "card and sidebar lifecycle, failed removal retry, repository worktree cleanup";
+}
+
+export async function verifyWorkspaceIsolation(page, base = "http://127.0.0.1:18422") {
+  const errors = await openPlaces(page, base, "?workspaces");
+  const main = page.locator('[data-card-folder="/projects/app"]');
+  const sibling = page.locator('[data-card-folder="/projects/app/.worktrees/feature"]');
+  await sibling.locator('[data-terminal="feature-cli"] .xterm-screen').waitFor();
+  await page.evaluate(() => {
+    window.refusePlaceClose = true;
+  });
+  await main
+    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
+    .click();
+  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
+  assert.equal(await main.count(), 1);
+  await page.evaluate(() => {
+    window.refusePlaceClose = false;
+  });
+  await main
+    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
+    .click();
+  await main.waitFor({ state: "detached" });
+  assert.equal(await sibling.locator('[data-terminal="feature-cli"]').count(), 1);
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces.some((session) => session.id === "feature-cli")),
+    true,
+  );
+  assert.equal(
+    await page.evaluate(() => window.nativePlaces.some((session) => session.id === "repo-cli")),
+    false,
+  );
+  assert.deepEqual(errors, []);
+  return "workspace close is isolated, including nested worktrees and failed-close retry";
 }

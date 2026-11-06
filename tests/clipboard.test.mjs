@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { copyText, readClipboard } from "../src/lib/clipboard.ts";
+import { copyText, pasteMedia, readClipboard } from "../src/lib/clipboard.ts";
 
 globalThis.window ??= {};
 afterEach(() => clearMocks());
@@ -51,4 +51,38 @@ test("unreadable clipboard reports failure rather than sending Ctrl+V", async ()
     throw new Error("clipboard unavailable");
   });
   await assert.rejects(readClipboard(), /clipboard unavailable/);
+});
+
+test("image and recording blobs use binary IPC and preserve the selected folder", async () => {
+  for (const type of ["image/png", "video/mp4"]) {
+    mockIPC((command, bytes) => {
+      assert.equal(command, "paste_media");
+      assert.deepEqual([...new Uint8Array(bytes)], [1, 2, 3]);
+      return "/選択/pasted-file";
+    });
+    assert.deepEqual(
+      await pasteMedia("/選択", { files: [new Blob([new Uint8Array([1, 2, 3])], { type })] }),
+      ["/選択/pasted-file"],
+    );
+  }
+});
+
+test("clipboard file lists copy media into the selected folder and leave unrelated files out", async () => {
+  mockIPC((command, args) => {
+    if (command === "clipboard_files") return ["/tmp/movie.mp4", "/tmp/program.exe"];
+    assert.equal(command, "fs_copy_into");
+    assert.deepEqual(args, { paths: ["/tmp/movie.mp4"], into: "/selected" });
+    return ["/selected/movie.mp4"];
+  });
+  assert.deepEqual(await pasteMedia("/selected"), ["/selected/movie.mp4"]);
+});
+
+test("failed media writes report the error without pretending a file was saved", async () => {
+  mockIPC(() => {
+    throw new Error("disk full");
+  });
+  await assert.rejects(
+    pasteMedia("/selected", { files: [new Blob(["png"], { type: "image/png" })] }),
+    /disk full/,
+  );
 });

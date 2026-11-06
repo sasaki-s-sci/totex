@@ -178,7 +178,7 @@ export function CardWindow() {
               ? await writeSettingsText(text, expected ?? data.text ?? "")
               : create
                 ? await writeAnew(data.path, text)
-                : await writeFile(data.path, text, data.size);
+                : await writeFile(data.path, text, expected ?? data.text ?? "");
           setData((held) => held && { ...held, text, size });
           refreshChanges();
           return true;
@@ -199,7 +199,7 @@ export function CardWindow() {
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
       if (!target.closest(".page__header")) return;
-      if (target.closest(".page__tool, button, select, input, label")) return;
+      if (target.closest(".page__tool, .page__name, button, select, input, label")) return;
       drag.current = { grab: { x: event.clientX, y: event.clientY }, move: mover(here) };
       event.currentTarget.setPointerCapture(event.pointerId);
       event.preventDefault();

@@ -6,6 +6,7 @@ import { waitFor } from "./runtime.mjs";
 
 /** All actions enter through WebDriver input; Git reads independently verify the backend. */
 export async function smoke(browser, repository, step) {
+  const workspace = `[data-card-folder="${repository}"]`;
   const git = (...args) =>
     execFileSync("git", ["-C", repository, ...args], { encoding: "utf8" }).trim();
   const click = async (selector) => {
@@ -63,26 +64,25 @@ export async function smoke(browser, repository, step) {
     const front = await browser.$('iframe[title="totex"]');
     await front.waitForDisplayed({ timeout: 30000 });
     await browser.switchFrame(front);
-    await click('[aria-label="Expand root folders"]');
     // A pane listing the repositories under the path, which is the repository itself: one row.
     await click('#folder-sidebar [aria-label="Add a folder or repositories"]');
     await click('[aria-label="Open as"] [value="repository"]');
     const input = await browser.$('input[aria-label^="Path, e.g."]');
     await input.setValue(repository);
     await browser.keys("Enter");
-    await browser.$('#folder-sidebar [aria-label="Put on the canvas"]').waitForDisplayed();
+    await browser.$('#folder-sidebar [aria-label="Show in cards"]').waitForDisplayed();
   });
 
-  await step("実リポジトリのGitグラフを表示する", async () => {
-    await click('#folder-sidebar [aria-label="Put on the canvas"]');
-    await browser.$('[data-branch="main"]').waitForDisplayed();
+  await step("実リポジトリのワークスペースカードを表示する", async () => {
+    await click('#folder-sidebar [aria-label="Show in cards"]');
+    await browser.$(workspace).waitForDisplayed();
     assert.equal(git("log", "-1", "--format=%s"), "Initial E2E commit");
   });
 
   await step("画面からターミナルを開く", async () => {
-    await click('[data-branch="main"] .head__cli');
-    await browser.$(".xterm-helper-textarea").waitForExist({ timeout: 20000 });
-    await click(".xterm-screen");
+    await click(`${workspace} [aria-label="Shell"]`);
+    await browser.$("#cli-sidebar .xterm-helper-textarea").waitForExist({ timeout: 20000 });
+    await click("#cli-sidebar .xterm-screen");
   });
 
   await step("PTYでファイルを作成し、Gitコミットとブランチを作る", async () => {
@@ -99,13 +99,16 @@ export async function smoke(browser, repository, step) {
       },
     ]);
     const command =
-      "printf 'Created through the real terminal\\n' > terminal-proof.txt && git add terminal-proof.txt && git commit -m 'Terminal E2E commit' && git branch e2e-proof && printf '\\nE2E_SUCCESS\\n'";
+      "printf 'Created through the real terminal\\n' > terminal-proof.txt && git add terminal-proof.txt && git commit -m 'Terminal E2E commit' && git checkout -b e2e-proof && printf '\\nE2E_SUCCESS\\n'";
     await typeCommand(command);
     await waitFor(
       () => git("log", "-1", "--format=%s") === "Terminal E2E commit",
       "terminal command committed the file",
     );
-    await waitFor(() => git("branch", "--list", "e2e-proof") === "e2e-proof", "branch was created");
+    await waitFor(
+      () => git("branch", "--list", "--format=%(refname:short)", "e2e-proof") === "e2e-proof",
+      "branch was created",
+    );
     assert.equal(
       readFileSync(join(repository, "terminal-proof.txt"), "utf8"),
       "Created through the real terminal\n",
@@ -114,8 +117,11 @@ export async function smoke(browser, repository, step) {
     assert.equal(git("status", "--porcelain"), "");
   });
 
-  await step("Rustの変更監視を通じ、新しいブランチがグラフに反映される", async () => {
-    await browser.$('[data-branch="e2e-proof"]').waitForDisplayed({ timeout: 30000 });
+  await step("Rustの変更監視を通じ、現在のブランチがカードに反映される", async () => {
+    await browser.waitUntil(
+      async () => (await browser.$(`${workspace} > .page__header`).getText()).includes("e2e-proof"),
+      { timeout: 30000 },
+    );
   });
 
   await step("OSC 52でコピーした日本語をCtrl+Vで貼り付ける", async () => {
@@ -130,7 +136,7 @@ export async function smoke(browser, repository, step) {
     const ready = join(repository, ".git/selection-ready");
     await typeCommand(`printf '\\033[2J\\033[H${expected}\\033[2;1H'; touch .git/selection-ready`);
     await waitFor(() => existsSync(ready), "selection text was printed");
-    const screen = await browser.$(".xterm-screen");
+    const screen = await browser.$("#cli-sidebar .xterm-screen");
     const position = await screen.getLocation();
     // Double-click the known first word through actual pointer input.
     await browser.performActions([
@@ -160,11 +166,11 @@ export async function smoke(browser, repository, step) {
 
   await step("ファイル一覧に戻り、作成したファイルをプレビューする", async () => {
     // End the real shell so the file preview has the full canvas to be read in.
-    await click(".xterm-screen");
+    await click("#cli-sidebar .xterm-screen");
     await browser.keys("exit");
     await browser.keys("Enter");
-    await browser.$("aside").waitForDisplayed({ reverse: true });
-    await click('[data-branch="main"] .head__ring');
+    await browser.$(".cli-page").waitForExist({ reverse: true });
+    await click(`${workspace} [aria-label="Browse workspace"]`);
     const file = await browser.$("#folder-sidebar").$("p=terminal-proof.txt");
     await file.waitForDisplayed();
     await file.doubleClick();

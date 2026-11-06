@@ -1,4 +1,4 @@
-import { Frame, HAIRLINE, SIZE, struck } from ".";
+import { Frame } from ".";
 
 // The terminal's mark stays still: a terminal's card, not its mark, says what it is doing.
 export function CliMark({ size }: { size?: number }) {
@@ -38,6 +38,14 @@ export function AddMark() {
   );
 }
 
+export function WorkspaceMark() {
+  return (
+    <Frame>
+      <path d="M14 4 H4 V20 H20 V10 M4 9 H11 M9 9 V20 M18 2 V8 M15 5 H21" />
+    </Frame>
+  );
+}
+
 export function JumpMark() {
   return (
     <Frame>
@@ -54,13 +62,12 @@ export function UpMark() {
   );
 }
 
-// Teeth heavier and butt-capped: at 15px a hairline tooth reads as a ray.
 export function SettingsMark() {
   return (
     <Frame>
       <circle cx="12" cy="12" r="6.4" />
       <circle cx="12" cy="12" r="2.4" />
-      <g strokeWidth={struck(SIZE, HAIRLINE * 1.6)} strokeLinecap="butt">
+      <g>
         <path d="M12 5.6 V2.8 M12 18.4 V21.2 M5.6 12 H2.8 M18.4 12 H21.2" />
         <path d="M7.47 7.47 L5.51 5.51 M16.53 16.53 L18.49 18.49 M16.53 7.47 L18.49 5.51 M7.47 16.53 L5.51 18.49" />
       </g>

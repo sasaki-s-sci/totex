@@ -1,14 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useSyncExternalStore } from "react";
-import { mergeResume, type ResumeSettings } from "../resume/model.ts";
+import type { ResumeSettings } from "../resume/model.ts";
 import {
   type AppSettings,
   legacySettings,
-  mergeMonitor,
   type SettingsPatch,
   settingsFrom,
-} from "./appSettingsModel";
-import { notifications } from "./notifications";
+} from "./appSettingsModel.ts";
+import { notifications } from "./notifications.ts";
 
 export type SettingsDocument = { path: string; text: string; value: AppSettings };
 const changes = notifications();
@@ -50,6 +49,8 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
             ...one.monitor,
             ...two.monitor,
             features: { ...one.monitor?.features, ...two.monitor?.features },
+            preview: { ...one.monitor?.preview, ...two.monitor?.preview },
+            browser: { ...one.monitor?.browser, ...two.monitor?.browser },
           },
         }
       : {}),
@@ -76,12 +77,7 @@ function merge(one: SettingsPatch, two: SettingsPatch): SettingsPatch {
 }
 function accept(next: SettingsDocument) {
   document = next;
-  settings = settingsFrom({
-    ...next.value,
-    ...pending,
-    monitor: mergeMonitor(next.value.monitor, pending.monitor),
-    appearance: { ...next.value.appearance, ...pending.appearance },
-  });
+  settings = settingsFrom(merge(next.value, pending));
   error = null;
   cacheBootTheme();
   changes.notify();
@@ -116,17 +112,7 @@ export function refreshSettings(): Promise<void> {
 
 export function updateSettings(patch: SettingsPatch): void {
   pending = merge(pending, patch);
-  settings = settingsFrom({
-    ...settings,
-    ...patch,
-    monitor: mergeMonitor(settings.monitor, patch.monitor),
-    resume: mergeResume({
-      ...settings.resume,
-      ...patch.resume,
-      agents: { ...settings.resume.agents, ...patch.resume?.agents },
-    }),
-    appearance: { ...settings.appearance, ...patch.appearance },
-  });
+  settings = settingsFrom(merge(settings, patch));
   cacheBootTheme();
   changes.notify();
   clearTimeout(timer);

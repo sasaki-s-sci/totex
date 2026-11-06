@@ -1,6 +1,10 @@
-import type { Workspace } from "../types/git";
+import type { Workspace, Worktree } from "../types/git";
 
 export type Browsing = ReadonlySet<string>;
+
+export function worktreeBranch(worktree: Worktree): string {
+  return worktree.branch?.replace(/^refs\/heads\//, "") ?? worktree.shortHead ?? worktree.name;
+}
 
 export function worktreePaths(workspace: Workspace | null): string[] {
   if (!workspace) return [];

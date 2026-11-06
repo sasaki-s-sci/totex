@@ -122,13 +122,12 @@ pub(super) fn encode_file_data(bytes: &[u8], size: u64) -> Result<Option<String>
 /// Writes a card's reading back to the file it came from.
 ///
 /// Only a file the card holds whole may be written, so a reading that stopped at
-/// [`MAX_FILE_HEAD`] cannot drop everything past it. `expect_size` is how long
-/// the file was when read: a file that is no longer that long has been written
-/// by something else since, and that write is the one that would be lost.
+/// [`MAX_FILE_HEAD`] cannot drop everything past it. `expected` is the complete
+/// original text, so an external edit of the same length is also refused.
 ///
 /// Written in place rather than replaced, so whatever it already is — a symlink,
 /// a mode, an owner, a hard link — it stays.
-pub fn write_file(raw_path: &str, text: &str, expect_size: u64) -> Result<u64, String> {
+pub fn write_file(raw_path: &str, text: &str, expected: &str) -> Result<u64, String> {
     let (host, path) = resolve(raw_path)?;
     let stat = host.stat(&path).ok_or_else(|| "no-such-file".to_string())?;
     if stat.is_dir {
@@ -137,11 +136,11 @@ pub fn write_file(raw_path: &str, text: &str, expect_size: u64) -> Result<u64, S
     if stat.size > MAX_FILE_HEAD {
         return Err("too-long".to_string());
     }
-    if stat.size != expect_size {
+    if stat.size != expected.len() as u64 {
         return Err("changed".to_string());
     }
 
-    host.write(&path, text, expect_size)
+    host.write_checked(&path, text, expected)
 }
 
 /// The bytes as text, or `None` when they are not text.

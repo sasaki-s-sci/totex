@@ -136,6 +136,10 @@ export async function verifyMonitor(page, base = "http://127.0.0.1:18422") {
   await page.getByRole("option", { name: "Custom ACP", exact: true }).click();
   await page.getByText("Set an ACP command for the custom agent to start monitoring.").waitFor();
   const command = page.getByRole("textbox", { name: "ACP command", exact: true });
+  await command.fill("日本語-agent");
+  await command.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+  await command.dispatchEvent("keydown", { key: "Enter", keyCode: 229 });
+  assert.equal((await lastConfig()).command, "", "IME confirmation must not commit settings");
   await command.fill("another-agent-acp");
   assert.equal((await lastConfig()).command, "");
   await page.getByRole("textbox", { name: "Arguments (JSON)" }).focus();

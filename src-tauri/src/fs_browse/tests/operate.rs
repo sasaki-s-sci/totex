@@ -7,6 +7,54 @@ use super::super::operate::{
 use super::temp_dir;
 
 #[test]
+#[cfg(unix)]
+fn trailing_spaces_name_the_selected_entry_not_its_sibling() {
+    let root = temp_dir("exact-spaced-paths");
+    let plain = root.join("folder");
+    let spaced = root.join("folder ");
+    fs::create_dir(&plain).unwrap();
+    fs::create_dir(&spaced).unwrap();
+    fs::write(plain.join("precious.txt"), "keep").unwrap();
+    fs::write(root.join("note"), "plain").unwrap();
+    fs::write(root.join("note "), "spaced").unwrap();
+
+    assert_eq!(
+        read_file(root.join("note ").to_str().unwrap()),
+        Ok(b"spaced".to_vec())
+    );
+    let renamed = rename_file(root.join("note ").to_str().unwrap(), " renamed ").unwrap();
+    assert!(renamed.ends_with("/ renamed "));
+    delete_file(&renamed).unwrap();
+    delete_folder(spaced.to_str().unwrap()).unwrap();
+    assert!(!spaced.exists());
+    assert_eq!(
+        fs::read_to_string(plain.join("precious.txt")).unwrap(),
+        "keep"
+    );
+    assert_eq!(fs::read_to_string(root.join("note")).unwrap(), "plain");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_move_collision_does_not_treat_the_target_as_a_container() {
+    let root = temp_dir("move-collision-directory");
+    let source = root.join("folder");
+    let into = root.join("into");
+    let target = into.join("folder");
+    fs::create_dir(&source).unwrap();
+    fs::create_dir_all(&target).unwrap();
+    fs::write(source.join("source.txt"), "source").unwrap();
+    fs::write(target.join("keep.txt"), "keep").unwrap();
+    assert!(
+        super::super::operate::move_entry(&crate::host::Host::Local, &source, &target).is_err()
+    );
+    assert!(source.join("source.txt").is_file());
+    assert!(!target.join("folder").exists());
+    assert_eq!(fs::read_to_string(target.join("keep.txt")).unwrap(), "keep");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn creates_duplicates_renames_reads_and_deletes_a_file() {
     let root = temp_dir("file-operations");
     let raw_root = root.to_string_lossy();
@@ -146,4 +194,49 @@ fn deleting_a_link_to_a_folder_takes_the_link_and_leaves_the_folder() {
         "and what it pointed at is where it was"
     );
     fs::remove_dir_all(root).expect("clean temp dir");
+}
+
+#[test]
+fn moves_files_and_folders_without_overwriting_or_entering_themselves() {
+    use super::super::operate::move_into;
+    let root = temp_dir("move-entries");
+    let source = root.join("source");
+    let target = root.join("target");
+    fs::create_dir(&source).unwrap();
+    fs::create_dir(&target).unwrap();
+    fs::write(source.join("note.txt"), b"note").unwrap();
+    let raw = source.to_string_lossy().into_owned();
+    assert_eq!(
+        move_into(std::slice::from_ref(&raw), &raw).unwrap_err(),
+        "into-itself"
+    );
+    let moved = move_into(&[raw], &target.to_string_lossy()).unwrap();
+    assert!(!source.exists());
+    assert_eq!(
+        fs::read(Path::new(&moved[0]).join("note.txt")).unwrap(),
+        b"note"
+    );
+    let file = root.join("note.txt");
+    fs::write(&file, b"original").unwrap();
+    let destination = target.join("note.txt");
+    fs::write(&destination, b"occupied").unwrap();
+    assert_eq!(
+        move_into(
+            &[file.to_string_lossy().into_owned()],
+            &target.to_string_lossy()
+        )
+        .unwrap_err(),
+        "already-exists"
+    );
+    assert_eq!(fs::read(&file).unwrap(), b"original");
+    assert_eq!(fs::read(&destination).unwrap(), b"occupied");
+    fs::remove_file(&destination).unwrap();
+    move_into(
+        &[file.to_string_lossy().into_owned()],
+        &target.to_string_lossy(),
+    )
+    .unwrap();
+    assert!(!file.exists());
+    assert_eq!(fs::read(destination).unwrap(), b"original");
+    fs::remove_dir_all(root).unwrap();
 }

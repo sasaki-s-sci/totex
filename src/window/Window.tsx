@@ -9,10 +9,12 @@ import { useServing } from "../hooks/useServing";
 import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useWorkspaces } from "../hooks/useWorkspace";
+import { pasteMedia } from "../lib/clipboard";
 import { hasFileDrag, readFileDrag } from "../lib/filePreview";
 import type { Graphed } from "../lib/graphed";
+import { typing } from "../lib/keys";
 import { useEver } from "../lib/onDemand";
-import { sessionsInPlaces } from "../lib/placeSessions";
+import { sessionsInPlaces, underPlace } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
 import { useMonitorRuntime } from "../monitor/runtime";
@@ -41,6 +43,7 @@ export function Window() {
   const [destination, setDestination] = useState<FolderDestination | null>(null);
   const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
   const [removeFailed, setRemoveFailed] = useState(false);
+  const [pasteFailed, setPasteFailed] = useState(false);
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
@@ -95,6 +98,25 @@ export function Window() {
     [deletePlace],
   );
   useWindowBoot(workspace);
+
+  const closeWorkspace = useCallback(
+    async (root: string) => {
+      const kept = [
+        ...graphed.map((folder) => folder.root),
+        ...(workspace?.repositories ?? []).flatMap((repo) =>
+          repo.worktrees.map((worktree) => worktree.path),
+        ),
+      ].filter((path) => !(underPlace(path, root) && underPlace(root, path)));
+      try {
+        await sessions.endMatching(sessionsInPlaces([{ kind: "folder", root }], [], kept));
+        return true;
+      } catch {
+        setRemoveFailed(true);
+        return false;
+      }
+    },
+    [sessions.endMatching, workspace, graphed],
+  );
 
   const browseFolder = useCallback(
     (repository: Repository, path: string) => {
@@ -159,6 +181,34 @@ export function Window() {
         <Box
           ref={canvasHost}
           component="main"
+          tabIndex={-1}
+          onPointerDown={(event) => {
+            if (!(event.target as Element).closest(".page, button, input, textarea"))
+              event.currentTarget.focus();
+          }}
+          onPaste={(event) => {
+            if (typing(event.target) || !event.clipboardData.files.length) return;
+            event.preventDefault();
+            event.stopPropagation();
+            void pasteMedia(undefined, event.clipboardData)
+              .then((paths) => files.openFiles(paths, null))
+              .catch(() => setPasteFailed(true));
+          }}
+          onKeyDown={(event) => {
+            if (
+              typing(event.target) ||
+              event.defaultPrevented ||
+              event.altKey ||
+              !(event.ctrlKey || event.metaKey) ||
+              event.key.toLowerCase() !== "v"
+            )
+              return;
+            event.preventDefault();
+            if (!event.repeat)
+              void pasteMedia()
+                .then((paths) => files.openFiles(paths, null))
+                .catch(() => setPasteFailed(true));
+          }}
           onDragOver={(event) => {
             if (!hasFileDrag(event.dataTransfer)) return;
             event.preventDefault();
@@ -175,6 +225,11 @@ export function Window() {
           sx={{ position: "relative", flex: 1, minWidth: 0 }}
         >
           <WindowBand />
+          <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>
+            <Alert severity="error" onClose={() => setPasteFailed(false)}>
+              {t("file.pasteFailed")}
+            </Alert>
+          </Snackbar>
           {Canvas && (
             <Canvas
               workspace={workspace ?? EMPTY_WORKSPACE}
@@ -187,6 +242,7 @@ export function Window() {
               onPickBranch={menus.setWorktree}
               onCloseRepository={closeRepository}
               onCloseFolder={closeFolder}
+              onCloseWorkspace={closeWorkspace}
               onEndSession={sessions.end}
               filePreviews={files.filePreviews}
               onPreviewFile={files.previewFile}

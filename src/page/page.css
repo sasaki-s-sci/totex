@@ -89,6 +89,8 @@
   font-weight: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
+  user-select: text;
+  cursor: text;
 }
 
 .page__body {
@@ -171,7 +173,7 @@
   pointer-events: none;
 }
 
-.page--sidebar .page__header :is(button, select, input, a) {
+.page--sidebar .page__header :is(button, select, input, a, .page__name) {
   pointer-events: auto;
 }
 

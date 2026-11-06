@@ -92,7 +92,7 @@ export function FilePage({
   useEffect(
     () =>
       registerClose?.(pageId, async () => {
-        if (!(await save())) return false;
+        if (!(await save("close"))) return false;
         actions.closeFilePreview(data.requestId);
         return true;
       }),

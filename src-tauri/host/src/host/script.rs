@@ -30,13 +30,26 @@ pub(super) const WRITE: &str = r#"
 printf '%s' "$3" | base64 -d >"$1"
 "#;
 
+/// The original bytes arrive as one base64 line, followed by the replacement on stdin.
+pub(super) const WRITE_CHECKED: &str = r#"
+[ -e "$1" ] || exit 2
+[ -d "$1" ] && exit 3
+[ "$(wc -c <"$1")" = "$2" ] || exit 4
+IFS= read -r expected || exit 1
+actual=$(base64 <"$1" | tr -d '\n') || exit 1
+[ "$actual" = "$expected" ] || exit 4
+cat >"$1"
+"#;
+
 /// Bytes into a file that is not there, refusing to replace one that is.
 ///
 /// The far end of a copy out of somewhere this machine cannot hand to `cp` —
 /// another distribution, or a disk it has no name for inside this one. The
-/// bytes ride inside the command for the same reason [`WRITE`]'s do.
+/// bytes arrive on stdin. Noclobber also refuses a file created after the checks.
 pub(super) const PUT: &str = r#"
 [ -e "$1" ] && exit 3
 [ -L "$1" ] && exit 3
-printf '%s' "$2" | base64 -d >"$1"
+set -C
+exec 3>"$1"
+cat >&3 || { rm -f -- "$1"; exit 1; }
 "#;

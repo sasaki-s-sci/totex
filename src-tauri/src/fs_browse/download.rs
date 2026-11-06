@@ -16,7 +16,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::copy::{copy_tree, sweep};
+use super::copy::copy_tree;
 use super::operate::unused_name;
 use super::path::{home_dir, resolve};
 use crate::host::Host;
@@ -37,15 +37,8 @@ pub fn download(raw_path: &str) -> Result<String, String> {
     std::fs::create_dir_all(&into).map_err(|error| error.to_string())?;
     let target = unused_name(&Host::Local, &into, &name)?;
 
-    match copy_tree(&host, &path, &stat, &Host::Local, &target) {
-        Ok(()) => Ok(target.to_string_lossy().into_owned()),
-        Err(error) => {
-            // Nothing half copied is left in the folder: the error is the
-            // download that did not happen, not the tidying after it.
-            sweep(&Host::Local, &target);
-            Err(error)
-        }
-    }
+    copy_tree(&host, &path, &stat, &Host::Local, &target)?;
+    Ok(target.to_string_lossy().into_owned())
 }
 
 /// The folder this machine keeps what it is given in.

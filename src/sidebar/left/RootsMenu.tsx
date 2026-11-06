@@ -135,6 +135,7 @@ export function RootsMenu({
             if (sshFailed?.at === "path") setSshFailed(null);
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.key === "Enter") keepTyped();
           }}
           slotProps={{ htmlInput: { spellCheck: false, "aria-label": t("folder.pathHint") } }}
@@ -217,6 +218,7 @@ export function RootsMenu({
             if (sshFailed?.at === "ssh") setSshFailed(null);
           }}
           onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.key === "Enter") addSshTyped();
           }}
           slotProps={{ htmlInput: { spellCheck: false, "aria-label": t("ssh.add") } }}

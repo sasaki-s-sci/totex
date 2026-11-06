@@ -3,11 +3,13 @@ import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createEntry, renameFile } from "../folder/api";
 import { DROP_INTO, folderUnder } from "../folder/dropInto";
-import { baseName, folderOf } from "../folder/format";
+import { baseName, folderOf, isInside } from "../folder/format";
 import type { Drops } from "../hooks/useDrops";
 import { useAppSettings } from "../lib/appSettings";
+import { pasteMedia } from "../lib/clipboard";
 import { hasFileDrag, readFileDrag } from "../lib/filePreview";
 import type { Graphed, PaneSeed } from "../lib/graphed";
+import { typing } from "../lib/keys";
 import type { Homes } from "../lib/worktrees";
 import { AddMark, Frame, MARK_BUTTON, MarkButton, SettingsMark } from "../marks";
 import { HEADER_INSET } from "../window/WindowControls";
@@ -93,6 +95,8 @@ export function LeftSidebar({
   const visible = panes.panes;
   const removing = useRef(new Set<string>());
   const [removeFailed, setRemoveFailed] = useState(false);
+  const [pasteFailed, setPasteFailed] = useState(false);
+  const pastePane = useRef<HTMLElement | null>(null);
 
   async function remove(key: string, action: () => Promise<void>) {
     if (removing.current.has(key)) return;
@@ -152,6 +156,44 @@ export function LeftSidebar({
     setNaming(null);
   }
 
+  async function paste(data?: DataTransfer | null) {
+    const element = pastePane.current;
+    const id = Number(element?.dataset.folderPane);
+    const pane = panes.panes.find((pane) => pane.id === id) ?? under;
+    if (!pane) return;
+    const selected = element?.querySelector<HTMLElement>('[data-pick-row][aria-pressed="true"]');
+    const selectedPath = selected?.getAttribute("data-pick-row");
+    const into = selectedPath
+      ? selected?.getAttribute("data-pick-directory") === "true"
+        ? selectedPath
+        : folderOf(selectedPath)
+      : pane.path;
+    if (!into) return;
+    setPasteFailed(false);
+    try {
+      const paths = await pasteMedia(into, data);
+      const path = paths[0];
+      if (!path) return;
+      startName("rename", {
+        path,
+        entries: [{ path, isDir: false }],
+        name: baseName(path),
+        isDir: false,
+        into,
+        root:
+          pane.kind === "repository"
+            ? (pane.expanded
+                .map((repository) => shownPath(pane, repository))
+                .find((root) => isInside(root, into)) ?? pane.path)
+            : pane.path,
+        pane: pane.id,
+        at: { x: 0, y: 0 },
+      });
+    } catch {
+      setPasteFailed(true);
+    }
+  }
+
   // A pane picked up by its header goes before the pane the pointer is over; the canvas draws its
   // places in the column's order, so it moves there too.
   const carried = useRef<number | null>(null);
@@ -190,13 +232,42 @@ export function LeftSidebar({
       side="left"
       open={open}
       sizing={SIZING}
+      tabIndex={-1}
+      onPointerDownCapture={(event) => {
+        const target = event.target as HTMLElement;
+        pastePane.current = target.closest<HTMLElement>("[data-folder-pane]") ?? pastePane.current;
+        if (!target.closest("button, input, textarea, [role=button]")) event.currentTarget.focus();
+      }}
+      onKeyDown={(event) => {
+        if (
+          typing(event.target) ||
+          event.defaultPrevented ||
+          event.altKey ||
+          !(event.ctrlKey || event.metaKey) ||
+          event.key.toLowerCase() !== "v"
+        )
+          return;
+        event.preventDefault();
+        event.stopPropagation();
+        pastePane.current =
+          (event.target as Element).closest<HTMLElement>("[data-folder-pane]") ?? pastePane.current;
+        if (!event.repeat) void paste();
+      }}
+      onPaste={(event) => {
+        if (typing(event.target) || !event.clipboardData.files.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        pastePane.current =
+          (event.target as Element).closest<HTMLElement>("[data-folder-pane]") ?? pastePane.current;
+        void paste(event.clipboardData);
+      }}
       onDragOver={(event) => {
         if (!hasFileDrag(event.dataTransfer)) return;
         const folder = folderUnder(event.clientX, event.clientY);
         drops.mark(folder);
         if (!folder) return;
         event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
+        event.dataTransfer.dropEffect = event.ctrlKey || event.altKey ? "copy" : "move";
       }}
       onDragLeave={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) drops.mark(null);
@@ -211,6 +282,7 @@ export function LeftSidebar({
         drops.take(
           entries.map((entry) => entry.path),
           folder,
+          event.ctrlKey || event.altKey ? "copy" : "move",
         );
       }}
       band={
@@ -313,7 +385,6 @@ export function LeftSidebar({
                   : undefined,
             }}
           >
-            {index > 0 && <Divider />}
             {pane.kind === "repository" ? (
               <RepoPane
                 id={pane.id}
@@ -339,6 +410,12 @@ export function LeftSidebar({
                 onFolderMode={() => {
                   if (naming?.pane === pane.id) setNaming(null);
                   panes.toFolder(pane.id);
+                }}
+                onAddFolder={(path) => panes.addPane(path, "folder")}
+                onNavigate={(path) => {
+                  if (naming?.pane === pane.id) setNaming(null);
+                  panes.toFolder(pane.id);
+                  panes.update(pane.id, { path, open: true });
                 }}
                 grip={gripOf(pane.id)}
                 onOpenFile={onOpenFile}
@@ -376,12 +453,11 @@ export function LeftSidebar({
                 onClose={() => deletePane(pane)}
               />
             )}
+            <Divider />
           </Box>
         ))}
 
-        {/* The blank space under the folders is the window's handle. */}
         <Box
-          data-tauri-drag-region
           {...(under ? { [DROP_INTO]: under.path } : null)}
           sx={{ flex: 1, minHeight: 48 }}
           onContextMenu={
@@ -405,6 +481,12 @@ export function LeftSidebar({
       </Box>
 
       {showUsage && <UsagePanel usage={usage} />}
+
+      {pasteFailed && (
+        <Alert severity="error" onClose={() => setPasteFailed(false)}>
+          {t("file.pasteFailed")}
+        </Alert>
+      )}
 
       {removeFailed && (
         <Alert

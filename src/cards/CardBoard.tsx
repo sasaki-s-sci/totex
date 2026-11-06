@@ -1,7 +1,3 @@
-import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
-import FolderOpenIcon from "@mui/icons-material/FolderOpen";
-import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
 import { Box, Button, Chip, IconButton, Tooltip } from "@mui/material";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,9 +6,12 @@ import { useGraphActions } from "../canvas/graphActions";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import type { AppNode } from "../lib/graph";
+import { worktreeBranch } from "../lib/worktrees";
+import { AddMark, CloseMark, PaneFolderMark, WorkspaceMark } from "../marks";
 import { PageHeader } from "../page/Page";
 import { PageSlot, usePageWorkspace } from "../page/PageWorkspace";
 import { filePageId, terminalPageId } from "../page/placement";
+import { useFrontState } from "../shell/state";
 import { cardGroups, type FolderCard } from "./groups";
 import { PageBoard } from "./PageBoard";
 import { ResizablePage } from "./ResizablePage";
@@ -40,9 +39,17 @@ export function CardBoard({
     if (cards) reorderPages?.(Array.from(cards, (card) => card.dataset.pageCard ?? ""));
   }, [reorderPages]);
   const { cardText } = useAppSettings();
+  const [closed, setClosed] = useFrontState<readonly string[]>("cards.closedWorkspaces", []);
   const groups = useMemo(
-    () => cardGroups(workspace.repositories, folders, sessions, nodes),
-    [workspace.repositories, folders, sessions, nodes],
+    () =>
+      cardGroups(workspace.repositories, folders, sessions, nodes).map((group) => ({
+        ...group,
+        cards: group.cards.filter(
+          (card) =>
+            !closed.includes(card.path) || card.sessions.length > 0 || card.files.length > 0,
+        ),
+      })),
+    [workspace.repositories, folders, sessions, nodes, closed],
   );
   const offered = useCardOffers(groups, actions.openWork);
   useEffect(() => {
@@ -113,6 +120,12 @@ export function CardBoard({
                       card={card}
                       offered={offered === card.path}
                       onLayout={renumber}
+                      onClose={() => {
+                        if (!card.repository) return actions.closeFolder(card.path);
+                        void actions.closeWorkspace(card.path).then((closed) => {
+                          if (closed) setClosed((held) => [...new Set([...held, card.path])]);
+                        });
+                      }}
                     />
                   ),
                 }))
@@ -132,7 +145,7 @@ export function CardBoard({
                         >
                           <Button
                             size="small"
-                            startIcon={<AddIcon />}
+                            startIcon={<WorkspaceMark />}
                             onClick={() => actions.newWork(repository)}
                           >
                             {t("cards.newWorktree")}
@@ -142,7 +155,7 @@ export function CardBoard({
                             aria-label={t("repository.remove")}
                             onClick={() => actions.closeRepository(repository)}
                           >
-                            <CloseIcon fontSize="small" />
+                            <CloseMark />
                           </IconButton>
                         </PageHeader>
                       ),
@@ -160,16 +173,18 @@ function WorkspaceCard({
   card,
   offered,
   onLayout,
+  onClose,
 }: {
   card: FolderCard;
   offered: boolean;
   onLayout: () => void;
+  onClose: () => void;
 }) {
   const pages = usePageWorkspace();
   const { t } = useTranslation();
   const actions = useGraphActions();
   const { repository, worktree, path, name, sessions, files } = card;
-  const branch = worktree?.branch ?? worktree?.shortHead ?? name;
+  const branch = worktree ? worktreeBranch(worktree) : name;
   const request = { repository, cwd: path, branch };
   return (
     <Box
@@ -195,18 +210,29 @@ function WorkspaceCard({
         aria-description={t("page.reorder", { name })}
         onPointerDown={(event) => {
           event.currentTarget.draggable = !(
-            event.target instanceof Element && event.target.closest("button, input, select, a")
+            event.target instanceof Element &&
+            event.target.closest("button, input, select, a, .page__name")
           );
         }}
+        onContextMenu={
+          repository
+            ? (event) => {
+                event.preventDefault();
+                actions.pickBranch({
+                  ...request,
+                  repository,
+                  kind: "local",
+                  at: { x: event.clientX, y: event.clientY },
+                });
+              }
+            : undefined
+        }
         status={
           worktree &&
           branch !== name && (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={worktree.detached ? `${branch} · ${t("cards.detached")}` : branch}
-              sx={{ maxWidth: "50%", height: "auto", fontSize: "inherit" }}
-            />
+            <span style={{ fontSize: "0.85em", fontWeight: 300, whiteSpace: "nowrap" }}>
+              {worktree.detached ? `${branch} · ${t("cards.detached")}` : branch}
+            </span>
           )
         }
       >
@@ -218,7 +244,7 @@ function WorkspaceCard({
                 aria-label={t("cards.newWorktree")}
                 onClick={() => actions.newWork(repository)}
               >
-                <AddIcon fontSize="small" />
+                <WorkspaceMark />
               </IconButton>
             </Tooltip>
             <Tooltip title={t("cards.browse")}>
@@ -227,23 +253,7 @@ function WorkspaceCard({
                 aria-label={t("cards.browse")}
                 onClick={() => actions.browseWorktree({ ...request, repository })}
               >
-                <FolderOpenIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={t("cards.worktreeMenu")}>
-              <IconButton
-                size="small"
-                aria-label={t("cards.worktreeMenu")}
-                onClick={(event) =>
-                  actions.pickBranch({
-                    ...request,
-                    repository,
-                    kind: "local",
-                    at: { x: event.clientX, y: event.clientY },
-                  })
-                }
-              >
-                <MoreHorizIcon fontSize="small" />
+                <PaneFolderMark size={15} />
               </IconButton>
             </Tooltip>
           </>
@@ -257,18 +267,16 @@ function WorkspaceCard({
             color={offered ? "primary" : "default"}
             onClick={() => actions.openWork(request)}
           >
-            <AddIcon fontSize="small" />
+            <AddMark />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t(repository ? "repository.remove" : "folder.remove")}>
+        <Tooltip title={t(repository ? "cards.closeWorkspace" : "folder.remove")}>
           <IconButton
             size="small"
-            aria-label={t(repository ? "repository.remove" : "folder.remove")}
-            onClick={() =>
-              repository ? actions.closeRepository(repository) : actions.closeFolder(path)
-            }
+            aria-label={t(repository ? "cards.closeWorkspace" : "folder.remove")}
+            onClick={onClose}
           >
-            <CloseIcon fontSize="small" />
+            <CloseMark />
           </IconButton>
         </Tooltip>
       </PageHeader>

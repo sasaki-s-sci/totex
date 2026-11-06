@@ -109,4 +109,45 @@ export async function verifyFileDragging(page, base) {
     [["fs_copy_into", { paths: ["/outside/file.txt"], into: "/files/other" }]],
     "External native drops still copy, with physical coordinates scaled to the window",
   );
+
+  for (const ending of ["drop", "leave", "scale-error"]) {
+    await reset();
+    const target = await row("other").boundingBox();
+    await page.evaluate(
+      ({ target, ending }) => {
+        const invoke = window.__TAURI_INTERNALS__.invoke;
+        window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
+          if (cmd !== "plugin:window|scale_factor") return invoke(cmd, args);
+          return new Promise((resolve, reject) => {
+            window.finishScale = () =>
+              ending === "scale-error" ? reject(new Error("scale unavailable")) : resolve(2);
+          });
+        };
+        const payload = {
+          paths: ["/outside/file.txt"],
+          position: { x: (target.x + 50) * 2, y: (target.y + 10) * 2 },
+        };
+        window.fsEmit("tauri://drag-enter", payload);
+        window.fsEmit(`tauri://drag-${ending === "leave" ? "leave" : "drop"}`, payload);
+      },
+      { target, ending },
+    );
+    assert.deepEqual(await transfers(), [], "A native drop must wait for its scale factor");
+    await page.evaluate(() => window.finishScale());
+    if (ending === "drop") {
+      await page.waitForFunction(() => window.fsCalls.some(({ cmd }) => cmd === "fs_copy_into"));
+      assert.deepEqual(
+        (await transfers()).map(({ args }) => args),
+        [{ paths: ["/outside/file.txt"], into: "/files/other" }],
+      );
+    } else {
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+      assert.deepEqual(await transfers(), []);
+      assert.equal(
+        await row("other").evaluate((node) => getComputedStyle(node).outlineStyle),
+        "none",
+        "A finished or failed drag must not leave a late highlight",
+      );
+    }
+  }
 }

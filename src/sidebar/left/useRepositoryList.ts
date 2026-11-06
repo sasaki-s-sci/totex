@@ -9,6 +9,7 @@ import {
   stopListing,
 } from "../../folder/api";
 import { byName, withFound } from "./repoOrder";
+import { cachedRoot } from "./usePaneRoot";
 import { watchDirectory } from "./watch";
 
 // One token per walk asked: an event is answered to the walk that found it. Drawn at random
@@ -49,6 +50,13 @@ interface Walk {
   shown: boolean;
 }
 
+function initialRows(root: string): FoundRepository[] {
+  const listing = cachedRoot(root);
+  return listing?.entries.some((entry) => entry.name === ".git" && entry.isDir)
+    ? [{ path: root, name: listing.name }]
+    : [];
+}
+
 /**
  * The repositories under `root`, a row at a time as the walk finds them and then whole. The walk
  * runs off the UI thread and is stopped when the pane goes; a change to the root's own contents
@@ -63,11 +71,11 @@ interface Walk {
  * beside them is not.
  */
 export function useRepositoryList(root: string, onListed?: (paths: string[]) => void) {
-  const [rows, setRows] = useState<FoundRepository[]>([]);
-  const [listing, setListing] = useState(true);
+  const [rows, setRows] = useState(() => initialRows(root));
+  const [listing, setListing] = useState(rows.length === 0);
   const [failed, setFailed] = useState(false);
   const [truncated, setTruncated] = useState(false);
-  const [walk, setWalk] = useState<Walk>({ count: 0, shown: true });
+  const [walk, setWalk] = useState<Walk>({ count: 0, shown: rows.length === 0 });
   const listed = useRef<string | null>(null);
   // The walk under way, and whether one more was asked for while it ran (and how).
   const busy = useRef(false);
@@ -97,15 +105,17 @@ export function useRepositoryList(root: string, onListed?: (paths: string[]) => 
   useEffect(() => {
     const token = draw();
     let stale = false;
-    // A root not listed before starts empty; a walk of the same root keeps what the last one found.
+    // A known checkout keeps its row and files while the walk confirms it.
     const first = listed.current !== root;
     if (first) {
       listed.current = root;
       shape.current = null;
-      setRows([]);
+      const initial = initialRows(root);
+      setRows(initial);
+      setListing(initial.length === 0);
+      setFailed(false);
       setTruncated(false);
-    }
-    if (first || walk.shown) {
+    } else if (walk.shown) {
       setListing(true);
       setFailed(false);
     }

@@ -1,25 +1,11 @@
-import { Box, Stack, Typography } from "@mui/material";
-import { useTranslation } from "react-i18next";
-import { useDirectoryChanges } from "../../folder/changes";
-import { DROP_INTO } from "../../folder/dropInto";
+import { Box } from "@mui/material";
 import { baseName } from "../../folder/format";
-import { useSpace } from "../../lib/space";
-import {
-  AddMark,
-  Frame,
-  GraphFolderMark,
-  MarkButton,
-  McpMark,
-  PaneFolderMark,
-  UpMark,
-} from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
+import { PaneHeader } from "./PaneHeader";
 import type { PaneGrip } from "./paneOrder";
-import { CHANGE_COLOUR, PANE_ROW, REFUSED_DROP, TAKING_DROP } from "./rows";
 import { useSelection } from "./selection";
-import { usePaneRoot } from "./usePaneRoot";
 
 export interface FolderPaneProps {
   /** Two panes can show one folder, so a row is named by pane as well as path. */
@@ -74,29 +60,8 @@ export function FolderPane({
   onClose,
   grip,
 }: FolderPaneProps) {
-  const { t } = useTranslation();
-  const root = usePaneRoot(path);
   const { selected, pick, point, pane, onKeyDown } = useSelection(path);
-  // The space this pane stands in, which is rarely this folder: a pane inside a checkout stands in
-  // the space at its root.
-  const { standing, tell } = useSpace(path);
-
-  const name = root?.path === path ? root.name : baseName(path);
-  const parent = root?.path === path ? root.parent : null;
-  // `/home/a` means one thing per distribution, so the name alone says nothing.
-  const distro = root?.path === path ? root.distro : null;
-  const answer = useDirectoryChanges(path);
-  // A `.git` directory, as the repository list counts one: a worktree's `.git` file would switch
-  // to a pane with no row in it.
-  const isRepository =
-    root?.path === path && root.entries.some((entry) => entry.name === ".git" && entry.isDir);
-  // What its rows come to: a checkout's files, or the checkouts under a folder that is not one.
-  const changes = Object.values(answer.changed);
-  const change = changes.reduce<(typeof changes)[number] | undefined>(
-    (held, next) => (held === undefined || held === next ? next : "modified"),
-    undefined,
-  );
-  const colour = change ? CHANGE_COLOUR[change] : "text.primary";
+  const name = baseName(path);
 
   return (
     /* Anything that is not a row answers for the pane's own folder; a row stops the press first. */
@@ -119,102 +84,26 @@ export function FolderPane({
         });
       }}
     >
-      <Stack
-        direction="row"
-        {...grip}
-        {...{ [DROP_INTO]: path }}
-        sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 2,
-          bgcolor: "background.paper",
-          alignItems: "center",
-          gap: 0.25,
-          ...PANE_ROW,
-          pl: 1,
-          pr: 0.5,
-          "&:hover .pane__close, &:focus-within .pane__close": {
-            opacity: 1,
-            pointerEvents: "auto",
-          },
-          ...(path === dropping ? TAKING_DROP : path === refused ? REFUSED_DROP : null),
-        }}
-      >
-        {isRepository && (
-          <Box
-            component="button"
-            type="button"
-            aria-label={t("folder.gitMode")}
-            title={t("folder.gitMode")}
-            onClick={onGitMode}
-            sx={{
-              flex: "none",
-              display: "flex",
-              p: 0,
-              mr: 0.5,
-              border: "none",
-              background: "none",
-              color: "text.primary",
-              cursor: "pointer",
-            }}
-          >
-            <PaneFolderMark git />
-          </Box>
-        )}
-        <Box
-          component="button"
-          type="button"
-          onClick={onToggleOpen}
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 0.75,
-            px: 0,
-            py: 0,
-            border: "none",
-            background: "none",
-            color: "text.primary",
-            cursor: "pointer",
-            textAlign: "left",
-          }}
-        >
-          {!isRepository && <PaneFolderMark />}
-          <Typography variant="body2" noWrap title={distro ?? undefined} sx={{ color: colour }}>
-            {name}
-          </Typography>
-        </Box>
-        <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
-          <MarkButton label={t("folder.remove")} onClick={onClose}>
-            <Frame>
-              <path d="M6 6l12 12M18 6L6 18" />
-            </Frame>
-          </MarkButton>
-        </Box>
-        {standing && (
-          <MarkButton
-            label={t("folder.door", { space: baseName(standing.space) })}
-            onClick={() => tell({ ...standing.settings, mcp: !standing.settings.mcp })}
-          >
-            <McpMark on={standing.settings.mcp} />
-          </MarkButton>
-        )}
-        <MarkButton label={t("folder.addPane")} onClick={() => onAddFolder(path)}>
-          <AddMark />
-        </MarkButton>
-        {showing && parent && (
-          <MarkButton label={t("folder.up")} onClick={() => onNavigate(parent)}>
-            <UpMark />
-          </MarkButton>
-        )}
-        <MarkButton label={t("folder.graph")} onClick={() => onToggleGraph(path)}>
-          <GraphFolderMark on={graphed.includes(path)} />
-        </MarkButton>
-      </Stack>
+      <PaneHeader
+        path={path}
+        kind="folder"
+        open={showing}
+        graphed={graphed.includes(path)}
+        dropping={dropping}
+        refused={refused}
+        grip={grip}
+        onSwitchMode={onGitMode}
+        onToggleOpen={onToggleOpen}
+        onToggleGraph={() => onToggleGraph(path)}
+        onAddFolder={onAddFolder}
+        onNavigate={onNavigate}
+        onClose={onClose}
+      />
 
       {showing && (
         <Level
+          key={path}
+          pane={id}
           path={path}
           root={path}
           depth={0}

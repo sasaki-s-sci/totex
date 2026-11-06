@@ -7,6 +7,29 @@ use super::super::Host;
 use super::{reachable, scratch};
 
 #[test]
+fn checked_writes_compare_complete_contents_and_stream_large_replacements() {
+    for host in reachable() {
+        let dir = scratch(&host, "write-checked");
+        let file = host.join(&dir, "it's a file ");
+        let original = format!("{}\n\n", "x".repeat(1024 * 1024));
+        let external = format!("{}\n\n", "y".repeat(1024 * 1024));
+        host.write_new(&file, external.as_bytes()).unwrap();
+        assert_eq!(
+            host.write_checked(&file, "mine", &original),
+            Err("changed".into())
+        );
+        assert_eq!(host.read(&file), Ok(external.as_bytes().to_vec()));
+        assert_eq!(
+            host.write_checked(&file, &original, &external),
+            Ok(original.len() as u64)
+        );
+        assert_eq!(host.read(&file), Ok(original.as_bytes().to_vec()));
+        assert_eq!(host.write_checked(&file, "short", &original), Ok(5));
+        assert_eq!(host.read(&file), Ok(b"short".to_vec()));
+    }
+}
+
+#[test]
 fn reads_a_directory_on_the_far_machine() {
     for host in reachable() {
         let dir = scratch(&host, "listing");
@@ -198,6 +221,41 @@ fn puts_bytes_down_on_the_far_machine_and_sweeps_them_up_again() {
             .expect("fill it");
         host.remove_all(&folder);
         assert!(!host.exists(&folder), "the sweep took the folder with it");
+    }
+}
+
+#[test]
+fn puts_large_media_on_the_far_machine_without_replacing_existing_entries() {
+    for host in reachable() {
+        let dir = scratch(&host, "put-large-media");
+        let file = host.join(&dir, "it's a recording.bin");
+        let bytes: Vec<u8> = (0..1024 * 1024).map(|index| index as u8).collect();
+
+        host.write_new(&file, &bytes).expect("put a megabyte");
+        assert_eq!(host.read(&file), Ok(bytes.clone()), "{host:?}");
+        assert_eq!(
+            host.write_new(&file, b"replacement"),
+            Err("already-exists".into())
+        );
+
+        for (name, target) in [("link", "it's a recording.bin"), ("dangling", "missing")] {
+            let link = host.join(&dir, name);
+            assert!(
+                host.exec(Some(&dir), &[], &["ln", "-s", target, name])
+                    .unwrap()
+                    .ok()
+            );
+            assert_eq!(
+                host.write_new(&link, b"replacement"),
+                Err("already-exists".into())
+            );
+        }
+        assert_eq!(host.read(&file), Ok(bytes), "the original stays intact");
+        assert!(!host.exists(&host.join(&dir, "missing")));
+        assert_eq!(
+            host.write_new(&dir, b"replacement"),
+            Err("already-exists".into())
+        );
     }
 }
 

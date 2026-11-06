@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::copy::{copy_tree, sweep};
+use super::copy::copy_tree;
 use super::path::resolve;
 use crate::host::Host;
 
@@ -89,6 +89,93 @@ pub fn copy_into(raw_sources: &[String], raw_into: &str) -> Result<Vec<String>, 
     Ok(landed)
 }
 
+/// Move entries without replacing anything. Validate the whole selection before moving any of it.
+pub fn move_into(raw_sources: &[String], raw_into: &str) -> Result<Vec<String>, String> {
+    let (host, into) = resolve(raw_into)?;
+    if !host.is_dir(&into) {
+        return Err("no-such-folder".into());
+    }
+    let mut moves = Vec::new();
+    for raw in raw_sources {
+        let (from, source) = resolve(raw)?;
+        // shortcut: moves stay on one host, add a verified transfer before supporting cross-host moves.
+        if from != host {
+            return Err("different-host".into());
+        }
+        let stat = host.stat(&source).ok_or("no-such-file")?;
+        if host.parent(&source).is_none() {
+            return Err("no-parent".into());
+        }
+        if stat.is_dir && !stat.is_symlink && holds(&host, &source, &into) {
+            return Err("into-itself".into());
+        }
+        let target = host.join(&into, &host.name(&source));
+        if target != source && host.exists(&target) {
+            return Err("already-exists".into());
+        }
+        if moves.iter().any(|(_, held)| held == &target) {
+            return Err("already-exists".into());
+        }
+        moves.push((source, target));
+    }
+    let mut landed = Vec::new();
+    for (source, target) in moves {
+        if source != target {
+            move_entry(&host, &source, &target)?;
+        }
+        landed.push(target.to_string_lossy().into_owned());
+    }
+    Ok(landed)
+}
+
+pub(super) fn move_entry(host: &Host, source: &Path, target: &Path) -> Result<(), String> {
+    let parent = host.parent(target).ok_or("no-parent")?;
+    if let Some(reach) = host.reach() {
+        let result = crate::remote::exec(
+            &reach,
+            None,
+            &[],
+            &[
+                "sh",
+                "-c",
+                "mv -n -- \"$1\" \"$2\" && test ! -e \"$1\" && test ! -L \"$1\"",
+                "sh",
+                &host.native(source),
+                &host.native(&parent),
+            ],
+        )?;
+        return if result.ok() {
+            Ok(())
+        } else {
+            Err("move-failed".into())
+        };
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::{MOVEFILE_COPY_ALLOWED, MoveFileExW};
+        let source: Vec<u16> = source.as_os_str().encode_wide().chain(Some(0)).collect();
+        let target: Vec<u16> = target.as_os_str().encode_wide().chain(Some(0)).collect();
+        if unsafe { MoveFileExW(source.as_ptr(), target.as_ptr(), MOVEFILE_COPY_ALLOWED) } == 0 {
+            return Err(std::io::Error::last_os_error().to_string());
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let result = std::process::Command::new("mv")
+            .arg("-n")
+            .arg("--")
+            .arg(source)
+            .arg(parent)
+            .output()
+            .map_err(|error| error.to_string())?;
+        if !result.status.success() || std::fs::symlink_metadata(source).is_ok() {
+            return Err("move-failed".into());
+        }
+    }
+    Ok(())
+}
+
 /// One of them, into a folder that has already been settled.
 fn copy_one(raw_source: &str, to: &Host, into: &Path) -> Result<String, String> {
     let (from, source) = resolve(raw_source)?;
@@ -106,26 +193,24 @@ fn copy_one(raw_source: &str, to: &Host, into: &Path) -> Result<String, String> 
         return Err("into-itself".to_string());
     }
     let target = unused_name(to, into, &name)?;
-    match copy_tree(&from, &source, &stat, to, &target) {
-        Ok(()) => Ok(target.to_string_lossy().into_owned()),
-        Err(error) => {
-            sweep(to, &target);
-            Err(error)
-        }
-    }
+    copy_tree(&from, &source, &stat, to, &target)?;
+    Ok(target.to_string_lossy().into_owned())
 }
 
 /// Whether `path` is `folder` itself or something under it, as the machine
 /// holding both of them spells them.
 fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
+    // A symlink spelling must not let a copy recursively enter its own destination.
+    let folder = host.resolve(folder).unwrap_or_else(|| folder.to_path_buf());
+    let path = host.resolve(path).unwrap_or_else(|| path.to_path_buf());
     let separator = if host.is_remote() || !cfg!(windows) {
         '/'
     } else {
         '\\'
     };
-    let folder = host.native(folder);
+    let folder = host.native(&folder);
     let folder = folder.trim_end_matches(separator);
-    let path = host.native(path);
+    let path = host.native(&path);
     path == folder || path.starts_with(&format!("{folder}{separator}"))
 }
 
@@ -195,7 +280,7 @@ fn resolve_file(raw: &str) -> Result<(Host, PathBuf), String> {
 }
 
 fn valid_name(raw: &str) -> Result<&str, String> {
-    let name = raw.trim();
+    let name = raw;
     if name.is_empty()
         || matches!(name, "." | "..")
         || name.contains('/')

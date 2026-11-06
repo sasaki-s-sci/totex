@@ -159,7 +159,7 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
         watching.clear();
         for session in running {
             // Gone between being listed and being read: nothing to read.
-            let Some(held) = pty::pty_attach(app.clone(), session.id.clone()) else {
+            let Ok(Some(held)) = pty::pty_attach(app.clone(), session.id.clone()) else {
                 continue;
             };
             let mut watcher = Watcher::new(session.rows, session.cols);

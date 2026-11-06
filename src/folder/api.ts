@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { baseName, folderOf } from "./format";
+import { baseName, folderOf } from "./format.ts";
 
 export type RootKind =
   | "home"
@@ -100,11 +100,9 @@ export function readFileData(path: string): Promise<FileData> {
   return invoke<FileData>("read_file_data", { path });
 }
 
-/**
- * `expectSize` is what the card read; the backend refuses a file whose length has changed since.
- */
-export function writeFile(path: string, text: string, expectSize: number): Promise<number> {
-  return invoke<number>("write_file", { path, text, expectSize });
+/** Refuses a file whose contents changed since the card read it. */
+export function writeFile(path: string, text: string, expected: string): Promise<number> {
+  return invoke<number>("write_file", { path, text, expected });
 }
 
 /** A deleted file written back where it stood; refused if something has taken the name since. */
@@ -112,7 +110,7 @@ export async function writeAnew(path: string, text: string): Promise<number> {
   const folder = folderOf(path);
   if (!folder) throw new Error("no-parent");
   const made = await createEntry(folder, baseName(path), false);
-  return writeFile(made, text, 0);
+  return writeFile(made, text, "");
 }
 
 export function readFile(path: string): Promise<number[]> {
@@ -148,6 +146,10 @@ export function downloadEntry(path: string): Promise<string> {
 /** Always a copy; a taken name gets the `copy` spelling. Either end may be inside WSL. */
 export function copyInto(paths: string[], into: string): Promise<string[]> {
   return invoke<string[]>("fs_copy_into", { paths, into });
+}
+
+export function moveInto(paths: string[], into: string): Promise<string[]> {
+  return invoke<string[]>("fs_move_into", { paths, into });
 }
 
 /** One repository the list found: a checkout of its own, or a bare one — never a linked worktree. */

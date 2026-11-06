@@ -1,5 +1,3 @@
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import LinkIcon from "@mui/icons-material/Link";
 import { Box, ListItemButton, ListItemIcon, ListItemText, Stack } from "@mui/material";
 import { type MouseEvent, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,7 +5,15 @@ import type { Listing } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, folderOf, isInside } from "../../folder/format";
 import { startFileDrag } from "../../lib/fileDrag";
-import { AddMark, FolderMark, GraphFolderMark, JumpMark, MarkButton } from "../../marks";
+import {
+  AddMark,
+  CanvasButton,
+  FileMark,
+  FolderMark,
+  JumpMark,
+  LinkMark,
+  MarkButton,
+} from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { MoreRows } from "./MoreRows";
 import { NameField, type Naming } from "./NameField";
@@ -24,6 +30,7 @@ import { PICK_DIRECTORY, PICK_ROW, picksMore, type SelectionEntry } from "./sele
 import { useLevel } from "./useLevel";
 
 interface LevelProps {
+  pane: number;
   path: string;
   root: string;
   depth: number;
@@ -54,6 +61,7 @@ interface LevelProps {
 
 /** A level reads and watches its own directory only, so opening a folder costs one read. */
 export function Level({
+  pane,
   path,
   root,
   depth,
@@ -85,7 +93,7 @@ export function Level({
     allIgnored,
     ignored,
     drawMore,
-  } = useLevel(path, depth, onNavigate, onListing);
+  } = useLevel(pane, path, depth, onNavigate, onListing);
 
   function toggle(folder: string) {
     setExpanded((held) =>
@@ -210,11 +218,7 @@ export function Level({
               }}
             >
               <ListItemIcon sx={ICON}>
-                {entry.isDir ? (
-                  <FolderMark on={open} />
-                ) : (
-                  <DescriptionOutlinedIcon fontSize="small" />
-                )}
+                {entry.isDir ? <FolderMark on={open} /> : <FileMark />}
               </ListItemIcon>
               <ListItemText
                 primary={entry.name}
@@ -226,7 +230,7 @@ export function Level({
                   },
                 }}
               />
-              {entry.isSymlink && <LinkIcon sx={{ fontSize: 12, color: "text.disabled" }} />}
+              {entry.isSymlink && <LinkMark />}
               {entry.isDir && (onNavigate || onToggleGraph || onAddFolder) && (
                 <Stack direction="row" sx={{ ml: "auto", flex: "none", gap: 0.25 }}>
                   {onAddFolder && (
@@ -252,15 +256,14 @@ export function Level({
                     </MarkButton>
                   )}
                   {onToggleGraph && (
-                    <MarkButton
+                    <CanvasButton
                       label={t("folder.graph")}
+                      on={graphed.includes(entry.path)}
                       onClick={(event) => {
                         event.stopPropagation();
                         onToggleGraph(entry.path);
                       }}
-                    >
-                      <GraphFolderMark on={graphed.includes(entry.path)} />
-                    </MarkButton>
+                    />
                   )}
                 </Stack>
               )}
@@ -268,6 +271,7 @@ export function Level({
 
             {open && (
               <Level
+                pane={pane}
                 path={entry.path}
                 root={root}
                 depth={depth + 1}

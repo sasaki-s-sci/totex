@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { WorkRequest } from "../canvas/graphActions";
 import { terminal, typing } from "../lib/keys";
+import { worktreeBranch } from "../lib/worktrees";
 import type { CardGroup } from "./groups";
 
 /** The order is the board's vertical order, including empty worktrees outside the repository root. */
@@ -44,7 +45,7 @@ export function useCardOffers(groups: CardGroup[], open: (request: WorkRequest) 
       open({
         repository: card.repository,
         cwd: card.path,
-        branch: card.worktree?.branch ?? card.worktree?.shortHead ?? card.name,
+        branch: card.worktree ? worktreeBranch(card.worktree) : card.name,
       });
       clear();
     };

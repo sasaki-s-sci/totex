@@ -9,6 +9,27 @@ use super::super::{MAX_FILE_DATA, MAX_FILE_HEAD};
 use super::temp_dir;
 
 #[test]
+fn a_same_length_external_edit_is_not_overwritten() {
+    let dir = temp_dir("same-size-conflict");
+    let path = dir.join("note.txt");
+    fs::write(&path, "one\n").unwrap();
+    let head = read_file_head(path.to_str().unwrap()).unwrap();
+    fs::write(&path, "two\n").unwrap();
+    assert_eq!(
+        write_file(
+            path.to_str().unwrap(),
+            "mine\n",
+            head.text.as_deref().unwrap()
+        ),
+        Err("changed".into())
+    );
+    assert_eq!(fs::read_to_string(&path).unwrap(), "two\n");
+    assert_eq!(write_file(path.to_str().unwrap(), "x", "two\n"), Ok(1));
+    assert_eq!(fs::read_to_string(&path).unwrap(), "x");
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn listings_sort_directories_first_and_hide_dot_files() {
     let dir = temp_dir("listing");
     fs::create_dir(dir.join("Beta")).unwrap();
@@ -70,8 +91,12 @@ fn a_written_file_holds_what_the_card_had() {
     fs::write(&path, "one\ntwo\n").unwrap();
 
     let head = read_file_head(&path.to_string_lossy()).expect("file head");
-    let written =
-        write_file(&path.to_string_lossy(), "one\ntwo\nthree\n", head.size).expect("write");
+    let written = write_file(
+        &path.to_string_lossy(),
+        "one\ntwo\nthree\n",
+        head.text.as_deref().unwrap(),
+    )
+    .expect("write");
     assert_eq!(written, 14);
     assert_eq!(fs::read_to_string(&path).unwrap(), "one\ntwo\nthree\n");
 
@@ -88,7 +113,14 @@ fn a_file_that_moved_under_the_card_is_not_written_over() {
     let head = read_file_head(&path.to_string_lossy()).expect("file head");
     fs::write(&path, "one\ntwo\n").unwrap();
 
-    assert!(write_file(&path.to_string_lossy(), "mine\n", head.size).is_err());
+    assert!(
+        write_file(
+            &path.to_string_lossy(),
+            "mine\n",
+            head.text.as_deref().unwrap()
+        )
+        .is_err()
+    );
     assert_eq!(fs::read_to_string(&path).unwrap(), "one\ntwo\n");
 
     fs::remove_dir_all(&dir).unwrap();
@@ -103,10 +135,10 @@ fn a_file_past_the_preview_limit_is_never_written() {
     let text = "a".repeat(MAX_FILE_HEAD as usize + 19);
     fs::write(&path, &text).unwrap();
 
-    assert!(write_file(&path.to_string_lossy(), "short", text.len() as u64).is_err());
+    assert!(write_file(&path.to_string_lossy(), "short", &text).is_err());
     assert_eq!(fs::metadata(&path).unwrap().len(), text.len() as u64);
-    assert!(write_file(&dir.to_string_lossy(), "short", 0).is_err());
-    assert!(write_file("   ", "short", 0).is_err());
+    assert!(write_file(&dir.to_string_lossy(), "short", "").is_err());
+    assert!(write_file("   ", "short", "").is_err());
 
     fs::remove_dir_all(&dir).unwrap();
 }

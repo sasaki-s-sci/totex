@@ -40,27 +40,25 @@ pub fn pty_open<R: Runtime>(
 /// Every session that is still running — what a window asks for when it comes
 /// up in front of shells it does not know about.
 #[tauri::command(async)]
-pub fn pty_sessions<R: Runtime>(app: AppHandle<R>) -> Vec<Running> {
-    running(&app)
-}
-
-/// The same thing, for the rest of this side of the app.
-pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
-    let link = crate::persistent::link(app);
-    let found: Vec<Running> = link.asked("sessions", json!({})).unwrap_or_default();
+pub fn pty_sessions<R: Runtime>(app: AppHandle<R>) -> Result<Vec<Running>, String> {
+    let link = crate::persistent::link(&app);
+    let found: Vec<Running> = link.asked("sessions", json!({}))?;
     for session in &found {
         link.know(&session.id);
     }
-    found
+    Ok(found)
+}
+
+/// The same thing, for read-only status displays on this side of the app.
+pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
+    pty_sessions(app.clone()).unwrap_or_default()
 }
 
 /// Everything a session has said that is still kept, for a terminal just built
 /// for it. `None` when there is no such session.
 #[tauri::command(async)]
-pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Option<Held> {
-    crate::persistent::link(&app)
-        .asked("attach", json!({ "id": id }))
-        .unwrap_or(None)
+pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Result<Option<Held>, String> {
+    crate::persistent::link(&app).asked("attach", json!({ "id": id }))
 }
 
 /// Sends what was typed. Keystrokes, not lines: the shell does the editing.

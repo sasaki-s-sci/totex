@@ -5,10 +5,13 @@
     "newWorktree": "ワークスペースを作成",
     "detached": "detached",
     "browse": "ワークスペースを開く",
-    "worktreeMenu": "ワークスペースの操作"
+    "worktreeMenu": "ワークスペースの操作",
+    "closeWorkspace": "このワークスペースとターミナルを閉じる"
   },
   "terminal": {
     "closeFailed": "ターミナルを終了できませんでした。開いたまま保持しています。もう一度お試しください。",
+    "connectFailed": "ターミナルに接続できませんでした。セッションは保持しています。",
+    "retry": "再接続",
     "copyFailed": "コピーできませんでした。文字を選択して、もう一度お試しください。",
     "pasteFailed": "貼り付けできませんでした。文字または画像をコピーして、もう一度お試しください。"
   },
@@ -82,6 +85,7 @@
     "copy": "コピー",
     "copyMany": "{{count}} 件をコピー",
     "paste": "貼り付け",
+    "pasteFailed": "画像・動画を保存できませんでした。もう一度お試しください。",
     "pasteMany": "{{count}} 件を貼り付け",
     "copyContents": "中身をコピー",
     "duplicate": "複製",
@@ -250,7 +254,7 @@
     "clashTitle": "{{name}}がディスク側でも同じ箇所を変更されました。上書き保存するまで、このページはファイルに追従しません。",
     "saveOver": "上書き保存",
     "saveAnew": "保存",
-    "closeNow": "閉じる",
+    "discardAndClose": "編集を破棄して閉じる",
     "openAgain": "並べて開く",
     "showDiff": "{{name}}の変更点を表示",
     "showFile": "{{name}}のファイルを表示",

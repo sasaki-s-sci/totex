@@ -11,19 +11,18 @@ pub use totex_host::fs_browse::home_dir;
 
 /// Expands a leading `~` so the path bar accepts what a shell would accept.
 pub(super) fn expand_user_path(input: &str) -> PathBuf {
-    let trimmed = input.trim();
     let Some(home) = home_dir() else {
-        return PathBuf::from(trimmed);
+        return PathBuf::from(input);
     };
-    if trimmed == "~" {
+    if input == "~" {
         return home;
     }
     for prefix in ["~/", "~\\"] {
-        if let Some(rest) = trimmed.strip_prefix(prefix) {
+        if let Some(rest) = input.strip_prefix(prefix) {
             return home.join(rest);
         }
     }
-    PathBuf::from(trimmed)
+    PathBuf::from(input)
 }
 
 /// What follows a leading `~` in a path on a far machine, or `None` when the
@@ -167,15 +166,14 @@ pub(super) fn clean_path(path: &Path) -> PathBuf {
 /// same in both builds. Which kind of far machine makes no difference here —
 /// the host reads its own spelling apart and writes it back.
 pub(super) fn resolve(raw: &str) -> Result<(Host, PathBuf), String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
+    if raw.is_empty() {
         return Err("empty-path".to_string());
     }
-    let host = Host::of_str(trimmed);
+    let host = Host::of_str(raw);
     if !host.is_remote() {
-        return Ok((host, clean_path(&expand_user_path(trimmed))));
+        return Ok((host, clean_path(&expand_user_path(raw))));
     }
-    let inside = expand_remote_home(&host, &host.native(Path::new(trimmed)));
+    let inside = expand_remote_home(&host, &host.native(Path::new(raw)));
     let path = host.canonical(&clean(&inside));
     Ok((host, path))
 }

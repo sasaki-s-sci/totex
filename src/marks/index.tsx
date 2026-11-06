@@ -37,7 +37,7 @@ export function Frame({
       aria-hidden="true"
       focusable="false"
       // A style, not an attribute: only a style outranks the engine's overflow rule on the outermost svg.
-      style={spill ? { overflow: "visible" } : undefined}
+      style={{ flexShrink: 0, ...(spill ? { overflow: "visible" } : null) }}
     >
       {children}
     </svg>
@@ -55,6 +55,7 @@ export function MarkButton({
 }: {
   "aria-expanded"?: boolean;
   "aria-controls"?: string;
+  "aria-pressed"?: boolean;
   label: string;
   danger?: boolean;
   faint?: boolean;
@@ -76,6 +77,7 @@ export function MarkButton({
         justifyContent: "center",
         width: MARK_BUTTON,
         height: MARK_BUTTON,
+        flexShrink: 0,
         p: 0,
         border: "none",
         borderRadius: 1,

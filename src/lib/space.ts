@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SpaceSettings = {
   /** Default on: the settings switch already says whether a door exists at all. */
@@ -21,32 +21,45 @@ export function tellSpace(path: string, settings: SpaceSettings): Promise<SpaceS
 }
 
 export function useSpace(path: string) {
-  const [standing, setStanding] = useState<SpaceStanding | null>(null);
+  const [reading, setReading] = useState<{ path: string; standing: SpaceStanding | null }>({
+    path,
+    standing: null,
+  });
+  const request = useRef(0);
 
   useEffect(() => {
-    let alive = true;
+    const current = ++request.current;
+    setReading({ path, standing: null });
     spaceStanding(path)
-      .then((answer) => alive && setStanding(answer))
-      .catch(() => alive && setStanding(null));
+      .then((standing) => current === request.current && setReading({ path, standing }))
+      .catch(() => current === request.current && setReading({ path, standing: null }));
     return () => {
-      alive = false;
+      request.current++;
     };
   }, [path]);
 
   // Written optimistically; the answer, or a refusal, puts the mark where it landed.
   const tell = useCallback(
     (settings: SpaceSettings) => {
-      setStanding((was) => (was ? { ...was, settings } : was));
+      const current = ++request.current;
+      const accept = (standing: SpaceStanding) => {
+        if (current === request.current) setReading({ path, standing });
+      };
+      setReading((was) =>
+        was.path === path && was.standing ? { path, standing: { ...was.standing, settings } } : was,
+      );
       tellSpace(path, settings)
-        .then(setStanding)
+        .then(accept)
         .catch(() =>
-          spaceStanding(path)
-            .then(setStanding)
-            .catch(() => undefined),
+          current === request.current
+            ? spaceStanding(path)
+                .then(accept)
+                .catch(() => undefined)
+            : undefined,
         );
     },
     [path],
   );
 
-  return { standing, tell };
+  return { standing: reading.path === path ? reading.standing : null, tell };
 }

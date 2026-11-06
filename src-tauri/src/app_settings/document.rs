@@ -250,7 +250,7 @@ pub fn write(path: &Path, text: &str, expected: &str) -> Result<Document, String
     if before != expected {
         return Err("Settings changed on disk; reopen the file before saving".into());
     }
-    Host::Local.write(path, text, before.len() as u64)?;
+    Host::Local.write_checked(path, text, expected)?;
     Ok(next)
 }
 

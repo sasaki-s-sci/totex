@@ -77,7 +77,9 @@ export function Page({
           aria-description={draggable ? t("page.reorder", { name }) : undefined}
           onPointerDown={(event) => {
             if (draggable)
-              event.currentTarget.draggable = !(event.target as Element).closest("button");
+              event.currentTarget.draggable = !(event.target as Element).closest(
+                "button, .page__name",
+              );
           }}
           role="toolbar"
           aria-label={name}
@@ -101,7 +103,8 @@ export function Page({
           onPointerDown={(event) => {
             if (!draggable) return;
             event.currentTarget.draggable = !(
-              event.target instanceof Element && event.target.closest("button, input, select, a")
+              event.target instanceof Element &&
+              event.target.closest("button, input, select, a, .page__name")
             );
           }}
         >
@@ -147,6 +150,12 @@ export function PageHeader({
     <header
       {...props}
       className="page__header"
+      onPointerDownCapture={(event) => {
+        if (props.draggable)
+          event.currentTarget.draggable = !(event.target as Element).closest(
+            ".page__name, button, input, select, a",
+          );
+      }}
       style={{ fontSize: `${(11 * cardText) / 100}px`, ...style }}
     >
       {heading ?? (

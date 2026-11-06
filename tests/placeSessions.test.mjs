@@ -43,6 +43,17 @@ test("ownership uses path components and platform casing", () => {
   assert.equal(underPlace("/", "/projects/app"), true);
 });
 
+test("closing one workspace leaves sibling and nested worktree terminals running", () => {
+  const matches = sessionsInPlaces(
+    [{ kind: "folder", root: "/projects/app" }],
+    [],
+    ["/projects/app/.worktrees/feature", "/worktrees/other"],
+  );
+  assert.equal(matches(session("/projects/app/src")), true);
+  assert.equal(matches(session("/projects/app/.worktrees/feature/src")), false);
+  assert.equal(matches(session("/worktrees/other")), false);
+});
+
 test("legacy minimized flags are ignored so saved panes return to view", () => {
   assert.deepEqual(readSeeds([{ kind: "folder", path: "/x", minimized: true }]), [
     { kind: "folder", path: "/x" },

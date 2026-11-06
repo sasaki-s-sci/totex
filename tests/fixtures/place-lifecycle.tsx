@@ -27,6 +27,9 @@ keepFrontValue("window.foldersOpen", true);
 keepFrontValue("sessions.list", [
   { id: "folder-cli", cwd: "/projects/notes", branch: "notes", folder: true },
   { id: "repo-cli", cwd: "/projects/app", branch: "main" },
+  ...(location.search.includes("workspaces")
+    ? [{ id: "feature-cli", cwd: "/projects/app/.worktrees/feature", branch: "feature" }]
+    : []),
 ]);
 keepFrontValue("sessions.paged", ["repo-cli"]);
 await loadSettings();

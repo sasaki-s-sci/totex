@@ -44,7 +44,10 @@ export function watchChanges(path: string, onChange: () => void): () => void {
     holding.delete(onChange);
     if (holding.size > 0) return;
     open.delete(path);
-    held.delete(path);
+    // A mode switch mounts the replacement rows in the same turn.
+    queueMicrotask(() => {
+      if (!open.has(path)) held.delete(path);
+    });
     stop();
   };
 }

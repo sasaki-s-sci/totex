@@ -21,6 +21,9 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     window.pageWriteRefused = false;
     window.pageFileText = "saved text";
     window.pageClipboard = "日本語\nsecond line";
+    window.pageAttachRefused = location.search.includes("attach-error");
+    window.pageCloseRefused = false;
+    window.pageClosePending = false;
     window.__TAURI_INTERNALS__ = {
       metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
       transformCallback(callback) {
@@ -33,6 +36,9 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
       async invoke(cmd, args) {
         window.pageCalls.push({ cmd, args });
         if (cmd === "plugin:clipboard-manager|read_text") return window.pageClipboard;
+        if (cmd === "clipboard_files") return [];
+        if (cmd === "terminal_paths") return args.paths;
+        if (cmd === "paste_media") return "/tmp/pasted-shot.png";
         if (cmd === "plugin:event|listen") {
           const id = ++serial;
           listeners.set(id, args);
@@ -46,8 +52,11 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
           return [
             { id: "terminal-one", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"main"}' },
           ];
-        if (cmd === "pty_attach")
+        if (cmd === "pty_attach") {
+          if (window.pageAttachRefused) throw new Error("Temporary attachment failure");
+          if (location.search.includes("attach-missing")) return null;
           return window.pageBacklog ?? { text: "Retained terminal\r\n", upto: 0 };
+        }
         if (cmd === "pty_close") {
           if (window.pageCloseRefused) throw new Error("Temporary close failure");
           if (window.pageClosePending)
@@ -491,6 +500,20 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   await page.waitForFunction(
     async () => (await window.pageSnapshot()).values["sessions.active"] === "terminal-one",
   );
+  await page.locator("main").evaluate((node) => {
+    const data = new DataTransfer();
+    data.items.add(
+      new File([new Uint8Array([137, 80, 78, 71])], "shot.png", { type: "image/png" }),
+    );
+    node.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }),
+    );
+  });
+  await page.waitForFunction(async () =>
+    (await window.pageSnapshot()).values["files.open"].some(
+      (file) => file.path === "/tmp/pasted-shot.png",
+    ),
+  );
   await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
   await page.locator('[data-terminal="terminal-two"] .xterm-screen').waitFor();
   await page.keyboard.press("Control+2");
@@ -509,6 +532,59 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     "terminal-one",
     "A delayed close must not override navigation performed while it was pending",
   );
+  await page.goto(`${base}/tests/fixtures/pages.html?attach-error`);
+  await page.getByRole("button", { name: "Retry connection", exact: true }).waitFor();
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
+    false,
+  );
+  assert.equal(
+    (await page.evaluate(() => window.pageSnapshot())).values["sessions.list"].length,
+    1,
+  );
+  await page.evaluate(() => {
+    window.pageAttachRefused = false;
+  });
+  await page.getByRole("button", { name: "Retry connection", exact: true }).click();
+  await page.waitForFunction(
+    () =>
+      window.pageCalls.filter((call) => call.cmd === "pty_attach").length >= 2 &&
+      !document.querySelector('[role="alert"]'),
+  );
+  await page.evaluate(() => window.pageEmit("pty:exit", "terminal-one"));
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 0,
+  );
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
+    false,
+    "A confirmed natural exit removes the view without another close request",
+  );
+  await page.goto(`${base}/tests/fixtures/pages.html?attach-missing`);
+  await page.waitForFunction(
+    async () =>
+      window.pageSnapshot && (await window.pageSnapshot()).values["sessions.list"].length === 0,
+  );
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
+    false,
+  );
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
+  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
+  await page.keyboard.press("Control+1");
+  await page.keyboard.press("Control+2");
+  await page.keyboard.press("Control+Alt+a");
+  await page.evaluate(() => {
+    window.pageEmit("pty:exit", "terminal-two");
+    window.pageEmit("pty:exit", "terminal-one");
+  });
+  await page.waitForFunction(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 1,
+  );
+  const simultaneous = (await page.evaluate(() => window.pageSnapshot())).values;
+  assert.equal(simultaneous["sessions.showing"], null);
+  assert.equal(simultaneous["sessions.active"], null);
+  assert.equal(simultaneous["pages.lowerSidebar"], null);
   assert.equal(errors.length, 0, errors.join("\n"));
   return {
     passed:

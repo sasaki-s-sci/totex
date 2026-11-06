@@ -674,6 +674,8 @@ impl Monitor {
                 entry.snapshot.error = None;
             }
             Err(error) => {
+                // Failed observations have not consumed this transcript; retry after the interval.
+                entry.last_seq = None;
                 entry.snapshot.monitor_status = if error.starts_with("Permission required:") {
                     "permission"
                 } else {
@@ -940,6 +942,66 @@ mod tests {
         );
         assert_eq!(report.agents.len(), 1);
         assert_eq!(report.agents[0].source, "inferred");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_observations_retry_unchanged_output_after_the_interval() {
+        let sessions = Arc::new(Sessions::default());
+        sessions.open("retry", "/tmp", 24, 80, None).unwrap();
+        // Drive ticks directly so the interval can elapse without a ten-second sleep.
+        let monitor = Arc::new(Monitor {
+            sessions: Arc::clone(&sessions),
+            state: Mutex::new(State::default()),
+            workers: AtomicUsize::new(0),
+        });
+        monitor
+            .configure(Config {
+                enabled: true,
+                agent: Observer::Custom,
+                command: "/totex-test-missing-observer".into(),
+                interval_secs: 10,
+                features: Features {
+                    status: true,
+                    ..Features::default()
+                },
+                ..Config::default()
+            })
+            .unwrap();
+        let wait = || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(10);
+            while monitor.workers.load(Ordering::Acquire) > 0 {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "observer did not finish"
+                );
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        monitor.tick();
+        wait();
+        assert_eq!(monitor.snapshots()[0].monitor_status, "failure");
+        let first = lock(&monitor.state).entries["retry"].last_attempt;
+        monitor.tick();
+        assert_eq!(
+            lock(&monitor.state).entries["retry"].last_attempt,
+            first,
+            "a failed observer must still respect the configured interval"
+        );
+        {
+            let mut state = lock(&monitor.state);
+            let entry = state.entries.get_mut("retry").unwrap();
+            assert_eq!(entry.last_seq, None);
+            entry.last_attempt = 0;
+        }
+        monitor.tick();
+        wait();
+        assert!(
+            lock(&monitor.state).entries["retry"].last_attempt > 0,
+            "unchanged terminal output must be retried after a failed observation"
+        );
+        monitor.stop();
+        sessions.close_all();
     }
 
     #[test]

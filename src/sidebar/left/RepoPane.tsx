@@ -11,10 +11,11 @@ import { useTranslation } from "react-i18next";
 import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
-import { Frame, GitMark, GraphRepoMark, MarkButton, PaneRepoMark, UpMark } from "../../marks";
+import { CanvasButton, CloseMark, GitMark, MarkButton, UpMark } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
+import { PaneHeader } from "./PaneHeader";
 import type { PaneGrip } from "./paneOrder";
 import { ICON, PANE_ROW, REFUSED_DROP, ROW_INDENT, TAKING_DROP } from "./rows";
 import { useSelection } from "./selection";
@@ -46,6 +47,8 @@ export interface RepoPaneProps {
   onListed: (repositories: string[]) => void;
   /** The pane turns back into the folder pane on the checkout it lists alone. */
   onFolderMode: () => void;
+  onAddFolder: (path: string) => void;
+  onNavigate: (path: string) => void;
   onOpenFile?: (path: string, folder: string) => void;
   onMenu: (target: FileMenuTarget) => void;
   /** Held by the column, like the menu; see `Naming`. */
@@ -91,6 +94,8 @@ export function RepoPane({
   onShowWorktree,
   onListed,
   onFolderMode,
+  onAddFolder,
+  onNavigate,
   onOpenFile,
   onMenu,
   naming,
@@ -143,7 +148,7 @@ export function RepoPane({
             onClick={onFolderMode}
             sx={{ ...BARE_BUTTON, mr: 0.5, color: "text.primary" }}
           >
-            <PaneRepoMark />
+            <GitMark />
           </Box>
           <Box
             component="button"
@@ -170,9 +175,7 @@ export function RepoPane({
           </Box>
           <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
             <MarkButton label={t("repository.remove")} onClick={onClose}>
-              <Frame>
-                <path d="M6 6l12 12M18 6L6 18" />
-              </Frame>
+              <CloseMark />
             </MarkButton>
           </Box>
         </Stack>
@@ -216,119 +219,143 @@ export function RepoPane({
               reading === dropping ? TAKING_DROP : reading === refused ? REFUSED_DROP : null;
             return (
               <Box key={repository.path}>
-                <ListItemButton
-                  {...(alone ? grip : null)}
-                  data-repo-row={`${id}:${repository.path}`}
-                  {...{ [DROP_INTO]: reading }}
-                  sx={{
-                    pl: alone ? 1 : ROW_INDENT,
-                    pr: 0.5,
-                    gap: 0.5,
-                    ...(alone ? PANE_ROW : null),
-                    ...mark,
-                    "&:hover .pane__close, &:focus-within .pane__close": {
-                      opacity: 1,
-                      pointerEvents: "auto",
-                    },
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    onMenu({
-                      path: reading,
-                      entries: [{ path: reading, isDir: true }],
-                      name: repository.name,
-                      isDir: true,
-                      into: reading,
-                      root: reading,
-                      pane: id,
-                      at: { x: event.clientX, y: event.clientY },
-                    });
-                  }}
-                  onClick={() => onToggleExpanded(repository.path)}
-                >
-                  <ListItemIcon sx={ICON}>
-                    {/* Alone, the row stands for the header, and its mark for the header's. */}
-                    {alone ? (
-                      <Box
-                        component="button"
-                        type="button"
-                        aria-label={t("repository.folderMode")}
-                        title={t("repository.folderMode")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onFolderMode();
-                        }}
-                        sx={BARE_BUTTON}
-                      >
-                        <GitMark on={opened} />
-                      </Box>
-                    ) : (
+                {alone ? (
+                  <Box
+                    data-repo-row={`${id}:${repository.path}`}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onMenu({
+                        path: reading,
+                        entries: [{ path: reading, isDir: true }],
+                        name: repository.name,
+                        isDir: true,
+                        into: reading,
+                        root: reading,
+                        pane: id,
+                        at: { x: event.clientX, y: event.clientY },
+                      });
+                    }}
+                  >
+                    <PaneHeader
+                      path={reading}
+                      name={repository.name}
+                      kind="repository"
+                      open={opened}
+                      graphed={graphed.includes(repository.path)}
+                      dropping={dropping}
+                      refused={refused}
+                      caption={
+                        <BranchCaption
+                          path={reading}
+                          known={branches.get(reading)}
+                          swapped={swapped}
+                        />
+                      }
+                      grip={grip}
+                      onSwitchMode={onFolderMode}
+                      onToggleOpen={() => onToggleExpanded(repository.path)}
+                      onToggleGraph={() => onToggleGraph(repository.path)}
+                      onAddFolder={onAddFolder}
+                      onNavigate={
+                        swapped ? () => onShowWorktree(repository.path, null) : onNavigate
+                      }
+                      onClose={onClose}
+                    />
+                  </Box>
+                ) : (
+                  <ListItemButton
+                    data-repo-row={`${id}:${repository.path}`}
+                    {...{ [DROP_INTO]: reading }}
+                    sx={{
+                      pl: ROW_INDENT,
+                      pr: 0.5,
+                      gap: 0.5,
+                      ...mark,
+                      "&:hover .pane__close, &:focus-within .pane__close": {
+                        opacity: 1,
+                        pointerEvents: "auto",
+                      },
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onMenu({
+                        path: reading,
+                        entries: [{ path: reading, isDir: true }],
+                        name: repository.name,
+                        isDir: true,
+                        into: reading,
+                        root: reading,
+                        pane: id,
+                        at: { x: event.clientX, y: event.clientY },
+                      });
+                    }}
+                    onClick={() => onToggleExpanded(repository.path)}
+                  >
+                    <ListItemIcon sx={ICON}>
                       <GitMark on={opened} />
-                    )}
-                  </ListItemIcon>
-                  <Stack
-                    direction="row"
-                    sx={{ flex: 1, minWidth: 0, alignItems: "baseline", gap: 0.75 }}
-                  >
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      title={displayPath(repository.path)}
-                      sx={{ minWidth: 0 }}
-                    >
-                      {repository.name}
-                    </Typography>
-                    <BranchCaption path={reading} known={branches.get(reading)} swapped={swapped} />
-                  </Stack>
-                  <Stack
-                    direction="row"
-                    sx={{ ml: "auto", flex: "none", alignItems: "center", gap: 0.25 }}
-                  >
-                    {swapped && (
-                      <MarkButton
-                        label={t("repository.home")}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onShowWorktree(repository.path, null);
-                        }}
-                      >
-                        <UpMark />
-                      </MarkButton>
-                    )}
-                    <MarkButton
-                      label={t(
-                        graphed.includes(repository.path)
-                          ? "repository.ungraph"
-                          : "repository.graph",
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onToggleGraph(repository.path);
+                    </ListItemIcon>
+                    <Stack
+                      direction="row"
+                      sx={{
+                        flex: 1,
+                        minWidth: 0,
+                        alignItems: "baseline",
+                        gap: 0.75,
+                        overflowX: "auto",
+                        scrollbarWidth: "none",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <GraphRepoMark on={graphed.includes(repository.path)} />
-                    </MarkButton>
-                    {alone && (
-                      <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
+                      <Typography
+                        variant="body2"
+                        title={displayPath(repository.path)}
+                        sx={{ flex: "none" }}
+                      >
+                        {repository.name}
+                      </Typography>
+                      <BranchCaption
+                        path={reading}
+                        known={branches.get(reading)}
+                        swapped={swapped}
+                      />
+                    </Stack>
+                    <Stack
+                      direction="row"
+                      sx={{ ml: "auto", flex: "none", alignItems: "center", gap: 0.25 }}
+                    >
+                      {swapped && (
                         <MarkButton
-                          label={t("repository.remove")}
+                          label={t("repository.home")}
                           onClick={(event) => {
                             event.stopPropagation();
-                            onClose();
+                            onShowWorktree(repository.path, null);
                           }}
                         >
-                          <Frame>
-                            <path d="M6 6l12 12M18 6L6 18" />
-                          </Frame>
+                          <UpMark />
                         </MarkButton>
-                      </Box>
-                    )}
-                  </Stack>
-                </ListItemButton>
+                      )}
+                      <CanvasButton
+                        on={graphed.includes(repository.path)}
+                        label={t(
+                          graphed.includes(repository.path)
+                            ? "repository.ungraph"
+                            : "repository.graph",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleGraph(repository.path);
+                        }}
+                      />
+                    </Stack>
+                  </ListItemButton>
+                )}
 
                 {opened && (
                   <Level
+                    key={reading}
+                    pane={id}
                     path={reading}
                     root={reading}
                     depth={alone ? 0 : 1}
@@ -415,9 +442,15 @@ function BranchCaption({
   return (
     <Typography
       variant="caption"
-      noWrap
       title={swapped ? t("repository.showing", { branch }) : branch}
-      sx={{ minWidth: 0, color: "text.secondary", fontSize: "0.68rem", lineHeight: 1.2 }}
+      sx={{
+        flex: "none",
+        whiteSpace: "nowrap",
+        color: "text.secondary",
+        fontSize: "0.62rem",
+        fontWeight: 300,
+        lineHeight: 1.2,
+      }}
     >
       {branch}
     </Typography>

@@ -1,4 +1,4 @@
-import { Alert, Box } from "@mui/material";
+import { Alert, Box, Button } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
@@ -8,11 +8,12 @@ import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
-import { copyText, readClipboard } from "../lib/clipboard";
+import { clipboardFiles, copyText, pasteMedia, readClipboard } from "../lib/clipboard";
 import {
   attachShell,
   DATA_EVENT,
   EXIT_EVENT,
+  type Held,
   resizeShell,
   type Said,
   startShell,
@@ -20,6 +21,7 @@ import {
 } from "../lib/pty";
 import type { Session } from "../lib/session";
 import { registerTerminalClipboard } from "../lib/terminalClipboard";
+import { registerTerminalDrop, terminalPaths } from "../lib/terminalDrop";
 import { openTerminalLink } from "../lib/terminalLinks";
 import { registerTerminalScroll } from "../lib/terminalScroll";
 import { useWheel, wheelFactor } from "../lib/wheel";
@@ -41,8 +43,6 @@ const PAD = { x: 8, y: 4 };
 // Reserved beside the text as the overview ruler's width, which is what the fit addon takes
 // off whether or not a bar is drawn; the slider is dressed inside it by canvas/styles/terminal.css.
 const SCROLLBAR = 7;
-// Ctrl+V on the wire, which agents read as a picture paste.
-const PASTE_KEY = "\x16";
 // The longest a hidden terminal's output waits for the window to be idle.
 const UNSEEN_WAIT = 500;
 
@@ -77,6 +77,7 @@ export function CliView({
   const [copyFailed, setCopyFailed] = useState(false);
   const [pasteFailed, setPasteFailed] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [connectionAttempt, retryConnection] = useState(0);
   const opaque = palette.background[background];
   const surface = withAlpha(opaque, look.opacity);
 
@@ -262,18 +263,34 @@ export function CliView({
     );
     terminal.onData((data) => void writeShell(session.id, data).catch(() => undefined));
 
-    // A picture-only paste has no way into xterm's field; ^V lets the agent read the clipboard itself.
+    const pastePaths = async (paths: readonly string[]) => {
+      if (!paths.length) return;
+      const text = await terminalPaths(paths, session.cwd);
+      if (!live || frontInactive()) return;
+      terminal.paste(text);
+      terminal.focus();
+      setPasteFailed(false);
+    };
+    const pasteFailure = (error: unknown) => {
+      console.error("Could not paste terminal content", error);
+      if (live) setPasteFailed(true);
+    };
+    const stopDrop = registerTerminalDrop(
+      element,
+      (paths) => void pastePaths(paths).catch(pasteFailure),
+    );
+
+    // Media becomes a file on the terminal's host; text keeps xterm's normal paste handling.
     const onPaste = (event: ClipboardEvent) => {
       const carried = event.clipboardData;
       if (!carried) return;
-      const text = carried.types.includes("text/plain");
       const file =
         carried.types.includes("Files") ||
         Array.from(carried.items).some((item) => item.kind === "file");
-      if (text || !file) return;
+      if (!file) return;
       event.preventDefault();
       event.stopPropagation();
-      void writeShell(session.id, PASTE_KEY).catch(() => undefined);
+      void pasteMedia(undefined, carried).then(pastePaths).catch(pasteFailure);
     };
     element.addEventListener("paste", onPaste, true);
 
@@ -310,19 +327,24 @@ export function CliView({
 
       // WebViews do not consistently dispatch native paste for Ctrl+V. Read on the
       // host and let xterm normalize newlines and apply bracketed paste mode.
-      if (plain && event.ctrlKey && event.key.toLowerCase() === "v") {
+      if (!event.altKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "v") {
         event.preventDefault();
-        void readClipboard()
-          .then((text) => {
-            if (!live || frontInactive()) return;
-            setPasteFailed(false);
-            if (text !== null) terminal.paste(text);
-            else return writeShell(session.id, PASTE_KEY);
-          })
-          .catch((error) => {
-            console.error("Could not paste terminal clipboard", error);
-            if (live) setPasteFailed(true);
-          });
+        void (async () => {
+          const files = await clipboardFiles().catch(() => []);
+          if (files?.length) return pastePaths(files);
+          let text: string | null;
+          try {
+            text = await readClipboard();
+          } catch (error) {
+            const media = await pasteMedia();
+            if (!media.length) throw error;
+            return pastePaths(media);
+          }
+          if (!live || frontInactive()) return;
+          setPasteFailed(false);
+          if (text !== null) terminal.paste(text);
+          else await pastePaths(await pasteMedia());
+        })().catch(pasteFailure);
         return false;
       }
 
@@ -420,15 +442,15 @@ export function CliView({
         await Promise.all([incoming, finished]);
         if (!live) return;
 
+        let held: Held | null;
         try {
           await startShell(session);
+          if (!live) return;
+          held = await attachShell(session.id);
         } catch {
           if (live) setFailed(true);
           return;
         }
-        if (!live) return;
-
-        const held = await attachShell(session.id).catch(() => null);
         if (!live) return;
         if (!held) {
           ended.current();
@@ -486,6 +508,7 @@ export function CliView({
       resize.disconnect();
       stopSizing();
       element.removeEventListener("paste", onPaste, true);
+      stopDrop();
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
       // The shell is left running; closing the session is what ends it.
@@ -495,7 +518,7 @@ export function CliView({
       terminal.dispose();
       forget();
     };
-  }, [host, session.id, session.cwd, viewer]);
+  }, [host, session.id, session.cwd, viewer, connectionAttempt]);
 
   // Told rather than rebuilt: a rebuilt terminal loses its scrollback.
   useEffect(() => {
@@ -555,11 +578,24 @@ export function CliView({
         "&& .xterm-viewport": { backgroundColor: look.seeThrough ? "transparent" : opaque },
       }}
     >
+      {failed && (
+        <Alert
+          severity="error"
+          action={
+            <Button color="inherit" size="small" onClick={() => retryConnection((at) => at + 1)}>
+              {t("terminal.retry")}
+            </Button>
+          }
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 10 }}
+        >
+          {t("terminal.connectFailed")}
+        </Alert>
+      )}
       {pasteFailed && (
         <Alert
           severity="error"
           onClose={() => setPasteFailed(false)}
-          sx={{ position: "absolute", top: 0, right: 0, zIndex: 1 }}
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 10 }}
         >
           {t("terminal.pasteFailed")}
         </Alert>
@@ -568,7 +604,7 @@ export function CliView({
         <Alert
           severity="error"
           onClose={() => setCopyFailed(false)}
-          sx={{ position: "absolute", top: 0, right: 0, zIndex: 1 }}
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 10 }}
         >
           {t("terminal.copyFailed")}
         </Alert>

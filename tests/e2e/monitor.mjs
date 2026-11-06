@@ -22,9 +22,9 @@ export async function monitor(browser, step, { log, control, settings }) {
   };
   const closeSettings = async () => {
     await click('[aria-label="Close totex.json"]');
-    await click(".cli__open");
+    await click('.card-board [aria-label$="Open e2e-proof in sidebar viewer"]');
   };
-  const badge = () => browser.$(".cli-page .monitor-badge");
+  const badge = () => browser.$(".card-board .monitor-badge");
   const openDetail = async () => {
     await badge().waitForDisplayed();
     await badge().click();
@@ -41,20 +41,12 @@ export async function monitor(browser, step, { log, control, settings }) {
 
   await step("Monitor: 実PTYに監視対象を出力し、Settingsから有効化", async () => {
     await click('[aria-label="Close terminal-proof.txt"]');
-    // Zoom the canvas out through actual wheel input so the Settings header
-    // fits before moving its page into the sidebar.
-    await browser.performActions([
-      {
-        type: "wheel",
-        id: "monitor-wheel",
-        actions: [{ type: "scroll", x: 600, y: 320, deltaX: 0, deltaY: 1000, duration: 300 }],
-      },
-    ]);
-    await click('[data-branch="main"] .head__cli');
-    await browser.$(".xterm-helper-textarea").waitForExist();
-    await click(".xterm-screen");
+    await click('.folder-card [aria-label="Shell"]');
+    await browser.$("#cli-sidebar .xterm-helper-textarea").waitForExist();
+    await click("#cli-sidebar .xterm-screen");
+    // An agent owns the terminal and draws a composer; ordinary shell output is not monitored.
     const command =
-      "printf 'MONITOR_NATIVE_E2E: user requests real monitor verification; task implement native monitor verification; goal active; subagent Tests 45%%; background Build 70%%; estimate 180 seconds\\n'";
+      "printf '\\033[?1049h\\033[2J\\033[HMONITOR_NATIVE_E2E: user requests real monitor verification; task implement native monitor verification; goal active; subagent Tests 45%%; background Build 70%%; estimate 180 seconds\\n▌ Ask for something\\nesc to interrupt\\n'; sleep 300";
     await browser.performActions([
       {
         type: "key",
@@ -89,12 +81,12 @@ export async function monitor(browser, step, { log, control, settings }) {
       "45%",
       "70%",
       "≈ 3 min",
-      "subagent 1",
-      "background 1",
     ])
       assert.ok(body.includes(expected), `Missing Monitor detail: ${expected}`);
+    assert.ok(await browser.$('[aria-label="Subagent 1"]').isDisplayed());
+    assert.ok(await browser.$('[aria-label="Background 1"]').isDisplayed());
     assert.equal(await badge().getAttribute("data-status"), "running");
-    assert.equal((await browser.$$(".monitor-agent")).length, 4);
+    assert.equal((await browser.$$(".monitor-agent")).length, 2);
   });
 
   await step("Monitor: 機能OFFをUI・promptに反映", async () => {
@@ -169,15 +161,16 @@ export async function monitor(browser, step, { log, control, settings }) {
     );
     await click('input[aria-label="Enabled"]');
     await closeSettings();
-    await browser.waitUntil(async () => (await badge().getAttribute("data-status")) === "failure", {
-      timeout: 30000,
-    });
-    assert.ok((await badge().getProperty("textContent")).includes("Failed"));
+    await browser.waitUntil(
+      async () => (await badge().getAttribute("title"))?.includes("totex-e2e-missing-agent"),
+      { timeout: 30000 },
+    );
+    assert.equal(await badge().getAttribute("data-status"), "running");
     assert.ok(
       !(await badge().getAttribute("title"))?.includes("Implement native monitor verification"),
     );
     await openDetail();
-    assert.ok((await browser.$("body").getText()).includes("monitor Failed"));
+    assert.ok((await browser.$(".MuiPopover-paper").getText()).includes("totex-e2e-missing-agent"));
   });
   await closeDetail();
   await openSettings();

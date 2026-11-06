@@ -21,6 +21,7 @@ export type CanvasProps = {
   onCloseRepository: (repository: Repository) => void;
 
   onCloseFolder: (root: string) => void;
+  onCloseWorkspace: (root: string) => Promise<boolean>;
 
   onEndSession: (session: Session, exited?: boolean) => void;
 

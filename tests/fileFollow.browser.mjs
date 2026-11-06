@@ -12,6 +12,11 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
     const file = { text: "alpha\nbeta\ngamma\n", exists: true, time: 1 };
     window.file = file;
     window.calls = [];
+    window.fileReads = 0;
+    window.failReadOnce = false;
+    window.firstStat = true;
+    window.changeBeforeWrite = null;
+    window.lastExpected = null;
     const told = () => {
       for (const [id, listener] of listeners)
         if (listener.event === "fs:changed")
@@ -62,12 +67,22 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
           };
         if (cmd === "stat_file") {
           if (args.path !== "/tmp/note.txt") return { size: 1, modifiedMs: 1 };
+          if (window.firstStat && location.search.includes("changed-before-stat")) {
+            file.text = "updated before watching\n";
+            file.time++;
+          }
+          window.firstStat = false;
           if (!file.exists) throw "no-such-file";
           return { size: file.text.length, modifiedMs: file.time };
         }
         if (cmd === "read_file_head") {
           if (args.path !== "/tmp/note.txt")
             return { path: args.path, name: "x", text: "{}", size: 2, truncated: false };
+          window.fileReads++;
+          if (window.failReadOnce) {
+            window.failReadOnce = false;
+            throw "temporary-read-error";
+          }
           if (!file.exists) throw "no-such-file";
           return {
             path: args.path,
@@ -80,7 +95,13 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
         if (cmd === "write_file") {
           if (args.path !== "/tmp/note.txt") return args.text.length;
           if (!file.exists) throw "no-such-file";
-          if (args.expectSize !== file.text.length) throw "changed";
+          if (window.changeBeforeWrite !== null) {
+            file.text = window.changeBeforeWrite;
+            file.time++;
+            window.changeBeforeWrite = null;
+          }
+          window.lastExpected = args.expected;
+          if (args.expected !== file.text) throw "changed";
           file.text = args.text;
           file.time += 1;
           setTimeout(told, 30);
@@ -134,6 +155,25 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   await page.waitForTimeout(800);
   assert.equal(await page.evaluate(() => window.file.text), "ALPHA\nbeta\ngamma\ndeltatheirs\n");
 
+  // Close must keep a conflicted draft, while moving between hosts must remain possible.
+  await page.getByRole("button", { name: "Close note.txt", exact: true }).dispatchEvent("click");
+  const held = await page.evaluate(async () => {
+    await new Promise(requestAnimationFrame);
+    return window.pageSnapshot();
+  });
+  assert.equal(held.values["files.open"].length, 1);
+  assert.match(held.values["draft.1./tmp/note.txt"].text, /deltamine\n$/);
+  await page
+    .getByRole("button", { name: "Move note.txt to the sidebar", exact: true })
+    .dispatchEvent("click");
+  await page.getByRole("button", { name: "Move note.txt to the cards", exact: true }).waitFor();
+  assert.match(await text(), /deltamine\n$/);
+  await page
+    .getByRole("button", { name: "Move note.txt to the cards", exact: true })
+    .dispatchEvent("click");
+  await page.getByRole("button", { name: "Move note.txt to the sidebar", exact: true }).waitFor();
+  assert.match(await text(), /deltamine\n$/);
+
   await standing.getByRole("button", { name: "Open beside" }).dispatchEvent("click");
   await page.waitForFunction(
     () => document.querySelectorAll('[role="textbox"][aria-label="note.txt"]').length === 2,
@@ -175,14 +215,14 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   await page
     .locator(".file-standing")
     .first()
-    .getByRole("button", { name: "Close" })
+    .getByRole("button", { name: "Discard edits and close", exact: true })
     .dispatchEvent("click");
   await page.waitForFunction(
     () => document.querySelectorAll('[role="textbox"][aria-label="note.txt"]').length === 1,
   );
   await page
     .locator(".file-standing")
-    .getByRole("button", { name: "Close" })
+    .getByRole("button", { name: "Discard edits and close", exact: true })
     .dispatchEvent("click");
   await page.waitForFunction(
     () => document.querySelectorAll('[role="textbox"][aria-label="note.txt"]').length === 0,
@@ -194,5 +234,86 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
     before,
   );
   assert.equal(await page.evaluate(() => window.file.exists), false);
+
+  // 4. A failed reread does not mark unseen bytes as read: returning focus retries it.
+  await page.reload();
+  await note.waitFor();
+  await page.waitForFunction(() => window.calls.includes("stat_file"));
+  const reads = await page.evaluate(() => window.fileReads);
+  await page.evaluate(() => {
+    window.failReadOnce = true;
+    window.changeFile("CHANGED\nbeta\ngamma\n");
+  });
+  await page.waitForFunction((before) => window.fileReads > before, reads);
+  assert.equal(await text(), "alpha\nbeta\ngamma\n");
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[role="textbox"][aria-label="note.txt"]')
+      .textContent.startsWith("CHANGED"),
+  );
+
+  // 5. An external edit just before autosave must be checked by contents, even at the same size.
+  await page.reload();
+  await note.waitFor();
+  await page.waitForFunction(() => window.calls.includes("stat_file"));
+  await page.evaluate(() => {
+    window.changeBeforeWrite = "OTHER\nbeta\ngamma\n";
+  });
+  await note.fill("LOCAL\nbeta\ngamma");
+  await standing.getByText("Conflict").waitFor();
+  assert.equal(await page.evaluate(() => window.lastExpected), "alpha\nbeta\ngamma\n");
+  assert.equal(await page.evaluate(() => window.file.text), "OTHER\nbeta\ngamma\n");
+  assert.equal(await note.innerText(), "LOCAL\nbeta\ngamma");
+  await standing.getByRole("button", { name: "Save over" }).dispatchEvent("click");
+  await standing.waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => window.lastExpected), "OTHER\nbeta\ngamma\n");
+  assert.equal(await page.evaluate(() => window.file.text), "LOCAL\nbeta\ngamma");
+  await page.getByRole("button", { name: "Close note.txt", exact: true }).dispatchEvent("click");
+  await note.waitFor({ state: "detached" });
+
+  // A conflict can also be discarded explicitly without overwriting the external edit.
+  await page.reload();
+  await note.waitFor();
+  await page.waitForFunction(() => window.calls.includes("stat_file"));
+  await note.fill("LOCAL\nbeta\ngamma");
+  await page.evaluate(() => window.changeFile("OTHER\nbeta\ngamma\n"));
+  await standing.getByText("Conflict").waitFor();
+  await standing
+    .getByRole("button", { name: "Discard edits and close", exact: true })
+    .dispatchEvent("click");
+  await note.waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => window.file.text), "OTHER\nbeta\ngamma\n");
+  assert.equal(await page.evaluate(() => window.calls.includes("write_file")), false);
+
+  // A change between the opening read and watcher startup must not become its baseline.
+  await page.goto(`${base}/tests/fixtures/pages.html?changed-before-stat`);
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="textbox"][aria-label="note.txt"]')?.textContent ===
+      "updated before watching\n",
+  );
+
+  // A restored backup can reuse the deleted file's size and timestamp.
+  await page.reload();
+  await note.waitFor();
+  await page.waitForFunction(() => !window.firstStat);
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="textbox"][aria-label="note.txt"]')?.textContent ===
+      "updated before watching\n",
+  );
+  const stamp = await page.evaluate(() => window.file.time);
+  await page.evaluate(() => window.changeFile(null));
+  await standing.getByText("Deleted").waitFor();
+  await page.evaluate((time) => {
+    window.file.time = time - 1;
+    window.changeFile("RESTORE before watching\n");
+  }, stamp);
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[role="textbox"][aria-label="note.txt"]')?.textContent ===
+      "RESTORE before watching\n",
+  );
   assert.deepEqual(errors, []);
 }

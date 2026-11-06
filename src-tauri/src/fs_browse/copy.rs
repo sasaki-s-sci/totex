@@ -66,14 +66,6 @@ pub(super) fn copy_tree(
     place(from, source, stat, to, target, &mut budget)
 }
 
-/// Sweeps up what a copy that stopped part way left behind.
-///
-/// Said with no answer of its own: the error worth giving back is the one that
-/// stopped the copy, not anything about the tidying after it.
-pub(super) fn sweep(to: &Host, target: &Path) {
-    to.remove_all(target);
-}
-
 /// The two ends as one far machine spells them, when one of them can spell
 /// both.
 ///
@@ -129,7 +121,7 @@ fn named_in(distro: &str, path: &Path) -> Option<String> {
     let spelled = path.to_string_lossy().into_owned();
     if cfg!(windows) {
         let output = wsl::exec(distro, None, &[], &["wslpath", "-u", &spelled]).ok()?;
-        let named = output.text().trim().to_string();
+        let named = output.text().trim_end_matches(['\r', '\n']).to_string();
         (output.ok() && named.starts_with('/')).then_some(named)
     } else {
         (std::env::var("WSL_DISTRO_NAME").ok()? == distro).then_some(spelled)
@@ -154,7 +146,16 @@ fn copy_inside(reach: &Reach, source: &str, target: &str) -> Result<(), String> 
         &[
             "sh",
             "-c",
-            "test ! -e \"$2\" && test ! -L \"$2\" && cp -R -- \"$1\" \"$2\"",
+            r#"
+parent=${2%/*}
+[ -n "$parent" ] || parent=/
+stage=$(mktemp -d -- "$parent/.totex-copy.XXXXXXXXXX") || exit 1
+trap 'rm -rf -- "$stage"' EXIT
+entry="$stage/${2##*/}"
+cp -R -- "$1" "$entry" || exit 1
+mv -n -- "$entry" "$parent/" || exit 1
+test ! -e "$entry" && test ! -L "$entry"
+"#,
             "sh",
             source,
             target,
@@ -199,23 +200,29 @@ fn place(
     }
     budget.spend(0)?;
     to.create_dir(target)?;
-    for child in from.read_dir(source)? {
-        // A link to a folder is not walked into. What is on the far side of one
-        // can be the folder being copied, or anything holding it, and a copy
-        // that walks into itself never finishes.
-        if child.stat.is_symlink && child.stat.is_dir {
-            continue;
+    let result = (|| {
+        for child in from.read_dir(source)? {
+            // A link to a folder is not walked into. What is on the far side of one
+            // can be the folder being copied, or anything holding it, and a copy
+            // that walks into itself never finishes.
+            if child.stat.is_symlink && child.stat.is_dir {
+                continue;
+            }
+            place(
+                from,
+                &from.join(source, &child.name),
+                &child.stat,
+                to,
+                &to.join(target, &child.name),
+                budget,
+            )?;
         }
-        place(
-            from,
-            &from.join(source, &child.name),
-            &child.stat,
-            to,
-            &to.join(target, &child.name),
-            budget,
-        )?;
+        Ok(())
+    })();
+    if result.is_err() {
+        to.remove_all(target);
     }
-    Ok(())
+    result
 }
 
 /// One file, out of wherever it is and onto wherever it goes.

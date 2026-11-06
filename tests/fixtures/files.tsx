@@ -6,6 +6,7 @@ import { useFileDrops } from "../../src/hooks/useFileDrops";
 import { loadSettings } from "../../src/lib/appSettings";
 import { keepFrontValue } from "../../src/shell/state";
 import { LeftSidebar } from "../../src/sidebar/LeftSidebar";
+import { CliView } from "../../src/tab/CliView";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
 
@@ -24,6 +25,15 @@ function Fixture() {
     <ThemeProvider theme={theme}>
       <div ref={main} style={{ display: "flex", height: "100vh" }}>
         <LeftSidebar open onClose={() => {}} drops={drops} />
+        {location.search.includes("terminal") && (
+          <div className="page" style={{ position: "relative", width: 500, height: 400 }}>
+            <CliView
+              session={{ id: "drop-terminal", cwd: "/files", branch: "main" }}
+              shown
+              onEnded={() => {}}
+            />
+          </div>
+        )}
       </div>
     </ThemeProvider>
   );

@@ -1,19 +1,23 @@
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { type Listing, readDirectory } from "../../folder/api";
-import { refreshChanges, useDirectoryChanges } from "../../folder/changes";
+import { startTransition, useCallback, useEffect, useMemo, useRef } from "react";
+import type { Listing } from "../../folder/api";
+import { useDirectoryChanges } from "../../folder/changes";
+import { useFrontState } from "../../shell/state";
 import { FIRST_ROWS, MORE_ROWS } from "./rows";
-import { watchDirectory } from "./watch";
+import { usePaneRoot } from "./usePaneRoot";
 
 export function useLevel(
+  pane: number,
   path: string,
   depth: number,
   onNavigate: ((path: string) => void) | undefined,
   onListing: ((listing: Listing) => void) | undefined,
 ) {
-  const [listing, setListing] = useState<Listing | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [expanded, setExpanded] = useState<readonly string[]>([]);
-  const [shown, setShown] = useState(FIRST_ROWS);
+  const { root: listing, failed } = usePaneRoot(path);
+  const [expanded, setExpanded] = useFrontState<readonly string[]>(
+    `folders.expanded.${pane}:${path}`,
+    [],
+  );
+  const [shown, setShown] = useFrontState(`folders.shown.${pane}:${path}`, FIRST_ROWS);
 
   const rows = listing ? listing.entries.slice(0, shown) : [];
   const rest = listing ? listing.entries.length - rows.length : 0;
@@ -31,43 +35,11 @@ export function useLevel(
   report.current = { onNavigate, onListing };
 
   useEffect(() => {
-    let cancelled = false;
-
-    // Only the first reading empties the level; a re-read replaces rows in place to avoid flicker.
-    const read = (announce: boolean) => {
-      if (announce) {
-        setListing(null);
-        setFailed(false);
-        setShown(FIRST_ROWS);
-      }
-      // Hidden entries are shown like the rest: the leading dot already says it.
-      readDirectory(path, true)
-        .then((next) => {
-          if (cancelled) return;
-          setListing(next);
-          setFailed(false);
-          report.current.onListing?.(next);
-          // `~`, `..` and the legacy WSL share are folded by the backend; the pane moves to the
-          // path that answered. A level that cannot be moved stays where it was asked.
-          if (depth === 0 && next.path !== path) report.current.onNavigate?.(next.path);
-        })
-        .catch(() => {
-          if (!cancelled) setFailed(true);
-        });
-    };
-
-    read(true);
-    // Watched while on screen; a write re-reads the rows and their git colours on the same event.
-    const stop = watchDirectory(path, () => {
-      read(false);
-      refreshChanges();
-    });
-
-    return () => {
-      cancelled = true;
-      stop();
-    };
-  }, [path, depth]);
+    if (!listing) return;
+    report.current.onListing?.(listing);
+    // The backend resolves aliases such as `~`; move only levels that can navigate.
+    if (depth === 0 && listing.path !== path) report.current.onNavigate?.(listing.path);
+  }, [listing, path, depth]);
 
   return {
     failed,

@@ -223,7 +223,11 @@ fn follow_output(
         // Nobody is coming back for it, so the session is dropped here rather
         // than waiting for a close that will never be asked for.
         if let Some(sessions) = sessions.upgrade() {
-            sessions.lock().remove(&name);
+            let removed = sessions.lock().remove(&name);
+            // A naturally exited child must be reaped too, without holding up other sessions.
+            if let Some(mut session) = removed {
+                let _ = session.child.wait();
+            }
             // Said after it is gone, so a follower that looks at what is running
             // finds what is actually left.
             sessions.tell(&name, Event::Ended);

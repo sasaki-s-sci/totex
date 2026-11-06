@@ -100,6 +100,18 @@ export async function verifyCardLayout(page) {
     node.scrollTop = 0;
   });
   const card = (id) => page.locator(`[data-page-card="${id}"]`);
+  for (const id of ["file:1", "folder:/tmp"]) {
+    const title = card(id).locator(".page__name").first();
+    await title.dblclick();
+    assert.ok(
+      await page.evaluate(() => window.getSelection()?.toString().length > 0),
+      "Page names can be selected for copying",
+    );
+    assert.equal(
+      await title.evaluate((node) => node.closest(".page__header, .page__drag").draggable),
+      false,
+    );
+  }
   await page.evaluate(() => {
     document.addEventListener("dragstart", (event) => event.preventDefault(), true);
   });

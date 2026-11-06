@@ -39,6 +39,7 @@ export type GraphActions = FilePageActions & {
   pickBranch: (pick: BranchPick) => void;
   closeRepository: (repository: Repository) => void;
   closeFolder: (root: string) => void;
+  closeWorkspace: (root: string) => Promise<boolean>;
   endSession: (session: Session, exited?: boolean) => void;
 };
 
@@ -49,6 +50,7 @@ export const NO_ACTIONS: GraphActions = {
   pickBranch: () => {},
   closeRepository: () => {},
   closeFolder: () => {},
+  closeWorkspace: async () => true,
   endSession: () => {},
   closeFilePreview: () => {},
   saveFilePreview: async () => false,

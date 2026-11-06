@@ -227,6 +227,7 @@ fn a_shell_that_exits_is_told_of_after_it_is_gone() {
             None,
         )
         .expect("the shell starts");
+    let pid = sessions.running()[0].pid.unwrap();
     sessions.write(id, "exit\n").expect("the shell takes input");
 
     let (who, left) = rx
@@ -236,5 +237,15 @@ fn a_shell_that_exits_is_told_of_after_it_is_gone() {
     assert_eq!(
         left, 0,
         "the session was still there when its ending was told"
+    );
+    let mut status = 0;
+    assert_eq!(
+        unsafe { libc::waitpid(pid as i32, &mut status, libc::WNOHANG) },
+        -1
+    );
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ECHILD),
+        "the naturally exited shell must already be reaped"
     );
 }

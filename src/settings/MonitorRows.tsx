@@ -367,6 +367,7 @@ function MonitorField({
       onChange={(event) => setDraft(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
         if (event.key === "Enter") commit();
       }}
       slotProps={{ htmlInput: { "aria-label": label, ...(numeric ? { min: 10, max: 3600 } : {}) } }}

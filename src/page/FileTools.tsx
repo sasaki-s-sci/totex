@@ -2,6 +2,7 @@ import DifferenceIcon from "@mui/icons-material/Difference";
 import PreviewIcon from "@mui/icons-material/Preview";
 import WrapTextIcon from "@mui/icons-material/WrapText";
 import { useTranslation } from "react-i18next";
+import type { SaveMode } from "../canvas/nodes/preview/draft";
 import { useSettingsDocument } from "../lib/appSettings";
 import { drawn, previewable } from "../lib/filePreview";
 import type { FilePreviewNodeData } from "../lib/graph";
@@ -27,7 +28,7 @@ export function FileTools({
   onMove?: () => void;
   onHide?: () => void;
   changed: boolean;
-  save: () => Promise<boolean>;
+  save: (mode?: SaveMode) => Promise<boolean>;
   wrapped: boolean;
   /** Absent where the page shows no text to wrap. */
   onWrap?: () => void;
@@ -37,9 +38,11 @@ export function FileTools({
   const isSettings = config?.path === data.path;
   const { closeFilePreview, setFilePreviewView, previewFilePreview } = actions;
 
-  const afterSave = (action: () => void) => () => {
-    void save().then((saved) => saved && action());
-  };
+  const afterSave =
+    (action: () => void, mode: SaveMode = "quiet") =>
+    () => {
+      void save(mode).then((saved) => saved && action());
+    };
   return (
     <PageTools
       name={data.name}
@@ -47,7 +50,7 @@ export function FileTools({
       controls={{
         move: onMove && afterSave(onMove),
         hide: onHide,
-        close: afterSave(() => closeFilePreview(data.requestId)),
+        close: afterSave(() => closeFilePreview(data.requestId), "close"),
       }}
     >
       {onWrap && (

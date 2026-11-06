@@ -27,7 +27,7 @@ test("mixed file and folder drags retain the selection without repeating descend
     { path: "/work/other.txt", isDir: false },
   ]);
   assert.equal(hasFileDrag(data), true);
-  assert.equal(data.effectAllowed, "copy");
+  assert.equal(data.effectAllowed, "copyMove");
   assert.deepEqual(readFileDrag(data), [
     { path: "/work/folder", isDir: true },
     { path: "/work/other.txt", isDir: false },

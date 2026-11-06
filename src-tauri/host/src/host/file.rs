@@ -2,9 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
-use super::script::{HEAD, PUT, WRITE};
+use super::script::{HEAD, PUT, WRITE, WRITE_CHECKED};
 use super::{Host, said};
-use crate::base64;
+use crate::{base64, remote};
 
 impl Host {
     /// The whole of one file, for an explicit copy or download.
@@ -86,6 +86,60 @@ impl Host {
         }
     }
 
+    /// Saves an edited reading only while the complete original bytes still match.
+    pub fn write_checked(&self, path: &Path, text: &str, expected: &str) -> Result<u64, String> {
+        match self {
+            Self::Local => {
+                use std::io::{Read, Seek, SeekFrom, Write};
+                let mut file = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(path)
+                    .map_err(|error| error.to_string())?;
+                let mut before = Vec::new();
+                (&mut file)
+                    .take(expected.len() as u64 + 1)
+                    .read_to_end(&mut before)
+                    .map_err(|error| error.to_string())?;
+                if before != expected.as_bytes() {
+                    return Err("changed".into());
+                }
+                file.seek(SeekFrom::Start(0))
+                    .map_err(|error| error.to_string())?;
+                file.write_all(text.as_bytes())
+                    .map_err(|error| error.to_string())?;
+                file.set_len(text.len() as u64)
+                    .map_err(|error| error.to_string())?;
+            }
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let mut input = base64::encode(expected.as_bytes()).into_bytes();
+                input.push(b'\n');
+                input.extend_from_slice(text.as_bytes());
+                let output = remote::exec_input(
+                    &self.reach().ok_or("local")?,
+                    None,
+                    &[],
+                    &[
+                        "sh",
+                        "-c",
+                        WRITE_CHECKED,
+                        "totex",
+                        &self.native(path),
+                        &expected.len().to_string(),
+                    ],
+                    &input,
+                )?;
+                match output.code {
+                    0 => {}
+                    3 => return Err("is-a-directory".into()),
+                    4 => return Err("changed".into()),
+                    _ => return Err(said(&output)),
+                }
+            }
+        }
+        Ok(text.len() as u64)
+    }
+
     pub fn create_dir_all(&self, path: &Path) -> Result<(), String> {
         match self {
             Self::Local => std::fs::create_dir_all(path).map_err(|error| error.to_string()),
@@ -135,14 +189,25 @@ impl Host {
         match self {
             Self::Local => {
                 let mut source = std::fs::File::open(from).map_err(|error| error.to_string())?;
-                let mut destination = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(to)
-                    .map_err(|error| error.to_string())?;
+                let permissions = source
+                    .metadata()
+                    .map_err(|error| error.to_string())?
+                    .permissions();
+                let mut options = std::fs::OpenOptions::new();
+                options.write(true).create_new(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+                    // A private source must stay private while its bytes are being copied.
+                    options.mode(permissions.mode());
+                }
+                let mut destination = options.open(to).map_err(|error| error.to_string())?;
                 std::io::copy(&mut source, &mut destination)
-                    .map(|_| ())
+                    .and_then(|_| destination.set_permissions(permissions))
                     .map_err(|error| error.to_string())
+                    .inspect_err(|_| {
+                        let _ = std::fs::remove_file(to);
+                    })
             }
             Self::Wsl(_) | Self::Ssh(_) => self.remote_run(&[
                 "sh",
@@ -173,11 +238,20 @@ impl Host {
                     .create_new(true)
                     .open(path)
                     .map_err(|error| error.to_string())?;
-                file.write_all(bytes).map_err(|error| error.to_string())
+                file.write_all(bytes)
+                    .map_err(|error| error.to_string())
+                    .inspect_err(|_| {
+                        let _ = std::fs::remove_file(path);
+                    })
             }
             Self::Wsl(_) | Self::Ssh(_) => {
-                let payload = base64::encode(bytes);
-                let output = self.remote_script(PUT, &[&self.native(path), &payload])?;
+                let output = remote::exec_input(
+                    &self.reach().ok_or("local")?,
+                    None,
+                    &[],
+                    &["sh", "-c", PUT, "totex", &self.native(path)],
+                    bytes,
+                )?;
                 match output.code {
                     0 => Ok(()),
                     3 => Err("already-exists".to_string()),

@@ -9,7 +9,7 @@ export function hasFileDrag(transfer: Pick<DataTransfer, "types">): boolean {
 
 export function writeFileDrag(transfer: DataTransfer, entries: readonly SelectionEntry[]): void {
   const picked = topLevelEntries(entries);
-  transfer.effectAllowed = "copy";
+  transfer.effectAllowed = "copyMove";
   transfer.setData(
     FILES_DRAG_TYPE,
     JSON.stringify(picked.map(({ path, isDir }) => ({ path, isDir }))),

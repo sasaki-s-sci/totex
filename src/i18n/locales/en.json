@@ -5,10 +5,13 @@
     "newWorktree": "New workspace",
     "detached": "detached",
     "browse": "Browse workspace",
-    "worktreeMenu": "Workspace actions"
+    "worktreeMenu": "Workspace actions",
+    "closeWorkspace": "Close workspace and end its terminals"
   },
   "terminal": {
     "closeFailed": "Could not end the terminal. It is still open; try again.",
+    "connectFailed": "Could not connect to the terminal. Your session has been kept.",
+    "retry": "Retry connection",
     "copyFailed": "Could not copy. Select the text and try again.",
     "pasteFailed": "Could not paste. Copy the text or image and try again."
   },
@@ -82,6 +85,7 @@
     "copy": "Copy",
     "copyMany": "Copy {{count}} items",
     "paste": "Paste",
+    "pasteFailed": "Could not save the pasted image or video. Try again.",
     "pasteMany": "Paste {{count}} items",
     "copyContents": "Copy contents",
     "duplicate": "Duplicate",
@@ -250,7 +254,7 @@
     "clashTitle": "{{name}} changed on disk where this page changed too. This page no longer follows the file until you save over it.",
     "saveOver": "Save over",
     "saveAnew": "Save",
-    "closeNow": "Close",
+    "discardAndClose": "Discard edits and close",
     "openAgain": "Open beside",
     "showDiff": "Show what has changed in {{name}}",
     "showFile": "Show {{name}} itself",

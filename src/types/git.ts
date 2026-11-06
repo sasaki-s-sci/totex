@@ -9,7 +9,7 @@ export type Remote = {
 export type Branch = {
   id: string;
   repoId: string;
-  /** `main` for locals, `origin/main` for remotes. */
+  /** Full ref: `refs/heads/main` or `refs/remotes/origin/main`. */
   refName: string;
   name: string;
   /** Without the remote prefix, so a local and its remote pair up. */
@@ -45,6 +45,7 @@ export type Worktree = {
   path: string;
   head: string | null;
   shortHead: string | null;
+  /** Full local ref, such as `refs/heads/main`; null when detached. */
   branch: string | null;
   detached: boolean;
   bare: boolean;
