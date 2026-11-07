@@ -30,6 +30,7 @@ export function UsagePanel({ usage }: { usage: TerminalUsage[] }) {
         flex: "none",
         maxHeight: 160,
         overflowY: "auto",
+        scrollbarGutter: "stable",
         borderTop: 1,
         borderColor: "divider",
         px: 1.5,

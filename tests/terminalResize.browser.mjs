@@ -37,6 +37,9 @@ export async function verifyTerminalResize(page, base = "http://127.0.0.1:18422"
   const before = await read();
   assert.equal(before.rows, 2);
   assert.ok(before.base > 0, "The compact preview has scrollback");
+  const resizeCount = await page.evaluate(
+    () => window.pageCalls.filter((call) => call.cmd === "pty_resize").length,
+  );
 
   const grip = card.getByRole("separator", { name: "Resize page height", exact: true });
   const box = await grip.boundingBox();
@@ -46,18 +49,28 @@ export async function verifyTerminalResize(page, base = "http://127.0.0.1:18422"
   await page.mouse.up();
   await page.waitForFunction(() => window.pageTerminals.get("terminal-one").rows > 2);
   assert.equal(
+    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_resize").length),
+    resizeCount + 1,
+    "A continuous drag sends only its final grid to the PTY",
+  );
+  assert.equal(
     (await read()).base,
     before.base,
     "Growing ConPTY keeps scrollback out of its viewport",
   );
 
   for (const width of [1300, 950, 1450]) {
+    const previousCols = (await read()).cols;
     await page.setViewportSize({ width, height: 800 });
-    await page.waitForFunction(() => {
+    await page.waitForFunction((previousCols) => {
       const terminal = window.pageTerminals.get("terminal-one");
       const size = window.pageCalls.filter((call) => call.cmd === "pty_resize").at(-1)?.args;
-      return size?.cols === terminal.cols && size?.rows === terminal.rows;
-    });
+      return (
+        terminal.cols !== previousCols &&
+        size?.cols === terminal.cols &&
+        size?.rows === terminal.rows
+      );
+    }, previousCols);
   }
   // ConPTY repaints from the viewport's origin after a resize, leaving history above it alone.
   await page.evaluate(() =>

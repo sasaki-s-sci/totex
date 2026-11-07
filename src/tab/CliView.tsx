@@ -203,9 +203,15 @@ export function CliView({
       tell({ rows, cols });
     };
 
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
     settle.current = () => {
-      if (element.clientWidth === 0 || element.clientHeight === 0) return;
-      measure();
+      clearTimeout(resizeTimer);
+      // Let a drag settle and queued output finish before changing both grids.
+      resizeTimer = setTimeout(() => {
+        terminal.write("", () => {
+          if (live && element.clientWidth > 0 && element.clientHeight > 0) measure();
+        });
+      }, 100);
     };
     reclaimSize.current = () => {
       // Another view may have changed the PTY size since this view last owned it.
@@ -502,6 +508,7 @@ export function CliView({
 
     return () => {
       live = false;
+      clearTimeout(resizeTimer);
       if (idle !== null) cancelIdleCallback(idle);
       catchUpNow.current = null;
       drawn.current = null;

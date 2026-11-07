@@ -15,6 +15,7 @@ import type { useSessions } from "../hooks/useSessions";
 import { settingsNow } from "../lib/appSettings";
 import { shellSession } from "../lib/session";
 import { useFrontState } from "../shell/state";
+import { horizontalNeighbor } from "./neighbor";
 import { type PagePlacement, placementOf, terminalPageId } from "./placement";
 
 type Entry = { id: string; name: string; folder?: string };
@@ -103,10 +104,6 @@ export function PageWorkspace({
     };
   }, []);
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
-  const lastPage = useRef<{ cards: string | null; sidebar: string | null }>({
-    cards: null,
-    sidebar: null,
-  });
   const { sessions: terminals, showing, paged, page, dock, hide, restore } = sessions;
   const shownId = showing === null ? fileShowing : terminalPageId(showing);
   const [sidebarOpen, setSidebarOpen] = useFrontState("pages.sidebarOpen", shownId !== null);
@@ -154,7 +151,6 @@ export function PageWorkspace({
   const activate = useCallback(
     (id: string, place: string) => {
       const side = place === "sidebar" ? "sidebar" : "cards";
-      lastPage.current[side] = id;
       activePage.current = id;
       const terminal = terminals.find((session) => terminalPageId(session.id) === id);
       setSelection({ id, terminal: terminal?.id ?? active });
@@ -302,29 +298,37 @@ export function PageWorkspace({
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      const side = event.key === "ArrowLeft" ? "cards" : "sidebar";
-      const previous = lastPage.current[side];
-      const id =
-        side === "sidebar"
-          ? previous && (previous === shownId || previous === lower)
-            ? previous
-            : shownId
-          : previous && hosts.has(`cards/${previous}`)
-            ? previous
-            : active !== null
-              ? terminalPageId(active)
-              : entries.find((entry) => hosts.has(`cards/${entry.id}`))?.id;
       event.preventDefault();
       event.stopPropagation();
       if (event.repeat) return;
-      if (side === "sidebar" && !id) {
-        if (active !== null) show(terminalPageId(active));
-        return;
-      }
-      if (!id) return;
-      const host = hosts.get(`${side}/${id}`);
-      if (!host?.isConnected) return;
+      const visible = [...hosts].flatMap(([key, host]) => {
+        if (!key.startsWith("cards/") && !key.startsWith("sidebar/")) return [];
+        const box = host.getBoundingClientRect();
+        if (
+          !host.isConnected ||
+          box.width === 0 ||
+          box.height === 0 ||
+          getComputedStyle(host).visibility !== "visible"
+        )
+          return [];
+        return [{ key, host, left: box.left, right: box.right, top: box.top, bottom: box.bottom }];
+      });
+      const source =
+        visible.find(({ host }) => event.target instanceof Node && host.contains(event.target)) ??
+        visible.find(({ key }) => key === `${activePlace}/${selected}`);
+      if (!source) return;
+      const next = horizontalNeighbor(
+        source,
+        visible.filter((candidate) => candidate !== source),
+        event.key === "ArrowLeft" ? "left" : "right",
+      );
+      if (!next) return;
+      const { host, key } = next;
+      const slash = key.indexOf("/");
+      const side = key.slice(0, slash);
+      const id = key.slice(slash + 1);
       flushSync(() => activate(id, side));
+      host.scrollIntoView({ block: "nearest", inline: "nearest" });
       const target =
         host.querySelector<HTMLElement>(
           '.page-agent button, .xterm-helper-textarea, [contenteditable]:not([contenteditable="false"])',
@@ -333,7 +337,7 @@ export function PageWorkspace({
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [hosts, entries, shownId, lower, active, show, activate]);
+  }, [hosts, activePlace, selected, activate]);
 
   const hidePage = useCallback(() => {
     setSidebarOpen(false);

@@ -356,7 +356,9 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     "Ctrl+Right moves from a file editor to the sidebar",
   );
   await page.keyboard.press("Control+ArrowLeft");
-  assert.ok(await note.evaluate((node) => node === document.activeElement));
+  assert.ok(
+    await page.locator(".card-board").evaluate((node) => node.contains(document.activeElement)),
+  );
 
   // Settings are an ordinary page and keep their form instance when docked.
   await page.getByRole("button", { name: "Move totex.json to the sidebar", exact: true }).click();
@@ -377,10 +379,12 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
     await sidebar
       .locator(".settings-page")
       .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Right restores the displayed non-terminal page",
+    "Ctrl+Right reaches the visible non-terminal page",
   );
   await page.keyboard.press("Control+ArrowLeft");
-  assert.ok(await note.evaluate((node) => node === document.activeElement));
+  assert.ok(
+    await page.locator(".card-board").evaluate((node) => node.contains(document.activeElement)),
+  );
   await page.keyboard.press("Control+ArrowRight");
   await page.getByRole("button", { name: "Move totex.json to the cards", exact: true }).click();
   assert.ok(await sidebar.isVisible(), "Moving a page out keeps the sidebar open");

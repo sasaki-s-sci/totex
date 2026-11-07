@@ -176,10 +176,28 @@ export async function verifyCardLayout(page) {
   assert.equal(file.y, terminalBox.y);
   assert.equal(file.height, terminalBox.height, "Mixed cards stretch to the same height");
   assert.ok(file.x > terminalBox.x);
+  const editor = page.getByRole("textbox", { name: "note.txt", exact: true });
+  const terminal = card("terminal:terminal-one").locator("[data-terminal]");
+  await editor.click();
+  for (const key of ["Control+ArrowLeft", "Control+ArrowLeft"]) {
+    await page.keyboard.press(key);
+    assert.ok(await terminal.evaluate((node) => node.contains(document.activeElement)));
+  }
+  for (const key of ["Control+ArrowRight", "Control+ArrowRight"]) {
+    await page.keyboard.press(key);
+    assert.ok(await editor.evaluate((node) => node === document.activeElement));
+  }
+  assert.equal(await page.locator("#cli-sidebar").isVisible(), false, "The edge opens no viewer");
   const tools = await card("file:1").locator(".page__tools").boundingBox();
   const body = await card("file:1").locator(".page__body").boundingBox();
   assert.ok(tools.x >= body.x + body.width - 1, "File header controls are on the right");
   assert.equal(await card("file:1").locator(".page-terminal-number").textContent(), "2");
+  await drag("file:1", "terminal:terminal-one", "left");
+  await editor.click();
+  await page.keyboard.press("Control+ArrowRight");
+  assert.ok(await terminal.evaluate((node) => node.contains(document.activeElement)));
+  await page.keyboard.press("Control+ArrowLeft");
+  assert.ok(await editor.evaluate((node) => node === document.activeElement));
   await drag("file:1", "terminal:terminal-one", "bottom");
   const beforeHeight = (await card("file:1").boundingBox()).height;
   await card("file:1").getByRole("separator", { name: "Resize page height" }).focus();
@@ -366,14 +384,14 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     const body = await terminal(id).boundingBox();
     assert.ok(tools.x >= body.x + body.width - 1, "Controls sit beside the terminal");
   }
-  // Session shortcuts open the sidebar even when starting from a card.
-  await terminal("terminal-one").locator(".xterm-screen").click();
-  await page.keyboard.press("Control+ArrowRight");
+  await card("terminal-one")
+    .getByRole("button", { name: "Open main in sidebar viewer", exact: true })
+    .click();
   assert.ok(
     await page
       .locator('#cli-sidebar [data-terminal="terminal-one"]')
       .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Right opens and focuses the selected terminal in the sidebar",
+    "The viewer control opens and focuses the selected terminal in the sidebar",
   );
   for (const [key, id] of [
     ["Control+ArrowDown", "terminal-two"],
@@ -395,17 +413,17 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
       `${key} displays and focuses ${id} in the sidebar`,
     );
   }
-  await page.keyboard.press("Control+ArrowLeft");
+  await terminal("terminal-one").locator(".xterm-screen").click();
   assert.ok(
     await terminal("terminal-one").evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Left returns to the last active canvas terminal",
+    "The card remains independently focusable while its viewer is open",
   );
   await page.keyboard.press("Control+ArrowRight");
   assert.ok(
     await page
       .locator('#cli-sidebar [data-terminal="terminal-two"]')
       .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Right returns to the displayed sidebar terminal without switching it",
+    "Ctrl+Right reaches the visible sidebar and skips its hidden terminals",
   );
   await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   await card("terminal-two")

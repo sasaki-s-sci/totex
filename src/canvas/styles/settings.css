@@ -1,4 +1,5 @@
 .settings-page .page__body {
   overflow: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }

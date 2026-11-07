@@ -15,6 +15,7 @@ const POLICY = [
 
 // The rail every bar in the window is drawn as (theme/rail.css), for a document that cannot see the page's sheet.
 const RAIL = [
+  "html { scrollbar-gutter: stable }",
   "::-webkit-scrollbar { width: 7px; height: 7px }",
   "::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent }",
   "::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 4px;",

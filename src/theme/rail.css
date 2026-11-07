@@ -6,6 +6,14 @@
   --rail-held: var(--mui-palette-text-disabled);
 }
 
+/* Reserve space only on scroll containers; hidden overflow also acquires a stable gutter. */
+.MuiPopover-paper,
+.MuiDialog-paper,
+.MuiDialogContent-root,
+.MuiAutocomplete-listbox {
+  scrollbar-gutter: stable;
+}
+
 /* `scrollbar-width` and `scrollbar-color` are left unset: either one switches these off. */
 ::-webkit-scrollbar {
   width: 7px;

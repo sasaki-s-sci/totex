@@ -138,6 +138,7 @@
 .monitor-history {
   max-height: 160px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   font-size: 10px;
 }
 .monitor-history__row {

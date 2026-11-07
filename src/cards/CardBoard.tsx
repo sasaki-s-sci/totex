@@ -76,6 +76,7 @@ export function CardBoard({
         position: "absolute",
         inset: "30px 0 0",
         overflow: "auto",
+        scrollbarGutter: "stable",
         p: 2,
         "&::after": {
           content: '""',
