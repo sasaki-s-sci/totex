@@ -22,6 +22,7 @@ const NOTHING: Answer = { changed: {}, ignored: [], allIgnored: false };
 let pending: ReturnType<typeof setTimeout> | null = null;
 let clock: ReturnType<typeof setInterval> | null = null;
 let reading = false;
+let again = false;
 
 export function changesIn(path: string): Answer {
   return held.get(path) ?? NOTHING;
@@ -95,7 +96,11 @@ function schedule() {
 
 function read() {
   // One reading at a time.
-  if (reading || open.size === 0) return;
+  if (open.size === 0) return;
+  if (reading) {
+    again = true;
+    return;
+  }
   reading = true;
   directoryChanges([...open.keys()])
     .then(settle)
@@ -103,6 +108,10 @@ function read() {
     .catch(() => undefined)
     .finally(() => {
       reading = false;
+      if (again) {
+        again = false;
+        read();
+      }
     });
 }
 

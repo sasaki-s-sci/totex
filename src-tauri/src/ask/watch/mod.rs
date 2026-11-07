@@ -162,6 +162,7 @@ pub fn rederive<R: Runtime>(app: &AppHandle<R>) {
             let Ok(Some(held)) = pty::pty_attach(app.clone(), session.id.clone()) else {
                 continue;
             };
+            let held = held.held;
             let mut watcher = Watcher::new(session.rows, session.cols);
             // A backlog that reaches back to the start says all of it itself.
             if held.upto > held.text.len()

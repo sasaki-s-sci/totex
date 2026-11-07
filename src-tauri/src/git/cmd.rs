@@ -100,6 +100,23 @@ pub fn try_run(dir: &Path, args: &[&str]) -> Option<String> {
     run(dir, args).ok()
 }
 
+/// Diff against HEAD, or the empty tree before the first commit.
+pub(super) fn diff_head(dir: &Path, args: &[&str]) -> Option<String> {
+    let mut argv = vec!["diff", "HEAD"];
+    argv.extend_from_slice(args);
+    if let Some(diff) = try_run(dir, &argv) {
+        return Some(diff);
+    }
+    // Only a missing HEAD warrants the fallback; preserve other diff failures.
+    if try_run(dir, &["rev-parse", "--verify", "HEAD"]).is_some() {
+        return None;
+    }
+    // exec closes stdin; Git computes the empty tree using this repo's object format.
+    let empty = try_run(dir, &["hash-object", "-t", "tree", "--stdin"])?;
+    argv[1] = empty.trim();
+    try_run(dir, &argv)
+}
+
 /// Runs git for an answer it gives in its exit code, and hands back that code
 /// along with whatever it said about it.
 ///

@@ -67,3 +67,17 @@ fn status_counts_the_files_a_worktree_has_that_its_commit_does_not() {
     std::fs::remove_file(repo.join("two.txt")).expect("remove");
     assert_eq!(count(&repo), (1, 1, 1));
 }
+
+#[test]
+fn status_counts_staged_files_before_the_first_commit() {
+    let temp = TempDir::new("status-unborn");
+    let repo = temp.path();
+    git(repo, &["init", "--quiet", "-b", "main"]);
+    std::fs::write(repo.join("added.txt"), "new").expect("write");
+    std::fs::write(repo.join("gone.txt"), "gone").expect("write");
+    git(repo, &["add", "."]);
+    std::fs::remove_file(repo.join("gone.txt")).expect("remove");
+    std::fs::write(repo.join("untracked.txt"), "new").expect("write");
+
+    assert_eq!(count(repo), (2, 0, 0));
+}

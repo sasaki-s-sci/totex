@@ -1,3 +1,4 @@
+import { CssBaseline } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { StrictMode, useRef } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,6 +24,7 @@ function Fixture() {
   const drops = useDrops(main, openFiles);
   return (
     <ThemeProvider theme={theme}>
+      <CssBaseline />
       <div ref={main} style={{ display: "flex", height: "100vh" }}>
         <LeftSidebar open onClose={() => {}} drops={drops} />
         {location.search.includes("terminal") && (

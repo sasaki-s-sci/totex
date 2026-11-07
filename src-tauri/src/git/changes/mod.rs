@@ -89,7 +89,7 @@ pub fn directory_changes(paths: Vec<String>) -> HashMap<String, Answer> {
 /// directory alone — `--relative` both limits the diff to the subtree and
 /// answers in paths starting at it, and `ls-files` is already bounded by the
 /// directory it runs in — and one more for the ignore list. So an open level
-/// costs three gits whatever the repository around it is, and a file five
+/// normally costs three gits, plus checks for collapsed ignored folders. A file five
 /// folders down is answered for by the one folder in this listing that leads to
 /// it.
 ///
@@ -99,9 +99,7 @@ pub fn directory_changes(paths: Vec<String>) -> HashMap<String, Answer> {
 /// not answer for — which the column draws in the colour of everything else.
 fn read_answer(dir: &Path) -> Option<Answer> {
     // Asked first because it is the question that fails when this is not a
-    // repository at all. A repository with no commit in it yet has no HEAD to
-    // diff against and everything in it is untracked anyway, so the diff below
-    // is allowed to say nothing.
+    // repository at all.
     let Some(untracked) = cmd::try_run(dir, &["ls-files", "--others", "--exclude-standard", "-z"])
     else {
         return read_above(dir).map(|changed| Answer {
@@ -112,8 +110,7 @@ fn read_answer(dir: &Path) -> Option<Answer> {
     };
 
     let mut changed = HashMap::new();
-    if let Some(listing) = cmd::try_run(dir, &["diff", "HEAD", "--name-status", "-z", "--relative"])
-    {
+    if let Some(listing) = cmd::diff_head(dir, &["--name-status", "-z", "--relative", "--"]) {
         walk_name_status(&listing, |letter, from, to| match letter {
             'A' => note(&mut changed, from, Change::Added),
             'D' => note(&mut changed, from, Change::Deleted),

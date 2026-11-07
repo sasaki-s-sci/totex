@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { IWindowsPty } from "@xterm/xterm";
 
 import { reserveSessionIds, type Session, sessionMeta } from "./session";
 
@@ -31,6 +32,7 @@ export type Running = {
 export type Held = {
   text: string;
   upto: number;
+  windowsPty?: IWindowsPty;
 };
 
 const ROWS = 24;
@@ -144,10 +146,17 @@ export function resizeShell(id: string, rows: number, cols: number): Promise<voi
   const next = {
     rows,
     cols,
-    sent: invoke<void>("pty_resize", { id, rows, cols }).catch((cause) => {
-      if (sizes.get(id) === next) sizes.delete(id);
-      throw cause;
-    }),
+    sent: (previous?.sent ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => {
+        // Keep the host in order and skip sizes superseded during a drag.
+        if (sizes.get(id) !== next) return;
+        return invoke<void>("pty_resize", { id, rows, cols });
+      })
+      .catch((cause) => {
+        if (sizes.get(id) === next) sizes.delete(id);
+        throw cause;
+      }),
   };
   sizes.set(id, next);
   return next.sent;

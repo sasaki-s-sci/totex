@@ -125,13 +125,9 @@ fn read_diff(file: &Path) -> FileDiff {
     // called `-x` is not an option. `:(literal)` is what says so to git.
     let named = format!(":(literal){}", name.to_string_lossy());
 
-    let patch = cmd::try_run(
-        dir,
-        &["diff", "HEAD", "--no-color", "--no-ext-diff", "--", &named],
-    );
+    let patch = cmd::diff_head(dir, &["--no-color", "--no-ext-diff", "--", &named]);
     let Some(patch) = patch else {
-        // No HEAD to diff against — a repository with nothing committed in it
-        // yet — or no repository at all. The listing below tells the two apart.
+        // No repository, or a diff that failed. The listing tells the two apart.
         return FileDiff::nothing(untracked_or_unknown(dir, &named));
     };
 

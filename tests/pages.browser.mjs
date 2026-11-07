@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { verifyCardLayout } from "./cards.browser.mjs";
+import { verifyTerminalResize } from "./terminalResize.browser.mjs";
 
 /** Real Window, cards, file editors and xterm; only native IPC is replaced. */
 export async function verifyPages(page, base = "http://127.0.0.1:18422") {
@@ -55,7 +56,15 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
         if (cmd === "pty_attach") {
           if (window.pageAttachRefused) throw new Error("Temporary attachment failure");
           if (location.search.includes("attach-missing")) return null;
-          return window.pageBacklog ?? { text: "Retained terminal\r\n", upto: 0 };
+          return (
+            window.pageBacklog ?? {
+              text: "Retained terminal\r\n",
+              upto: 0,
+              ...(location.search.includes("terminal-resize")
+                ? { windowsPty: { backend: "conpty", buildNumber: 22631 } }
+                : {}),
+            }
+          );
         }
         if (cmd === "pty_close") {
           if (window.pageCloseRefused) throw new Error("Temporary close failure");
@@ -585,6 +594,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   assert.equal(simultaneous["sessions.showing"], null);
   assert.equal(simultaneous["sessions.active"], null);
   assert.equal(simultaneous["pages.lowerSidebar"], null);
+  await verifyTerminalResize(page, base);
   assert.equal(errors.length, 0, errors.join("\n"));
   return {
     passed:

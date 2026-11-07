@@ -457,6 +457,8 @@ export function CliView({
           return;
         }
 
+        // ConPTY owns viewport row growth; set its reflow rules before replaying output.
+        terminal.options.windowsPty = held.windowsPty ?? {};
         await sized;
         if (!live) return;
         // An earlier resize can precede shell startup; send its actual grid after attaching.

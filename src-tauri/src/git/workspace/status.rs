@@ -38,7 +38,7 @@ pub(crate) fn read_status(dir: &Path) -> Option<WorktreeStatus> {
     let untracked = cmd::try_run(dir, &["ls-files", "--others", "--exclude-standard", "-z"])?;
 
     let mut status = WorktreeStatus::default();
-    if let Some(listing) = cmd::try_run(dir, &["diff", "HEAD", "--name-status", "-z"]) {
+    if let Some(listing) = cmd::diff_head(dir, &["--name-status", "-z", "--"]) {
         count_name_status(&listing, &mut status);
     }
     status.added += count_untracked(&untracked);

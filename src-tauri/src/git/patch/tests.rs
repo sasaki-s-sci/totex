@@ -53,6 +53,28 @@ fn a_file_git_has_never_been_told_about_is_new_whole() {
 }
 
 #[test]
+fn a_staged_file_before_the_first_commit_has_added_lines() {
+    let temp = TempDir::new("patch-unborn");
+    let repo = temp.path();
+    git(repo, &["init", "--quiet", "-b", "main"]);
+    std::fs::write(repo.join("added.txt"), "new\n").expect("write");
+    git(repo, &["add", "."]);
+    std::fs::write(repo.join("added.txt"), "edited\nnew\n").expect("write");
+
+    let answer = read_diff(&repo.join("added.txt"));
+    assert_eq!(answer.standing, Standing::Changed);
+    assert_eq!(
+        answer.runs,
+        vec![Run {
+            line: 1,
+            lines: 2,
+            mark: Mark::Added
+        }]
+    );
+    assert!(answer.patch.contains("+edited\n+new"));
+}
+
+#[test]
 fn a_rewritten_file_carries_the_hunks_and_the_lines_they_landed_on() {
     let temp = TempDir::new("patch-changed");
     let repo = repository(&temp);

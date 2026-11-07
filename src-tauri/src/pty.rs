@@ -6,10 +6,50 @@
 //! below is one question to it. What the sessions are and do is the program's
 //! to say: the shapes here are the program's own, linked rather than copied.
 
+use serde::Serialize;
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
 
 pub use totex_persistent::session::{Event, Held, Running, Said, shell};
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Attached {
+    #[serde(flatten)]
+    pub held: Held,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    windows_pty: Option<WindowsPty>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowsPty {
+    backend: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    build_number: Option<u32>,
+}
+
+fn windows_pty() -> Option<WindowsPty> {
+    #[cfg(windows)]
+    {
+        use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
+        use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
+
+        let mut version = OSVERSIONINFOW {
+            dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32,
+            ..Default::default()
+        };
+        // The PTY is local ConPTY even when its child runs WSL or SSH.
+        let build_number =
+            (unsafe { RtlGetVersion(&mut version) } >= 0).then_some(version.dwBuildNumber);
+        Some(WindowsPty {
+            backend: "conpty",
+            build_number,
+        })
+    }
+    #[cfg(not(windows))]
+    None
+}
 
 /// Carries a run of a session's output to the pages.
 pub const DATA_EVENT: &str = "pty:data";
@@ -57,8 +97,12 @@ pub fn running<R: Runtime>(app: &AppHandle<R>) -> Vec<Running> {
 /// Everything a session has said that is still kept, for a terminal just built
 /// for it. `None` when there is no such session.
 #[tauri::command(async)]
-pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Result<Option<Held>, String> {
-    crate::persistent::link(&app).asked("attach", json!({ "id": id }))
+pub fn pty_attach<R: Runtime>(app: AppHandle<R>, id: String) -> Result<Option<Attached>, String> {
+    let held: Option<Held> = crate::persistent::link(&app).asked("attach", json!({ "id": id }))?;
+    Ok(held.map(|held| Attached {
+        held,
+        windows_pty: windows_pty(),
+    }))
 }
 
 /// Sends what was typed. Keystrokes, not lines: the shell does the editing.

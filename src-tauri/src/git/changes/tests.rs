@@ -130,6 +130,42 @@ fn a_row_on_the_ignore_list_is_named_as_one() {
     }
 }
 
+#[test]
+fn ignored_contents_do_not_make_their_parent_ignored() {
+    let temp = TempDir::new("changes-ignored-contents");
+    let repo = repository(&temp);
+    std::fs::write(repo.join(".gitignore"), "*.log\n").expect("write");
+    std::fs::create_dir_all(repo.join("logs")).expect("create dir");
+    std::fs::write(repo.join("logs/run.log"), "noise").expect("write");
+
+    assert!(!answer(&repo).ignored.contains(&"logs".to_string()));
+    let logs = answer(&repo.join("logs"));
+    assert!(!logs.all_ignored);
+    assert_eq!(logs.ignored, vec!["run.log"]);
+}
+
+#[test]
+fn staged_files_before_the_first_commit_are_still_added() {
+    let temp = TempDir::new("changes-unborn");
+    let repo = temp.path();
+    git(repo, &["init", "--quiet", "-b", "main"]);
+    std::fs::create_dir_all(repo.join("sub")).expect("create dir");
+    std::fs::write(repo.join("sub/added.txt"), "new").expect("write");
+    std::fs::write(repo.join("gone.txt"), "gone").expect("write");
+    git(repo, &["add", "."]);
+    std::fs::remove_file(repo.join("gone.txt")).expect("remove");
+    std::fs::write(repo.join("sub/added.txt"), "edited after staging").expect("write");
+
+    assert_eq!(
+        changes(repo),
+        HashMap::from([("sub".into(), Change::Added)])
+    );
+    assert_eq!(
+        changes(&repo.join("sub")),
+        HashMap::from([("added.txt".into(), Change::Added)])
+    );
+}
+
 /// A folder outside every repository is coloured by the checkouts under it,
 /// by the row that leads down to each, however far down it is.
 #[test]

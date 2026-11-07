@@ -6,6 +6,17 @@ import { keepFrontValue, snapshot } from "../../src/shell/state";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
 
+if (location.search.includes("terminal-resize")) {
+  const { Terminal } = await import("@xterm/xterm");
+  const terminals = new Map<string, InstanceType<typeof Terminal>>();
+  const open = Terminal.prototype.open;
+  Terminal.prototype.open = function (parent) {
+    open.call(this, parent);
+    terminals.set(parent.dataset.terminal ?? "", this);
+  };
+  Object.assign(window, { pageTerminals: terminals });
+}
+
 keepFrontValue("sessions.list", [
   { id: "terminal-one", cwd: "/tmp", branch: "main" },
   ...(location.search.includes("grouped")

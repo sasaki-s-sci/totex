@@ -7,18 +7,9 @@ use super::super::cmd;
 
 /// Which rows of `dir` are on the ignore list, and whether `dir` itself is.
 ///
-/// `--directory` is the whole of what makes this affordable: a folder that is
-/// ignored answers with its own name, so `node_modules` is one line and not the
-/// forty thousand files under it. What comes back is relative to this
-/// directory, so a name with a slash in it is a file further down under a
-/// folder that is not itself ignored — the row leading to it is a folder of
-/// this repository like any other, and drawing it faint would say the opposite.
-///
-/// A directory that is itself ignored has no names to tell apart: git answers
-/// `./`, meaning the place it was asked from, and a level or two further down
-/// it stops answering at all — `--directory` inside an ignored folder is an
-/// error in the gits this runs against. Both are the same fact, and both are
-/// settled by asking about this one directory instead.
+/// `--directory` avoids walking huge ignored trees, but also collapses folders
+/// containing only ignored files. Confirm directory entries with `check-ignore`
+/// so those parents keep their normal colour. Paths are relative to `dir`.
 pub(super) fn read_ignored(dir: &Path) -> (Vec<String>, bool) {
     let listed = cmd::try_run(
         dir,
@@ -41,9 +32,15 @@ pub(super) fn read_ignored(dir: &Path) -> (Vec<String>, bool) {
         // asked from arrives as itself.
         let name = path.trim_end_matches('/');
         if name.is_empty() || name == "." {
-            return (Vec::new(), true);
+            if inside_ignored(dir) {
+                return (Vec::new(), true);
+            }
+            continue;
         }
         if name.contains('/') {
+            continue;
+        }
+        if path.ends_with('/') && cmd::try_run(dir, &["check-ignore", "-q", "--", name]).is_none() {
             continue;
         }
         names.push(name.to_string());

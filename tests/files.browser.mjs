@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { verifyFileDragging } from "./fileDrag.browser.mjs";
+import { verifyFolderColours } from "./folderColours.browser.mjs";
 
 /** Real explorer, menu and inline naming field; only filesystem IPC is replaced. */
 export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
@@ -30,6 +31,7 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
     };
     let serial = 0;
     window.fsCalls = [];
+    window.fsChanges = {};
     window.fsRefused = null;
     window.fsDelay = 0;
     const changed = (path) => {
@@ -107,7 +109,12 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
           };
         if (cmd === "describe_folders")
           return args.paths.map((path) => ({ path, label: name(path), display: path }));
-        if (cmd === "directory_changes") return {};
+        if (cmd === "directory_changes")
+          return Object.fromEntries(
+            args.paths
+              .filter((path) => window.fsChanges[path])
+              .map((path) => [path, window.fsChanges[path]]),
+          );
         if (["list_roots", "terminal_usage"].includes(cmd)) return [];
         if (cmd === "fs_rename_file") {
           const next = `${parent(args.path)}/${args.name}`;
@@ -171,6 +178,7 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
       window.fsCalls.filter(({ cmd }) => cmd === "fs_delete_file" || cmd === "fs_delete_folder"),
     );
 
+  await verifyFolderColours(page, base);
   await reset();
   await menu("alpha.txt", "Rename");
   const composingName = page.getByPlaceholder("alpha.txt", { exact: true });

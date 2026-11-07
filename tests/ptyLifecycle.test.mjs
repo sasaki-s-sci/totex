@@ -150,3 +150,46 @@ test("a failed resize can be retried at the same size", async () => {
   await resizeShell("retry-resize", 42, 91);
   assert.equal(calls, 2);
 });
+
+test("a drag sends one resize at a time and keeps only the latest pending size", async () => {
+  const first = Promise.withResolvers();
+  const calls = [];
+  mockIPC((command, args) => {
+    assert.equal(command, "pty_resize");
+    calls.push([args.rows, args.cols]);
+    if (calls.length === 1) return first.promise;
+  });
+  const id = "resize-drag";
+  const narrow = resizeShell(id, 20, 80);
+  await new Promise(setImmediate);
+  const middle = resizeShell(id, 24, 100);
+  const wide = resizeShell(id, 30, 140);
+  await new Promise(setImmediate);
+  assert.deepEqual(calls, [[20, 80]], "The host must not apply resizes out of order");
+  first.resolve();
+  await Promise.all([narrow, middle, wide]);
+  assert.deepEqual(calls, [
+    [20, 80],
+    [30, 140],
+  ]);
+  await resizeShell(id, 30, 140);
+  assert.equal(calls.length, 2, "The final size remains deduplicated");
+});
+
+test("a refused resize does not discard a newer size", async () => {
+  const first = Promise.withResolvers();
+  const calls = [];
+  mockIPC((command, args) => {
+    assert.equal(command, "pty_resize");
+    calls.push(args.cols);
+    if (calls.length === 1) return first.promise;
+  });
+  const refused = assert.rejects(resizeShell("resize-drag-retry", 24, 80), /resize refused/);
+  await new Promise(setImmediate);
+  const latest = resizeShell("resize-drag-retry", 24, 120);
+  first.reject(new Error("resize refused"));
+  await Promise.all([refused, latest]);
+  assert.deepEqual(calls, [80, 120]);
+  await resizeShell("resize-drag-retry", 24, 120);
+  assert.equal(calls.length, 2);
+});
