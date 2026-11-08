@@ -212,6 +212,10 @@ pub fn run() {
         // drawn; and then the sessions already running are read, because a
         // window that has just come up is standing in front of them.
         .setup(|app| {
+            // Clipboard permission is a builder option, so create the configured window here.
+            tauri::WebviewWindowBuilder::from_config(app, &app.config().app.windows[0])?
+                .enable_clipboard_access()
+                .build()?;
             ask::watch::attend(app.handle());
             persistent::deliver(app.handle());
             ask::watch::rederive(app.handle());
