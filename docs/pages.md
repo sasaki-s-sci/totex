@@ -25,6 +25,8 @@ settings and terminals in the same rows. Drag a page header to another page's le
 or right edge to put them in equal-width columns within a row. Drop at the top or
 bottom edge to make a separate row. The highlighted edge previews the placement;
 Alt+arrow keys on a focused header provide keyboard reordering.
+Each card keeps its own height when a neighbor expands. Ctrl+Left/Right follows
+the displayed columns and keeps the entry row when crossing taller cards.
 
 Each page uses `src/cards/ResizablePage.tsx`: dragging its bottom edge changes its
 height, with a minimum height for each content type. The focused resize edge also

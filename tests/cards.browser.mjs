@@ -1,5 +1,51 @@
 import assert from "node:assert/strict";
 
+/** Unequal columns retain compact terminals and the row used to navigate between them. */
+export async function verifyCardGeometry(page, base = "http://127.0.0.1:18422") {
+  await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals&columns`);
+  const terminal = (id) => page.locator(`.card-board [data-terminal="${id}"]`);
+  const card = (id) => page.locator(`[data-page-card="terminal:${id}"]`);
+  await page.waitForFunction(() =>
+    ["terminal-one", "terminal-two"].every(
+      (id) =>
+        window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
+          ?.args.rows === 2,
+    ),
+  );
+  for (const id of ["terminal-one", "terminal-two"]) {
+    await terminal(id).locator(".xterm-screen").click();
+    await page.keyboard.press("Control+ArrowRight");
+    assert.ok(
+      await terminal("terminal-other").evaluate((node) => node.contains(document.activeElement)),
+    );
+    await page.keyboard.press("Control+ArrowLeft");
+    assert.ok(
+      await terminal(id).evaluate((node) => node.contains(document.activeElement)),
+      "Returning from a taller neighbor keeps the original row",
+    );
+  }
+  const left = page.locator('[data-card-folder="/tmp"]');
+  const right = page.locator('[data-card-folder="/elsewhere"]');
+  assert.ok(
+    (await left.boundingBox()).height < 150,
+    "Compact folder does not stretch to its neighbor",
+  );
+  assert.ok((await right.boundingBox()).height > 600);
+  await card("terminal-one").getByRole("separator", { name: "Resize page height" }).focus();
+  await page.keyboard.press("ArrowDown");
+  assert.ok((await card("terminal-one").boundingBox()).height >= 180);
+  assert.ok(
+    (await card("terminal-two").boundingBox()).height < 65,
+    "Expanding a sibling keeps two rows compact",
+  );
+  await page.keyboard.press("ArrowUp");
+  assert.ok(
+    (await left.boundingBox()).height < 150,
+    "Collapsing returns the folder to its own height",
+  );
+}
+
 /** Runs in the page-placement fixture after its terminal, editor and settings have mounted. */
 export async function verifyCardLayout(page) {
   await page.evaluate(() => {
@@ -144,12 +190,15 @@ export async function verifyCardLayout(page) {
       rows,
     );
   };
+  const settingsHeight = (await card("file:-1").boundingBox()).height;
+  const folderHeight = (await card("folder:/tmp").boundingBox()).height;
   await drag("folder:/tmp", "file:-1", "right");
   await layoutIs([["file:-1", "folder:/tmp"]]);
   const fileBox = await card("file:-1").boundingBox();
   const folderBox = await card("folder:/tmp").boundingBox();
   assert.equal(fileBox.y, folderBox.y, "Settings and folder group share a row");
-  assert.equal(fileBox.height, folderBox.height, "Cards in a row share a height");
+  assert.equal(fileBox.height, settingsHeight, "Settings keeps its own height in a row");
+  assert.equal(folderBox.height, folderHeight, "The folder keeps its own height in a row");
   assert.ok(folderBox.x > fileBox.x, "Dropping the group on the right adds a column");
   const held = await card("file:-1").locator(".page__name").first().boundingBox();
   await page.mouse.move(held.x + held.width / 2, held.y + held.height / 2);
@@ -170,11 +219,20 @@ export async function verifyCardLayout(page) {
   await drag("file:-1", "folder:/tmp", "top");
   await layoutIs([["file:-1"], ["folder:/tmp"]]);
   // A file and terminal share the folder's inner layout and keep their live content.
+  const fileHeight = (await card("file:1").locator(".resizable-page").boundingBox()).height;
+  const terminalHeight = (
+    await card("terminal:terminal-one").locator(".resizable-page").boundingBox()
+  ).height;
   await drag("file:1", "terminal:terminal-one", "right");
   const file = await card("file:1").boundingBox();
   const terminalBox = await card("terminal:terminal-one").boundingBox();
   assert.equal(file.y, terminalBox.y);
-  assert.equal(file.height, terminalBox.height, "Mixed cards stretch to the same height");
+  assert.equal((await card("file:1").locator(".resizable-page").boundingBox()).height, fileHeight);
+  assert.equal(
+    (await card("terminal:terminal-one").locator(".resizable-page").boundingBox()).height,
+    terminalHeight,
+    "A neighboring file does not stretch the terminal",
+  );
   assert.ok(file.x > terminalBox.x);
   const editor = page.getByRole("textbox", { name: "note.txt", exact: true });
   const terminal = card("terminal:terminal-one").locator("[data-terminal]");

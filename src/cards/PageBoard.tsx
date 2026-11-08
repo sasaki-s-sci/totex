@@ -165,7 +165,7 @@ export function PageBoard({
         "--page-gap": (theme) => theme.spacing(2),
         display: "flex",
         flexWrap: "wrap",
-        alignItems: "stretch",
+        alignItems: "flex-start",
         gap: "var(--page-gap)",
       }}
     >

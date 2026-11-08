@@ -33,6 +33,11 @@ keepFrontValue(
     : [{ id: 1, path: "/tmp/note.txt", folder: "/tmp", at: { x: 380, y: 240 } }],
 );
 keepFrontValue("window.settings", 1);
+if (location.search.includes("columns")) {
+  keepFrontValue("cards.layout", [["folder:/tmp", "folder:/elsewhere"]]);
+  keepFrontValue("pages.expandedTerminals", ["terminal:terminal-other"]);
+  keepFrontValue("cards.height.terminal:terminal-other", 600);
+}
 if (
   location.search.includes("offers") ||
   location.search.includes("terminals") ||

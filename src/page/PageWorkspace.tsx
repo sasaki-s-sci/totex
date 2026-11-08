@@ -294,10 +294,22 @@ export function PageWorkspace({
     else if (terminals[0]) show(terminalPageId(terminals[0].id));
   }, [shownId, entries, placement, show, terminals]);
 
+  const horizontal = useRef<{ key: string; offset: number } | null>(null);
   useEffect(() => {
+    const reset = () => {
+      horizontal.current = null;
+    };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      if (
+        !event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        (event.key !== "ArrowLeft" && event.key !== "ArrowRight")
+      ) {
+        if (event.key !== "Control") reset();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       if (event.repeat) return;
@@ -317,13 +329,23 @@ export function PageWorkspace({
         visible.find(({ host }) => event.target instanceof Node && host.contains(event.target)) ??
         visible.find(({ key }) => key === `${activePlace}/${selected}`);
       if (!source) return;
+      // Keep the entry row when crossing a taller card, including after scrolling it into view.
+      const y =
+        source.top +
+        (horizontal.current?.key === source.key
+          ? horizontal.current.offset
+          : (source.bottom - source.top) / 2);
       const next = horizontalNeighbor(
-        source,
+        { ...source, top: y, bottom: y },
         visible.filter((candidate) => candidate !== source),
         event.key === "ArrowLeft" ? "left" : "right",
       );
       if (!next) return;
       const { host, key } = next;
+      horizontal.current = {
+        key,
+        offset: Math.max(0, Math.min(y - next.top, next.bottom - next.top)),
+      };
       const slash = key.indexOf("/");
       const side = key.slice(0, slash);
       const id = key.slice(slash + 1);
@@ -336,7 +358,11 @@ export function PageWorkspace({
       target?.focus({ preventScroll: true });
     };
     window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+    window.addEventListener("pointerdown", reset, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("pointerdown", reset, true);
+    };
   }, [hosts, activePlace, selected, activate]);
 
   const hidePage = useCallback(() => {

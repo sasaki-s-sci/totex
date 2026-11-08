@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { verifyCardLayout } from "./cards.browser.mjs";
+import { verifyCardGeometry, verifyCardLayout } from "./cards.browser.mjs";
 import { verifyTerminalResize } from "./terminalResize.browser.mjs";
 
 /** Real Window, cards, file editors and xterm; only native IPC is replaced. */
@@ -599,6 +599,7 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
   assert.equal(simultaneous["sessions.active"], null);
   assert.equal(simultaneous["pages.lowerSidebar"], null);
   await verifyTerminalResize(page, base);
+  await verifyCardGeometry(page, base);
   assert.equal(errors.length, 0, errors.join("\n"));
   return {
     passed:
