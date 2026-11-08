@@ -30,7 +30,8 @@ export function clipboardFiles(): Promise<string[]> {
 async function saveMedia(blob: Blob, into?: string): Promise<string> {
   if (blob.size === 0 || blob.size > 256 * 1024 * 1024) throw new Error("media-size-limit");
   const options = new TextEncoder().encode(JSON.stringify({ mime: blob.type, into }));
-  return invoke<string>("paste_media", await blob.arrayBuffer(), {
+  // The parent shell recognizes typed arrays across frames, but not bare ArrayBuffers.
+  return invoke<string>("paste_media", new Uint8Array(await blob.arrayBuffer()), {
     headers: { "x-totex-paste": btoa(String.fromCharCode(...options)) },
   });
 }

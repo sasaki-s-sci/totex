@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
+import { runInNewContext } from "node:vm";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { copyText, pasteMedia, readClipboard } from "../src/lib/clipboard.ts";
 
@@ -53,10 +54,14 @@ test("unreadable clipboard reports failure rather than sending Ctrl+V", async ()
   await assert.rejects(readClipboard(), /clipboard unavailable/);
 });
 
-test("image and recording blobs use binary IPC and preserve the selected folder", async () => {
+test("image and recording blobs stay binary in the parent window and preserve the selected folder", async () => {
+  const isBinary = runInNewContext(
+    "(body) => body instanceof ArrayBuffer || ArrayBuffer.isView(body) || Array.isArray(body)",
+  );
   for (const type of ["image/png", "video/mp4"]) {
     mockIPC((command, bytes) => {
       assert.equal(command, "paste_media");
+      assert.equal(isBinary(bytes), true, "The parent shell must recognize a raw binary body");
       assert.deepEqual([...new Uint8Array(bytes)], [1, 2, 3]);
       return "/選択/pasted-file";
     });
