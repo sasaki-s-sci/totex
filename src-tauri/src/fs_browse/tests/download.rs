@@ -8,6 +8,27 @@ use super::temp_dir;
 use crate::host::Host;
 
 #[test]
+fn the_shared_copy_refuses_its_own_tree_before_creating_anything() {
+    let root = temp_dir("download-into-itself");
+    let source = root.join("home");
+    let downloads = source.join("Downloads");
+    fs::create_dir_all(&downloads).unwrap();
+    fs::write(source.join("keep"), "original").unwrap();
+    let stat = Host::Local.stat(&source).unwrap();
+    let targets = [source.clone(), source.join("copy"), downloads.join("home")];
+    for target in targets {
+        assert_eq!(
+            copy_tree(&Host::Local, &source, &stat, &Host::Local, &target),
+            Err("into-itself".into())
+        );
+    }
+    assert_eq!(fs::read_dir(&source).unwrap().count(), 2);
+    assert_eq!(fs::read_dir(&downloads).unwrap().count(), 0);
+    assert_eq!(fs::read_to_string(source.join("keep")).unwrap(), "original");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn copies_a_whole_folder_and_stops_at_a_link_to_one() {
     let root = temp_dir("download-folder");
     let source = root.join("project");

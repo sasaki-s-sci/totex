@@ -4,9 +4,6 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64;
-use minisign_verify::{PublicKey, Signature};
 use semver::Version;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, Runtime};
@@ -14,6 +11,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use super::{Serving, TAKEN, Taken, Unpacked};
 use crate::release;
 use crate::update::{Coming, Took};
+pub(crate) use totex_persistent::update::ours;
 
 /// The most of a front that will be read off the network.
 ///
@@ -159,28 +157,6 @@ pub fn confirm_front<R: Runtime>(app: AppHandle<R>, version: Option<String>) -> 
     }
     serving.drawn();
     Ok(())
-}
-
-/// Whether this is the front the release page named, signed with our key.
-///
-/// The two strings are base64 around the two halves of a minisign pair, which
-/// is the shape the release manifest carries and the shape `tauri signer`
-/// writes — the front is signed by the same command, with the same key, in the
-/// same job as the installers beside it.
-pub(crate) fn ours(tarball: &[u8], signature: &str, key: &str) -> Result<(), String> {
-    let text = |encoded: &str, what: &str| {
-        BASE64
-            .decode(encoded)
-            .ok()
-            .and_then(|bytes| String::from_utf8(bytes).ok())
-            .ok_or_else(|| format!("the {what} is not what a {what} looks like"))
-    };
-    let key = PublicKey::decode(&text(key, "key")?)
-        .map_err(|error| format!("the key will not decode: {error}"))?;
-    let signature = Signature::decode(&text(signature, "signature")?)
-        .map_err(|error| format!("the signature will not decode: {error}"))?;
-    key.verify(tarball, &signature, true)
-        .map_err(|_| "this front is not signed with the app's key".to_string())
 }
 
 /// Lays the front out on disk, under the name of the release it came from.

@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 const MOST: usize = 512 * 1024 * 1024;
 
 /// How long the whole of a release is given to arrive.
-const FETCHING: Duration = Duration::from_secs(15 * 60);
+pub(crate) const FETCHING: Duration = Duration::from_secs(15 * 60);
 
 /// How long a program that has just closed is given to let go of its own file.
 ///

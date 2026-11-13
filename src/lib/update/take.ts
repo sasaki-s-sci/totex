@@ -50,7 +50,7 @@ export async function take(layer: Layer, target?: string | null): Promise<Update
       } else {
         // The installed bundle contains both the new host and the views built for it. Its page
         // starts in a new process, so the graph goes ahead of it through the service.
-        await carryAcrossRestart().catch(() => undefined);
+        await carryAcrossRestart();
         // A minor update closes every terminal; the jobs in them are marked as lost to it.
         await holdForRestart().catch(() => undefined);
         await invoke("update_restart");

@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Fetch, RefKind } from "../lib/graph";
+import type { RefKind } from "../lib/graph";
 import type { Session } from "../lib/session";
 import type { WorktreeStatus } from "../lib/workspace";
 import type { FilePageActions } from "../page/actions";
@@ -14,13 +14,6 @@ export type WorkRequest = {
 };
 
 export type WorktreeBrowseRequest = WorkRequest & { repository: Repository };
-
-export type FetchRequest = {
-  repository: Repository;
-
-  branch: string;
-  fetch: Fetch;
-};
 
 export type BranchPick = {
   repository: Repository;

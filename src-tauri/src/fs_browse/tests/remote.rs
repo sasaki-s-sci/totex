@@ -10,6 +10,93 @@ use super::remote_dirs;
 use crate::host::Host;
 
 #[test]
+#[cfg(unix)]
+fn cross_host_copies_keep_private_and_executable_modes_in_both_directions() {
+    use std::os::unix::fs::PermissionsExt;
+    for (host, dir) in remote_dirs("copy-modes") {
+        let local = super::temp_dir(&format!("copy-modes-{}", host.remote_name().unwrap()));
+        let incoming = local.join("incoming");
+        std::fs::create_dir(&incoming).unwrap();
+        for (name, mode) in [("private", 0o600), ("executable", 0o751)] {
+            let source = local.join(name);
+            std::fs::write(&source, "private bytes").unwrap();
+            std::fs::set_permissions(&source, std::fs::Permissions::from_mode(mode)).unwrap();
+            let copied = copy_into(&[source.to_string_lossy().into_owned()], &dir).unwrap();
+            let output = host
+                .exec(
+                    None,
+                    &[],
+                    &[
+                        "stat",
+                        "-Lc",
+                        "%a",
+                        "--",
+                        &host.native(Path::new(&copied[0])),
+                    ],
+                )
+                .unwrap();
+            assert!(output.ok());
+            assert_eq!(
+                u32::from_str_radix(String::from_utf8_lossy(&output.stdout).trim(), 8).unwrap(),
+                mode
+            );
+            let back = copy_into(&copied, &incoming.to_string_lossy()).unwrap();
+            assert_eq!(
+                std::fs::metadata(&back[0]).unwrap().permissions().mode() & 0o777,
+                mode
+            );
+            assert_eq!(std::fs::read_to_string(&back[0]).unwrap(), "private bytes");
+        }
+        let private = local.join("private-folder");
+        std::fs::create_dir(&private).unwrap();
+        std::fs::set_permissions(&private, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::write(private.join("secret"), "private folder contents").unwrap();
+        std::fs::set_permissions(
+            private.join("secret"),
+            std::fs::Permissions::from_mode(0o644),
+        )
+        .unwrap();
+        let copied = copy_into(&[private.to_string_lossy().into_owned()], &dir).unwrap();
+        assert_eq!(host.mode(Path::new(&copied[0])).unwrap(), Some(0o700));
+        let back = copy_into(&copied, &incoming.to_string_lossy()).unwrap();
+        assert_eq!(Host::Local.mode(Path::new(&back[0])).unwrap(), Some(0o700));
+        assert_eq!(
+            std::fs::read_to_string(Path::new(&back[0]).join("secret")).unwrap(),
+            "private folder contents"
+        );
+        std::fs::remove_dir_all(local).unwrap();
+    }
+}
+
+#[test]
+fn a_card_saves_through_a_remote_file_symlink() {
+    for (host, dir) in remote_dirs("symlink-save") {
+        let root = Path::new(&dir);
+        assert!(
+            host.exec(
+                Some(root),
+                &[],
+                &["sh", "-c", "printf 1234567890 > target; ln -s target link"]
+            )
+            .unwrap()
+            .ok()
+        );
+        let link = host.join(root, "link");
+        let head = read_file_head(&link.to_string_lossy()).unwrap();
+        assert_eq!(
+            write_file(
+                &link.to_string_lossy(),
+                "saved",
+                head.text.as_deref().unwrap()
+            ),
+            Ok(5)
+        );
+        assert_eq!(host.read(&host.join(root, "target")), Ok(b"saved".to_vec()));
+        assert!(host.stat(&link).unwrap().is_symlink);
+    }
+}
+
+#[test]
 fn far_machine_operations_keep_trailing_spaces_and_refuse_same_size_edits() {
     for (host, dir) in remote_dirs("exact-path-and-write") {
         let root = Path::new(&dir);

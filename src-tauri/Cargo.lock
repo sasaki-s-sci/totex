@@ -4781,7 +4781,6 @@ dependencies = [
  "base64 0.22.1",
  "dirs",
  "flate2",
- "minisign-verify",
  "notify",
  "notify-debouncer-full",
  "reqwest",

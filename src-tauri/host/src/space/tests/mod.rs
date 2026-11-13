@@ -12,7 +12,10 @@ use super::{DIR, Settings, find, home, settings};
 
 /// A temporary directory that removes itself, so a failing test cannot leave a
 /// fixture behind.
-struct TempDir(PathBuf);
+struct TempDir {
+    root: PathBuf,
+    path: PathBuf,
+}
 
 impl TempDir {
     fn new(tag: &str) -> Self {
@@ -20,26 +23,30 @@ impl TempDir {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|elapsed| elapsed.as_nanos())
             .unwrap_or_default();
-        let path =
-            std::env::temp_dir().join(format!("totex-space-{tag}-{}-{unique}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("tx-{tag}-{unique:x}"));
+        let mut path = root.clone();
+        // The lookup budget ends inside our fixture, before any real ancestor settings.
+        for _ in 0..super::RUNGS {
+            path.push("d");
+        }
         std::fs::create_dir_all(&path).expect("create temp dir");
-        Self(path)
+        Self { root, path }
     }
 
     fn path(&self) -> &Path {
-        &self.0
+        &self.path
     }
 
     /// Makes one of the fixture's directories, however deep.
     fn folder(&self, at: &str) -> PathBuf {
-        let path = self.0.join(at);
+        let path = self.path.join(at);
         std::fs::create_dir_all(&path).expect("create the fixture folder");
         path
     }
 
     /// Writes one of the fixture's files, making the folder it goes in.
     fn holding(&self, at: &str, text: &str) -> &Self {
-        let path = self.0.join(at);
+        let path = self.path.join(at);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).expect("create the fixture folder");
         }
@@ -50,7 +57,7 @@ impl TempDir {
 
 impl Drop for TempDir {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        let _ = std::fs::remove_dir_all(&self.root);
     }
 }
 
@@ -58,10 +65,26 @@ impl Drop for TempDir {
 fn a_folder_told_nothing_is_in_no_space() {
     let temp = TempDir::new("none");
     let deep = temp.folder("one/two");
-    // The walk goes above the fixture into the machine's temp directory and on
-    // up, so this only says what it means where nothing up there has a `.totex`
-    // -- which is the case, and is why the fixture is where it is.
     assert_eq!(find(&deep), None);
+}
+
+#[test]
+fn fixture_reads_and_writes_leave_ancestor_settings_alone() {
+    let temp = TempDir::new("isolated");
+    let ancestor = temp.root.join(DIR);
+    std::fs::create_dir(&ancestor).expect("ancestor space");
+    let file = ancestor.join("settings.json");
+    let original = "{\"mcp\":false}\n";
+    std::fs::write(&file, original).expect("ancestor settings");
+
+    let loose = temp.folder("notes");
+    assert_eq!(find(&loose), None);
+    assert_eq!(settings(&loose), Settings::default());
+    assert_eq!(
+        PathBuf::from(tell(&loose, Settings { mcp: true }).unwrap()),
+        loose
+    );
+    assert_eq!(std::fs::read_to_string(file).unwrap(), original);
 }
 
 #[test]

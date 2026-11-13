@@ -7,6 +7,8 @@ mod identity;
 mod refresh;
 mod remote;
 mod scan;
+#[cfg(unix)]
+mod trust;
 mod watch;
 
 use std::path::{Path, PathBuf};

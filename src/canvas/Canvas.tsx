@@ -14,7 +14,7 @@ import { Pages } from "./Pages";
 import "./styles/index.css";
 
 export type { CanvasProps } from "./CanvasProps";
-export type { BranchPick, FetchRequest } from "./graphActions";
+export type { BranchPick } from "./graphActions";
 
 export function Canvas({
   workspace,

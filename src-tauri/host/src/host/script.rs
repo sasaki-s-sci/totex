@@ -1,15 +1,21 @@
 //! The shell scripts the remote half of every operation runs.
 
 /// One path, as `%y` (what it is) `%Y` (what it points at) size and mtime.
-pub(super) const STAT: &str = r#"exec find "$1" -maxdepth 0 -printf '%y\t%Y\t%s\t%T@\n'"#;
+pub(super) const STAT: &str = r#"
+if [ -L "$1" ] && [ -e "$1" ]; then
+    printf 'l\t'
+    exec find -H "$1" -maxdepth 0 -printf '%Y\t%s\t%T@\n'
+fi
+exec find "$1" -maxdepth 0 -printf '%y\t%Y\t%s\t%T@\n'
+"#;
 
 /// One directory's children, NUL-terminated so a newline in a name is a name.
 pub(super) const LIST: &str =
-    r#"exec find "$1" -maxdepth 1 -mindepth 1 -printf '%y\t%Y\t%s\t%T@\t%p\0'"#;
+    r#"exec find -H "$1" -maxdepth 1 -mindepth 1 -printf '%y\t%Y\t%s\t%T@\t%p\0'"#;
 
 /// The same, for as many directories as were asked about at once.
 pub(super) const LIST_MANY: &str =
-    r#"exec find "$@" -maxdepth 1 -mindepth 1 -printf '%y\t%Y\t%s\t%T@\t%p\0'"#;
+    r#"exec find -H "$@" -maxdepth 1 -mindepth 1 -printf '%y\t%Y\t%s\t%T@\t%p\0'"#;
 
 /// How long a file is, then as much of it as was asked for.
 pub(super) const HEAD: &str = r#"
@@ -49,6 +55,19 @@ cat >"$1"
 pub(super) const PUT: &str = r#"
 [ -e "$1" ] && exit 3
 [ -L "$1" ] && exit 3
+if [ -n "$2" ]; then
+    parent=${1%/*}
+    [ "$parent" = "$1" ] && parent=.
+    [ -n "$parent" ] || parent=/
+    stage=$(mktemp -d -- "$parent/.totex-put.XXXXXXXXXX") || exit 1
+    trap 'rm -rf -- "$stage"' EXIT
+    exec 3>"$stage/file"
+    chmod -- "$2" /dev/fd/3 || exit 1
+    cat >&3 || exit 1
+    mv -nT -- "$stage/file" "$1" || exit 1
+    [ ! -e "$stage/file" ] || exit 3
+    exit 0
+fi
 set -C
 exec 3>"$1"
 cat >&3 || { rm -f -- "$1"; exit 1; }

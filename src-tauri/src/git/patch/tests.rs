@@ -221,3 +221,15 @@ fn a_patch_longer_than_a_card_could_hold_is_cut_at_a_line() {
     assert!(patch.len() <= MAX_PATCH);
     assert!(patch.ends_with("+a line of it"));
 }
+
+#[test]
+fn a_patch_cut_inside_a_unicode_character_keeps_only_whole_lines() {
+    let complete = "@@ -1 +1 @@\n+日本語";
+    let long = format!("{complete}\n{}", "あ".repeat(MAX_PATCH / 3 + 1));
+    assert!(!long.is_char_boundary(MAX_PATCH));
+
+    let (patch, truncated) = cut(long);
+    assert!(truncated);
+    assert_eq!(patch, complete);
+    assert_eq!(cut("あ".repeat(MAX_PATCH / 3 + 1)), (String::new(), true));
+}

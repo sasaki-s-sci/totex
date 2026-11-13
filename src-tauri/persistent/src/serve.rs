@@ -43,6 +43,9 @@ const LOOPBACK: &str = "127.0.0.1";
 /// How long a connection is given to say the token before it is dropped.
 const HELLO: Duration = Duration::from_secs(5);
 
+/// Drop a stalled window before it holds up every session's output.
+const WRITING: Duration = Duration::from_secs(5);
+
 /// What ends this program, handed in by whoever started it: the real one exits
 /// the process, and a test sets a flag.
 pub type Ending = Box<dyn Fn() + Send + Sync>;
@@ -69,9 +72,14 @@ struct Client {
 impl Client {
     fn say(&self, line: &str) -> std::io::Result<()> {
         let mut writing = lock(&self.writing);
-        writing.write_all(line.as_bytes())?;
-        writing.write_all(b"\n")?;
-        writing.flush()
+        let result = writing
+            .write_all(line.as_bytes())
+            .and_then(|()| writing.write_all(b"\n"))
+            .and_then(|()| writing.flush());
+        if result.is_err() {
+            let _ = writing.shutdown(std::net::Shutdown::Both);
+        }
+        result
     }
 }
 
@@ -81,6 +89,7 @@ pub struct Serving {
     clients: Mutex<Vec<Arc<Client>>>,
     next: AtomicU64,
     relaunching: AtomicUsize,
+    updating: Mutex<()>,
     ending: Ending,
     port: u16,
     token: String,
@@ -106,6 +115,7 @@ pub fn stand(held: Arc<Persistent>, home: &Path, ending: Ending) -> Result<Arc<S
         clients: Mutex::new(Vec::new()),
         next: AtomicU64::new(1),
         relaunching: AtomicUsize::new(0),
+        updating: Mutex::new(()),
         ending,
         port,
         token: token.clone(),
@@ -195,6 +205,9 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
     let Ok(writing) = stream.try_clone() else {
         return;
     };
+    if writing.set_write_timeout(Some(WRITING)).is_err() {
+        return;
+    }
     let mut reading = BufReader::new(stream);
 
     // The token, or nothing at all: a connection that does not say it in time
@@ -271,16 +284,16 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
     // this program goes too.
     serving.forget(client.id);
     if let Some(mut relaunch) = lock(&client.relaunch).take() {
-        if let Some(install) = &relaunch.install
-            && let Err(error) = update::install(install)
-        {
-            relaunch.args.retain(|arg| arg != crate::RESTART_RUNTIME);
-            // The old program is started instead: a window that says the
-            // release did not go in is better than no window at all.
-            update::note(
-                &serving.home,
-                &format!("the release did not go in: {error}"),
-            );
+        if let Some(install) = &relaunch.install {
+            let _updating = lock(&serving.updating);
+            if let Err(error) = update::install(install) {
+                relaunch.args.retain(|arg| arg != crate::RESTART_RUNTIME);
+                // A failed install restarts the old program and records why.
+                update::note(
+                    &serving.home,
+                    &format!("the release did not go in: {error}"),
+                );
+            }
         }
         if let Err(error) = launch(&relaunch) {
             update::note(&serving.home, &error);
@@ -293,8 +306,8 @@ fn talk(serving: Arc<Serving>, stream: TcpStream) {
 /// Something to do after an answer has been written.
 type Then = Box<dyn FnOnce(&Serving) + Send>;
 
-/// Questions that start agents on other machines and can take a minute.
-const SLOW: &[&str] = &["monitor_models"];
+/// Network work must not hold terminal input behind it.
+const SLOW: &[&str] = &["monitor_models", "take_program"];
 
 /// Whether a name is one the table below answers to.
 pub fn answers(command: &str) -> bool {
@@ -359,6 +372,10 @@ fn answer(
             .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
         "store_list" => said(held.store.list()),
         "take_program" => read::<update::Taking>(with).and_then(|taking| {
+            let _updating = serving
+                .updating
+                .try_lock()
+                .map_err(|_| "an update is already in progress".to_string())?;
             let telling = Arc::clone(serving);
             update::take(&serving.home, &taking, move |taken, length| {
                 telling.broadcast(&Told::Coming { taken, length });
@@ -534,6 +551,90 @@ pub fn detach(command: &mut Command) {
 mod tests {
     use super::*;
     use crate::talk::Link;
+    use serde_json::json;
+    use std::sync::mpsc;
+
+    #[test]
+    fn a_slow_download_leaves_requests_free_and_refuses_another_download() {
+        let listener = TcpListener::bind((LOOPBACK, 0)).unwrap();
+        let url = format!("http://{}/release", listener.local_addr().unwrap());
+        let (started, downloading) = mpsc::channel();
+        let (release, finish) = mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut reading = BufReader::new(stream.try_clone().unwrap());
+            loop {
+                let mut line = String::new();
+                assert!(reading.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nx")
+                .unwrap();
+            started.send(()).unwrap();
+            finish.recv_timeout(Duration::from_secs(5)).unwrap();
+            stream.write_all(b"y").unwrap();
+            finish.recv_timeout(Duration::from_secs(5)).unwrap();
+            stream.write_all(b"z").unwrap();
+        });
+
+        let (temp, _program, _serving, _) = crate::tests::standing("slow-download");
+        let link = Arc::new(Link::connect(temp.path()).unwrap());
+        let taking = json!({ "url": url, "signature": "", "key": "" });
+        let asking = Arc::clone(&link);
+        let first = taking.clone();
+        let (progress, progressed) = mpsc::channel();
+        let download = std::thread::spawn(move || {
+            asking.ask_watching(
+                "take_program",
+                first,
+                Box::new(move |taken, _| {
+                    let _ = progress.send(taken);
+                }),
+            )
+        });
+        downloading.recv_timeout(Duration::from_secs(3)).unwrap();
+        assert_eq!(progressed.recv_timeout(Duration::from_secs(2)).unwrap(), 1);
+
+        let (answered, answers) = mpsc::channel();
+        let asking = Arc::clone(&link);
+        std::thread::spawn(move || {
+            answered.send(asking.ask("sessions", json!({}))).unwrap();
+            answered
+                .send(asking.ask_watching("take_program", taking.clone(), Box::new(|_, _| {})))
+                .unwrap();
+            answered.send(asking.ask("take_program", taking)).unwrap();
+        });
+        assert_eq!(
+            answers
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .unwrap(),
+            json!([])
+        );
+        for _ in 0..2 {
+            let duplicate = answers
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .unwrap_err();
+            assert!(duplicate.contains("already in progress"), "{duplicate}");
+        }
+        release.send(()).unwrap();
+        assert_eq!(progressed.recv_timeout(Duration::from_secs(2)).unwrap(), 2);
+        release.send(()).unwrap();
+        server.join().unwrap();
+        assert!(
+            download.join().unwrap().is_err(),
+            "the fixture has no signature"
+        );
+        assert_eq!(link.ask("sessions", json!({})).unwrap(), json!([]));
+        assert!(!link.gone());
+    }
 
     #[test]
     fn a_pending_relaunch_keeps_the_service_alive_and_logs_a_failed_spawn() {

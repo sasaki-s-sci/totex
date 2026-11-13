@@ -185,6 +185,41 @@ impl Host {
         }
     }
 
+    /// A copied directory stays private until all its contents and modes are in place.
+    pub fn create_private_dir(&self, path: &Path) -> Result<(), String> {
+        match self {
+            Self::Local => {
+                let mut builder = std::fs::DirBuilder::new();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::DirBuilderExt;
+                    builder.mode(0o700);
+                }
+                builder.create(path).map_err(|error| error.to_string())
+            }
+            Self::Wsl(_) | Self::Ssh(_) => {
+                self.remote_run(&["mkdir", "-m", "700", "--", &self.native(path)])
+            }
+        }
+    }
+
+    pub fn set_mode(&self, path: &Path, mode: u32) -> Result<(), String> {
+        match self {
+            Self::Local => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+                        .map_err(|error| error.to_string())?;
+                }
+                Ok(())
+            }
+            Self::Wsl(_) | Self::Ssh(_) => {
+                self.remote_run(&["chmod", &format!("{mode:o}"), "--", &self.native(path)])
+            }
+        }
+    }
+
     pub fn copy_file(&self, from: &Path, to: &Path) -> Result<(), String> {
         match self {
             Self::Local => {
@@ -220,6 +255,52 @@ impl Host {
         }
     }
 
+    /// Copies from another host, keeping Unix access bits before exposing the contents.
+    pub fn copy_file_from(&self, host: &Self, from: &Path, to: &Path) -> Result<(), String> {
+        if host == self {
+            return self.copy_file(from, to);
+        }
+        let mode = host.mode(from)?;
+        let bytes = host.read(from)?;
+        self.write_new_mode(to, &bytes, mode)
+    }
+
+    /// Unix access bits, absent on filesystems whose permissions are Windows ACLs.
+    pub fn mode(&self, path: &Path) -> Result<Option<u32>, String> {
+        let mode = match self {
+            Self::Local => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    Some(
+                        std::fs::metadata(path)
+                            .map_err(|error| error.to_string())?
+                            .permissions()
+                            .mode()
+                            & 0o777,
+                    )
+                }
+                #[cfg(not(unix))]
+                {
+                    None
+                }
+            }
+            Self::Wsl(_) | Self::Ssh(_) => {
+                let output =
+                    self.remote_exec(None, &[], &["stat", "-Lc", "%a", "--", &self.native(path)])?;
+                if !output.ok() {
+                    return Err(said(&output));
+                }
+                Some(
+                    u32::from_str_radix(output.text().trim(), 8)
+                        .map_err(|error| error.to_string())?
+                        & 0o777,
+                )
+            }
+        };
+        Ok(mode)
+    }
+
     /// Writes bytes to a file that is not there, refusing to replace one that
     /// is.
     ///
@@ -230,26 +311,47 @@ impl Host {
     /// be one per fragment — see `fs_browse::copy`, which is what decides that
     /// a copy has to come this way at all.
     pub fn write_new(&self, path: &Path, bytes: &[u8]) -> Result<(), String> {
+        self.write_new_mode(path, bytes, None)
+    }
+
+    fn write_new_mode(&self, path: &Path, bytes: &[u8], mode: Option<u32>) -> Result<(), String> {
         match self {
             Self::Local => {
                 use std::io::Write;
-                let mut file = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(path)
-                    .map_err(|error| error.to_string())?;
-                file.write_all(bytes)
-                    .map_err(|error| error.to_string())
-                    .inspect_err(|_| {
-                        let _ = std::fs::remove_file(path);
-                    })
+                let mut options = std::fs::OpenOptions::new();
+                options.write(true).create_new(true);
+                #[cfg(unix)]
+                if let Some(mode) = mode {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    options.mode(mode);
+                }
+                let mut file = options.open(path).map_err(|error| error.to_string())?;
+                (|| {
+                    #[cfg(unix)]
+                    if let Some(mode) = mode {
+                        use std::os::unix::fs::PermissionsExt;
+                        file.set_permissions(std::fs::Permissions::from_mode(mode))?;
+                    }
+                    file.write_all(bytes)
+                })()
+                .map_err(|error| error.to_string())
+                .inspect_err(|_| {
+                    let _ = std::fs::remove_file(path);
+                })
             }
             Self::Wsl(_) | Self::Ssh(_) => {
                 let output = remote::exec_input(
                     &self.reach().ok_or("local")?,
                     None,
                     &[],
-                    &["sh", "-c", PUT, "totex", &self.native(path)],
+                    &[
+                        "sh",
+                        "-c",
+                        PUT,
+                        "totex",
+                        &self.native(path),
+                        &mode.map(|mode| format!("{mode:o}")).unwrap_or_default(),
+                    ],
                     bytes,
                 )?;
                 match output.code {
@@ -271,6 +373,18 @@ impl Host {
     /// asked for the removal of goes through
     /// [`remove_dir_all`](Self::remove_dir_all) instead, which answers.
     pub fn remove_all(&self, path: &Path) {
+        if (cfg!(unix) || self.is_remote())
+            && self
+                .stat(path)
+                .is_some_and(|stat| stat.is_dir && !stat.is_symlink)
+        {
+            // Earlier children may already carry their source's read-only directory modes.
+            let _ = self.exec(
+                None,
+                &[],
+                &["chmod", "-R", "u+rwX", "--", &self.native(path)],
+            );
+        }
         match self {
             Self::Local => {
                 let _ = std::fs::remove_file(path);

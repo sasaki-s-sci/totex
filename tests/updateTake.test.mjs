@@ -8,7 +8,6 @@ const dependencies = {
   "../../ephemeral/runtime":
     "export const ephemeralIdentity = () => ({ version: '' }); export const swapEphemeral = () => {};",
   "../../resume/runtime": "export const holdForRestart = () => Promise.resolve();",
-  "../../shell/state": "export const carryAcrossRestart = () => Promise.resolve();",
   "../../shell/bridge":
     "export const connection = { activate: (...args) => globalThis.activateUpdate(...args) };",
 };
@@ -29,15 +28,17 @@ const server = await createServer({
     },
   ],
 });
+globalThis.window ??= {};
+window.parent = window;
+window.crypto ??= globalThis.crypto;
 const { take } = await server.ssrLoadModule("/src/lib/update/take.ts");
 const store = await server.ssrLoadModule("/src/lib/update/store.ts");
+const { keepFrontValue } = await server.ssrLoadModule("/src/shell/state.ts");
 after(() => server.close());
 afterEach(() => {
   clearMocks();
   delete globalThis.activateUpdate;
 });
-globalThis.window ??= {};
-window.crypto ??= globalThis.crypto;
 
 test("a late startup response cannot replace standing refreshed after activation", async () => {
   for (const fails of [false, true]) {
@@ -86,4 +87,28 @@ test("a shell refusing activation rolls back the staged patch so it can be retri
   };
   assert.equal(await take("ephemeral", "1.2.4"), "swapped");
   assert.deepEqual(calls, ["update_take", "update_standing"]);
+});
+
+test("a failed workspace save prevents restart and can be retried", async () => {
+  const roots = [{ kind: "folder", root: "/project" }];
+  keepFrontValue("window.roots", roots);
+  const calls = [];
+  let fails = true;
+  mockIPC((command, args) => {
+    calls.push(command);
+    if (command === "update_take") return "taken";
+    if (command === "persistent_put") {
+      assert.equal(args.name, "totex.relaunch");
+      assert.deepEqual(args.value.values["window.roots"], roots);
+      if (fails) throw new Error("Disk full");
+    }
+    if (command === "update_standing") return [];
+  });
+  assert.equal(await take("persistent", "1.3.0"), "failed");
+  assert.deepEqual(calls, ["update_take", "persistent_put", "update_standing"]);
+
+  calls.length = 0;
+  fails = false;
+  assert.equal(await take("persistent", "1.3.0"), "ready");
+  assert.deepEqual(calls, ["update_take", "persistent_put", "update_restart", "update_standing"]);
 });

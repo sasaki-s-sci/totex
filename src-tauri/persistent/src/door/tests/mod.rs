@@ -13,6 +13,8 @@ use serde_json::Value;
 
 use super::*;
 use crate::Persistent;
+#[cfg(unix)]
+use crate::tests::TempDir;
 
 pub(super) fn held() -> Arc<Persistent> {
     Persistent::new(None)
@@ -81,13 +83,18 @@ pub(super) fn knock(url: &str, message: &Value, bearer: Option<&str>) -> (String
 
 /// Opens a shell and hands back the address its agent would be given.
 #[cfg(unix)]
-pub(super) fn session(held: &Persistent, id: &str) -> String {
-    let cwd = std::env::temp_dir().display().to_string();
+pub(super) fn session(held: &Persistent, id: &str) -> (TempDir, String) {
+    let temp = TempDir::new("door-workspace");
+    let settings = temp.path().join(".totex");
+    std::fs::create_dir(&settings).expect("fixture space");
+    std::fs::write(settings.join("settings.json"), r#"{"mcp":true}"#).expect("fixture settings");
+    let cwd = temp.path().display().to_string();
     held.sessions
         .open(id, &cwd, 24, 80, None)
         .expect("a shell starts");
     held.door.serve().expect("the server stands up");
-    addressed(&held.door, id, &cwd).expect("the session has an address")
+    let url = addressed(&held.door, id, &cwd).expect("the session has an address");
+    (temp, url)
 }
 
 /// The address a session working in `cwd` would be started with, read out of

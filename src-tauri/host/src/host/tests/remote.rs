@@ -65,6 +65,52 @@ fn says_what_one_path_is() {
 }
 
 #[test]
+fn symlinks_keep_their_identity_and_read_their_targets_metadata_and_children() {
+    for host in reachable() {
+        let dir = scratch(&host, "symlink-targets");
+        assert!(
+            host.exec(
+                Some(&dir),
+                &[],
+                &[
+                    "sh",
+                    "-c",
+                "mkdir folder; printf 1234567890 > folder/file; touch -t 200101010000 folder/file; ln -s folder alias; \
+             ln -s folder/file file-link; ln -s missing broken; ln -s .. folder/back",
+                ]
+            )
+            .unwrap()
+            .ok()
+        );
+        let target = host.stat(&host.join(&dir, "folder/file")).unwrap();
+        let link = host.stat(&host.join(&dir, "file-link")).unwrap();
+        assert!(link.is_symlink && !link.is_dir);
+        assert_eq!(link.size, 10);
+        assert_eq!(link.modified_ms, target.modified_ms);
+        assert!(host.stat(&host.join(&dir, "broken")).unwrap().is_symlink);
+
+        let alias = host.join(&dir, "alias");
+        let stat = host.stat(&alias).unwrap();
+        assert!(stat.is_dir && stat.is_symlink);
+        let children = host.read_dir(&alias).unwrap();
+        assert_eq!(children.len(), 2, "the child link is not walked");
+        assert!(
+            children
+                .iter()
+                .any(|child| child.name == "file" && child.stat.size == 10)
+        );
+        assert!(
+            children
+                .iter()
+                .any(|child| child.name == "back" && child.stat.is_symlink && child.stat.is_dir)
+        );
+        let (many, warnings) = host.children(std::slice::from_ref(&alias));
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(many[&alias].len(), 2);
+    }
+}
+
+#[test]
 fn reads_the_top_of_a_file_and_says_how_long_it_is() {
     for host in reachable() {
         let dir = scratch(&host, "head");
@@ -221,6 +267,42 @@ fn puts_bytes_down_on_the_far_machine_and_sweeps_them_up_again() {
             .expect("fill it");
         host.remove_all(&folder);
         assert!(!host.exists(&folder), "the sweep took the folder with it");
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn failed_copy_cleanup_removes_read_only_directories_without_following_links() {
+    for host in std::iter::once(Host::Local).chain(reachable()) {
+        let root = scratch(&host, "readonly-copy-cleanup");
+        let copied = host.join(&root, "partial");
+        let inside = host.join(&copied, "readonly");
+        host.create_dir_all(&inside).unwrap();
+        host.write_new(&host.join(&inside, "file"), b"copied")
+            .unwrap();
+        let outside = host.join(&root, "keep");
+        host.write_new(&outside, b"original").unwrap();
+        host.set_mode(&outside, 0o400).unwrap();
+        assert!(
+            host.exec(
+                None,
+                &[],
+                &[
+                    "ln",
+                    "-s",
+                    &host.native(&outside),
+                    &host.native(&host.join(&copied, "link"))
+                ]
+            )
+            .unwrap()
+            .ok()
+        );
+        host.set_mode(&inside, 0o555).unwrap();
+        host.set_mode(&copied, 0o500).unwrap();
+        host.remove_all(&copied);
+        assert!(!host.exists(&copied), "{host:?}");
+        assert_eq!(host.mode(&outside).unwrap(), Some(0o400));
+        assert_eq!(host.read(&outside), Ok(b"original".to_vec()));
     }
 }
 

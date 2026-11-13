@@ -45,7 +45,7 @@ function keepSoon(): void {
   if (!keeping || soon !== undefined) return;
   soon = setTimeout(() => {
     soon = undefined;
-    void keepCarried();
+    void keepCarried().catch(() => undefined);
   }, KEEP_AFTER_MS);
 }
 
@@ -55,8 +55,9 @@ async function keepCarried(): Promise<void> {
   const json = JSON.stringify(value);
   if (json === kept) return;
   kept = json;
-  await invoke("persistent_put", { name: CARRIED, value }).catch(() => {
+  await invoke("persistent_put", { name: CARRIED, value }).catch((error) => {
     if (kept === json) kept = null;
+    throw error;
   });
 }
 
@@ -86,7 +87,7 @@ export async function takeCarried(): Promise<void> {
     }
   }
   keeping = true;
-  window.addEventListener("pagehide", () => void keepCarried());
+  window.addEventListener("pagehide", () => void keepCarried().catch(() => undefined));
 }
 
 export function useFrontState<T>(key: string, initial: T | (() => T)) {

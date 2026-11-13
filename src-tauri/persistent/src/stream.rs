@@ -7,12 +7,12 @@
 //! then a window as a script for it to evaluate, on the same thread that draws —
 //! so the cost is paid per character rather than per screenful.
 //!
-//! Reading and handing over are therefore separated. The reader never waits on
-//! the listener, and what it reads is gathered for a fraction of a frame before
+//! Reading and handing over are therefore separated. The reader waits only
+//! when the bounded queue fills, and output is gathered for part of a frame before
 //! it goes: a stream arriving a character at a time then costs one message a
 //! frame instead of one a character, and a burst costs one message instead of
-//! a hundred. Nothing is delayed by more than a frame, which is the soonest
-//! any of it could have been seen.
+//! a hundred. While the listener keeps up, batching delays output by less than
+//! a frame, which is the soonest any of it could have been seen.
 
 use std::io::Read;
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -32,6 +32,9 @@ const ENOUGH: usize = 64 * 1024;
 /// process redirecting a file hands over all of it.
 const READ_SIZE: usize = 8192;
 
+/// Keep at most 256 KiB queued before slowing the child down.
+const QUEUED: usize = 32;
+
 /// Reads `source` to its end, handing over what it says in batches.
 ///
 /// `send` is called from a thread of its own, and returns false when there is
@@ -42,10 +45,9 @@ where
     S: Read + Send + 'static,
     F: Fn(String) -> bool + Send + 'static,
 {
-    let (tx, rx) = mpsc::channel::<Vec<u8>>();
+    let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(QUEUED);
 
-    // Reading blocks until the process says something, and handing over blocks
-    // on the listener: neither is allowed to hold up the other.
+    // A slow listener must eventually stop the reader from allocating more.
     thread::spawn(move || {
         let mut buffer = [0u8; READ_SIZE];
         loop {
@@ -210,5 +212,49 @@ mod tests {
         }
 
         pump(Endless, |_| false).join().expect("the pump gives up");
+    }
+
+    #[test]
+    fn a_slow_listener_bounds_reading_and_still_receives_every_byte() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        struct Counting {
+            source: std::io::Cursor<Vec<u8>>,
+            read: Arc<AtomicUsize>,
+        }
+        impl Read for Counting {
+            fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+                let count = self.source.read(out)?;
+                self.read.fetch_add(count, Ordering::Relaxed);
+                Ok(count)
+            }
+        }
+
+        let size = 8 * 1024 * 1024;
+        let read = Arc::new(AtomicUsize::new(0));
+        let delivered = Arc::new(AtomicUsize::new(0));
+        let counted = Arc::clone(&delivered);
+        let (started, blocked) = mpsc::channel();
+        let (resume, resumed) = mpsc::channel();
+        let source = Counting {
+            source: std::io::Cursor::new(vec![b'x'; size]),
+            read: Arc::clone(&read),
+        };
+        let handle = pump(source, move |text| {
+            if counted.fetch_add(text.len(), Ordering::Relaxed) == 0 {
+                started.send(()).unwrap();
+                resumed.recv_timeout(Duration::from_secs(5)).unwrap();
+            }
+            true
+        });
+        blocked.recv_timeout(Duration::from_secs(5)).unwrap();
+        thread::sleep(Duration::from_millis(50));
+        let while_blocked = read.load(Ordering::Relaxed);
+        resume.send(()).unwrap();
+        handle.join().unwrap();
+
+        assert!(while_blocked <= ENOUGH + (QUEUED + 1) * READ_SIZE);
+        assert_eq!(delivered.load(Ordering::Relaxed), size);
     }
 }

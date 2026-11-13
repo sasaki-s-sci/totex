@@ -98,19 +98,20 @@ impl Store {
             return Err(format!("{name} is larger than a document may be"));
         }
         let mut held = lock(&self.held);
-        held.insert(name.to_string(), value);
-        let Some(file) = self.file(name) else {
-            return Ok(());
-        };
-        if let Some(dir) = file.parent() {
-            std::fs::create_dir_all(dir).map_err(|error| format!("{}: {error}", dir.display()))?;
+        if let Some(file) = self.file(name) {
+            if let Some(dir) = file.parent() {
+                std::fs::create_dir_all(dir)
+                    .map_err(|error| format!("{}: {error}", dir.display()))?;
+            }
+            // Publish to the cache only after the complete document is on disk.
+            let writing = file.with_extension("json.writing");
+            std::fs::write(&writing, &bytes)
+                .map_err(|error| format!("{}: {error}", writing.display()))?;
+            std::fs::rename(&writing, &file)
+                .map_err(|error| format!("{}: {error}", file.display()))?;
         }
-        // Whole or not at all: a document is written beside where it goes and
-        // moved into place, so a machine going down halfway leaves the last one.
-        let writing = file.with_extension("json.writing");
-        std::fs::write(&writing, &bytes)
-            .map_err(|error| format!("{}: {error}", writing.display()))?;
-        std::fs::rename(&writing, &file).map_err(|error| format!("{}: {error}", file.display()))
+        held.insert(name.to_string(), value);
+        Ok(())
     }
 
     /// Every name a document is kept under.
@@ -173,6 +174,30 @@ mod tests {
         assert!(store.put("", Value::Null).is_err());
         assert!(store.put(".hidden", Value::Null).is_err());
         assert!(store.put("open-folders_1.v2", Value::Null).is_ok());
+    }
+
+    #[test]
+    fn failed_writes_do_not_publish_unsaved_documents() {
+        let home = temp("failed");
+        let store = Store::at(Some(home.clone()));
+        store.put("saved", serde_json::json!("old")).expect("kept");
+
+        for name in ["saved", "new"] {
+            std::fs::create_dir(home.join(format!("{name}.json.writing")))
+                .expect("block the staged write");
+            assert!(store.put(name, serde_json::json!("new")).is_err());
+        }
+
+        let reopened = Store::at(Some(home.clone()));
+        for reading in [&store, &reopened] {
+            assert_eq!(
+                reading.get("saved").unwrap(),
+                Some(serde_json::json!("old"))
+            );
+            assert_eq!(reading.get("new").unwrap(), None);
+            assert_eq!(reading.list(), vec!["saved".to_string()]);
+        }
+        std::fs::remove_dir_all(home).expect("remove the fixture");
     }
 
     #[test]

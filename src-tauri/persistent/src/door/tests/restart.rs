@@ -16,8 +16,8 @@ use super::{addressed, held, post, reported, session};
 fn switching_the_server_off_and_on_leaves_the_addresses_where_they_were() {
     let held = held();
     let id = "kept";
-    let cwd = std::env::temp_dir().display().to_string();
-    let before = session(&held, id);
+    let (workspace, before) = session(&held, id);
+    let cwd = workspace.path().display().to_string();
 
     held.door.unserve();
     held.door.serve().expect("the server stands again");

@@ -30,6 +30,8 @@ use crate::host::{Host, Stat};
 use crate::remote::{self, Reach};
 use crate::wsl;
 
+use super::operate::holds;
+
 /// How much one copy is allowed to come to, in entries and in bytes.
 ///
 /// A folder is copied whole, and a folder on a working disk is `node_modules`
@@ -56,6 +58,9 @@ pub(super) fn copy_tree(
     to: &Host,
     target: &Path,
 ) -> Result<(), String> {
+    if stat.is_dir && from == to && holds(to, source, target) {
+        return Err("into-itself".into());
+    }
     if let Some((reach, source, target)) = side_by_side(from, source, to, target) {
         return copy_inside(&reach, &source, &target);
     }
@@ -196,10 +201,11 @@ fn place(
 ) -> Result<(), String> {
     if !stat.is_dir {
         budget.spend(stat.size)?;
-        return copy_in(from, source, to, target);
+        return to.copy_file_from(from, source, target);
     }
     budget.spend(0)?;
-    to.create_dir(target)?;
+    let mode = from.mode(source)?;
+    to.create_private_dir(target)?;
     let result = (|| {
         for child in from.read_dir(source)? {
             // A link to a folder is not walked into. What is on the far side of one
@@ -217,21 +223,13 @@ fn place(
                 budget,
             )?;
         }
+        if let Some(mode) = mode {
+            to.set_mode(target, mode)?;
+        }
         Ok(())
     })();
     if result.is_err() {
         to.remove_all(target);
     }
     result
-}
-
-/// One file, out of wherever it is and onto wherever it goes.
-fn copy_in(from: &Host, source: &Path, to: &Host, target: &Path) -> Result<(), String> {
-    if from == to {
-        // The machine holding both copies it without any of it passing through
-        // this program.
-        return to.copy_file(source, target);
-    }
-    let bytes = from.read(source)?;
-    to.write_new(target, &bytes)
 }

@@ -22,24 +22,6 @@ const ENVIRONMENT: [(&str, &str); 4] = [
     ("LC_ALL", "C"),
 ];
 
-/// Says this one directory belongs to whoever is asking.
-///
-/// git refuses to read a repository whose files are somebody else's, because a
-/// repository is a directory that can run programs — its hooks, and its config
-/// naming the commands git shells out to. Most checkouts are the user's own,
-/// but not all: one left by another account, or by `sudo`, is otherwise a scan
-/// that fails on every call it makes — and the whole scan failing is the red
-/// rule along the top of the canvas.
-///
-/// Named one directory at a time rather than as `*`: the exception covers the
-/// folder that was opened here and nothing else on the machine. It goes on the
-/// command line because that is one of the three places git will read it from —
-/// the point of the setting is that a repository cannot vouch for itself, so
-/// neither its own config nor the environment is trusted with it.
-fn safe_directory(dir: &str) -> String {
-    format!("safe.directory={dir}")
-}
-
 /// An argument that names a path, as the machine running git spells it.
 ///
 /// The app carries a remote path in the spelling that says which machine it is
@@ -63,13 +45,13 @@ fn native_argument(host: &Host, argument: &str) -> String {
 fn exec(dir: &Path, args: &[&str]) -> Result<Output, String> {
     let host = Host::of(dir);
     let here = host.native(dir);
-    let safe = safe_directory(&here);
     let arguments: Vec<String> = args
         .iter()
         .map(|argument| native_argument(&host, argument))
         .collect();
 
-    let mut argv = vec!["git", "-c", safe.as_str(), "-C", here.as_str()];
+    // Repository helpers may execute during reads; trust is the user's Git setting.
+    let mut argv = vec!["git", "-C", here.as_str()];
     argv.extend(arguments.iter().map(String::as_str));
 
     host.exec(None, &ENVIRONMENT, &argv).map_err(missing)

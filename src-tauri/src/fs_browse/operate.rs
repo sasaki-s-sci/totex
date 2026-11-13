@@ -186,12 +186,6 @@ fn copy_one(raw_source: &str, to: &Host, into: &Path) -> Result<String, String> 
     if name.is_empty() {
         return Err("no-name".to_string());
     }
-    // A folder cannot be dropped into itself, or into anything it holds: the
-    // copy would be inside what is being copied, and the walk would keep finding
-    // more of it to do.
-    if stat.is_dir && &from == to && holds(to, &source, into) {
-        return Err("into-itself".to_string());
-    }
     let target = unused_name(to, into, &name)?;
     copy_tree(&from, &source, &stat, to, &target)?;
     Ok(target.to_string_lossy().into_owned())
@@ -199,10 +193,16 @@ fn copy_one(raw_source: &str, to: &Host, into: &Path) -> Result<String, String> 
 
 /// Whether `path` is `folder` itself or something under it, as the machine
 /// holding both of them spells them.
-fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
+pub(super) fn holds(host: &Host, folder: &Path, path: &Path) -> bool {
     // A symlink spelling must not let a copy recursively enter its own destination.
     let folder = host.resolve(folder).unwrap_or_else(|| folder.to_path_buf());
-    let path = host.resolve(path).unwrap_or_else(|| path.to_path_buf());
+    let path = host
+        .resolve(path)
+        .or_else(|| {
+            let parent = host.resolve(&host.parent(path)?)?;
+            Some(host.join(&parent, &host.name(path)))
+        })
+        .unwrap_or_else(|| path.to_path_buf());
     let separator = if host.is_remote() || !cfg!(windows) {
         '/'
     } else {

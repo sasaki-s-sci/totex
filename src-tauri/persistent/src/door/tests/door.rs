@@ -17,7 +17,7 @@ use super::{addressed, held, knock, post, reported, session};
 fn a_report_travels_from_the_door_to_the_listener() {
     let held = held();
     let id = "working";
-    let url = session(&held, id);
+    let (_workspace, url) = session(&held, id);
 
     let (tx, rx) = mpsc::channel();
     held.door.follow(Arc::new(move |reported| {
@@ -97,8 +97,8 @@ fn an_address_is_one_session_s_own() {
     let one = "first";
     let two = "second";
 
-    let first = session(&held, one);
-    let cwd = std::env::temp_dir().display().to_string();
+    let (workspace, first) = session(&held, one);
+    let cwd = workspace.path().display().to_string();
     held.sessions
         .open(two, &cwd, 24, 80, None)
         .expect("a shell starts");
@@ -145,7 +145,7 @@ fn an_address_is_one_session_s_own() {
 fn the_one_door_answers_for_the_session_the_request_names() {
     let held = held();
     let id = "named-in-the-request";
-    let own = session(&held, id);
+    let (_workspace, own) = session(&held, id);
     let (host, token) = own
         .strip_prefix("http://")
         .and_then(|rest| rest.split_once("/s/"))

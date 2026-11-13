@@ -135,7 +135,7 @@ function TerminalPage({
           )}
         </div>
       </div>
-      {agent && (
+      {placement === "canvas" && agent && (
         <div className="page-agent-workers">
           <MonitorAgents id={session.id} />
         </div>

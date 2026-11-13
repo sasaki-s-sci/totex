@@ -10,7 +10,7 @@ use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{SyncSender, sync_channel};
+use std::sync::mpsc::{RecvTimeoutError, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -24,10 +24,11 @@ use crate::wire::{Address, Told};
 /// How long the program is given to say what it is before it is given up on.
 const HELLO: Duration = Duration::from_secs(5);
 
-/// How long a question is given to be answered. Long, because one of them runs
-/// an agent's own setup command through a login shell; and finite, because a
-/// program that never answers is a program that has gone.
+/// Ordinary requests may include an agent's setup command through a login shell.
 const PATIENCE: Duration = Duration::from_secs(120);
+
+/// Events cannot block reply routing: followers may themselves ask questions.
+const EVENTS: usize = 64;
 
 /// How long a program that was just started is given to write its address.
 const STARTING: Duration = Duration::from_secs(10);
@@ -260,6 +261,15 @@ impl Link {
 
     /// Asks, and waits for the answer.
     pub fn ask(&self, command: &str, with: Value) -> Result<Value, String> {
+        let patience = if command == "take_program" {
+            crate::update::FETCHING + PATIENCE
+        } else {
+            PATIENCE
+        };
+        self.ask_for(command, with, patience)
+    }
+
+    fn ask_for(&self, command: &str, with: Value, patience: Duration) -> Result<Value, String> {
         if self.gone() {
             return Err("the program holding the terminals has gone".to_string());
         }
@@ -279,14 +289,18 @@ impl Link {
             return Err("the program holding the terminals has gone".to_string());
         }
 
-        match hears.recv_timeout(PATIENCE) {
+        match hears.recv_timeout(patience) {
             Ok(Said::Answered(value)) => Ok(value),
             Ok(Said::Failed(error)) => Err(error),
             Ok(Said::Unknown) => Err(format!("the program does not answer {command}")),
-            Err(_) => {
+            Err(RecvTimeoutError::Timeout) => {
+                lock(&self.waiting).at.remove(&id);
+                Err(format!("{command} did not answer in time"))
+            }
+            Err(RecvTimeoutError::Disconnected) => {
                 lock(&self.waiting).at.remove(&id);
                 self.gone.store(true, Ordering::Relaxed);
-                Err("the program holding the terminals stopped answering".to_string())
+                Err("the program holding the terminals has gone".to_string())
             }
         }
     }
@@ -333,7 +347,13 @@ impl Link {
         with: Value,
         coming: Coming,
     ) -> Result<Value, String> {
-        *lock(&self.coming) = Some(coming);
+        {
+            let mut watching = lock(&self.coming);
+            if watching.is_some() {
+                return Err("an update is already in progress".to_string());
+            }
+            *watching = Some(coming);
+        }
         let answered = self.ask(command, with);
         *lock(&self.coming) = None;
         answered
@@ -398,10 +418,10 @@ fn read(
     known: Arc<Mutex<HashSet<String>>>,
     coming: Arc<Mutex<Option<Coming>>>,
 ) {
-    let (telling, told) = std::sync::mpsc::channel::<Told>();
+    let (telling, told) = sync_channel::<Told>(EVENTS);
     std::thread::spawn(move || tell_each(told, following, reporting, known, coming));
 
-    let mut lines = BufReader::new(stream).lines();
+    let mut lines = BufReader::new(&stream).lines();
     if let Some(Ok(line)) = lines.next()
         && let Ok(said) = serde_json::from_str::<Value>(&line)
     {
@@ -427,13 +447,15 @@ fn read(
             continue;
         }
         if let Ok(told) = serde_json::from_value::<Told>(said)
-            && telling.send(told).is_err()
+            && telling.try_send(told).is_err()
         {
+            // Disconnect a stalled window rather than deadlock a follower's RPC.
             break;
         }
     }
 
     gone.store(true, Ordering::Relaxed);
+    let _ = stream.shutdown(std::net::Shutdown::Both);
     // Dropping each sender is what wakes the question waiting on it; dropping
     // the telling is what tells the followers the rest.
     lock(&waiting).at.clear();
@@ -541,8 +563,168 @@ impl Link {
 }
 
 #[cfg(test)]
-mod kept {
+mod tests {
     use super::*;
+    use std::net::TcpListener;
+    use std::sync::mpsc;
+
+    fn peer(
+        serve: impl FnOnce(BufReader<TcpStream>, TcpStream) + Send + 'static,
+    ) -> (Address, std::thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = Address {
+            port: listener.local_addr().unwrap().port(),
+            token: "fixture".to_string(),
+            pid: std::process::id(),
+            version: crate::VERSION.to_string(),
+            line: crate::LINE,
+        };
+        let thread = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut reading = BufReader::new(stream.try_clone().unwrap());
+            question(&mut reading);
+            writeln!(stream, "{}", crate::wire::hello(crate::VERSION)).unwrap();
+            serve(reading, stream);
+        });
+        (address, thread)
+    }
+
+    fn question(reading: &mut BufReader<TcpStream>) -> Value {
+        let mut line = String::new();
+        assert!(reading.read_line(&mut line).unwrap() > 0);
+        serde_json::from_str(&line).unwrap()
+    }
+
+    #[test]
+    fn a_timed_out_request_does_not_poison_a_live_connection() {
+        let (address, peer) = peer(|mut reading, mut writing| {
+            let first = question(&mut reading);
+            let second = question(&mut reading);
+            for asked in [first, second] {
+                writeln!(writing, "{}", json!({ "id": asked["id"], "said": [] })).unwrap();
+            }
+            question(&mut reading);
+        });
+        let link = Link::connect_to(&address).unwrap();
+        let late = link
+            .ask_for("sessions", json!({}), Duration::from_millis(20))
+            .unwrap_err();
+        assert!(late.contains("did not answer in time"), "{late}");
+        assert!(!link.gone());
+        assert_eq!(
+            link.ask_for("sessions", json!({}), Duration::from_secs(2))
+                .unwrap(),
+            json!([])
+        );
+        let closed = link
+            .ask_for("sessions", json!({}), Duration::from_secs(2))
+            .unwrap_err();
+        assert!(closed.contains("has gone"), "{closed}");
+        assert!(link.gone());
+        peer.join().unwrap();
+    }
+
+    #[test]
+    fn a_follower_can_ask_a_question_while_events_are_delivered() {
+        let (address, peer) = peer(|mut reading, mut writing| {
+            let asked = question(&mut reading);
+            writeln!(writing, "{}", json!({ "id": asked["id"], "said": [] })).unwrap();
+            writeln!(
+                writing,
+                "{}",
+                json!({ "event": "said", "id": "shell", "data": "hello", "seq": 0 })
+            )
+            .unwrap();
+            let asked = question(&mut reading);
+            writeln!(writing, "{}", json!({ "id": asked["id"], "said": [] })).unwrap();
+        });
+        let link = Arc::new(Link::connect_to(&address).unwrap());
+        let following = Arc::downgrade(&link);
+        let (answered, answers) = mpsc::channel();
+        link.follow(Arc::new(move |_, event| {
+            if matches!(event, Event::Said { .. }) {
+                let answer = following.upgrade().unwrap().ask_for(
+                    "sessions",
+                    json!({}),
+                    Duration::from_secs(2),
+                );
+                answered.send(answer).unwrap();
+            }
+        }));
+        link.ask_for("sessions", json!({}), Duration::from_secs(2))
+            .unwrap();
+        assert_eq!(
+            answers
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap()
+                .unwrap(),
+            json!([])
+        );
+        peer.join().unwrap();
+    }
+
+    #[test]
+    fn event_overflow_closes_the_socket_and_wakes_waiting_requests() {
+        let (address, peer) = peer(|mut reading, mut writing| {
+            let asked = question(&mut reading);
+            writeln!(writing, "{}", json!({ "id": asked["id"], "said": [] })).unwrap();
+            writeln!(
+                writing,
+                "{}",
+                json!({ "event": "opened", "id": "shell", "rows": 24, "cols": 80 })
+            )
+            .unwrap();
+            let event = json!({ "event": "said", "id": "shell", "data": "hello", "seq": 0 });
+            writeln!(writing, "{event}").unwrap();
+            question(&mut reading);
+            for _ in 0..=EVENTS {
+                if writeln!(writing, "{event}").is_err() {
+                    break;
+                }
+            }
+            assert_eq!(reading.read_line(&mut String::new()).unwrap(), 0);
+        });
+        let link = Arc::new(Link::connect_to(&address).unwrap());
+        let following = Arc::downgrade(&link);
+        let (started, blocked) = mpsc::channel();
+        let (resume, resumed) = mpsc::channel();
+        let resumed = Mutex::new(resumed);
+        let first = AtomicBool::new(true);
+        let (ended, ending) = mpsc::channel();
+        link.follow(Arc::new(move |id, event| {
+            if matches!(event, Event::Said { .. }) && first.swap(false, Ordering::Relaxed) {
+                started.send(()).unwrap();
+                lock(&resumed).recv_timeout(Duration::from_secs(5)).unwrap();
+            }
+            if matches!(event, Event::Ended) {
+                // Disconnection callbacks cannot send a close to the live service.
+                assert!(
+                    following
+                        .upgrade()
+                        .unwrap()
+                        .ask("close", json!({ "id": id }))
+                        .is_err()
+                );
+                ended.send(()).unwrap();
+            }
+        }));
+        link.ask_for("sessions", json!({}), Duration::from_secs(2))
+            .unwrap();
+        blocked.recv_timeout(Duration::from_secs(2)).unwrap();
+        let began = Instant::now();
+        let waiting = link
+            .ask_for("sessions", json!({}), Duration::from_secs(5))
+            .unwrap_err();
+        assert!(waiting.contains("has gone"), "{waiting}");
+        assert!(began.elapsed() < Duration::from_secs(2));
+        assert!(link.gone());
+        resume.send(()).unwrap();
+        ending.recv_timeout(Duration::from_secs(2)).unwrap();
+        peer.join().unwrap();
+    }
 
     #[test]
     fn a_program_on_this_line_is_kept_and_one_off_it_is_not() {

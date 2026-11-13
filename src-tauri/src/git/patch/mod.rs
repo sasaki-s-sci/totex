@@ -213,7 +213,10 @@ fn cut(patch: String) -> (String, bool) {
     if patch.len() <= MAX_PATCH {
         return (patch, false);
     }
-    let end = patch[..MAX_PATCH].rfind('\n').unwrap_or(0);
+    let end = patch.as_bytes()[..MAX_PATCH]
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .unwrap_or(0);
     (patch[..end].to_string(), true)
 }
 

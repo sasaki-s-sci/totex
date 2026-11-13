@@ -727,6 +727,9 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
     ),
     ["terminal-two"],
   );
+  await card("terminal-one").locator("button.page-terminal-number").click();
+  const sidebar = page.locator("#cli-sidebar");
+  await sidebar.locator('[data-terminal="terminal-one"] .xterm-screen').waitFor();
   await page.evaluate(() => {
     window.pageAgent = true;
   });
@@ -736,6 +739,14 @@ export async function verifyFolderGroups(page, base = "http://127.0.0.1:18422") 
   const agentPage = card("terminal-one").locator(".cli-page");
   const workers = agentPage.locator(".page-agent-workers");
   await workers.locator('[data-kind="subagent"]').waitFor();
+  assert.equal(
+    await sidebar
+      .locator(".page-agent, .page-agent-workers, .monitor-badge, .monitor-role")
+      .count(),
+    0,
+    "Starting an agent keeps the sidebar free of status columns and indicators",
+  );
+  await sidebar.getByRole("button", { name: "Close main viewer", exact: true }).click();
   assert.equal(await workers.locator('[data-kind="subagent"]').textContent(), "2");
   assert.equal(await workers.locator('[data-kind="background"]').textContent(), "1");
   assert.equal(await group.locator(":scope > .page__header .monitor-role").count(), 0);
