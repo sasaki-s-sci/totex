@@ -15,6 +15,14 @@ import { frontValue, useFrontState } from "../shell/state";
 
 resumeShells(frontValue<readonly Session[]>("sessions.list") ?? []);
 
+const closeGuards = new Map<string, () => Promise<boolean>>();
+export function guardSessionClose(id: string, save: () => Promise<boolean>) {
+  closeGuards.set(id, save);
+  return () => {
+    closeGuards.delete(id);
+  };
+}
+
 export function useSessions() {
   const [sessions, setSessions] = useFrontState<readonly Session[]>("sessions.list", []);
   const [sidebarSession, setShowing] = useFrontState<string | null>("sessions.showing", null);
@@ -42,8 +50,14 @@ export function useSessions() {
             !paged.includes(session.id),
         );
   const active =
-    selected !== null && sessions.some((session) => session.id === selected) ? selected : showing;
-  const placement = useRef({ showing, lower: lower?.id, active });
+    selected !== null && sessions.some((session) => session.id === selected)
+      ? selected
+      : (showing ?? sessions[0]?.id ?? null);
+  const placement = useRef<{
+    showing: string | null;
+    lower: string | undefined;
+    active: string | null;
+  }>({ showing, lower: lower?.id, active });
   placement.current = { showing, lower: lower?.id, active };
 
   // Sessions outlive the window: pick up shells still running from before a reload.
@@ -147,6 +161,7 @@ export function useSessions() {
         if (requested) return true;
       } else {
         try {
+          if ((await closeGuards.get(going.id)?.()) === false) return false;
           await endShell(going.id);
           closing(going.id);
           setCloseFailed(false);
@@ -169,7 +184,13 @@ export function useSessions() {
         [...native, ...currentSessions.current].map((session) => [session.id, session]),
       );
       const going = [...all.values()].filter(matches);
-      const results = await Promise.allSettled(going.map((session) => endShell(session.id)));
+      const results = await Promise.allSettled(
+        going.map(async (session) => {
+          if ((await closeGuards.get(session.id)?.()) === false)
+            throw new Error("Save the terminal's edited files before closing it.");
+          await endShell(session.id);
+        }),
+      );
       const ended = new Set(
         going
           .filter((_, index) => results[index].status === "fulfilled")

@@ -12,11 +12,12 @@ import {
 import { useDraft } from "../canvas/nodes/preview/draft";
 import { useReading } from "../canvas/nodes/preview/reading";
 import { insertTab, removeTab } from "../canvas/nodes/preview/text";
-import { rowOf, useWrappedRows, wrappedNumbers } from "../canvas/nodes/preview/wrap";
+import { rowOf, useWrappedRows } from "../canvas/nodes/preview/wrap";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
 import { drawn, vector } from "../lib/filePreview";
 import type { FilePreviewNodeData } from "../lib/graph";
+import type { MediaPlayback } from "../lib/media";
 import {
   dxfPart,
   epubPart,
@@ -45,12 +46,26 @@ export function FilePage({
   actions,
   placement = "canvas",
   zoom = 1,
+  bare = false,
+  registerSave,
+  playback,
+  onPlaybackChange,
+  active,
+  rangeAnchor,
+  onCloseRange,
 }: {
   data: FilePreviewNodeData;
   actions: FilePageActions;
   placement?: PagePlacement;
   /** The canvas's settled zoom, for a page drawn to pixels that must be redrawn sharper. */
   zoom?: number;
+  bare?: boolean;
+  registerSave?: (save: () => Promise<boolean>) => () => void;
+  playback?: MediaPlayback;
+  onPlaybackChange?: (playback: MediaPlayback) => void;
+  active?: boolean;
+  rangeAnchor?: { left: number; top: number } | null;
+  onCloseRange?: () => void;
 }) {
   const workspace = usePageWorkspace();
   const pageId = filePageId(data.requestId);
@@ -62,7 +77,7 @@ export function FilePage({
   const {
     setBody,
     sheet,
-    gutter,
+    marks,
     paper,
     setPaper,
     across,
@@ -75,28 +90,20 @@ export function FilePage({
     railMove,
     railUp,
   } = view;
-  const {
-    editable,
-    reading,
-    lines,
-    numbers,
-    unsaved,
-    refused,
-    clash,
-    gone,
-    save,
-    typing,
-    onInput,
-  } = useDraft(data, view, actions);
+  const { editable, reading, lines, unsaved, refused, clash, gone, save, typing, onInput } =
+    useDraft(data, view, actions);
   const registerClose = workspace?.registerClose;
+  useEffect(() => registerSave?.(() => save("close")), [registerSave, save]);
   useEffect(
     () =>
-      registerClose?.(pageId, async () => {
-        if (!(await save("close"))) return false;
-        actions.closeFilePreview(data.requestId);
-        return true;
-      }),
-    [registerClose, pageId, save, actions.closeFilePreview, data.requestId],
+      !bare
+        ? registerClose?.(pageId, async () => {
+            if (!(await save("close"))) return false;
+            actions.closeFilePreview(data.requestId);
+            return true;
+          })
+        : undefined,
+    [bare, registerClose, pageId, save, actions.closeFilePreview, data.requestId],
   );
   // A page drawn of a file is not the card asking; the card beside it is.
   const diff = useFileDiff(drawn(data.view) ? null : data.path, data.text);
@@ -114,6 +121,7 @@ export function FilePage({
   const Epub = epubPart.use(data.view === "epub");
   const nativeScroll =
     isMedia ||
+    data.view === "plain" ||
     data.view === "html" ||
     data.view === "table" ||
     data.view === "model" ||
@@ -125,17 +133,17 @@ export function FilePage({
       : data.picture;
   const ready = data.state === "ready" && (data.text !== null || picture !== null);
   // Held by the page alone: it follows the page between hosts, as the scroll does.
-  const [wrapped, setWrapped] = useState(false);
+  const [wrapped, setWrapped] = useState(true);
   const rows = useWrappedRows(paper, wrapped && data.view === "text", lines);
   const [undrawn, setUndrawn] = useState<string | null>(null);
   // The canvas zoom scales the whole card, so this keeps the text's ratio to the page.
   const size = (useReadingSize() * pageText) / 100;
 
   // The reading resizes but its box does not, so the observer in useReading never sees this.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the new size is the trigger, and it is written to the card rather than read here
+  // biome-ignore lint/correctness/useExhaustiveDependencies: size and wrapping change the reading's bounds rather than values used here
   useLayoutEffect(() => {
     move(0, 0);
-  }, [size, move]);
+  }, [size, wrapped, move]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: what these change is the length of what is in the card, which is measured rather than read
   useLayoutEffect(() => {
@@ -151,6 +159,7 @@ export function FilePage({
 
   return (
     <Page
+      bare={bare}
       pageId={pageId}
       placement={placement}
       kind={data.view === "settings" ? "settings-page" : "file-preview"}
@@ -173,7 +182,9 @@ export function FilePage({
       onKeyDown={(event) => {
         if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v") {
           event.preventDefault();
-          void save().then((saved) => saved && previewFilePreview?.(data.requestId));
+          void save(bare ? "close" : "quiet").then(
+            (saved) => saved && previewFilePreview?.(data.requestId),
+          );
           return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
@@ -219,6 +230,24 @@ export function FilePage({
         </>
       }
     >
+      {bare && (unsaved || gone || clash) && (
+        <div className="canvas-file-status" role="status">
+          {unsaved && (
+            <span>
+              {t(refused ? "filePreview.unwritable" : "filePreview.unsaved", { name: data.name })}
+            </span>
+          )}
+          {(gone || clash) && (
+            <FileStanding
+              data={data}
+              actions={actions}
+              gone={gone}
+              savable={editable || (data.text !== null && !data.truncated)}
+              save={() => void save("asked")}
+            />
+          )}
+        </div>
+      )}
       {data.view === "settings" &&
         (Settings ? (
           <Settings />
@@ -246,9 +275,8 @@ export function FilePage({
           </p>
         )}
       {ready && data.view === "text" && (
-        <div className={`file-preview__code${rows ? " is-wrapped" : ""}`} ref={sheet}>
-          <div className="file-preview__rule" aria-hidden="true" ref={gutter}>
-            <pre className="file-preview__gutter">{rows ? wrappedNumbers(rows) : numbers}</pre>
+        <div className={`file-preview__code${wrapped ? " is-wrapped" : ""}`} ref={sheet}>
+          <div className="file-preview__changes" aria-hidden="true" ref={marks}>
             {runs.map((run) => {
               const from = rowOf(rows, run.line - 1);
               return (
@@ -293,6 +321,10 @@ export function FilePage({
           ))}
           <pre className="file-preview__text">{patch}</pre>
         </div>
+      )}
+
+      {ready && data.view === "plain" && (
+        <pre className="canvas-code file-preview__plain">{reading ?? ""}</pre>
       )}
 
       {ready && data.view === "picture" && picture !== null && (
@@ -362,7 +394,17 @@ export function FilePage({
         (data.view === "video" || data.view === "audio") &&
         picture !== null &&
         (Media ? (
-          <Media key={picture} source={picture} name={data.name} kind={data.view} />
+          <Media
+            key={picture}
+            source={picture}
+            name={data.name}
+            kind={data.view}
+            playback={playback}
+            onPlaybackChange={onPlaybackChange}
+            active={active}
+            rangeAnchor={bare ? (rangeAnchor ?? null) : undefined}
+            onCloseRange={onCloseRange}
+          />
         ) : (
           <p className="file-preview__message">{t("filePreview.loading")}</p>
         ))}

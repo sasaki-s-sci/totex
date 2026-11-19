@@ -1,892 +1,527 @@
 import assert from "node:assert/strict";
-import { verifyCardGeometry, verifyCardLayout } from "./cards.browser.mjs";
-import { verifyTerminalResize } from "./terminalResize.browser.mjs";
+import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
-/** Real Window, cards, file editors and xterm; only native IPC is replaced. */
-export async function verifyPages(page, base = "http://127.0.0.1:18422") {
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
-    localStorage.setItem("totex.language", "en");
-    let serial = 0;
-    const callbacks = new Map();
-    const listeners = new Map();
-    window.pageEmit = (event, payload) => {
-      for (const listener of listeners.values()) {
-        if (listener.event === event) callbacks.get(listener.handler)?.({ event, payload });
-      }
-    };
-    window.pageCalls = [];
-    window.pageCloseRefused = false;
-    window.pageClosePending = false;
-    window.pageWriteRefused = false;
-    window.pageFileText = "saved text";
-    window.pageClipboard = "日本語\nsecond line";
-    window.pageAttachRefused = location.search.includes("attach-error");
-    window.pageCloseRefused = false;
-    window.pageClosePending = false;
-    window.__TAURI_INTERNALS__ = {
-      metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
-      transformCallback(callback) {
-        callbacks.set(++serial, callback);
-        return serial;
-      },
-      unregisterCallback(id) {
-        callbacks.delete(id);
-      },
-      async invoke(cmd, args) {
-        window.pageCalls.push({ cmd, args });
-        if (cmd === "plugin:clipboard-manager|read_text") return window.pageClipboard;
-        if (cmd === "clipboard_files") return [];
-        if (cmd === "terminal_paths") return args.paths;
-        if (cmd === "paste_media") return "/tmp/pasted-shot.png";
-        if (cmd === "plugin:event|listen") {
-          const id = ++serial;
-          listeners.set(id, args);
-          return id;
-        }
-        if (cmd === "plugin:event|unlisten") {
-          listeners.delete(args.eventId);
-          return null;
-        }
-        if (cmd === "pty_sessions")
-          return [
-            { id: "terminal-one", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"main"}' },
-          ];
-        if (cmd === "pty_attach") {
-          if (window.pageAttachRefused) throw new Error("Temporary attachment failure");
-          if (location.search.includes("attach-missing")) return null;
-          return (
-            window.pageBacklog ?? {
-              text: "Retained terminal\r\n",
-              upto: 0,
-              ...(location.search.includes("terminal-resize")
-                ? { windowsPty: { backend: "conpty", buildNumber: 22631 } }
-                : {}),
-            }
-          );
-        }
-        if (cmd === "pty_close") {
-          if (window.pageCloseRefused) throw new Error("Temporary close failure");
-          if (window.pageClosePending)
-            return new Promise((resolve) => {
-              window.releaseClose = () => {
-                window.pageEmit("pty:exit", args.id);
-                resolve(null);
-              };
-            });
-          window.pageEmit("pty:exit", args.id);
-          return null;
-        }
-        if (cmd === "pty_standing")
-          return window.pageAgent
-            ? [
-                {
-                  id: "terminal-one",
-                  doing: "working",
-                  asking: false,
-                  said: "Implement grouped pages",
-                  running: "claude",
-                  tail: "agent output",
-                },
-              ]
-            : [];
-        if (cmd === "monitor_snapshots")
-          return [
-            {
-              id: "terminal-one",
-              environment: "local",
-              source: "observed",
-              status: "running",
-              goal: null,
-              taskSummary: "Long agent task ".repeat(80),
-              requestSummary: "Long user request ".repeat(80),
-              estimate: null,
-              updatedAt: Date.now(),
-              error: null,
-              monitorStatus: "idle",
-              shot: null,
-              agents: window.pageNoWorkers
-                ? []
-                : [
-                    {
-                      id: "a",
-                      kind: "subagent",
-                      source: "observed",
-                      label: "First helper",
-                      status: "running",
-                      detail: "Code",
-                    },
-                    {
-                      id: "b",
-                      kind: "subagent",
-                      source: "observed",
-                      label: "Second helper",
-                      status: "running",
-                      detail: "Test",
-                    },
-                    {
-                      id: "c",
-                      kind: "background",
-                      source: "observed",
-                      label: "Build",
-                      status: "running",
-                      detail: "Compile",
-                    },
-                  ],
-            },
-          ];
+const canvasFor = (page, id) => page.locator(`[data-session-canvas="${id}"]`);
+const terminalFor = (page, id) => page.locator(`#cli-sidebar [data-terminal="${id}"]`);
 
-        if (
-          [
-            "pty_doing",
-            "mcp_reports",
-            "list_roots",
-            "describe_folders",
-            "update_standing",
-          ].includes(cmd)
-        )
-          return [];
-        if (cmd === "app_settings_read") {
-          const value = location.search.includes("grouped")
-            ? {
-                ...args.initial,
-                monitor: { ...args.initial.monitor, enabled: true },
-              }
-            : args.initial;
-          return { path: "/tmp/totex.json", text: JSON.stringify(value), value };
-        }
-        if (cmd === "app_settings_write")
-          return { path: "/tmp/totex.json", text: args.text, value: JSON.parse(args.text) };
-        if (cmd === "read_directory")
-          return {
-            path: args.path,
-            name: args.path.split("/").at(-1),
-            parent: "/tmp",
-            distro: null,
-            truncated: false,
-            entries: [
-              {
-                name: args.path === "/tmp" ? "sub" : "child.txt",
-                path: args.path === "/tmp" ? "/tmp/sub" : "/tmp/sub/child.txt",
-                isDir: args.path === "/tmp",
-                isSymlink: false,
-                isHidden: false,
-                size: 10,
-                modifiedMs: 0,
-              },
-            ],
-          };
-        if (cmd === "read_file_head")
-          return {
-            path: args.path,
-            name: args.path.split("/").at(-1),
-            text: window.pageFileText,
-            size: window.pageFileText.length,
-            truncated: false,
-          };
-        if (cmd === "write_file") {
-          if (window.pageWriteRefused) throw new Error("Write refused");
-          window.pageFileText = args.text;
-          return args.text.length;
-        }
-        if (cmd === "file_diff")
-          return { standing: "unknown", patch: "", truncated: false, runs: [] };
-        return null;
-      },
-    };
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
-  });
-  await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${base}/tests/fixtures/pages.html`);
-  await page.getByRole("textbox", { name: "note.txt", exact: true }).waitFor();
-  await page.locator('[data-terminal="terminal-one"] .xterm-screen').waitFor();
-  await page.locator(".settings-page input").first().waitFor();
-  assert.equal(
-    await page.locator("#folder-sidebar").isVisible(),
-    true,
-    "Folder sidebar opens by default",
+async function focusTerminal(page) {
+  await page.locator('[data-terminal-shown="true"] .xterm-helper-textarea').focus();
+}
+
+async function showTerminal(page, number, id) {
+  await focusTerminal(page);
+  await page.keyboard.press(`Control+${number}`);
+  await canvasFor(page, id).waitFor({ state: "visible" });
+  await terminalFor(page, id).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
+  assert.equal(await terminalFor(page, id).getAttribute("data-terminal-shown"), "true");
+}
+
+async function holdCanvas(page) {
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Space");
+  await page.locator('[data-session-canvas][data-selecting="true"]').waitFor();
+}
+
+async function releaseCanvas(page) {
+  await page.keyboard.up("Space");
+  await page.keyboard.up("Control");
+  await page.waitForFunction(
+    () =>
+      !document.querySelector("[data-selecting]") &&
+      document.activeElement?.matches('[data-terminal-shown="true"] .xterm-helper-textarea'),
   );
-  const sidebar = page.locator("#cli-sidebar");
-  const terminal = page.locator('.card-board [data-terminal="terminal-one"]');
-  const note = page.getByRole("textbox", { name: "note.txt", exact: true });
-  await page.evaluate(() => {
-    window.heldTerminal = document.querySelector('[data-terminal="terminal-one"]');
-    window.heldSettings = document.querySelector(".settings-page input");
-    window.heldNote = document.querySelector('[role="textbox"][aria-label="note.txt"]');
-    window.initialAttaches = window.pageCalls.filter((call) => call.cmd === "pty_attach").length;
-  });
+}
 
-  assert.equal(await page.locator('.card-board [data-terminal="terminal-one"]').count(), 1);
-  assert.equal(await page.locator(".card-session-preview, .page__terminal-list").count(), 0);
-  assert.equal(await page.locator(".cli-page .page__header").count(), 0);
-  const initialTools = page.locator(".cli-page .page__tools");
+async function blankPane(page, id) {
+  await page.waitForFunction(
+    (id) => window.canvasStates[id].panes.some((pane) => pane.kind === "empty"),
+    id,
+  );
+  const pane = await page.evaluate(
+    (id) => window.canvasStates[id].panes.find((pane) => pane.kind === "empty").id,
+    id,
+  );
+  await canvasFor(page, id).locator(`[data-canvas-pane="${pane}"]`).waitFor();
+  return pane;
+}
+
+async function paneMenu(page, pane, keyboard = false) {
+  if (keyboard) {
+    await pane.focus();
+    await page.keyboard.press("Shift+F10");
+  } else {
+    await pane.click({ button: "right" });
+  }
+  await page.getByRole("menuitem", { name: "Add pane", exact: true }).waitFor();
+  assert.equal(await page.getByRole("menuitem", { name: "Raw data", exact: true }).count(), 0);
+  assert.equal(await page.getByRole("menuitem", { name: "Preview", exact: true }).count(), 0);
+}
+
+async function assertEmptyCanvas(page, id) {
+  const canvas = canvasFor(page, id);
+  await canvas.locator(".canvas-empty").waitFor();
+  assert.equal(await canvas.locator("[data-canvas-pane]").count(), 0);
   assert.equal(
-    await initialTools
-      .getByRole("button", { name: "Open main in sidebar viewer", exact: true })
+    (await canvas.innerText()).trim(),
+    "Hold Ctrl+Space · arrows to select · Ctrl+A to add · Ctrl+X to remove",
+    "An unused canvas only shows its keyboard shortcut hint",
+  );
+}
+
+async function assertSingleTerminalViews(page) {
+  const state = await page.evaluate(async () => {
+    const { values } = await window.pageSnapshot();
+    const hosts = [...document.querySelectorAll("[data-terminal]")];
+    return {
+      sessions: values["sessions.list"].map((session) => session.id).sort(),
+      hosts: hosts.map((node) => node.dataset.terminal).sort(),
+      canvases: [...document.querySelectorAll("[data-session-canvas]")]
+        .map((node) => node.dataset.sessionCanvas)
+        .sort(),
+      xterms: hosts.map((node) => node.querySelectorAll(".xterm").length),
+      shownTerminals: document.querySelectorAll('[data-terminal-shown="true"]').length,
+      shownCanvases: document.querySelectorAll("[data-session-canvas]:not([hidden])").length,
+      centeredTerminals: document.querySelectorAll("main [data-terminal]").length,
+    };
+  });
+  assert.deepEqual(state.hosts, state.sessions, "Every terminal has exactly one DOM host");
+  assert.deepEqual(state.canvases, state.sessions, "Every terminal owns exactly one canvas");
+  assert.ok(
+    state.xterms.every((count) => count === 1),
+    "Every terminal has one xterm instance",
+  );
+  assert.equal(state.shownTerminals, 1);
+  assert.equal(state.shownCanvases, 1);
+  assert.equal(state.centeredTerminals, 0, "Terminal output stays in the right sidebar");
+  assert.equal(await page.locator("[data-page-card], .card-board").count(), 0);
+  assert.equal(
+    await page
+      .locator(
+        ".terminal-canvases header, .terminal-canvases form, .terminal-canvases fieldset, " +
+          ".terminal-canvases [role=toolbar], .terminal-canvases button, " +
+          ".terminal-canvases .canvas-pane-tools, .terminal-canvases .canvas-file-views",
+      )
+      .count(),
+    0,
+    "The resting canvas contains content and separators without buttons, titles, tabs or forms",
+  );
+  assert.equal(
+    await page.locator("#cli-sidebar .session-index, #cli-sidebar .session-location").count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .locator("#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-list")
       .count(),
     1,
+    "Terminal location remains in the original compact sidebar header",
   );
   assert.equal(
-    await initialTools.getByRole("button", { name: "Close main", exact: true }).count(),
-    1,
-  );
-  await terminal.locator(".xterm-screen").click();
-  await page.keyboard.type("default-input");
-  await page.waitForFunction(() =>
-    window.pageCalls
-      .filter((call) => call.cmd === "pty_write")
-      .map((call) => call.args.data)
-      .join("")
-      .includes("default-input"),
-  );
-
-  await page.waitForFunction(
-    () =>
-      window.pageCalls
-        .filter((call) => call.cmd === "pty_resize" && call.args.id === "terminal-one")
-        .at(-1)?.args.rows === 2,
-  );
-  await page.evaluate(() => {
-    window.heldTerminalTools = document.querySelector(".cli-page .page__tools");
-  });
-  await page
-    .locator('[data-page-card="terminal:terminal-one"]')
-    .getByRole("separator", { name: "Resize page height", exact: true })
-    .focus();
-  await page.keyboard.press("ArrowDown");
-  await page.waitForFunction(
-    () =>
-      window.pageCalls
-        .filter((call) => call.cmd === "pty_resize" && call.args.id === "terminal-one")
-        .at(-1)?.args.rows > 2,
-  );
-  assert.equal(await initialTools.evaluate((header) => header === window.heldTerminalTools), true);
-  assert.equal(await page.locator(".cli-page .page__header").count(), 0);
-  await page
-    .locator('[data-page-card="terminal:terminal-one"]')
-    .getByRole("separator", { name: "Resize page height", exact: true })
-    .focus();
-  await page.keyboard.press("ArrowUp");
-  await page.waitForFunction(
-    () =>
-      window.pageCalls
-        .filter((call) => call.cmd === "pty_resize" && call.args.id === "terminal-one")
-        .at(-1)?.args.rows === 2,
-  );
-  assert.equal(await terminal.evaluate((element) => element === window.heldTerminal), true);
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_attach").length),
-    await page.evaluate(() => window.initialAttaches),
-  );
-  await page
-    .locator('[data-page-card="terminal:terminal-one"]')
-    .getByRole("separator", { name: "Resize page height", exact: true })
-    .focus();
-  await page.keyboard.press("ArrowDown");
-
-  for (let step = 0; step < 10; step++) await page.keyboard.press("ArrowDown");
-  await verifyCardLayout(page);
-
-  // Ctrl is held only while pressed, even if a child consumes its release.
-  const verifyReleased = async (text) => {
-    await page.keyboard.type(text);
-    await page.waitForTimeout(250);
-    const written = await page.evaluate(() =>
-      window.pageCalls
-        .filter((call) => call.cmd === "pty_write")
-        .map((call) => call.args.data)
-        .join(""),
-    );
-    assert.ok(written.endsWith(text), "Terminal accepts input after Ctrl release");
-  };
-  await terminal.locator(".xterm-screen").click();
-  await page.keyboard.down("Control");
-  await terminal.locator("textarea").evaluate((input) => {
-    input.addEventListener("keyup", (event) => event.stopPropagation(), { once: true });
-  });
-  await page.keyboard.up("Control");
-  await verifyReleased("released");
-
-  // A lost keyup must recover on an ordinary keydown, even when xterm consumes it.
-  await terminal.locator("textarea").evaluate((input) => {
-    input.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Control", ctrlKey: true, bubbles: true }),
-    );
-  });
-  await verifyReleased("recovered");
-
-  // Ctrl+V must work without a browser paste event, through xterm's paste API.
-  await page.keyboard.press("Control+v");
-  await page.waitForFunction(() =>
-    window.pageCalls.some(
-      (call) => call.cmd === "pty_write" && call.args.data === "日本語\rsecond line",
-    ),
-  );
-  assert.equal(
-    await page.evaluate(
-      () =>
-        window.pageCalls.filter(
-          (call) => call.cmd === "pty_write" && call.args.data === "日本語\rsecond line",
-        ).length,
-    ),
-    1,
-    "Clipboard text is pasted exactly once",
-  );
-
-  // The sidebar adds one viewer header while preserving the source card.
-  const terminalHeader = sidebar.locator(".cli-page .page__header");
-  await terminalHeader.locator(".page__window-controls button").first().waitFor();
-  assert.equal(await terminalHeader.count(), 1);
-  assert.equal(await terminalHeader.locator(".page__terminal-name").textContent(), "tmp");
-  assert.equal(await terminalHeader.locator(".page__terminal-list").count(), 1);
-  assert.equal(
-    await terminalHeader.locator(".page__terminal-numbers [data-active=true]").textContent(),
-    "1",
-  );
-  assert.equal(await terminalHeader.locator(".monitor-badge").count(), 0);
-  assert.equal(await terminalHeader.locator(".page__window-controls button").count(), 3);
-
-  await note.click();
-  await page.keyboard.press("Control+ArrowRight");
-  assert.ok(
-    await sidebar
-      .locator('[data-terminal="terminal-one"]')
-      .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Right moves from a file editor to the sidebar",
-  );
-  await page.keyboard.press("Control+ArrowLeft");
-  assert.ok(
-    await page.locator(".card-board").evaluate((node) => node.contains(document.activeElement)),
-  );
-
-  // Settings are an ordinary page and keep their form instance when docked.
-  await page.getByRole("button", { name: "Move totex.json to the sidebar", exact: true }).click();
-  await sidebar.locator(".settings-page").waitFor();
-  await sidebar.locator(".settings-page .page__window-controls button").first().waitFor();
-  assert.equal(await sidebar.locator(".settings-page .page__terminal-list").count(), 0);
-  assert.equal(
-    await sidebar
-      .locator(".settings-page input")
-      .first()
-      .evaluate((element) => element === window.heldSettings),
-    true,
-  );
-  assert.equal(await sidebar.getByRole("combobox", { name: "Select page" }).count(), 0);
-  await note.click();
-  await page.keyboard.press("Control+ArrowRight");
-  assert.ok(
-    await sidebar
-      .locator(".settings-page")
-      .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Right reaches the visible non-terminal page",
-  );
-  await page.keyboard.press("Control+ArrowLeft");
-  assert.ok(
-    await page.locator(".card-board").evaluate((node) => node.contains(document.activeElement)),
-  );
-  await page.keyboard.press("Control+ArrowRight");
-  await page.getByRole("button", { name: "Move totex.json to the cards", exact: true }).click();
-  assert.ok(await sidebar.isVisible(), "Moving a page out keeps the sidebar open");
-  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
-  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
-  await page.getByRole("button", { name: "Close main viewer", exact: true }).click();
-  await page.locator('.card-board [data-terminal="terminal-one"]').waitFor();
-  assert.equal(await terminal.evaluate((element) => element === window.heldTerminal), true);
-  assert.equal(await terminal.count(), 1);
-  assert.equal(
-    await terminal.evaluate((element) => element.contains(document.activeElement)),
-    true,
-    "Dismissing its viewer restores card keyboard focus",
-  );
-  await page
-    .locator(".cli-page")
-    .getByRole("button", { name: "Open main in sidebar viewer", exact: true })
-    .click();
-  await sidebar.locator('[data-terminal="terminal-one"]').waitFor();
-  assert.equal(await terminal.evaluate((element) => element === window.heldTerminal), true);
-  assert.equal(
-    await page.evaluate(
-      () =>
-        window.pageCalls.filter((call) => call.cmd === "pty_attach").length >
-        window.initialAttaches,
-    ),
-    true,
-  );
-
-  await page.getByRole("button", { name: "Close main viewer", exact: true }).click();
-
-  // Failed writes leave the draft and its page in place.
-  await note.fill("edited content");
-  await page.evaluate(() => {
-    window.pageWriteRefused = true;
-  });
-  await page.getByRole("button", { name: "Move note.txt to the sidebar", exact: true }).click();
-  await page.locator(".file-preview__unsaved.is-refused").waitFor();
-  assert.equal(await note.evaluate((element) => !!element.closest(".card-board")), true);
-  assert.equal(await note.textContent(), "edited content");
-  await page.evaluate(() => {
-    window.pageWriteRefused = false;
-  });
-  await page.getByRole("button", { name: "Move note.txt to the sidebar", exact: true }).click();
-  await sidebar.locator(".file-preview").waitFor();
-  assert.equal(await note.evaluate((element) => element === window.heldNote), true);
-  assert.equal(await note.textContent(), "edited content");
-  assert.equal(await sidebar.getByRole("button", { name: "Pin note.txt", exact: true }).count(), 0);
-  assert.equal(
-    await sidebar.getByRole("button", { name: "Fold note.txt away", exact: true }).count(),
+    await page.getByText(/Legacy (task|request) summary must not be rendered/).count(),
     0,
   );
-
-  // Hiding is not closing; reopening preserves the file draft.
-  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
-  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
-  assert.equal(await sidebar.getByRole("combobox", { name: "Select page" }).count(), 0);
-  assert.equal(await note.textContent(), "edited content");
-  await page.getByRole("button", { name: "Move note.txt to the cards", exact: true }).click();
-  assert.equal(await page.getByRole("button", { name: "Pin note.txt", exact: true }).count(), 0);
-  assert.equal(await page.getByRole("button", { name: /Shrink .* to its smallest/ }).count(), 0);
-  await page.getByRole("button", { name: "Move note.txt to the sidebar", exact: true }).click();
-  const snapshot = await page.evaluate(() => window.pageSnapshot());
-  assert.equal(snapshot.values["pages.dockedFiles"].includes("file:1"), true);
-  assert.equal(snapshot.values["pages.showingFile"], "file:1");
-  assert.equal(
-    snapshot.values["canvas.files"].find((node) => node.data.requestId === 1).data.text,
-    "edited content",
-  );
-  await note.focus();
-  await page.keyboard.press("Control+ArrowDown");
-  assert.ok(
-    await sidebar
-      .locator('[data-terminal="terminal-one"]')
-      .evaluate((node) => node.contains(document.activeElement)),
-    "Ctrl+Down selects a terminal even when editing a sidebar file",
-  );
-  await sidebar.getByRole("button", { name: "Close main viewer", exact: true }).click();
-  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
-  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
-  await page.getByRole("button", { name: "Close note.txt", exact: true }).click();
-  await page.waitForFunction(
-    () => !document.querySelector('[role="textbox"][aria-label="note.txt"]'),
-  );
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
-    false,
-  );
-  await page.locator("button.page-terminal-number").click();
-  await page.keyboard.press("Control+x");
-  await page.waitForFunction(() =>
-    window.pageCalls.some((call) => call.cmd === "pty_close" && call.args.id === "terminal-one"),
-  );
-  assert.equal(await terminal.count(), 0);
-  assert.ok(await sidebar.isVisible(), "Killing the last terminal keeps the sidebar open");
-  await page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
-  assert.equal(await sidebar.isVisible(), false);
-  await page.getByRole("button", { name: "Show page sidebar", exact: true }).click();
-  assert.ok(await sidebar.isVisible(), "An empty sidebar can be reopened explicitly");
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
-  await page.locator('[data-terminal="terminal-two"] .xterm-screen').waitFor();
-  await page.keyboard.press("Control+2");
-  await page.evaluate(() => {
-    window.pageCloseRefused = true;
-  });
-  await page.keyboard.press("Control+x");
-  await page
-    .getByText("Could not end the terminal. It is still open; try again.", { exact: true })
-    .waitFor();
-  const refused = await page.evaluate(() => window.pageSnapshot());
-  assert.equal(refused.values["sessions.active"], "terminal-two");
-  assert.equal(refused.values["sessions.list"].length, 3, "A failed close retains every terminal");
-  await page.evaluate(() => {
-    window.pageCloseRefused = false;
-  });
-  await page.keyboard.press("Control+x");
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.active"] === "terminal-other",
-  );
-  assert.equal(
-    await page.locator('#cli-sidebar [data-terminal="terminal-other"]').isVisible(),
-    true,
-  );
-  assert.equal((await page.locator('[data-terminal="terminal-one"]').count()) > 0, true);
-  await page.keyboard.press("Control+x");
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.active"] === "terminal-one",
-  );
-  await page.locator("main").evaluate((node) => {
-    const data = new DataTransfer();
-    data.items.add(
-      new File([new Uint8Array([137, 80, 78, 71])], "shot.png", { type: "image/png" }),
-    );
-    node.dispatchEvent(
-      new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }),
-    );
-  });
-  await page.waitForFunction(async () =>
-    (await window.pageSnapshot()).values["files.open"].some(
-      (file) => file.path === "/tmp/pasted-shot.png",
-    ),
-  );
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
-  await page.locator('[data-terminal="terminal-two"] .xterm-screen').waitFor();
-  await page.keyboard.press("Control+2");
-  await page.evaluate(() => {
-    window.pageClosePending = true;
-  });
-  await page.keyboard.press("Control+x");
-  await page.waitForFunction(() => window.releaseClose);
-  await page.keyboard.press("Control+1");
-  await page.evaluate(() => window.releaseClose());
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
-  );
-  assert.equal(
-    (await page.evaluate(() => window.pageSnapshot())).values["sessions.active"],
-    "terminal-one",
-    "A delayed close must not override navigation performed while it was pending",
-  );
-  await page.goto(`${base}/tests/fixtures/pages.html?attach-error`);
-  await page.getByRole("button", { name: "Retry connection", exact: true }).waitFor();
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
-    false,
-  );
-  assert.equal(
-    (await page.evaluate(() => window.pageSnapshot())).values["sessions.list"].length,
-    1,
-  );
-  await page.evaluate(() => {
-    window.pageAttachRefused = false;
-  });
-  await page.getByRole("button", { name: "Retry connection", exact: true }).click();
-  await page.waitForFunction(
-    () =>
-      window.pageCalls.filter((call) => call.cmd === "pty_attach").length >= 2 &&
-      !document.querySelector('[role="alert"]'),
-  );
-  await page.evaluate(() => window.pageEmit("pty:exit", "terminal-one"));
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 0,
-  );
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
-    false,
-    "A confirmed natural exit removes the view without another close request",
-  );
-  await page.goto(`${base}/tests/fixtures/pages.html?attach-missing`);
-  await page.waitForFunction(
-    async () =>
-      window.pageSnapshot && (await window.pageSnapshot()).values["sessions.list"].length === 0,
-  );
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.some((call) => call.cmd === "pty_close")),
-    false,
-  );
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&onlyterminals`);
-  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
-  await page.keyboard.press("Control+1");
-  await page.keyboard.press("Control+2");
-  await page.keyboard.press("Control+Alt+a");
-  await page.evaluate(() => {
-    window.pageEmit("pty:exit", "terminal-two");
-    window.pageEmit("pty:exit", "terminal-one");
-  });
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 1,
-  );
-  const simultaneous = (await page.evaluate(() => window.pageSnapshot())).values;
-  assert.equal(simultaneous["sessions.showing"], null);
-  assert.equal(simultaneous["sessions.active"], null);
-  assert.equal(simultaneous["pages.lowerSidebar"], null);
-  await verifyTerminalResize(page, base);
-  await verifyCardGeometry(page, base);
-  assert.equal(errors.length, 0, errors.join("\n"));
-  return {
-    passed:
-      "terminal identity, header dragging, columns, reordering, resizing, file/settings docking, failed saves, host capabilities, hiding, snapshot, close",
-    errors,
-  };
 }
 
-/** Active terminals keep their pane when navigating and closing a split. */
-export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422") {
-  await page.goto(`${base}/tests/fixtures/pages.html?terminals&onlyterminals`);
-  await page.locator('[data-terminal="terminal-one"] .xterm-screen').click();
-  // ConPTY waits for this response before the new shell can print its prompt.
-  await page.evaluate(() => {
-    window.pageBacklog = { text: "\x1b[6n", upto: 4 };
-  });
-  await page.keyboard.press("Control+a");
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
-  );
-  const checkOpened = async () => {
-    const id = await page.evaluate(
-      async () => (await window.pageSnapshot()).values["sessions.list"].at(-1).id,
-    );
-    await page.waitForFunction(async () => {
-      const { values } = await window.pageSnapshot();
-      const id = values["sessions.active"];
-      const terminal = document.querySelector(`#cli-sidebar [data-terminal="${id}"]`);
-      return values["sessions.showing"] === id && terminal?.contains(document.activeElement);
-    });
-    await page.waitForFunction(
-      (id) =>
-        window.pageCalls.some(
-          (call) =>
-            call.cmd === "pty_write" && call.args.id === id && call.args.data === "\x1b[1;1R",
-        ),
-      id,
-    );
-    assert.equal(
-      await page.evaluate(
-        (id) =>
-          window.pageCalls.filter((call) => call.cmd === "pty_write" && call.args.id === id).length,
-        id,
-      ),
-      1,
-      "Only the sidebar answers the pending ConPTY startup query",
-    );
-  };
-  await checkOpened();
-  await page.keyboard.press("Control+a");
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 3,
-  );
-  await checkOpened();
-  const ids = await page.evaluate(async () =>
-    (await window.pageSnapshot()).values["sessions.list"].map((s) => s.id),
-  );
-  const writesBeforeReplay = await page.evaluate(
-    () => window.pageCalls.filter((call) => call.cmd === "pty_write").length,
-  );
-  await page.evaluate(() => {
-    // A cursor query retained later in the session must not be answered again.
-    window.pageBacklog = { text: "\x1b[6n", upto: 1004 };
-  });
-  const previousSize = await page.evaluate(
-    (id) =>
-      window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
-        ?.args,
-    ids[2],
-  );
-  assert.ok(previousSize.rows > 2);
-  await page.keyboard.press("Control+1");
-  await page.waitForFunction(
-    async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
-    ids[0],
-  );
-  await page.locator(`#cli-sidebar [data-terminal="${ids[0]}"] .xterm-screen`).waitFor();
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-  );
+async function verifyFrameRetention(page) {
+  const first = canvasFor(page, "terminal-one");
+  await first.getByRole("heading", { name: "Review evidence", exact: true }).waitFor();
+  const live = page.frame({ url: "http://127.0.0.1:18424/live" });
+  assert.ok(live, "The localhost preview is an actual child browsing context");
+  await live.getByRole("heading", { name: "Development preview", exact: true }).waitFor();
+  await live.getByText("API connected", { exact: true }).waitFor();
+  await live.getByRole("button", { name: "Count 0", exact: true }).click();
+  await live.getByRole("button", { name: "Count 1", exact: true }).waitFor();
+  const mount = await live.evaluate(() => window.canvasFixtureMount);
+  assert.equal(await live.evaluate(() => localStorage.getItem("canvas.fixture.count")), "1");
+  assert.equal(await live.evaluate(() => typeof window.__TAURI_INTERNALS__), "undefined");
   assert.equal(
-    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_write").length),
-    writesBeforeReplay,
-    "Opening another viewer does not answer historical cursor queries",
-  );
-  await page.evaluate(() => {
-    window.pageBacklog = undefined;
-  });
-  assert.deepEqual(
-    await page.evaluate(
-      (id) =>
-        window.pageCalls.filter((call) => call.cmd === "pty_resize" && call.args.id === id).at(-1)
-          ?.args,
-      ids[2],
-    ),
-    previousSize,
-    "Switching terminals preserves the previous shell's full-size grid",
-  );
-  await page.keyboard.press("Control+3");
-  await page.waitForFunction(
-    async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
-    ids[2],
-  );
-  const resizeCount = await page.evaluate(
-    () => window.pageCalls.filter((call) => call.cmd === "pty_resize").length,
-  );
-  for (const key of ["Control+ArrowUp", "Control+ArrowDown"]) {
-    await page.keyboard.press(key);
-    await page.evaluate(
-      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
-    );
-  }
-  assert.equal(
-    await page.evaluate(() => window.pageCalls.filter((call) => call.cmd === "pty_resize").length),
-    resizeCount,
-    "Switching sidebar terminals does not trigger a redundant ConPTY repaint",
-  );
-  // Explicit controls open viewers while source cards remain editable.
-  for (const id of ids) {
-    await page
-      .locator(`[data-page-card="terminal:${id}"]`)
-      .getByRole("button", { name: /^Open .* in sidebar viewer$/ })
-      .click();
-  }
-  await page.setViewportSize({ width: 1600, height: 400 });
-  await page.locator(".card-board").evaluate((board) => {
-    board.scrollTop = 0;
-  });
-  await page.keyboard.press("Control+ArrowUp");
-  await page.waitForFunction(
-    async (id) => (await window.pageSnapshot()).values["sessions.active"] === id,
-    ids[1],
-  );
-  assert.equal(
-    await page.locator(".card-board").evaluate((board) => board.scrollTop),
-    0,
-    "Selecting a sidebar terminal leaves the canvas and its folder headings in place",
-  );
-  await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.keyboard.press("Control+ArrowLeft");
-  assert.ok(
-    await page.locator('.folder-card[data-card-folder="/tmp"]').evaluate((folder) => {
-      const header = folder.querySelector(".page__header").getBoundingClientRect();
-      const board = folder.closest(".card-board").getBoundingClientRect();
-      return header.top >= board.top && header.bottom <= board.bottom;
+    await live.evaluate(() => {
+      try {
+        void window.top.__TAURI_INTERNALS__;
+        return false;
+      } catch {
+        return true;
+      }
     }),
-    "Returning to the canvas keeps the terminal's folder path in view",
+    true,
+    "The served origin cannot access the app's native bridge",
   );
-  await page.keyboard.press("Control+ArrowRight");
-  await page.keyboard.press("Control+ArrowDown");
-  await page.keyboard.press("Control+Alt+a");
-  const check = async (top, bottom, active) => {
-    await page.waitForFunction(
-      ({ top, bottom, active }) => {
-        const panes = [...document.querySelectorAll("[data-page-pane]")];
-        const pane = (id) => panes.find((e) => e.dataset.pagePane === `terminal:${id}`);
-        const a = pane(active);
-        return (
-          a?.dataset.active === "true" &&
-          a.contains(document.activeElement) &&
-          getComputedStyle(pane(top)).top === "0px" &&
-          (bottom === null ||
-            pane(bottom).getBoundingClientRect().top > pane(top).getBoundingClientRect().top)
-        );
-      },
-      { top, bottom, active },
+  await page.evaluate(() => {
+    window.originalCanvasFrame = document.querySelector('[data-canvas-pane="live"] iframe');
+    window.originalTerminal = document.querySelector('[data-terminal="terminal-one"] .xterm');
+    window.originalAttachCount = window.pageCalls.filter(
+      ({ cmd, args }) => cmd === "pty_attach" && args.id === "terminal-one",
+    ).length;
+  });
+  await showTerminal(page, 2, "terminal-two");
+  await canvasFor(page, "terminal-two")
+    .getByText(/const total = items.reduce/)
+    .waitFor();
+  assert.equal(await first.isVisible(), false);
+  assert.equal(await live.locator("button").textContent(), "Count 1");
+  await showTerminal(page, 1, "terminal-one");
+  await page.evaluate(() => {
+    const canvas = window.canvasStates["terminal-one"];
+    canvas.revision++;
+    canvas.panes.find((pane) => pane.id === "live").title = "Updated preview title";
+  });
+  await page.locator('[data-canvas-pane="live"] iframe[title="Updated preview title"]').waitFor();
+  assert.equal(await live.evaluate(() => window.canvasFixtureMount), mount);
+  assert.equal(await live.getByRole("button", { name: "Count 1", exact: true }).count(), 1);
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.originalCanvasFrame === document.querySelector('[data-canvas-pane="live"] iframe') &&
+        window.originalTerminal ===
+          document.querySelector('[data-terminal="terminal-one"] .xterm') &&
+        window.originalAttachCount ===
+          window.pageCalls.filter(
+            ({ cmd, args }) => cmd === "pty_attach" && args.id === "terminal-one",
+          ).length,
+    ),
+    true,
+    "Switching terminals preserves both the iframe and terminal runtime",
+  );
+  const geometry = await first.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const cells = [...node.querySelectorAll(":scope > [data-canvas-pane]")].map((pane) =>
+      pane.getBoundingClientRect(),
     );
-  };
-  await check(ids[2], ids[0], ids[0]);
-  await page.keyboard.press("Control+ArrowDown");
-  await check(ids[2], ids[1], ids[1]);
-  await page.keyboard.press("Control+ArrowDown");
-  await check(ids[2], ids[1], ids[2]);
-  await page.locator(`#cli-sidebar [data-terminal="${ids[1]}"] .xterm-screen`).click();
-  await check(ids[2], ids[1], ids[1]);
-  await page.keyboard.press("Control+Alt+x");
-  await page.waitForFunction(
-    (id) => window.pageCalls.some((c) => c.cmd === "pty_close" && c.args.id === id),
-    ids[1],
+    return {
+      width: box.width,
+      height: box.height,
+      left: Math.min(...cells.map((cell) => cell.left)) - box.left,
+      top: Math.min(...cells.map((cell) => cell.top)) - box.top,
+      right: box.right - Math.max(...cells.map((cell) => cell.right)),
+      bottom: box.bottom - Math.max(...cells.map((cell) => cell.bottom)),
+      emptyArea:
+        box.width * box.height - cells.reduce((sum, cell) => sum + cell.width * cell.height, 0),
+    };
+  });
+  for (const edge of ["left", "top", "right", "bottom"])
+    assert.ok(Math.abs(geometry[edge]) <= 1, `Panes reach the canvas ${edge} edge`);
+  assert.ok(
+    geometry.emptyArea <= (geometry.width + geometry.height) * 2,
+    "Only separator lines remain between panes",
   );
-  await check(ids[2], null, ids[2]);
-  assert.equal(await page.locator(`[data-terminal="${ids[1]}"]`).count(), 0);
-  await page.keyboard.press("Control+Alt+a");
-  await check(ids[2], ids[0], ids[0]);
-  await page.keyboard.press("Control+ArrowUp");
-  await check(ids[2], ids[0], ids[2]);
-  await page.keyboard.press("Control+Alt+x");
-  await page.waitForFunction((id) => !document.querySelector(`[data-terminal="${id}"]`), ids[2]);
-  await check(ids[0], null, ids[0]);
-  await page.keyboard.press("Control+Alt+a");
-  await page.waitForFunction(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length === 2,
-  );
-  const fresh = await page.evaluate(
-    async () => (await window.pageSnapshot()).values["sessions.active"],
-  );
-  await check(ids[0], fresh, fresh);
-  await page.keyboard.press("Control+Alt+x");
-  await check(ids[0], null, ids[0]);
-  return "split focus, active-pane navigation, pointer selection, closing either pane";
+  await assertSingleTerminalViews(page);
 }
 
-export async function verifyMixedPages(page, base = "http://127.0.0.1:18422") {
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
-  const file = page.locator('[data-page-card="file:1"]');
-  await file.locator(".page-terminal-number").waitFor();
-  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
-  await page.evaluate(() => new Promise(requestAnimationFrame));
-  assert.equal(await file.locator(".page-terminal-number").textContent(), "3");
+async function verifyCanvasEditing(page) {
+  const first = canvasFor(page, "terminal-one");
+  const before = await page.evaluate(() => ({
+    panes: window.canvasStates["terminal-one"].panes.length,
+    writes: window.pageCalls.filter(({ cmd }) => cmd === "pty_write").length,
+  }));
+  await first.locator('[data-canvas-pane="live"]').focus();
+  await focusTerminal(page);
+  await holdCanvas(page);
+  await first.locator('[data-canvas-pane="live"]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
+  assert.equal(await page.locator(".canvas-menu-file strong").innerText(), "live");
   assert.equal(
-    await file.locator("xpath=ancestor::*[@data-card-folder]").getAttribute("data-card-folder"),
-    "/tmp",
+    await page.locator(".canvas-menu-file span").innerText(),
+    "http://127.0.0.1:18424/live",
   );
-  await page.keyboard.press("Control+3");
-  await page.locator("#cli-sidebar .file-preview").waitFor();
-  await page.keyboard.press("Control+ArrowDown");
-  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
-  await page.keyboard.press("Control+ArrowUp");
-  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
-  const note = page.getByRole("textbox", { name: "note.txt", exact: true });
-  await note.click();
-  await page.keyboard.press("Control+4");
-  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
-  await page.keyboard.press("Control+3");
-  await note.click();
-  await page.keyboard.press("Control+x");
-  assert.equal(await note.count(), 1, "Ctrl+X in an editor keeps the file open");
+  await page.keyboard.up("Space");
+  await page.keyboard.up("Control");
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
+  assert.equal(await first.locator("[data-canvas-pane]").count(), before.panes);
+  await page.keyboard.press("Escape");
+  await page.getByRole("menu").waitFor({ state: "detached" });
+  // A foreign iframe's mouse events cannot bubble into the app; the pane supports a keyboard menu.
+  await paneMenu(page, first.locator('[data-canvas-pane="live"]'), true);
+  await page.getByRole("menuitem", { name: "Add pane", exact: true }).click();
+  const added = await blankPane(page, "terminal-one");
+  await paneMenu(page, first.locator(`[data-canvas-pane="${added}"]`));
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
+  await first.locator(`[data-canvas-pane="${added}"]`).waitFor({ state: "detached" });
+  assert.equal(await first.locator("[data-canvas-pane]").count(), before.panes);
+
+  await first.locator('[data-canvas-pane="live"]').focus();
+  await focusTerminal(page);
+  await holdCanvas(page);
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-session-canvas="terminal-one"] [data-selected]')?.dataset
+        .canvasPane !== "live",
+  );
+  await page.keyboard.press("ArrowLeft");
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-session-canvas="terminal-one"] [data-selected]')?.dataset
+        .canvasPane === "live",
+  );
+  await page.keyboard.press("a");
+  const removed = await blankPane(page, "terminal-one");
+  await page.keyboard.press("x");
+  await first.locator(`[data-canvas-pane="${removed}"]`).waitFor({ state: "detached" });
+  assert.equal(await first.locator("[data-canvas-pane]").count(), before.panes);
+  await page.keyboard.press("a");
+  const blank = await blankPane(page, "terminal-one");
+  await releaseCanvas(page);
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.filter(({ cmd }) => cmd === "pty_write").length),
+    before.writes,
+    "Canvas shortcuts never send Control+Space, arrows, A or X to the shell",
+  );
+  await page.keyboard.press("ArrowRight");
+  await page.waitForFunction(
+    (count) => window.pageCalls.filter(({ cmd }) => cmd === "pty_write").length > count,
+    before.writes,
+  );
+  assert.equal(
+    await first.locator("[data-selected]").getAttribute("data-canvas-pane"),
+    blank,
+    "Arrows return to the terminal as soon as the chord is released",
+  );
+  const transfer = await page.evaluateHandle(() => {
+    const data = new DataTransfer();
+    data.setData("application/x-totex-file", "/tmp/dropped.txt");
+    data.setData("text/plain", "/tmp/dropped.txt");
+    return data;
+  });
+  try {
+    const target = first.locator(`[data-canvas-pane="${blank}"]`);
+    await target.dispatchEvent("dragover", { dataTransfer: transfer });
+    await target.dispatchEvent("drop", { dataTransfer: transfer });
+  } finally {
+    await transfer.dispose();
+  }
+  await first.getByRole("textbox", { name: "dropped.txt", exact: true }).waitFor();
+  assert.equal(await first.locator("[data-canvas-pane]").count(), before.panes + 1);
+  assert.equal(await first.locator(`[data-canvas-pane="${blank}"]`).count(), 0);
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "fs_delete_file")),
+    false,
+    "Removing a pane never deletes its source file",
+  );
+  await assertSingleTerminalViews(page);
+}
+
+async function verifySaveProtection(page) {
+  const first = canvasFor(page, "terminal-one");
+  const note = first.getByRole("textbox", { name: "note.txt", exact: true });
   await page.evaluate(() => {
     window.pageWriteRefused = true;
   });
   await note.fill("keep this draft");
-  await page.locator("#cli-sidebar .file-preview").focus();
+  const revision = await page.evaluate(() => window.canvasStates["terminal-one"].revision);
+  await paneMenu(page, note);
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
+  await page.locator(".canvas-error").waitFor();
+  assert.equal(await note.textContent(), "keep this draft");
+  assert.equal(await page.evaluate(() => window.canvasStates["terminal-one"].revision), revision);
+  assert.equal(await page.evaluate(() => window.pageFileText), "saved text");
+
+  const writes = await page.evaluate(
+    () => window.pageCalls.filter(({ cmd }) => cmd === "write_file").length,
+  );
+  await focusTerminal(page);
   await page.keyboard.press("Control+x");
-  await page.locator(".file-preview__unsaved.is-refused").waitFor();
-  assert.equal(await note.textContent(), "keep this draft", "Failed save retains the open draft");
+  await page.waitForFunction(
+    (count) => window.pageCalls.filter(({ cmd }) => cmd === "write_file").length > count,
+    writes,
+  );
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+  assert.equal(await terminalFor(page, "terminal-one").count(), 1);
+  assert.equal(await note.count(), 1);
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "pty_close")),
+    false,
+    "A failed canvas save also prevents closing its terminal",
+  );
+
   await page.evaluate(() => {
     window.pageWriteRefused = false;
   });
-  await page.keyboard.press("Control+x");
+  await paneMenu(page, note);
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   await note.waitFor({ state: "detached" });
-  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
   assert.equal(await page.evaluate(() => window.pageFileText), "keep this draft");
-  await page.keyboard.press("Control+x");
-  await page.locator('#cli-sidebar [data-terminal="terminal-one"]').waitFor({ state: "visible" });
+  assert.equal(await terminalFor(page, "terminal-one").count(), 1);
+}
 
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
-  await file.locator(".page-terminal-number").waitFor();
-  await page.locator('[data-terminal="terminal-other"] .xterm-screen').waitFor();
-  await page.evaluate(() => new Promise(requestAnimationFrame));
-  await page.keyboard.press("Control+2");
-  await page.keyboard.press("Control+x");
-  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
-  assert.equal(
-    (await page.evaluate(() => window.pageSnapshot())).values["pages.showingFile"],
-    "file:1",
-    "Closing terminal 2 selects the following file",
-  );
-  await page.keyboard.press("Control+x");
-  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
-
-  await page.goto(`${base}/tests/fixtures/pages.html?grouped&mixed`);
+async function verifyExplorerContext(page) {
+  await showTerminal(page, 2, "terminal-two");
+  const first = await page.evaluate(() => structuredClone(window.canvasStates["terminal-one"]));
   await page.locator('[data-pick-row="/tmp/sub"]').click();
   await page.locator('[data-pick-row="/tmp/sub/child.txt"]').dblclick();
-  const child = page.locator('[data-page-card="file:2"]');
-  await child.locator(".page-terminal-number").waitFor();
+  const worker = canvasFor(page, "terminal-two");
+  await worker.getByRole("textbox", { name: "child.txt", exact: true }).waitFor();
   assert.equal(
-    await child.locator("xpath=ancestor::*[@data-card-folder]").getAttribute("data-card-folder"),
-    "/tmp",
+    await worker.getByRole("textbox", { name: "child.txt", exact: true }).textContent(),
+    "Explorer file text",
   );
-  const snapshot = await page.evaluate(() => window.pageSnapshot());
-  assert.equal(snapshot.values["files.open"].find((file) => file.id === 2).folder, "/tmp");
+  assert.deepEqual(
+    await page.evaluate(() => window.canvasStates["terminal-one"]),
+    first,
+    "Explorer files are attached to the currently selected terminal",
+  );
+  await page.evaluate(() => {
+    const canvas = window.canvasStates["terminal-two"];
+    canvas.revision += 1;
+    canvas.panes = canvas.panes.map((pane) =>
+      pane.id === "worker-code" ? { ...pane, text: "const agentUpdate = 'ready';" } : pane,
+    );
+    canvas.panes.push({
+      id: "agent-shot",
+      kind: "image",
+      src: "/tmp/shot.png",
+      title: "Agent screenshot",
+    });
+  });
+  await worker.getByText("const agentUpdate = 'ready';", { exact: true }).waitFor();
+  await page.waitForFunction(() => {
+    const image = document.querySelector('[data-canvas-pane="agent-shot"] img');
+    return image?.complete && image.naturalWidth === 1;
+  });
+  assert.deepEqual(await page.evaluate(() => window.canvasStates["terminal-one"]), first);
+  await showTerminal(page, 1, "terminal-one");
+  assert.equal(await worker.isVisible(), false);
   assert.equal(
-    snapshot.values["canvas.files"].find((file) => file.data.requestId === 2).data.folder,
-    "/tmp",
+    await canvasFor(page, "terminal-one").locator('[data-canvas-pane="agent-shot"]').count(),
+    0,
   );
-  await page.keyboard.press("Control+3");
-  await page.locator("#cli-sidebar .file-preview").waitFor({ state: "visible" });
-  await page.keyboard.press("Control+1");
-  await page.keyboard.press("Control+Alt+a");
+}
+
+async function verifyTerminalStartup(page) {
+  await showTerminal(page, 1, "terminal-one");
+  const count = await page.evaluate(
+    async () => (await window.pageSnapshot()).values["sessions.list"].length,
+  );
+  await page.keyboard.press("Control+a");
   await page.waitForFunction(
-    () => document.querySelector('[data-page-pane="file:1"]')?.dataset.active === "true",
+    async (count) => (await window.pageSnapshot()).values["sessions.list"].length === count + 1,
+    count,
   );
-  await page.keyboard.press("Control+x");
+  const opened = await page.evaluate(async () => {
+    const { values } = await window.pageSnapshot();
+    return values["sessions.active"];
+  });
+  await assertEmptyCanvas(page, opened);
+  await paneMenu(page, canvasFor(page, opened));
+  assert.equal(await page.getByRole("menuitem", { name: "Remove pane", exact: true }).count(), 0);
+  await page.getByRole("menuitem", { name: "Add pane", exact: true }).click();
+  const blank = await blankPane(page, opened);
+  await paneMenu(page, canvasFor(page, opened).locator(`[data-canvas-pane="${blank}"]`));
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
+  await assertEmptyCanvas(page, opened);
+  await terminalFor(page, opened).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
+  assert.equal(await terminalFor(page, opened).getAttribute("data-terminal-shown"), "true");
+  assert.equal(
+    await page.evaluate(
+      (id) =>
+        window.pageCalls.filter(({ cmd, args }) => cmd === "pty_open" && args.id === id).length,
+      opened,
+    ),
+    1,
+  );
+  await assertSingleTerminalViews(page);
+  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
+  const available = page.locator("#cli-sidebar .page__header .page__terminal-list .session-offer");
+  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
+  for (const offer of await available.all()) assert.equal(await offer.isVisible(), true);
+
+  await focusTerminal(page);
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("ArrowDown");
+  const offered = page.locator('#cli-sidebar .session-offer[data-offered="true"]');
+  await offered.waitFor();
+  const folder = await offered.getAttribute("title");
+  assert.ok(["/empty-a", "/empty-b"].includes(folder));
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Control");
+  await offered.waitFor({ state: "detached" });
+  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
+  assert.equal(
+    await page.locator(`#cli-sidebar .session-offer[title="${folder}"]`).isVisible(),
+    true,
+  );
+
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Shift");
+  await page.keyboard.press("ArrowDown");
+  assert.equal(await offered.getAttribute("title"), folder);
+  await page.keyboard.press("Enter");
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Control");
   await page.waitForFunction(
-    () => document.querySelector('[data-page-pane="file:2"]')?.dataset.active === "true",
+    async (count) => (await window.pageSnapshot()).values["sessions.list"].length === count + 2,
+    count,
   );
+  const selected = await page.evaluate(async () => {
+    const { values } = await window.pageSnapshot();
+    return values["sessions.list"].find((session) => session.id === values["sessions.active"]);
+  });
+  assert.equal(selected.cwd, folder);
+  await assertEmptyCanvas(page, selected.id);
+  await terminalFor(page, selected.id).locator(".xterm").waitFor();
+  await assertSingleTerminalViews(page);
+  assert.equal(await page.locator('[data-offered="true"]').count(), 0);
+  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
+  assert.equal(await page.locator(`#cli-sidebar .session-offer[title="${folder}"]`).count(), 0);
+  const running = page.locator(
+    `#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group[title="${folder}"]`,
+  );
+  assert.equal(await running.locator(".page__terminal-name").innerText(), folder.slice(1));
+  assert.equal(await running.locator('.page__terminal-numbers [data-active="true"]').count(), 1);
+
+  await focusTerminal(page);
   await page.keyboard.press("Control+x");
-  await page.locator('#cli-sidebar [data-terminal="terminal-other"]').waitFor({ state: "visible" });
-  return "shared numbering, mixed next-on-close, failed-save protection, editor cut, sidebar origin";
+  await terminalFor(page, selected.id).waitFor({ state: "detached" });
+  const restored = page.locator(`#cli-sidebar .session-offer[title="${folder}"]`);
+  await restored.waitFor();
+  assert.equal(await restored.innerText(), folder.slice(1));
+  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
+  await assertSingleTerminalViews(page);
+}
+
+async function runCanvasChecks(page, base, checks) {
+  const errors = [];
+  const report = (error) => errors.push(error.message);
+  page.on("pageerror", report);
+  try {
+    await installCanvasNative(page);
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&offers&mixed`);
+    await canvasFor(page, "terminal-one")
+      .getByRole("textbox", { name: "note.txt", exact: true })
+      .waitFor();
+    await terminalFor(page, "terminal-other").locator(".xterm").waitFor({ state: "attached" });
+    await focusTerminal(page);
+    for (const check of checks) await check(page);
+    assert.deepEqual(errors, [], "Canvas workflows produce no unhandled browser errors");
+    return checks.map((check) => check.name).join(", ");
+  } finally {
+    await page.keyboard.up("Space");
+    await page.keyboard.up("Shift");
+    await page.keyboard.up("Control");
+    page.off("pageerror", report);
+  }
+}
+
+/** Real Window, editors, iframe JS and xterm; native IO and the localhost app are fixtures. */
+export async function verifyPages(page, base = "http://127.0.0.1:18422") {
+  return runCanvasChecks(page, base, [
+    verifyFrameRetention,
+    verifyCanvasEditing,
+    verifySaveProtection,
+    verifyExplorerContext,
+    verifyTerminalStartup,
+  ]);
+}
+
+export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422") {
+  return runCanvasChecks(page, base, [verifyFrameRetention, verifyTerminalStartup]);
+}
+
+export async function verifyMixedPages(page, base = "http://127.0.0.1:18422") {
+  return runCanvasChecks(page, base, [
+    verifyCanvasEditing,
+    verifySaveProtection,
+    verifyExplorerContext,
+  ]);
 }

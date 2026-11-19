@@ -23,7 +23,26 @@ export async function verifyHtmlPreview(page, base = "http://127.0.0.1:18422") {
     );
     assert.equal(await frame.locator("svg rect").count(), 1);
     assert.equal(await frame.locator("svg rect").getAttribute("fill"), "teal");
-    assert.equal(await page.locator("iframe.html-reading").getAttribute("sandbox"), "");
+    assert.equal(
+      await page.locator("iframe.html-reading").getAttribute("sandbox"),
+      "allow-scripts",
+    );
+    assert.ok(
+      (
+        await frame.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content")
+      ).includes("script-src 'none'"),
+    );
+    assert.equal(
+      await heading.evaluate(() => {
+        try {
+          void parent.document;
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+      true,
+    );
     assert.equal(
       await frame.locator("script, form, iframe, base, link, [href], [onerror]").count(),
       0,

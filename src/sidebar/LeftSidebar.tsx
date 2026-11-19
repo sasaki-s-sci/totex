@@ -120,6 +120,7 @@ export function LeftSidebar({
   }
 
   const [menu, setMenu] = useState<FileMenuTarget | null>(null);
+  const menuPane = menu?.paneRoot ? visible.find((pane) => pane.id === menu.pane) : undefined;
   // What the menu's `Copy` took, kept until the next one: a paste leaves it for another.
   const [copied, setCopied] = useState<readonly string[]>([]);
   // Held by the column, not the level: the levels open their way down to the folder being named, so
@@ -423,7 +424,6 @@ export function LeftSidebar({
                 naming={naming?.pane === pane.id ? naming : null}
                 onNameDone={takeName}
                 onNameCancel={() => setNaming(null)}
-                onClose={() => deletePane(pane)}
               />
             ) : (
               <FolderPane
@@ -450,7 +450,6 @@ export function LeftSidebar({
                 naming={naming?.pane === pane.id ? naming : null}
                 onNameDone={takeName}
                 onNameCancel={() => setNaming(null)}
-                onClose={() => deletePane(pane)}
               />
             )}
             <Divider />
@@ -502,6 +501,7 @@ export function LeftSidebar({
         copied={copied}
         onCopy={setCopied}
         onName={(kind) => menu && startName(kind, menu)}
+        removePane={menuPane && { kind: menuPane.kind, run: () => deletePane(menuPane) }}
         onClose={() => setMenu(null)}
       />
     </Sidebar>

@@ -39,13 +39,14 @@ export function useResizeGrip({ min, max, initial, side, storageKey, element }: 
 
   const remember = useCallback(
     (next: number) => {
+      if (element.current) element.current.style.width = `${next}px`;
       setWidth(next);
       if (!storageKey) return;
       try {
         localStorage.setItem(storageKey, String(next));
       } catch {}
     },
-    [storageKey],
+    [element, storageKey],
   );
 
   // A grip on the left edge grows the panel as the pointer goes left.

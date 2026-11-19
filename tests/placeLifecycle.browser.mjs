@@ -5,6 +5,7 @@ async function openPlaces(page, base, query = "") {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
+    if (window.top !== window) return;
     let serial = 0;
     const callbacks = new Map();
     const repo = {
@@ -93,6 +94,10 @@ async function openPlaces(page, base, query = "") {
         if (cmd === "plugin:event|listen") return ++serial;
         if (cmd === "pty_sessions") return structuredClone(window.nativePlaces);
         if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
+        if (cmd === "pty_open") {
+          window.nativePlaces.push({ ...args });
+          return null;
+        }
         if (cmd === "pty_close") {
           if (window.refusePlaceClose) throw new Error("runtime unavailable");
           window.nativePlaces = window.nativePlaces.filter((session) => session.id !== args.id);
@@ -107,6 +112,8 @@ async function openPlaces(page, base, query = "") {
             truncated: false,
             warnings: [],
           };
+        if (cmd === "resolve_folder")
+          return { path: args.path, label: args.path.split("/").at(-1), display: args.path };
         if (cmd === "read_directory")
           return {
             path: args.path,
@@ -124,6 +131,7 @@ async function openPlaces(page, base, query = "") {
           };
         if (
           [
+            "canvas_read",
             "pty_doing",
             "mcp_reports",
             "list_roots",
@@ -141,62 +149,153 @@ async function openPlaces(page, base, query = "") {
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto(`${base}/tests/fixtures/place-lifecycle.html${query}`);
+  await page.waitForFunction(
+    async () =>
+      window.placeSnapshot &&
+      (await window.placeSnapshot()).values["workspace.open"]?.["/projects/app"]?.repositories
+        .length === 1,
+  );
   return errors;
+}
+
+async function showPlaceTerminal(page, number, id) {
+  const input = page.locator('[data-terminal-shown="true"] .xterm-helper-textarea');
+  await input.waitFor({ state: "attached" });
+  await input.focus();
+  await page.keyboard.press(`Control+${number}`);
+  await page.locator(`#cli-sidebar [data-terminal="${id}"][data-terminal-shown="true"]`).waitFor();
+}
+
+async function holdFolderOffers(page) {
+  const input = page.locator('[data-terminal-shown="true"] .xterm-helper-textarea');
+  if (await input.count()) await input.focus();
+  await page.keyboard.down("Control");
+  await page.keyboard.down("Shift");
+  await page.evaluate(() => new Promise(requestAnimationFrame));
+}
+
+async function releaseFolderOffers(page) {
+  await page.keyboard.up("Shift");
+  await page.keyboard.up("Control");
+  await page
+    .locator('#cli-sidebar .session-offer[data-offered="true"]')
+    .waitFor({ state: "detached" });
+}
+
+async function assertFolderOffer(page, path, name) {
+  const offer = page.locator(
+    `#cli-sidebar .page__header .page__terminal-list .session-offer[title="${path}"]`,
+  );
+  await offer.waitFor();
+  assert.equal(await offer.count(), 1, "Empty folders appear once in the compact header");
+  assert.equal(await offer.innerText(), name, "The visible header uses the folder name alone");
+  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
+  return offer;
+}
+
+async function verifyAddedRepository(page) {
+  const sidebar = page.locator("#folder-sidebar");
+  await sidebar.getByRole("button", { name: "Add a folder or repositories", exact: true }).click();
+  await page.locator('[aria-label="Open as"] [value="repository"]').click();
+  const path = page.locator('input[aria-label^="Path, e.g."]');
+  await path.fill("/projects/app");
+  await path.press("Enter");
+  await page.getByRole("menu").waitFor({ state: "detached" });
+  await sidebar.getByRole("button", { name: "Show in terminal list", exact: true }).click();
+  await assertFolderOffer(page, "/projects/app", "app");
+  await assertFolderOffer(page, "/worktrees/feature", "feature");
+  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
+
+  await holdFolderOffers(page);
+  await page
+    .locator('#cli-sidebar .session-offer[title="/projects/app"][data-offered="true"]')
+    .waitFor();
+  await releaseFolderOffers(page);
+  await assertFolderOffer(page, "/projects/app", "app");
+  await holdFolderOffers(page);
+  await page.keyboard.press("ArrowRight");
+  await page
+    .locator('#cli-sidebar .session-offer[title="/worktrees/feature"][data-offered="true"]')
+    .waitFor();
+  await page.keyboard.press("ArrowLeft");
+  await page
+    .locator('#cli-sidebar .session-offer[title="/projects/app"][data-offered="true"]')
+    .waitFor();
+  await page.keyboard.press("Enter");
+  await releaseFolderOffers(page);
+  await page.waitForFunction(() => window.nativePlaces.length === 1);
+  const session = await page.evaluate(() => window.nativePlaces[0]);
+  assert.equal(
+    session.cwd,
+    "/projects/app",
+    "Ctrl+Shift+Enter starts the selected persistent folder",
+  );
+  const terminal = page.locator(`#cli-sidebar [data-terminal="${session.id}"]`);
+  await terminal.locator(".xterm-helper-textarea").waitFor({ state: "attached" });
+  assert.equal(await page.locator('#cli-sidebar .session-offer[title="/projects/app"]').count(), 0);
+  const group = page.locator(
+    '#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-group[title="/projects/app"]',
+  );
+  assert.equal(await group.locator(".page__terminal-name").innerText(), "app");
+  assert.equal(
+    await group.locator('.page__terminal-numbers [data-active="true"]').innerText(),
+    "1",
+  );
+  assert.equal(
+    await page.evaluate(() => window.placeCalls.filter(({ cmd }) => cmd === "pty_open").length),
+    1,
+  );
+
+  await terminal.locator(".xterm-helper-textarea").press("Control+x");
+  await terminal.waitFor({ state: "detached" });
+  const returned = await assertFolderOffer(page, "/projects/app", "app");
+  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
+
+  await returned.click();
+  await page.waitForFunction(() => window.nativePlaces.length === 1);
+  const clicked = await page.evaluate(() => window.nativePlaces[0]);
+  assert.equal(clicked.cwd, "/projects/app", "The empty global header also accepts pointer input");
+  const clickedTerminal = page.locator(`#cli-sidebar [data-terminal="${clicked.id}"]`);
+  await clickedTerminal.locator(".xterm-helper-textarea").press("Control+x");
+  await clickedTerminal.waitFor({ state: "detached" });
+  await assertFolderOffer(page, "/projects/app", "app");
+  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
 }
 
 export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   const errors = await openPlaces(page, base);
-  const folderCard = page.locator('[data-card-folder="/projects/notes"]');
-  const repositoryCard = page.locator('[data-card-folder="/worktrees/feature"]');
   const sidebar = page.locator("#folder-sidebar");
-  const folderLabel = "Remove folder and end its terminals";
-  const repoLabel = "Remove repository and end its terminals";
-  const removeRepo = repositoryCard.getByRole("button", {
-    name: "Close workspace and end its terminals",
-    exact: true,
-  });
-  const removeFolder = folderCard.locator(`[aria-label="${folderLabel}"]`);
-  await removeRepo.waitFor({ state: "attached" });
-  await removeFolder.waitFor({ state: "attached" });
-  const terminal = page.locator('[data-terminal="repo-cli"]');
-  await terminal.locator(".xterm-screen").waitFor();
-  assert.ok(
-    !(
-      await page.locator('[data-card-folder="/projects/app"] > .page__header').innerText()
-    ).includes("refs/heads/"),
-    "Cards show the local branch name returned as a full ref by Git",
-  );
-  // The sidebar exposes its close control on hover; card controls stay visible.
-  async function assertControlShown(control, shown) {
-    const handle = await control.elementHandle();
-    await page.waitForFunction(
-      ({ button, shown }) => {
-        let visible = button.getBoundingClientRect().width > 0;
-        for (let element = button; element; element = element.parentElement) {
-          const style = getComputedStyle(element);
-          if (style.opacity === "0" || style.visibility === "hidden" || style.display === "none")
-            visible = false;
-        }
-        return visible === shown;
-      },
-      { button: handle, shown },
-    );
-    await handle.dispose();
+  const folder = sidebar.locator('[data-folder-pane="1"]');
+  const worktree = page.locator('#cli-sidebar .session-offer[title="/worktrees/feature"]');
+  async function removePane(header, name) {
+    await header.click({ button: "right" });
+    await page.getByRole("menuitem", { name, exact: true }).click();
   }
-  await page.mouse.move(1590, 990);
-  await assertControlShown(removeRepo, true);
-  await assertControlShown(removeFolder, true);
-  const sidebarFolderClose = sidebar.locator(`[aria-label="${folderLabel}"]`).first();
-  await assertControlShown(sidebarFolderClose, false);
-  await sidebarFolderClose.locator("../..").hover();
-  await assertControlShown(sidebarFolderClose, true);
-  await page.mouse.move(1590, 990);
-  await assertControlShown(sidebarFolderClose, false);
-  assert.equal(
-    await page.getByRole("button", { name: /^Minimize (folder|repository)$/ }).count(),
-    0,
+  await folder.waitFor();
+  await showPlaceTerminal(page, 2, "repo-cli");
+  await assertFolderOffer(page, "/worktrees/feature", "feature");
+  await holdFolderOffers(page);
+  await worktree.waitFor();
+  await releaseFolderOffers(page);
+  await assertFolderOffer(page, "/worktrees/feature", "feature");
+  const terminal = page.locator('#cli-sidebar [data-terminal="repo-cli"]');
+  await terminal.locator(".xterm-screen").waitFor();
+  const repositoryRow = sidebar.locator('[data-repo-row="2:/projects/app"]');
+  assert.ok(
+    !(await repositoryRow.innerText()).includes("refs/heads/"),
+    "The explorer shows the local branch name returned as a full ref by Git",
   );
-  assert.equal(await page.getByRole("region", { name: "Minimized", exact: true }).count(), 0);
+  assert.equal(await page.locator("main .xterm, main .card-board").count(), 0);
+
+  assert.equal(
+    await sidebar.getByRole("button", { name: /^Remove (folder|repository) and end/ }).count(),
+    0,
+    "Closing a pane belongs in its context menu",
+  );
+  assert.equal(await sidebar.getByRole("button", { name: /^Agents report from / }).count(), 0);
   assert.equal(
     await page.evaluate(() => window.placeCalls.filter(({ cmd }) => cmd === "pty_close").length),
     0,
@@ -212,10 +311,9 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     });
     window.refusePlaceClose = true;
   });
-  await sidebar.getByRole("button", { name: repoLabel, exact: true }).locator("../..").hover();
-  await sidebar.getByRole("button", { name: repoLabel, exact: true }).click();
+  await removePane(repositoryRow, "Remove repository and end its terminals");
   await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
-  assert.equal(await repositoryCard.count(), 1);
+  await assertFolderOffer(page, "/worktrees/feature", "feature");
   assert.equal(await terminal.isVisible(), true);
   assert.equal(
     await page.evaluate(() => window.nativePlaces.some(({ id }) => id === "repo-cli")),
@@ -230,8 +328,7 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   await page.evaluate(() => {
     window.refusePlaceClose = false;
   });
-  await sidebar.getByRole("button", { name: repoLabel, exact: true }).locator("../..").hover();
-  await sidebar.getByRole("button", { name: repoLabel, exact: true }).click();
+  await removePane(repositoryRow, "Remove repository and end its terminals");
   await page.waitForFunction(() => window.nativePlaces.length === 1);
   const closed = await page.evaluate(() =>
     window.placeCalls.filter(({ cmd }) => cmd === "pty_close").map(({ args }) => args.id),
@@ -243,17 +340,28 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
     async () =>
       !(await window.placeSnapshot()).values["sessions.list"].some(({ id }) => id === "repo-cli"),
   );
-  await repositoryCard.waitFor({ state: "detached" });
-  assert.equal(await terminal.count(), 0);
-  // Closing through the folder pane must also remove its card and PTY.
-  await sidebarFolderClose.locator("../..").hover();
-  await sidebarFolderClose.click();
+  await repositoryRow.waitFor({ state: "detached" });
+  await terminal.waitFor({ state: "detached" });
+  assert.equal(await page.locator('[data-session-canvas="repo-cli"]').count(), 0);
+  assert.equal(await worktree.count(), 0, "Removing the repository removes its empty-folder offer");
+
+  await removePane(
+    folder.getByRole("button", { name: "notes", exact: true }).last(),
+    "Remove folder and end its terminals",
+  );
   await page.waitForFunction(() => window.nativePlaces.length === 0);
   await page.waitForFunction(
     async () => (await window.placeSnapshot()).values["sessions.list"].length === 0,
   );
-  await folderCard.waitFor({ state: "detached" });
-  assert.equal(await page.getByRole("region", { name: "Minimized", exact: true }).count(), 0);
+  await folder.waitFor({ state: "detached" });
+  const empty = page.locator(".terminal-canvases .canvas-empty");
+  await empty.waitFor();
+  assert.equal(
+    (await empty.innerText()).trim(),
+    "Ctrl+Shift + arrows to choose a folder · Enter to start",
+  );
+  assert.equal(await page.locator(".terminal-canvases button, .terminal-canvases form").count(), 0);
+  await verifyAddedRepository(page);
   assert.equal(
     await page.evaluate(() =>
       window.placeCalls.some(({ cmd }) => cmd === "fs_delete_folder" || cmd === "fs_delete_file"),
@@ -262,116 +370,40 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   );
   assert.deepEqual(errors, []);
   return {
-    sidebarHoverClose: true,
+    sidebarContextClose: true,
     frontendAndNativeTerminalsEnded: true,
-    noMinimizedTray: true,
     invisibleWorktreeEnded: true,
     failedCloseRetryable: true,
+    addedRepositoryRetainedInHeader: true,
     errors,
   };
 }
 
-/** Card removal uses the same native-session cleanup and sidebar workspace state. */
-export async function verifyCardPlaces(page, base = "http://127.0.0.1:18422") {
-  const errors = await openPlaces(page, base);
-  const card = page.locator('[data-card-folder="/projects/notes"]');
-  const remove = card.getByRole("button", {
-    name: "Remove folder and end its terminals",
-    exact: true,
-  });
-  await remove.waitFor();
-  await page.evaluate(() => {
-    window.refusePlaceClose = true;
-  });
-  await remove.click();
-  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
-  assert.equal(await card.count(), 1);
-  await page.evaluate(() => {
-    window.refusePlaceClose = false;
-  });
-  await remove.click();
-  await card.waitFor({ state: "detached" });
-  const panes = await page.evaluate(
-    async () => (await window.placeSnapshot()).values["folders.panes"],
-  );
-  assert.deepEqual(panes.find((p) => p.id === 1).graphed, []);
-  assert.equal(
-    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "folder-cli")),
-    false,
-  );
-  assert.equal(
-    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "repo-cli")),
-    true,
-  );
-
-  await page.evaluate(() =>
-    window.nativePlaces.push({
-      id: "invisible-worktree",
-      cwd: "/worktrees/feature",
-      rows: 24,
-      cols: 80,
-      meta: '{"branch":"feature"}',
-    }),
-  );
-  await page
-    .locator('[data-card-folder="/worktrees/feature"]')
-    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
-    .first()
-    .click();
-  await page.waitForFunction(() => window.nativePlaces.length === 1);
-  assert.equal(
-    await page.evaluate(() => window.nativePlaces[0].id),
-    "repo-cli",
-    "Closing the feature workspace keeps the main workspace terminal",
-  );
-  await page.waitForFunction(
-    () => !document.querySelector('[data-card-folder="/worktrees/feature"]'),
-  );
-  assert.equal(
-    await page.evaluate(() =>
-      window.placeCalls.some((c) => c.cmd === "fs_delete_folder" || c.cmd === "fs_delete_file"),
-    ),
-    false,
-  );
-  assert.deepEqual(errors, []);
-
-  await page.reload();
-  await card.waitFor();
-  const sidebarClose = page.locator("#folder-sidebar").getByRole("button", {
-    name: "Remove folder and end its terminals",
-    exact: true,
-  });
-  await sidebarClose.locator("../..").hover();
-  await sidebarClose.click();
-  await card.waitFor({ state: "detached" });
-  assert.equal(
-    await page.evaluate(() => window.nativePlaces.some((s) => s.id === "folder-cli")),
-    false,
-  );
-  return "card and sidebar lifecycle, failed removal retry, repository worktree cleanup";
-}
+// Kept for existing browser runners; folder removal now lives only in the explorer.
+export { verifyPlaces as verifyCardPlaces };
 
 export async function verifyWorkspaceIsolation(page, base = "http://127.0.0.1:18422") {
   const errors = await openPlaces(page, base, "?workspaces");
-  const main = page.locator('[data-card-folder="/projects/app"]');
-  const sibling = page.locator('[data-card-folder="/projects/app/.worktrees/feature"]');
-  await sibling.locator('[data-terminal="feature-cli"] .xterm-screen').waitFor();
+  await showPlaceTerminal(page, 2, "repo-cli");
+  const main = page.locator('#cli-sidebar [data-terminal="repo-cli"]');
+  const sibling = page.locator('#cli-sidebar [data-terminal="feature-cli"]');
+  await main.locator(".xterm-screen").waitFor();
   await page.evaluate(() => {
     window.refusePlaceClose = true;
   });
-  await main
-    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
-    .click();
-  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
+  await main.locator(".xterm-helper-textarea").press("Control+x");
+  await page
+    .getByText("Could not end the terminal. It is still open; try again.")
+    .first()
+    .waitFor();
   assert.equal(await main.count(), 1);
+  assert.equal(await page.locator('[data-session-canvas="repo-cli"]').count(), 1);
   await page.evaluate(() => {
     window.refusePlaceClose = false;
   });
-  await main
-    .getByRole("button", { name: "Close workspace and end its terminals", exact: true })
-    .click();
+  await main.locator(".xterm-helper-textarea").press("Control+x");
   await main.waitFor({ state: "detached" });
-  assert.equal(await sibling.locator('[data-terminal="feature-cli"]').count(), 1);
+  assert.equal(await sibling.count(), 1);
   assert.equal(
     await page.evaluate(() => window.nativePlaces.some((session) => session.id === "feature-cli")),
     true,
@@ -380,6 +412,23 @@ export async function verifyWorkspaceIsolation(page, base = "http://127.0.0.1:18
     await page.evaluate(() => window.nativePlaces.some((session) => session.id === "repo-cli")),
     false,
   );
+  await page.locator('[data-session-canvas="repo-cli"]').waitFor({ state: "detached" });
+  assert.equal(await page.locator('[data-session-canvas="feature-cli"]').count(), 1);
+  await assertFolderOffer(page, "/projects/app", "app");
+  await holdFolderOffers(page);
+  assert.equal(
+    await page.locator('#cli-sidebar .session-offer[title="/projects/app"]').count(),
+    1,
+    "Ending a terminal leaves its folder available for a new terminal",
+  );
+  await releaseFolderOffers(page);
+  await assertFolderOffer(page, "/projects/app", "app");
+  assert.equal(
+    await page.evaluate(() =>
+      window.placeCalls.some(({ cmd }) => cmd === "fs_delete_folder" || cmd === "fs_delete_file"),
+    ),
+    false,
+  );
   assert.deepEqual(errors, []);
-  return "workspace close is isolated, including nested worktrees and failed-close retry";
+  return "terminal close is isolated from nested worktrees; failed close remains retryable";
 }

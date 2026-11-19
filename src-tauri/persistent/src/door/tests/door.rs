@@ -36,7 +36,7 @@ fn a_report_travels_from_the_door_to_the_listener() {
     );
 
     let (_, listed) = post(&url, &json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}));
-    assert_eq!(listed["result"]["tools"][0]["name"], json!("report"));
+    assert_eq!(listed["result"]["tools"][0]["name"], json!("canvas"));
 
     let (_, called) = post(
         &url,

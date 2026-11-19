@@ -15,6 +15,7 @@ import "./page.css";
 export type PageKind = "file-preview" | "settings-page" | "cli-page";
 
 export type PageProps = {
+  bare?: boolean;
   pageId?: string;
   placement?: "canvas" | "sidebar";
   keepMounted?: boolean;
@@ -38,6 +39,7 @@ export type PageProps = {
 };
 
 export function Page({
+  bare = false,
   pageId,
   placement = "canvas",
   keepMounted = false,
@@ -63,13 +65,13 @@ export function Page({
   const draggable = !!pageId && placement === "canvas";
   return (
     <article
-      className={`page page--${placement} ${kind}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}${toolsAtSide ? " page--tools-side" : ""}${compact ? " is-compact" : ""}`}
+      className={`page page--${placement} ${kind}${bare ? " page--bare" : ""}${collapsed ? " is-collapsed" : ""}${pinned ? " is-pinned" : ""}${!bare && toolsAtSide ? " page--tools-side" : ""}${compact ? " is-compact" : ""}`}
       tabIndex={-1}
       style={style}
       onPointerDown={onPointerDown}
       onKeyDown={onKeyDown}
     >
-      {toolsAtSide ? (
+      {bare ? null : toolsAtSide ? (
         <div
           className="page__tools page__drag"
           draggable={draggable}
@@ -114,7 +116,7 @@ export function Page({
         </PageHeader>
       )}
 
-      {leading}
+      {!bare && leading}
       <div className="page__content">
         {/* Stateful runtimes such as xterm stay mounted even while folded. */}
         {(!collapsed || keepMounted) && (

@@ -3,8 +3,8 @@ import { useLayoutEffect, useState } from "react";
 type Point = [Node, number];
 
 /**
- * How many rows each of the paper's lines takes once wrapped, read off the layout: the gutter and
- * the change marks count rows, not lines, so they stay level with the text. Null while unwrapped.
+ * How many rows each line takes once wrapped, so change marks stay level with the text.
+ * Null while unwrapped.
  */
 export function useWrappedRows(
   paper: HTMLElement | null,
@@ -40,11 +40,6 @@ export function useWrappedRows(
   }, [paper, wrapped, lines]);
 
   return rows;
-}
-
-/** The gutter's numbers with a blank row under each for every row its line wraps onto. */
-export function wrappedNumbers(rows: readonly number[]): string {
-  return rows.map((count, index) => String(index + 1) + "\n".repeat(count - 1)).join("\n");
 }
 
 /** The row a line starts on, counted from zero, for a box measured in rows. */

@@ -24,6 +24,7 @@
 }
 
 .file-preview__code {
+  position: relative;
   display: flex;
   min-width: 100%;
   width: max-content;
@@ -37,7 +38,6 @@
   --reading-pad: 10px;
 }
 
-.file-preview__gutter,
 .file-preview__text {
   margin: 0;
   padding: var(--reading-pad) 0;
@@ -51,12 +51,12 @@
   white-space: pre;
 }
 
-.file-preview__rule {
+.file-preview__changes {
   z-index: 1;
-  position: relative;
-  display: flex;
-  flex: none;
-  align-items: stretch;
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 8px;
+  pointer-events: none;
 }
 
 .file-preview__mark {
@@ -152,17 +152,6 @@
 .file-preview__picture.is-drawing img {
   width: 100%;
   height: 100%;
-}
-
-.file-preview__gutter {
-  flex: none;
-  padding-right: 8px;
-  padding-left: 10px;
-  border-right: 1px solid var(--mui-palette-divider);
-  background: var(--mui-palette-background-paper);
-  color: var(--mui-palette-text-secondary);
-  text-align: right;
-  user-select: none;
 }
 
 .file-preview__text {
@@ -265,7 +254,7 @@
   touch-action: none;
 }
 
-/* Wrapped, the text keeps to the page's width; the gutter counts rows to stay level with it. */
+/* Wrapped text keeps to the page's width. */
 .file-preview__code.is-wrapped {
   width: 100%;
 }
@@ -273,6 +262,10 @@
 .file-preview__code.is-wrapped .file-preview__text {
   min-width: 0;
   flex: 1;
+}
+
+.file-preview__code.is-wrapped .file-preview__text,
+.file-preview__plain {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

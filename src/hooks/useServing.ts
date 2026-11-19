@@ -2,10 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAppSettings } from "../lib/appSettings";
 import { serve, servingNow, stopServing } from "../lib/mcp";
 
-/**
- * Keeps the door standing, or not, as `mcpServing` in totex.json says. Nothing in the window
- * switches it: the port is asked afresh each start, and a failure is left for the next change.
- */
+/** Starts the fixed listener on launch; Settings preparation exposes errors and retries. */
 export function useServing(): void {
   const wanted = useAppSettings().mcpServing;
   const operations = useRef(Promise.resolve());

@@ -8,6 +8,14 @@
 use serde_json::json;
 use tauri::{AppHandle, Runtime};
 
+mod probe;
+mod register;
+mod setup;
+
+pub fn register_codex(args: &[String]) -> Result<(), String> {
+    register::run(args)
+}
+
 pub use totex_persistent::door::Reported;
 
 /// Carries what a session says it is doing, and its going away again. Sent
@@ -21,6 +29,17 @@ pub fn mcp_serving<R: Runtime>(app: AppHandle<R>) -> Option<u16> {
     crate::persistent::link(&app)
         .asked("door_serving", json!({}))
         .unwrap_or(None)
+}
+
+/// Prepare the selected terminal's registration command without registering an agent.
+#[tauri::command]
+pub async fn mcp_setup<R: Runtime>(
+    app: AppHandle<R>,
+    cwd: Option<String>,
+) -> Result<Option<setup::Prepared>, String> {
+    let port = crate::persistent::link(&app).asked("door_serve", json!({}))?;
+    probe::ready(&totex_persistent::door::connection::url()?).await?;
+    setup::prepare(cwd.as_deref().unwrap_or(""), port).map(Some)
 }
 
 /// Stands it up, and says which port it took.
@@ -41,4 +60,24 @@ pub fn mcp_reports<R: Runtime>(app: AppHandle<R>) -> Vec<Reported> {
     crate::persistent::link(&app)
         .asked("door_reports", json!({}))
         .unwrap_or_default()
+}
+
+#[tauri::command(async)]
+pub fn canvas_read<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Vec<totex_persistent::door::canvas::Canvas>, String> {
+    crate::persistent::link(&app).asked("canvas_read", json!({}))
+}
+
+#[tauri::command(async)]
+pub fn canvas_write<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    panes: Vec<totex_persistent::door::canvas::Pane>,
+    revision: u64,
+) -> Result<totex_persistent::door::canvas::Canvas, String> {
+    crate::persistent::link(&app).asked(
+        "canvas_write",
+        json!({ "id": id, "panes": panes, "revision": revision }),
+    )
 }

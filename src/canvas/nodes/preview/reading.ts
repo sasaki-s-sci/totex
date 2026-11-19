@@ -12,7 +12,7 @@ export function useReading() {
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   const [paper, setPaper] = useState<HTMLPreElement | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
-  const gutter = useRef<HTMLDivElement>(null);
+  const marks = useRef<HTMLDivElement>(null);
   const across = useRef<HTMLElement>(null);
   const down = useRef<HTMLElement>(null);
   const at = useRef({ x: 0, y: 0 });
@@ -38,7 +38,7 @@ export function useReading() {
       };
       at.current = now;
       reading.style.transform = `translate(${-now.x}px, ${-now.y}px)`;
-      if (gutter.current) gutter.current.style.transform = `translateX(${now.x}px)`;
+      if (marks.current) marks.current.style.transform = `translateX(${now.x}px)`;
       rail(across.current, "width", "left", box.clientWidth, reading.offsetWidth, now.x, room.x);
       rail(down.current, "height", "top", box.clientHeight, reading.offsetHeight, now.y, room.y);
     },
@@ -169,7 +169,7 @@ export function useReading() {
   return {
     setBody,
     sheet,
-    gutter,
+    marks,
     paper,
     setPaper,
     across,

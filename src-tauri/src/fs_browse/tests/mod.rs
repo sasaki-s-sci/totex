@@ -5,6 +5,7 @@ mod host_support;
 
 mod copy;
 mod download;
+mod media;
 mod operate;
 mod path;
 mod read;

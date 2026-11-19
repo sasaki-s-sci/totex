@@ -46,6 +46,7 @@ export function readFileDrag(transfer: Pick<DataTransfer, "getData">): Selection
 
 export type FilePreviewView =
   | "text"
+  | "plain"
   | "diff"
   | "markdown"
   | "picture"
@@ -60,6 +61,7 @@ export type FilePreviewView =
   | "epub";
 
 export type FilePreviewRequest = {
+  sessionId?: string;
   id: number;
   path: string;
   folder?: string;
@@ -97,6 +99,7 @@ const MEDIA: Record<string, string> = {
   ".m4v": "video/mp4",
   ".mov": "video/quicktime",
   ".webm": "video/webm",
+  ".ogv": "video/ogg",
   ".mp3": "audio/mpeg",
   ".m4a": "audio/mp4",
   ".aac": "audio/aac",
@@ -137,9 +140,11 @@ export function previewView(path: string): FilePreviewView {
       ? "table"
       : /\.html?$/i.test(path)
         ? "html"
-        : pictureType(path) === null
-          ? "markdown"
-          : "picture")
+        : pictureType(path) !== null
+          ? "picture"
+          : /\.(md|markdown|mdx)$/i.test(path)
+            ? "markdown"
+            : "plain")
   );
 }
 
@@ -158,6 +163,7 @@ export function openingView(path: string): FilePreviewView {
 /** A drawing of the file: nothing to type into, no patch, no preview to open. */
 export function drawn(view: FilePreviewView): boolean {
   return (
+    view === "plain" ||
     view === "markdown" ||
     view === "picture" ||
     view === "settings" ||

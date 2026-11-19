@@ -26,9 +26,10 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0.151"
 
 [dependencies]
-tauri = { version = "2.11.5", features = [] }
+tauri = { version = "2.11.5", features = ["protocol-asset"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+toml_edit = "0.25.13"
 # The machine, as the app knows it -- see host/src/lib.rs.
 totex-host = { path = "host" }
 # The half of the app that cannot be dropped, linked for the client end of
@@ -60,6 +61,7 @@ windows-sys = { version = "0.61.2", features = [
   "Wdk_System_Threading",
   "Wdk_System_SystemServices",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Console",
   "Win32_System_ProcessStatus",
   "Win32_System_Threading",
   "Win32_System_SystemInformation",

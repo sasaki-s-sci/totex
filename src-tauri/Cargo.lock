@@ -1776,6 +1776,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-range"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21dec9db110f5f872ed9699c3ecf50cf16f423502706ba5c72462e28d3157573"
+
+[[package]]
 name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4224,6 +4230,7 @@ dependencies = [
  "gtk",
  "heck 0.5.0",
  "http",
+ "http-range",
  "jni 0.21.1",
  "libc",
  "log",
@@ -4756,6 +4763,7 @@ dependencies = [
  "indexmap 2.14.0",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.4",
 ]
 
@@ -4793,6 +4801,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-opener",
+ "toml_edit 0.25.13+spec-1.1.0",
  "totex-host",
  "totex-persistent",
  "windows-sys 0.61.2",
@@ -4813,6 +4822,7 @@ dependencies = [
  "agent-client-protocol",
  "base64 0.22.1",
  "flate2",
+ "getrandom 0.3.4",
  "libc",
  "minisign",
  "minisign-verify",

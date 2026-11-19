@@ -89,11 +89,13 @@ export function htmlDocument(text: string): string {
 export function HtmlReading({ text }: { text: string }) {
   const { t } = useTranslation();
   const source = useMemo(() => htmlDocument(text), [text]);
+  // Native event callbacks need scripts enabled; CSP still blocks document scripts and the origin stays opaque.
   return (
     <iframe
       className="html-reading nodrag nowheel"
+      data-canvas-context-menu
       title={t("filePreview.htmlPreview", { defaultValue: "HTML preview" })}
-      sandbox=""
+      sandbox="allow-scripts"
       referrerPolicy="no-referrer"
       srcDoc={source}
     />

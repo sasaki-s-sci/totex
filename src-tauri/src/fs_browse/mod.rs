@@ -13,6 +13,7 @@
 
 mod copy;
 mod download;
+mod media;
 pub mod model;
 mod operate;
 mod path;
@@ -23,6 +24,7 @@ mod roots;
 mod tests;
 
 pub use download::download;
+pub use media::media_file;
 pub use model::{FileData, FileHead, FileStamp, Listing, Place, Root};
 pub use operate::{
     copy_into, create_entry, delete_file, delete_folder, duplicate_file, move_into, read_file,

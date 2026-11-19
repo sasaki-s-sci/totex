@@ -363,6 +363,9 @@ fn answer(
             Ok(Value::Null)
         }
         "door_reports" => said(held.door.reports()),
+        "canvas_read" => said(held.door.canvases()),
+        "canvas_write" => read::<crate::door::canvas::Write>(with)
+            .and_then(|at| held.door.draw(&at.id, at.panes, at.revision).and_then(said)),
         "door_setups" => said(held.door.setups()),
         "door_install" => {
             read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))

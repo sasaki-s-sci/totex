@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { displayPath } from "../folder/format";
 import { useAppSettings } from "../lib/appSettings";
@@ -20,6 +20,8 @@ type Props = { placement: PagePlacement } & (
   | { kind: "file"; data: FilePreviewNodeData; actions: FilePageActions; scale: number }
   | {
       kind: "terminal";
+      bare?: boolean;
+      heading?: ReactNode;
       session: Session;
       shown: boolean;
       scale: number;
@@ -46,6 +48,8 @@ export function PageView(props: Props) {
 }
 
 function TerminalPage({
+  bare,
+  heading,
   session,
   placement,
   shown,
@@ -95,11 +99,12 @@ function TerminalPage({
   const name = fileTitle === "path" ? displayPath(session.cwd) : session.branch;
   return (
     <Page
+      bare={bare}
       pageId={terminalPageId(session.id)}
       placement={placement}
       kind="cli-page"
       name={name}
-      heading={placement === "sidebar" ? <TerminalList /> : undefined}
+      heading={placement === "sidebar" ? (heading ?? <TerminalList />) : undefined}
       title={displayPath(session.cwd)}
       keepMounted
       toolsAtSide={placement === "canvas"}

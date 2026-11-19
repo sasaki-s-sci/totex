@@ -1,5 +1,6 @@
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef } from "react";
-import { readFileData, readFileHead } from "../../folder/api";
+import { readFileData, readFileHead, statFile } from "../../folder/api";
 import { baseName } from "../../folder/format";
 import {
   documentView,
@@ -133,9 +134,21 @@ export function readFilePreview(
   path: string,
   view: FilePreviewView,
 ): Promise<Partial<FilePreviewNodeData>> {
-  return view === "picture" || documentView(path) || mediaView(path)
-    ? drawnFile(path)
-    : readFile(path);
+  if (view === "text" || view === "plain") return readFile(path);
+  if (view === "video" || view === "audio") return readMedia(path);
+  return view === "picture" || documentView(path) ? drawnFile(path) : readFile(path);
+}
+
+async function readMedia(path: string): Promise<Partial<FilePreviewNodeData>> {
+  const local = await invoke<string | null>("media_file", { path });
+  if (!local) return drawnFile(path);
+  const stamp = await statFile(path);
+  return {
+    path,
+    name: baseName(path),
+    size: stamp.size,
+    picture: `${convertFileSrc(local)}?v=${stamp.modifiedMs ?? 0}-${stamp.size}`,
+  };
 }
 
 async function readFile(path: string): Promise<Partial<FilePreviewNodeData>> {

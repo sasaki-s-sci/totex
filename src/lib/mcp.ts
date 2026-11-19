@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
+export type McpSetup = { command: string; environment: string };
+
+export function prepareMcp(cwd?: string): Promise<McpSetup | null> {
+  return invoke<McpSetup | null>("mcp_setup", { cwd });
+}
+
 export function servingNow(): Promise<number | null> {
   return invoke<number | null>("mcp_serving");
 }

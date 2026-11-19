@@ -6,17 +6,21 @@ export function captureFocus(): void {
   if (!(element instanceof HTMLElement) || element === document.body) return;
   const terminal = element.closest<HTMLElement>("[data-terminal]");
   const card = element.closest<HTMLElement>(".page-slot[data-page-id]");
+  const pane = element.closest<HTMLElement>("[data-canvas-pane]");
+  const canvas = pane?.closest<HTMLElement>("[data-session-canvas]");
   const scope = terminal
     ? `[data-terminal="${CSS.escape(terminal.dataset.terminal ?? "")}"] `
-    : card
-      ? `[data-page-id="${CSS.escape(card.dataset.pageId ?? "")}"] `
-      : "";
+    : pane && canvas
+      ? `[data-session-canvas="${CSS.escape(canvas.dataset.sessionCanvas ?? "")}"] [data-canvas-pane="${CSS.escape(pane.dataset.canvasPane ?? "")}"] `
+      : card
+        ? `[data-page-id="${CSS.escape(card.dataset.pageId ?? "")}"] `
+        : "";
   const selector =
     scope +
     (element.id
       ? `#${CSS.escape(element.id)}`
       : element.getAttribute("aria-label")
-        ? `[aria-label="${CSS.escape(element.getAttribute("aria-label") ?? "")}"]`
+        ? `${element.tagName.toLowerCase()}[aria-label="${CSS.escape(element.getAttribute("aria-label") ?? "")}"]`
         : element.tagName.toLowerCase());
   const focus: Focus = { selector };
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {

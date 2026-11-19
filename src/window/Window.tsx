@@ -17,7 +17,6 @@ import { useEver } from "../lib/onDemand";
 import { sessionsInPlaces, underPlace } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
 import { Frame, MarkButton } from "../marks";
-import { useMonitorRuntime } from "../monitor/runtime";
 import { PageWorkspace } from "../page/PageWorkspace";
 import { canvasPart, EMPTY_WORKSPACE, sidebarPart, worktreePart } from "../parts";
 import { useResumeRuntime } from "../resume/runtime";
@@ -33,7 +32,6 @@ import { SshPassword } from "./SshPassword";
 import { useFolderRoots } from "./useFolderRoots";
 import { useWindowBoot } from "./useWindowBoot";
 import { useWindowMenus } from "./useWindowMenus";
-import { WindowBand } from "./WindowBand";
 import { HEADER_INSET, WindowControls } from "./WindowControls";
 
 /** LeftSidebar | Canvas | RightSidebar, and the menus drawn over them. */
@@ -47,7 +45,6 @@ export function Window() {
   const folders = useFolderRoots();
   const menus = useWindowMenus();
   useServing();
-  useMonitorRuntime();
   const canvasHost = useRef<HTMLElement>(null);
   const [workFailed, setWorkFailed] = useState(false);
   const fail = useCallback(() => setWorkFailed(true), []);
@@ -60,7 +57,7 @@ export function Window() {
   const branches = useMemo(() => worktreeBranches(workspace), [workspace]);
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
-  const files = useFileDrops();
+  const files = useFileDrops(sessions.active);
   const drops = useDrops(canvasHost, files.openFiles);
   const deletePlace = useCallback(
     async (place: Graphed) => {
@@ -224,7 +221,6 @@ export function Window() {
           }}
           sx={{ position: "relative", flex: 1, minWidth: 0 }}
         >
-          <WindowBand />
           <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>
             <Alert severity="error" onClose={() => setPasteFailed(false)}>
               {t("file.pasteFailed")}
@@ -253,7 +249,16 @@ export function Window() {
           )}
         </Box>
 
-        {RightSidebar && <RightSidebar />}
+        {RightSidebar && (
+          <RightSidebar
+            workspace={workspace ?? EMPTY_WORKSPACE}
+            folders={graphed}
+            sessions={sessions.sessions}
+            showing={sessions.active}
+            onOpenWork={work.openWork}
+            onEndSession={sessions.end}
+          />
+        )}
 
         <WindowControls />
         <SshPassword />

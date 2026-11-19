@@ -20,6 +20,8 @@ mod themes;
 mod update;
 mod usage;
 
+pub use mcp::register_codex;
+
 /// The machine, as the app knows it.
 ///
 /// Written as a re-export rather than as modules of this crate because it is a
@@ -85,6 +87,16 @@ fn stat_file(path: String) -> Result<FileStamp, String> {
 #[tauri::command(async)]
 fn read_file_data(path: String) -> Result<FileData, String> {
     fs_browse::read_file_data(&path)
+}
+
+/// Lets the WebView stream one selected local media file without copying it through IPC.
+#[tauri::command(async)]
+fn media_file<R: tauri::Runtime>(
+    path: String,
+    app: tauri::AppHandle<R>,
+) -> Result<Option<String>, String> {
+    use tauri::Manager;
+    fs_browse::media_file(&path, &app.asset_protocol_scope())
 }
 
 /// Writes an edited card back to its file, and answers with how long it now is.
@@ -188,6 +200,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(
+            tauri::plugin::Builder::<_, ()>::new("canvas-context-menu")
+                .js_init_script_on_all_frames(include_str!("frame_context_menu.js"))
+                .build(),
+        )
+        .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
                 .build(),
@@ -258,6 +275,7 @@ pub fn run() {
             read_file_head,
             stat_file,
             read_file_data,
+            media_file,
             write_file,
             fs_read_file,
             fs_create_entry,
@@ -321,9 +339,12 @@ pub fn run() {
             ask::watch::pty_standing,
             usage::terminal_usage,
             mcp::mcp_serving,
+            mcp::mcp_setup,
             mcp::mcp_serve,
             mcp::mcp_stop,
             mcp::mcp_reports,
+            mcp::canvas_read,
+            mcp::canvas_write,
             monitor::monitor_configure,
             monitor::monitor_snapshots,
             monitor::monitor_refresh,

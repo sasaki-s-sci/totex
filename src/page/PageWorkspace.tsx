@@ -14,6 +14,7 @@ import { usePageKeys } from "../hooks/usePageKeys";
 import type { useSessions } from "../hooks/useSessions";
 import { settingsNow } from "../lib/appSettings";
 import { shellSession } from "../lib/session";
+import { frontInactive } from "../shell/bridge";
 import { useFrontState } from "../shell/state";
 import { horizontalNeighbor } from "./neighbor";
 import { type PagePlacement, placementOf, terminalPageId } from "./placement";
@@ -189,6 +190,7 @@ export function PageWorkspace({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (!event.ctrlKey || !event.altKey || event.metaKey || event.shiftKey) return;
       if (event.key.toLowerCase() !== "a") return;
       event.preventDefault();
@@ -300,6 +302,7 @@ export function PageWorkspace({
       horizontal.current = null;
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || document.querySelector('[data-selecting="true"]')) return;
       if (
         !event.ctrlKey ||
         event.altKey ||
@@ -479,7 +482,12 @@ export function PagePortal({
     return () => container.remove();
   }, [container, target]);
   useLayoutEffect(() => {
-    if (target?.isConnected && focus)
+    if (
+      target?.isConnected &&
+      focus &&
+      !frontInactive() &&
+      !document.activeElement?.closest(".session-canvas:not([hidden])")
+    )
       container.querySelector<HTMLElement>(focus)?.focus({ preventScroll: true });
   }, [container, target, focus]);
   return createPortal(children, container);

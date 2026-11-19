@@ -1,9 +1,11 @@
 //! The road an agent's report travels, from the door to whoever is listening.
 
+mod canvas;
 mod door;
 mod install;
 mod restart;
 mod shape;
+mod shared;
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;

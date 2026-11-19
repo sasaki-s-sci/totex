@@ -15,7 +15,7 @@ import {
 } from "./history";
 import { carried, merge } from "./merge";
 import type { useReading } from "./reading";
-import { countLines, draftOf, lineNumbers } from "./text";
+import { countLines, draftOf } from "./text";
 
 type Draft = { text: string; disk: string | null; kept: string | null; dirty: boolean };
 
@@ -85,7 +85,6 @@ export function useDraft(
   const clashed = useRef(false);
 
   const [lines, setLines] = useState(1);
-  const numbers = useMemo(() => lineNumbers(lines), [lines]);
   const [unsaved, setUnsaved] = useState(false);
   const [refused, setRefused] = useState(false);
   const writing = useRef<Promise<boolean> | null>(null);
@@ -366,7 +365,6 @@ export function useDraft(
     editable,
     reading,
     lines,
-    numbers,
     unsaved,
     refused,
     clash,

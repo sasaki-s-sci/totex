@@ -51,10 +51,3 @@ export function countLines(text: string): number {
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   return body.split("\n").length;
 }
-
-// One string, not an element per line.
-export function lineNumbers(count: number): string {
-  const lines: string[] = [];
-  for (let line = 1; line <= count; line += 1) lines.push(String(line));
-  return lines.join("\n");
-}

@@ -5,7 +5,6 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
-import { monitor } from "./monitor.mjs";
 import { writeReport } from "./report.mjs";
 import { checkRunning, freePort, launch, stop, stopPersistent, waitFor } from "./runtime.mjs";
 import { smoke } from "./smoke.mjs";
@@ -78,7 +77,7 @@ async function step(name, action) {
 
 async function run() {
   if (process.platform !== "linux") throw new Error("Video E2E currently requires Linux.");
-  for (const tool of ["Xvfb", "ffmpeg", "ffprobe", "WebKitWebDriver", "tauri-driver", "python3"]) {
+  for (const tool of ["Xvfb", "ffmpeg", "ffprobe", "WebKitWebDriver", "tauri-driver"]) {
     execFileSync("which", [tool], { stdio: "pipe" });
   }
   const binary = join(root, "src-tauri/target/debug/totex");
@@ -109,27 +108,6 @@ async function run() {
       theme: "light",
       follow: false,
       mcpServing: false,
-      monitor: {
-        enabled: false,
-        agent: "custom",
-        command: "python3",
-        args: [
-          "-u",
-          join(root, "tests/e2e/fixtures/monitor-agent.py"),
-          join(output, "monitor-agent.jsonl"),
-          join(temporary, "monitor-control"),
-        ],
-        model: "e2e-model",
-        intervalSecs: 3600,
-        features: {
-          status: true,
-          agents: true,
-          taskSummary: true,
-          requestSummary: true,
-          estimate: true,
-          goal: true,
-        },
-      },
     }),
   );
   // Only app/driver children receive this private user environment. The developer's
@@ -238,11 +216,6 @@ async function run() {
     capabilities: { "tauri:options": { application: binary } },
   });
   await smoke(browser, repository, step);
-  await monitor(browser, step, {
-    log: join(output, "monitor-agent.jsonl"),
-    control: join(temporary, "monitor-control"),
-    settings: join(privateHome, ".totex/totex.json"),
-  });
   checkRunning(recorder, "FFmpeg");
 }
 

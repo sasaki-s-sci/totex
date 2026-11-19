@@ -1,10 +1,4 @@
-//! What is said through the door: MCP, and the one thing this server offers.
-//!
-//! The protocol is a handshake and a list, so what is written out here is the
-//! smallest server that is a real one: `initialize`, `tools/list`, `tools/call`
-//! and a ping. The tool is deliberately one — an agent calls what it is given,
-//! so what it is given is the shape of what ends up on the graph, and anything
-//! wider would draw a different card every time.
+//! MCP canvas operations, scoped to the authenticated terminal.
 
 use serde_json::{Value, json};
 
@@ -16,34 +10,6 @@ use super::{Door, Report, Step};
 /// call. So a client that asks for an older one is answered in it rather than
 /// being argued with.
 const SPOKEN: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
-
-/// What an agent is told this server is for, at the moment it connects.
-///
-/// This is the only place in the app that writes to somebody else's agent, and
-/// it is worth being exact about what it asks for. Two things: report about the
-/// work rather than about the tool in your hand, and do not report every time
-/// something happens. A line that changes ten times a second is a line nobody
-/// can read, and the whole point of it is to be readable from across a canvas
-/// by somebody who has not opened the terminal.
-const INSTRUCTIONS: &str = "\
-This terminal is running inside totex — a window that draws a git repository, \
-the worktrees standing on it, and the terminals working in them. What you \
-report here is drawn on that graph, beside this terminal's own mark, where it \
-can be read without the terminal being opened.
-
-Report when you take up a piece of work, when you finish a step of it, and when \
-you are done. One line, about the work rather than about the tool you happen to \
-be reaching for: \"rewriting the session layout\", not \"running grep\". Report \
-with nothing in it when there is nothing left to show.
-
-Do not report on every tool call. Somebody is reading this from across a room.";
-
-/// What the tool itself says it is for.
-const TOOL: &str = "\
-Say what this terminal is working on, so it can be seen on the totex graph \
-without the terminal being opened. Call it when you take up a piece of work, \
-when you finish a step of it, and when you are done — not on every tool call. \
-Call it with an empty `doing` and no steps when there is nothing to show.";
 
 /// How much of a line is kept.
 ///
@@ -60,7 +26,7 @@ const STEPS_LIMIT: usize = 32;
 /// `None` is a notification — a message with no id, which is a client telling
 /// rather than asking. There is exactly one of those in the handshake and
 /// nothing is expected back.
-pub fn answer(door: &Door, session: &str, body: &[u8]) -> Option<Value> {
+pub fn answer(door: &Door, session: Option<&str>, body: &[u8]) -> Option<Value> {
     let Ok(message) = serde_json::from_slice::<Value>(body) else {
         return Some(fault(Value::Null, -32700, "the message is not json"));
     };
@@ -78,8 +44,20 @@ pub fn answer(door: &Door, session: &str, body: &[u8]) -> Option<Value> {
     Some(match method {
         "initialize" => said(id, hello(&params)),
         "ping" => said(id, json!({})),
-        "tools/list" => said(id, json!({ "tools": [tool()] })),
-        "tools/call" => said(id, call(door, session, &params)),
+        "tools/list" => said(id, json!({ "tools": [super::canvas::tool()] })),
+        "tools/call" => {
+            let terminal = session
+                .map(str::to_string)
+                .map(Ok)
+                .unwrap_or_else(|| door.terminal(&params["_meta"]));
+            said(
+                id,
+                match terminal {
+                    Ok(terminal) => call(door, &terminal, &params),
+                    Err(why) => refused(&why),
+                },
+            )
+        }
         _ => fault(id, -32601, "there is no such method"),
     })
 }
@@ -95,47 +73,30 @@ fn hello(params: &Value) -> Value {
         "protocolVersion": version,
         "capabilities": { "tools": { "listChanged": false } },
         "serverInfo": { "name": "totex", "version": env!("CARGO_PKG_VERSION") },
-        "instructions": INSTRUCTIONS,
-    })
-}
-
-/// The one tool, and the shape of what it takes.
-fn tool() -> Value {
-    json!({
-        "name": "report",
-        "title": "Report what this terminal is working on",
-        "description": TOOL,
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "doing": {
-                    "type": "string",
-                    "description": "One line: what is being worked on right now. Empty when there is nothing to show.",
-                },
-                "steps": {
-                    "type": "array",
-                    "description": "The plan that line is a step of, in order. Leave it out when there is no plan.",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "title": { "type": "string" },
-                            "done": { "type": "boolean", "description": "Finished. The first step that is not is the one being worked on." },
-                        },
-                        "required": ["title", "done"],
-                    },
-                },
-            },
-            "required": ["doing"],
-        },
+        "instructions": "Use the canvas tool to show evidence while you work: running web apps, Playwright screenshots, files, code and explanations. totex identifies the terminal running this conversation automatically; do not ask the user for terminal IDs. Keep existing pane IDs when updating evidence. Read the canvas before replacing user-added material. The user can navigate and remove panes with the keyboard. Prefer evidence to status summaries.",
     })
 }
 
 /// One call of it.
 fn call(door: &Door, session: &str, params: &Value) -> Value {
     let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+    if name == "canvas" {
+        return match super::canvas::call(
+            door,
+            session,
+            params.get("arguments").cloned().unwrap_or(json!({})),
+        ) {
+            Ok(canvas) => {
+                json!({ "content": [{ "type": "text", "text": serde_json::to_string(&canvas).unwrap() }], "structuredContent": canvas })
+            }
+            Err(why) => refused(&why),
+        };
+    }
     if name != "report" {
         return refused(&format!("there is no tool called {name}"));
     }
+
+    // Previously connected agents can finish reporting, but new clients only see canvas.
 
     let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
     let report = Report {

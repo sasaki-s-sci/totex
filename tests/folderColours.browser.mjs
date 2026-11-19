@@ -9,29 +9,33 @@ export async function verifyFolderColours(page, base = "http://127.0.0.1:18422")
     const sample = document.createElement("span");
     document.body.append(sample);
     const colours = {};
-    for (const token of ["success-main", "warning-main", "text-disabled", "text-primary"]) {
+    for (const token of [
+      "success-main",
+      "warning-main",
+      "text-disabled",
+      "text-primary",
+      "text-secondary",
+    ]) {
       sample.style.color = `var(--mui-palette-${token})`;
       colours[token] = getComputedStyle(sample).color;
     }
     sample.remove();
     return colours;
   });
-  const colour = (name, token) =>
+  const colour = (name, token, part = ".MuiListItemText-primary") =>
     page.waitForFunction(
-      ({ name, expected }) => {
-        const label = document.querySelector(
-          `[data-pick-row="/files/${name}"] .MuiListItemText-primary`,
-        );
-        return label && getComputedStyle(label).color === expected;
+      ({ name, expected, part }) => {
+        const element = document.querySelector(`[data-pick-row="/files/${name}"] ${part}`);
+        return element && getComputedStyle(element).color === expected;
       },
-      { name, expected: palette[token] },
+      { name, expected: palette[token], part },
     );
 
   await page.evaluate(() => {
     window.fsChanges = {
       "/files": {
         changed: { "alpha.txt": "added", "beta.txt": "modified", "folder.dir": "modified" },
-        ignored: ["gamma.txt"],
+        ignored: ["folder.dir", "gamma.txt"],
         allIgnored: false,
       },
       "/files/folder.dir": { changed: { "child.txt": "modified" }, ignored: [], allIgnored: false },
@@ -46,6 +50,8 @@ export async function verifyFolderColours(page, base = "http://127.0.0.1:18422")
     await colour("folder.dir", "warning-main");
     await colour("folder.dir/child.txt", "warning-main");
     await colour("gamma.txt", "text-disabled");
+    await colour("gamma.txt", "text-disabled", ".MuiListItemIcon-root");
+    await colour("folder.dir", "text-secondary", ".MuiListItemIcon-root");
     await colour("other", "text-primary");
     if (next) {
       await page.getByRole("button", { name: `Switch to ${next}`, exact: true }).click();
@@ -60,7 +66,10 @@ export async function verifyFolderColours(page, base = "http://127.0.0.1:18422")
   await colour("alpha.txt", "text-primary");
   await colour("beta.txt", "text-primary");
   await colour("gamma.txt", "text-primary");
+  await colour("gamma.txt", "text-secondary", ".MuiListItemIcon-root");
   await colour("folder.dir", "text-disabled");
   await colour("folder.dir/child.txt", "text-disabled");
+  await colour("folder.dir", "text-disabled", ".MuiListItemIcon-root");
+  await colour("folder.dir/child.txt", "text-disabled", ".MuiListItemIcon-root");
   return "folder colours, nested changes, Git/folder switches, ignore changes and cleared changes";
 }

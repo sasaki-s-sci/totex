@@ -21,6 +21,7 @@ export function usePageKeys({ entries, active, show, close, create }: Options) {
   useEffect(() => {
     let typed: { number: number; at: number } | null = null;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       // Navigation belongs to the pages, independently of where their pages are shown.
       if (event.ctrlKey && !event.metaKey && !event.shiftKey) {
         if (!event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) return;

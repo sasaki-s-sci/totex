@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { readFileHead } from "../../folder/api";
 import { DROP_INTO } from "../../folder/dropInto";
 import { baseName, displayPath } from "../../folder/format";
-import { CanvasButton, CloseMark, GitMark, MarkButton, UpMark } from "../../marks";
+import { CanvasButton, MarkButton, PaneFolderMark, UpMark } from "../../marks";
 import type { FileMenuTarget } from "./FileContextMenu";
 import { Level } from "./FolderLevel";
 import type { Naming } from "./NameField";
@@ -55,7 +55,6 @@ export interface RepoPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
-  onClose: () => void;
   /** Picks the pane up by its header, or by its one row when it has no header. */
   grip?: PaneGrip;
 }
@@ -101,15 +100,13 @@ export function RepoPane({
   naming,
   onNameDone,
   onNameCancel,
-  onClose,
   grip,
 }: RepoPaneProps) {
   const { t } = useTranslation();
   const { rows, listing, failed, truncated } = useRepositoryList(path, onListed);
   const { selected, pick, point, pane, onKeyDown } = useSelection(path);
   const name = baseName(path);
-  // A root that is a repository lists itself and nothing else: the row says all the header would,
-  // so it stands alone and takes the header's close.
+  // A root that is a repository lists itself and nothing else, so its row is the header.
   const alone = rows.length === 1 && rows[0].path === path;
 
   return (
@@ -118,6 +115,20 @@ export function RepoPane({
       ref={pane}
       onKeyDown={onKeyDown}
       sx={{ position: "relative", pb: 0.5 }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu({
+          path,
+          entries: [{ path, isDir: true }],
+          name,
+          isDir: true,
+          into: path,
+          root: path,
+          pane: id,
+          paneRoot: true,
+          at: { x: event.clientX, y: event.clientY },
+        });
+      }}
     >
       {!alone && (
         <Stack
@@ -133,10 +144,6 @@ export function RepoPane({
             ...PANE_ROW,
             pl: 1,
             pr: 0.5,
-            "&:hover .pane__close, &:focus-within .pane__close": {
-              opacity: 1,
-              pointerEvents: "auto",
-            },
           }}
         >
           {/* The mark is the way back, as the folder pane's checkout mark is the way here. */}
@@ -148,7 +155,7 @@ export function RepoPane({
             onClick={onFolderMode}
             sx={{ ...BARE_BUTTON, mr: 0.5, color: "text.primary" }}
           >
-            <GitMark />
+            <PaneFolderMark />
           </Box>
           <Box
             component="button"
@@ -172,11 +179,6 @@ export function RepoPane({
             <Typography variant="body2" noWrap title={displayPath(path)}>
               {name}
             </Typography>
-          </Box>
-          <Box className="pane__close" sx={{ opacity: 0, pointerEvents: "none" }}>
-            <MarkButton label={t("repository.remove")} onClick={onClose}>
-              <CloseMark />
-            </MarkButton>
           </Box>
         </Stack>
       )}
@@ -233,6 +235,7 @@ export function RepoPane({
                         into: reading,
                         root: reading,
                         pane: id,
+                        paneRoot: true,
                         at: { x: event.clientX, y: event.clientY },
                       });
                     }}
@@ -260,7 +263,6 @@ export function RepoPane({
                       onNavigate={
                         swapped ? () => onShowWorktree(repository.path, null) : onNavigate
                       }
-                      onClose={onClose}
                     />
                   </Box>
                 ) : (
@@ -272,10 +274,6 @@ export function RepoPane({
                       pr: 0.5,
                       gap: 0.5,
                       ...mark,
-                      "&:hover .pane__close, &:focus-within .pane__close": {
-                        opacity: 1,
-                        pointerEvents: "auto",
-                      },
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();
@@ -294,7 +292,7 @@ export function RepoPane({
                     onClick={() => onToggleExpanded(repository.path)}
                   >
                     <ListItemIcon sx={ICON}>
-                      <GitMark on={opened} />
+                      <PaneFolderMark />
                     </ListItemIcon>
                     <Stack
                       direction="row"

@@ -27,6 +27,24 @@ export async function verifyShell(
     }));
     const callbacks = new Map();
     const running = new Set(sessions.map((session) => session.id));
+    const canvases = new Map([
+      [
+        sessions[0].id,
+        {
+          id: sessions[0].id,
+          revision: 1,
+          panes: [{ id: "other-evidence", kind: "code", text: "Evidence for terminal one" }],
+        },
+      ],
+      [
+        sessions[1].id,
+        {
+          id: sessions[1].id,
+          revision: 1,
+          panes: [{ id: "evidence", kind: "code", text: "Evidence for terminal two" }],
+        },
+      ],
+    ]);
     const listeners = new Map();
     let serial = 0;
     let shell;
@@ -57,6 +75,8 @@ export async function verifyShell(
     window.calls = [];
     let confirmedVersion = "99.0.0";
     let fileText = "saved text";
+    window.savedFileText = () => fileText;
+    window.fileWriteRefused = true;
     window.listenerCount = () => listeners.size;
     window.__TAURI_INTERNALS__ = {
       transformCallback(callback) {
@@ -68,6 +88,11 @@ export async function verifyShell(
       },
       async invoke(cmd, args) {
         window.calls.push({ cmd, args });
+        if (cmd === "mcp_setup")
+          return {
+            command: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",
+            environment: "Linux",
+          };
         if (cmd === "plugin:event|listen") {
           listeners.set(++serial, args);
           return serial;
@@ -90,6 +115,18 @@ export async function verifyShell(
         }
         if (cmd === "pty_attach")
           return running.has(args.id) ? { text: `Running ${args.id}\r\n`, upto: 0 } : null;
+        if (cmd === "canvas_read") return structuredClone([...canvases.values()]);
+        if (cmd === "canvas_write") {
+          const was = canvases.get(args.id) ?? { id: args.id, revision: 0, panes: [] };
+          if (was.revision !== args.revision) throw new Error("Canvas revision changed");
+          const next = {
+            id: args.id,
+            revision: was.revision + 1,
+            panes: structuredClone(args.panes),
+          };
+          canvases.set(args.id, next);
+          return structuredClone(next);
+        }
         if (["pty_doing", "mcp_reports", "list_roots", "describe_folders"].includes(cmd)) return [];
         if (cmd === "update_standing")
           return ["persistent", "ephemeral"].map((layer) => ({
@@ -117,7 +154,9 @@ export async function verifyShell(
             size: fileText.length,
             truncated: false,
           };
+        if (cmd === "stat_file") return { size: fileText.length, modifiedMs: 0 };
         if (cmd === "write_file") {
+          if (window.fileWriteRefused) throw new Error("Write refused");
           fileText = args.text;
           return fileText.length;
         }
@@ -179,16 +218,24 @@ export async function verifyShell(
     () => document.querySelector("iframe")?.style.visibility === "visible",
   );
   let front = page.frames().find((frame) => frame.parentFrame());
-  const draft = front.getByRole("textbox", { name: "note.txt" });
-  await draft.fill("unsaved words");
-  await draft.focus();
   await page.waitForFunction(
-    () => window.calls.filter((call) => call.cmd === "pty_attach").length === 4,
+    () => window.calls.filter((call) => call.cmd === "pty_attach").length === 3,
   );
   check(
     await front.getByRole("button", { name: "patch 99.0.1", exact: true }).isEnabled(),
     "The new patch must be offered before confirmation",
   );
+  await front.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+  await front.getByRole("dialog").waitFor({ state: "hidden" });
+  const draft = front.getByRole("textbox", { name: "note.txt" });
+  await draft.fill("unsaved words");
+  await draft.focus();
+  const canvas = '[data-session-canvas="/tmp cli 2"]';
+  check(
+    (await front.locator(`${canvas} [data-canvas-pane]`).count()) === 2,
+    "The opened file must join the current terminal's existing evidence",
+  );
+  check((await front.locator("main .xterm").count()) === 0, "Canvas duplicated a terminal");
   await page.evaluate(() => {
     window.before = {
       document,
@@ -236,6 +283,12 @@ export async function verifyShell(
     "Old frame was lost on failure",
   );
   check((await draft.innerText()) === "unsaved words", "Draft was lost on failure");
+  check(
+    (await front.locator(`${canvas} [data-canvas-pane="evidence"]`).innerText()).includes(
+      "Evidence for terminal two",
+    ),
+    "Canvas evidence was lost on failure",
+  );
   await page.evaluate(() => {
     window.failConfirmation = false;
   });
@@ -250,6 +303,33 @@ export async function verifyShell(
     (await front.evaluate(() => document.documentElement.dataset.frontRevision)) === "next",
     "New executable frontend did not run",
   );
+  check(
+    (await front.getByRole("textbox", { name: "note.txt" }).innerText()) === "unsaved words",
+    "Draft was not handed off",
+  );
+  check(
+    (await front
+      .locator('#cli-sidebar [data-terminal-shown="true"]')
+      .getAttribute("data-terminal")) === "/tmp cli 2",
+    "Selected terminal changed",
+  );
+  check((await front.locator(".xterm").count()) === 3, "A terminal disappeared or was duplicated");
+  check(
+    (await front.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "note.txt",
+    "Draft focus was not restored",
+  );
+  check(
+    (await front.locator(`${canvas}:not([hidden]) [data-canvas-pane]`).count()) === 2 &&
+      (await front
+        .locator('[data-session-canvas="/tmp cli 1"] [data-canvas-pane="other-evidence"]')
+        .count()) === 1,
+    "Terminal canvases changed during the handoff",
+  );
+  check(
+    (await page.evaluate(() => window.savedFileText())) === "saved text",
+    "The handoff must preserve an unsaved draft, not depend on autosave",
+  );
+  await front.getByRole("button", { name: "Settings", exact: true }).click();
   // The candidate reads the old committed version during startup, before the shell confirms it.
   await front.getByRole("button", { name: "patch", exact: true }).waitFor();
   check(
@@ -261,21 +341,9 @@ export async function verifyShell(
       "patch up to date",
     "Settings must reflect the confirmed patch version",
   );
-  check(
-    (await front.getByRole("textbox", { name: "note.txt" }).innerText()) === "unsaved words",
-    "Draft was not handed off",
-  );
-  check(
-    (await front
-      .locator('#cli-sidebar [data-terminal-shown="true"]')
-      .getAttribute("data-terminal")) === "/tmp cli 2",
-    "Selected terminal changed",
-  );
-  check((await front.locator(".xterm").count()) === 4, "A terminal disappeared");
-  check(
-    (await front.evaluate(() => document.activeElement?.getAttribute("aria-label"))) === "note.txt",
-    "Draft focus was not restored",
-  );
+  await front.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+  await front.getByRole("dialog").waitFor({ state: "hidden" });
+  await front.getByRole("textbox", { name: "note.txt" }).focus();
   await front.evaluate(() => {
     window.terminalNodes = [...document.querySelectorAll(".xterm")];
   });
@@ -304,13 +372,18 @@ export async function verifyShell(
   await front
     .locator('#cli-sidebar [data-terminal-shown="true"] .xterm-helper-textarea')
     .press("Control+a");
-  await front.waitForFunction(() => document.querySelectorAll(".card-board .xterm").length === 4);
+  await front.waitForFunction(() => document.querySelectorAll("#cli-sidebar .xterm").length === 4);
   await page.waitForFunction(() =>
     window.calls.some((call) => call.cmd === "pty_attach" && call.args.id === "/tmp cli 4"),
   );
   check(
-    (await front.locator('.card-board [data-terminal="/tmp cli 4"]').count()) === 1,
+    (await front.locator('#cli-sidebar [data-terminal="/tmp cli 4"]').count()) === 1,
     "New terminal reused a transferred ID or attached before startup",
+  );
+  check(
+    (await front.locator('[data-session-canvas="/tmp cli 4"]:not([hidden])').count()) === 1 &&
+      (await front.locator('[data-session-canvas="/tmp cli 4"] [data-canvas-pane]').count()) === 0,
+    "A new terminal must have its own empty canvas",
   );
   return { ...result, errors };
 }

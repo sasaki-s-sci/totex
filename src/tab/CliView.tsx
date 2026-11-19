@@ -3,7 +3,6 @@ import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -131,6 +130,7 @@ export function CliView({
     setCopyFailed(false);
     setPasteFailed(false);
 
+    // Keep the DOM renderer: swapping renderers on visibility changes also changes the PTY grid.
     const terminal = new Terminal({
       fontSize: (FONT * drawnAt.current * textAt.current) / 100,
       fontFamily: look.mono,
@@ -155,19 +155,6 @@ export function CliView({
       below: element.scrollTop,
       selection: terminal.getSelectionPosition(),
     }));
-
-    // The DOM renderer builds an element per cell; WebGL is optional and falls back.
-    let accelerated: WebglAddon | null = null;
-    try {
-      accelerated = new WebglAddon();
-      accelerated.onContextLoss(() => {
-        accelerated?.dispose();
-        accelerated = null;
-      });
-      terminal.loadAddon(accelerated);
-    } catch {
-      accelerated = null;
-    }
 
     let lastGrid: { rows: number; cols: number } | null = null;
     const tell = (grid: { rows: number; cols: number }) => {
@@ -562,8 +549,20 @@ export function CliView({
   }, [terminalText]);
   useEffect(() => {
     showing.current = shown;
-    if (shown) catchUpNow.current?.();
-    if (shown && host && resizeAt.current) drawn.current?.focus();
+    if (!shown) return;
+    catchUpNow.current?.();
+    const frame = requestAnimationFrame(() => {
+      const terminal = drawn.current;
+      terminal?.refresh(0, terminal.rows - 1);
+    });
+    if (
+      host &&
+      resizeAt.current &&
+      !frontInactive() &&
+      !document.activeElement?.closest(".session-canvas:not([hidden])")
+    )
+      drawn.current?.focus();
+    return () => cancelAnimationFrame(frame);
   }, [shown, host]);
 
   return (

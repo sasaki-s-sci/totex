@@ -35,7 +35,7 @@ test("whole-file preview decoding preserves binary bytes", () => {
 });
 
 test("media opens rendered while authored HTML keeps its native text view", () => {
-  for (const extension of ["mp4", "m4v", "MOV", "webm"]) {
+  for (const extension of ["mp4", "m4v", "MOV", "webm", "ogv"]) {
     assert.equal(openingView(`/a/movie.${extension}`), "video");
     assert.equal(previewView(`/a/movie.${extension}`), "video");
   }
@@ -49,6 +49,12 @@ test("media opens rendered while authored HTML keeps its native text view", () =
     assert.equal(previewable(`/a/page.${extension}`), true);
   }
   for (const view of ["video", "audio", "html"]) assert.equal(drawn(view), true);
+});
+
+test("ordinary text and JSON select a literal read-only preview", () => {
+  assert.equal(previewView("/a/code.ts"), "plain");
+  assert.equal(previewView("/a/data.json"), "plain");
+  assert.equal(drawn("plain"), true);
 });
 
 test("Office and excluded formats do not advertise a rendered preview", () => {

@@ -31,7 +31,6 @@ export interface FolderPaneProps {
   naming: Naming | null;
   onNameDone: (name: string) => Promise<void>;
   onNameCancel: () => void;
-  onClose: () => void;
   /** Picks the pane up by its header, to put it elsewhere in the column. */
   grip?: PaneGrip;
 }
@@ -57,7 +56,6 @@ export function FolderPane({
   naming,
   onNameDone,
   onNameCancel,
-  onClose,
   grip,
 }: FolderPaneProps) {
   const { selected, pick, point, pane, onKeyDown } = useSelection(path);
@@ -80,6 +78,7 @@ export function FolderPane({
           into: path,
           root: path,
           pane: id,
+          paneRoot: true,
           at: { x: event.clientX, y: event.clientY },
         });
       }}
@@ -97,7 +96,6 @@ export function FolderPane({
         onToggleGraph={() => onToggleGraph(path)}
         onAddFolder={onAddFolder}
         onNavigate={onNavigate}
-        onClose={onClose}
       />
 
       {showing && (

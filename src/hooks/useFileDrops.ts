@@ -10,7 +10,9 @@ import {
 } from "../lib/filePreview";
 import { keepFrontValue, useFrontState } from "../shell/state";
 
-export function useFileDrops() {
+export function useFileDrops(sessionId?: string | null) {
+  const owner = useRef(sessionId);
+  owner.current = sessionId;
   const [held, setFilePreviews] = useFrontState<FilePreviewRequest[]>("files.open", []);
   // An earlier version could keep a card in its JSON Schema form, which is gone: it reads as text.
   const filePreviews = useMemo(
@@ -32,6 +34,7 @@ export function useFileDrops() {
         ...current,
         ...paths.map((path, index) => ({
           id: nextFilePreview.current++,
+          sessionId: owner.current ?? undefined,
           path,
           folder,
           at: at ? { x: at.x + index * 18, y: at.y + index * 18 } : null,

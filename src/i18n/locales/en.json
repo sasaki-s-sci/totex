@@ -59,7 +59,7 @@
     "shell": "Shell",
     "addPane": "Open in a new folder pane",
     "gitMode": "Switch to git",
-    "takeOff": "Remove from cards",
+    "takeOff": "Remove from terminal list",
     "remove": "Remove folder and end its terminals",
     "removeFailed": "Could not end all terminals. Try removing again."
   },
@@ -107,8 +107,8 @@
   },
   "repository": {
     "close": "Close",
-    "graph": "Show in cards",
-    "ungraph": "Remove from cards",
+    "graph": "Show in terminal list",
+    "ungraph": "Remove from terminal list",
     "listing": "Looking for repositories",
     "none": "No repositories here",
     "cutShort": "Stopped looking part way: the folder is too deep",
@@ -302,7 +302,15 @@
     "truncated": "Showing the first {{kilobytes}} KB",
     "patchCut": "Showing the first part of the patch",
     "wrap": "Wrap lines in {{name}}",
-    "unwrap": "Stop wrapping lines in {{name}}"
+    "unwrap": "Stop wrapping lines in {{name}}",
+    "mediaRange": "Playback range",
+    "mediaPosition": "Position (s)",
+    "mediaStart": "Start (s)",
+    "mediaEnd": "End (s)",
+    "mediaApply": "Apply",
+    "mediaRangeInvalid": "Enter nonnegative seconds, with end after start and position inside the range.",
+    "mediaPlayFailed": "Playback could not start. Use the player’s Play button to try again.",
+    "mediaSeekFailed": "This source cannot seek to that position. Try again after it loads, or open a local copy."
   },
   "monitor": {
     "title": "Monitor",
@@ -373,5 +381,36 @@
     },
     "running": "Running command",
     "history": "Observation history"
+  },
+  "canvas": {
+    "title": "Canvas",
+    "mcp": "Let agents display evidence via MCP",
+    "mcpCommand": "Codex MCP registration command",
+    "mcpCopy": "Copy command",
+    "mcpCopied": "Copied",
+    "mcpCopyFailed": "Could not copy. Select and copy the command.",
+    "mcpPreparing": "Preparing command…",
+    "mcpFailed": "Could not prepare the command.",
+    "mcpUnavailable": "MCP has not started. Check the setting and try again.",
+    "mcpRetry": "Retry",
+    "mcpHint": "Launch totex and run this command once per environment. Then start Codex normally. Each terminal connects to its own canvas.",
+    "label": "Canvas · {{name}}",
+    "startHint": "Ctrl+Shift + arrows to choose a folder · Enter to start",
+    "add": "Add pane",
+    "expand": "Expand",
+    "restore": "Restore size",
+    "moveWindow": "Drag to move the window",
+    "remove": "Remove pane",
+    "keys": "Hold Ctrl+Space · arrows to select · Ctrl+A to add · Ctrl+X to remove",
+    "imageFailed": "The image could not be loaded.",
+    "empty": "Empty pane",
+    "code": "Code",
+    "markdown": "Document",
+    "terminals": "Terminals",
+    "terminal": "Terminal {{number}} · {{name}}",
+    "start": "Start terminal in {{name}}",
+    "newTerminal": "New terminal (Ctrl+A)",
+    "closeTerminal": "Close terminal (Ctrl+X)",
+    "addFolder": "Add a folder from the explorer to start."
   }
 }

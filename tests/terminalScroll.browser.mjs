@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
-/** Uses the native IPC stub installed by verifyPages. */
+/** The sidebar owns the terminal's extra scroll space; it never changes the PTY grid. */
 export async function verifyTerminalScroll(page, base = "http://127.0.0.1:18422") {
-  await page.goto(`${base}/tests/fixtures/pages.html?terminals`);
-  await page.getByRole("button", { name: "Open main in sidebar viewer", exact: true }).click();
+  await installCanvasNative(page);
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&onlyterminals`);
   const host = page.locator('#cli-sidebar [data-terminal="terminal-one"]');
   await host.locator(".xterm-screen").waitFor();
+  await page.waitForFunction(() =>
+    window.pageCalls.some(({ cmd, args }) => cmd === "pty_resize" && args.id === "terminal-one"),
+  );
   await page.evaluate(() =>
     window.pageEmit("pty:data", {
       id: "terminal-one",

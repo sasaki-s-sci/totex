@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { waitFor } from "./runtime.mjs";
 
 /** All actions enter through WebDriver input; Git reads independently verify the backend. */
 export async function smoke(browser, repository, step) {
-  const workspace = `[data-card-folder="${repository}"]`;
+  const repositoryRow = `#folder-sidebar [data-repo-row$=":${repository}"]`;
+  const folderOffer = `#cli-sidebar .page__header .page__terminal-list .session-offer[title="${repository}"]`;
+  const terminal = '#cli-sidebar [data-terminal-shown="true"]';
   const git = (...args) =>
     execFileSync("git", ["-C", repository, ...args], { encoding: "utf8" }).trim();
   const click = async (selector) => {
@@ -70,19 +72,71 @@ export async function smoke(browser, repository, step) {
     const input = await browser.$('input[aria-label^="Path, e.g."]');
     await input.setValue(repository);
     await browser.keys("Enter");
-    await browser.$('#folder-sidebar [aria-label="Show in cards"]').waitForDisplayed();
+    await browser.$('#folder-sidebar [aria-label="Show in terminal list"]').waitForDisplayed();
   });
 
-  await step("実リポジトリのワークスペースカードを表示する", async () => {
-    await click('#folder-sidebar [aria-label="Show in cards"]');
-    await browser.$(workspace).waitForDisplayed();
+  await step("実リポジトリをターミナル起動候補に追加する", async () => {
+    await click('#folder-sidebar [aria-label="Show in terminal list"]');
+    await browser.$('#folder-sidebar [aria-label="Remove from terminal list"]').waitForDisplayed();
+    await browser.$(folderOffer).waitForDisplayed();
+    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
+    await browser.$("#cli-sidebar .session-empty-header .page__header").waitForDisplayed();
+    assert.equal((await browser.$$("#cli-sidebar .xterm")).length, 0);
+    assert.equal((await browser.$$("#cli-sidebar .session-offers")).length, 0);
     assert.equal(git("log", "-1", "--format=%s"), "Initial E2E commit");
+
+    await browser.performActions([
+      {
+        type: "key",
+        id: "terminal-keyboard",
+        actions: [
+          { type: "keyDown", value: "\uE009" },
+          { type: "keyDown", value: "\uE008" },
+          { type: "keyDown", value: "\uE015" },
+          { type: "keyUp", value: "\uE015" },
+          { type: "keyUp", value: "\uE008" },
+          { type: "keyUp", value: "\uE009" },
+        ],
+      },
+    ]);
+    await browser
+      .$('#cli-sidebar .session-offer[data-offered="true"]')
+      .waitForExist({ reverse: true });
+    assert.equal(await browser.$(folderOffer).isDisplayed(), true);
+    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
   });
 
-  await step("画面からターミナルを開く", async () => {
-    await click(`${workspace} [aria-label="Shell"]`);
-    await browser.$("#cli-sidebar .xterm-helper-textarea").waitForExist({ timeout: 20000 });
-    await click("#cli-sidebar .xterm-screen");
+  await step("Ctrl+Shiftでフォルダーを選び、ターミナルを開く", async () => {
+    await browser.performActions([
+      {
+        type: "key",
+        id: "terminal-keyboard",
+        actions: [
+          { type: "keyDown", value: "\uE009" },
+          { type: "keyDown", value: "\uE008" },
+          { type: "keyDown", value: "\uE015" },
+          { type: "keyUp", value: "\uE015" },
+          { type: "keyDown", value: "\uE007" },
+          { type: "keyUp", value: "\uE007" },
+          { type: "keyUp", value: "\uE008" },
+          { type: "keyUp", value: "\uE009" },
+        ],
+      },
+    ]);
+    await browser.$(`${terminal} .xterm-helper-textarea`).waitForExist({ timeout: 20000 });
+    await browser.$(".session-canvas:not([hidden])").waitForDisplayed();
+    assert.equal((await browser.$$("main .xterm")).length, 0);
+    assert.equal((await browser.$$("#cli-sidebar .xterm")).length, 1);
+    assert.equal((await browser.$$(folderOffer)).length, 0);
+    const headerGroup = await browser.$(
+      `#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-group[title="${repository}"]`,
+    );
+    assert.equal(await headerGroup.$(".page__terminal-name").getText(), basename(repository));
+    assert.equal(
+      await headerGroup.$('.page__terminal-numbers [data-active="true"]').getText(),
+      "1",
+    );
+    await click(`${terminal} .xterm-screen`);
   });
 
   await step("PTYでファイルを作成し、Gitコミットとブランチを作る", async () => {
@@ -117,9 +171,9 @@ export async function smoke(browser, repository, step) {
     assert.equal(git("status", "--porcelain"), "");
   });
 
-  await step("Rustの変更監視を通じ、現在のブランチがカードに反映される", async () => {
+  await step("Rustの変更監視を通じ、現在のブランチがフォルダー一覧に反映される", async () => {
     await browser.waitUntil(
-      async () => (await browser.$(`${workspace} > .page__header`).getText()).includes("e2e-proof"),
+      async () => (await browser.$(repositoryRow).getText()).includes("e2e-proof"),
       { timeout: 30000 },
     );
   });
@@ -136,7 +190,7 @@ export async function smoke(browser, repository, step) {
     const ready = join(repository, ".git/selection-ready");
     await typeCommand(`printf '\\033[2J\\033[H${expected}\\033[2;1H'; touch .git/selection-ready`);
     await waitFor(() => existsSync(ready), "selection text was printed");
-    const screen = await browser.$("#cli-sidebar .xterm-screen");
+    const screen = await browser.$(`${terminal} .xterm-screen`);
     const position = await screen.getLocation();
     // Double-click the known first word through actual pointer input.
     await browser.performActions([
@@ -165,19 +219,62 @@ export async function smoke(browser, repository, step) {
   });
 
   await step("ファイル一覧に戻り、作成したファイルをプレビューする", async () => {
-    // End the real shell so the file preview has the full canvas to be read in.
-    await click("#cli-sidebar .xterm-screen");
-    await browser.keys("exit");
-    await browser.keys("Enter");
-    await browser.$(".cli-page").waitForExist({ reverse: true });
-    await click(`${workspace} [aria-label="Browse workspace"]`);
-    const file = await browser.$("#folder-sidebar").$("p=terminal-proof.txt");
+    // The terminal stays open: the file belongs to its canvas.
+    await click(`${repositoryRow} button[aria-expanded="false"]`);
+    const file = await browser.$(
+      `#folder-sidebar [data-pick-row="${repository}/terminal-proof.txt"]`,
+    );
     await file.waitForDisplayed();
     await file.doubleClick();
     await browser.waitUntil(
-      async () => (await browser.$("body").getText()).includes("Created through the real terminal"),
+      async () =>
+        (await browser.$(".session-canvas:not([hidden])").getText()).includes(
+          "Created through the real terminal",
+        ),
       { timeout: 20000, timeoutMsg: "file preview did not display the saved content" },
     );
+    assert.ok(existsSync(join(repository, "terminal-proof.txt")));
+  });
+
+  await step("Ctrl+Space中だけ表示枠を削除し、ファイルとターミナルを保つ", async () => {
+    await click(`${terminal} .xterm-screen`);
+    await browser.performActions([
+      {
+        type: "key",
+        id: "terminal-keyboard",
+        actions: [
+          { type: "keyDown", value: "\uE009" },
+          { type: "keyDown", value: " " },
+          { type: "keyDown", value: "x" },
+          { type: "keyUp", value: "x" },
+          { type: "keyUp", value: " " },
+          { type: "keyUp", value: "\uE009" },
+        ],
+      },
+    ]);
+    await browser
+      .$(".session-canvas:not([hidden]) [data-canvas-pane]")
+      .waitForExist({ reverse: true });
+    assert.equal((await browser.$$("#cli-sidebar .xterm")).length, 1);
+    assert.equal(
+      readFileSync(join(repository, "terminal-proof.txt"), "utf8"),
+      "Created through the real terminal\n",
+    );
+    await browser.waitUntil(async () =>
+      browser.execute(() =>
+        Boolean(
+          document.activeElement?.matches('[data-terminal-shown="true"] .xterm-helper-textarea'),
+        ),
+      ),
+    );
+  });
+
+  await step("最後のターミナルを閉じてもリポジトリ名が右上に残る", async () => {
+    await controlKey("x");
+    await browser.$("#cli-sidebar .xterm").waitForExist({ reverse: true });
+    await browser.$(folderOffer).waitForDisplayed();
+    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
+    await browser.$("#cli-sidebar .session-empty-header .page__header").waitForDisplayed();
     assert.ok(existsSync(join(repository, "terminal-proof.txt")));
   });
 }

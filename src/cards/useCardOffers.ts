@@ -4,7 +4,7 @@ import { terminal, typing } from "../lib/keys";
 import { worktreeBranch } from "../lib/worktrees";
 import type { CardGroup } from "./groups";
 
-/** The order is the board's vertical order, including empty worktrees outside the repository root. */
+/** Keep empty-folder selection in display order, including worktrees outside the repository root. */
 export function useCardOffers(groups: CardGroup[], open: (request: WorkRequest) => void) {
   const empty = useMemo(
     () => groups.flatMap((group) => group.cards).filter((card) => !card.sessions.length),

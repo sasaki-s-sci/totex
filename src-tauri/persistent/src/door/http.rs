@@ -3,6 +3,7 @@
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use totex_host::sync::lock;
 
 use super::{Door, rpc};
 
@@ -34,6 +35,7 @@ pub(super) struct Request {
     /// refusing everything that carries this is the whole of the defence
     /// against it.
     pub from_page: bool,
+    pub local_host: bool,
     pub body: Vec<u8>,
 }
 
@@ -67,6 +69,8 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
 
     let mut length = 0usize;
     let mut from_page = false;
+    let mut local_host = false;
+    let mut has_host = false;
     let mut bearer = None;
     for _ in 0..HEADER_LIMIT {
         let mut header = String::new();
@@ -86,6 +90,7 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
                 target,
                 bearer,
                 from_page,
+                local_host,
                 body,
             });
         }
@@ -97,7 +102,14 @@ pub(super) fn take(reading: &mut BufReader<TcpStream>) -> Taken {
                 Ok(said) => length = said,
                 Err(_) => return Taken::Done,
             },
-            "origin" => from_page = !value.trim().is_empty(),
+            "origin" => from_page |= !value.trim().is_empty(),
+            "host" => {
+                if has_host {
+                    return Taken::Done;
+                }
+                has_host = true;
+                local_host = loopback_host(value.trim());
+            }
             "authorization" => {
                 // The scheme and the token, and nothing done about a header
                 // that is neither: what is not a bearer token is not a name
@@ -128,21 +140,26 @@ pub(super) fn timed_out(error: &std::io::Error) -> bool {
 /// thing that happens there is a message being answered. A GET is what a client
 /// offers to be pushed to down, and there is nothing to push.
 pub(super) fn route(door: &Door, request: &Request) -> (&'static str, Option<Vec<u8>>) {
-    if request.from_page {
+    if request.from_page || !request.local_host {
         return ("403 Forbidden", None);
     }
 
-    let Some(token) = named(request) else {
-        return ("404 Not Found", None);
-    };
-    // A door with nothing behind it any more: the session ended while its agent
-    // still had the connection open.
-    let Some(id) = super::report::session_of(door, token) else {
-        return ("404 Not Found", None);
+    let target = request.target.split('?').next().unwrap_or("");
+    let shared = target
+        .strip_prefix("/mcp/")
+        .is_some_and(|token| lock(&door.credential).as_deref() == Some(token));
+    let id = if shared && door.serving().is_some() {
+        None
+    } else {
+        let Some(id) = named(request).and_then(|token| super::report::session_of(door, token))
+        else {
+            return ("404 Not Found", None);
+        };
+        Some(id)
     };
 
     match request.method.as_str() {
-        "POST" => match rpc::answer(door, &id, &request.body) {
+        "POST" => match rpc::answer(door, id.as_deref(), &request.body) {
             // A notification: there is nothing to answer, and saying so is the
             // whole of the reply.
             None => ("202 Accepted", None),
@@ -152,6 +169,14 @@ pub(super) fn route(door: &Door, request: &Request) -> (&'static str, Option<Vec
         "GET" => ("405 Method Not Allowed", None),
         _ => ("405 Method Not Allowed", None),
     }
+}
+
+fn loopback_host(value: &str) -> bool {
+    let (host, port) = value
+        .split_once(':')
+        .map_or((value, None), |(host, port)| (host, Some(port)));
+    (host == "127.0.0.1" || host.eq_ignore_ascii_case("localhost"))
+        && port.is_none_or(|port| port.parse::<u16>().is_ok_and(|port| port != 0))
 }
 
 /// Which session was knocked on for, however the agent was able to say it.
@@ -190,4 +215,47 @@ pub(super) fn reply(
     writing.write_all(head.as_bytes())?;
     writing.write_all(body)?;
     writing.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    fn request(headers: &str) -> Request {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client
+            .write_all(
+                format!("POST /mcp HTTP/1.1\r\n{headers}Content-Length: 0\r\n\r\n").as_bytes(),
+            )
+            .unwrap();
+        let (server, _) = listener.accept().unwrap();
+        let Taken::Message(request) = take(&mut BufReader::new(server)) else {
+            panic!("request was not parsed")
+        };
+        request
+    }
+
+    #[test]
+    fn browser_origin_and_non_loopback_hosts_are_rejected() {
+        let door = Door::new(std::sync::Arc::new(crate::session::Sessions::default()));
+        for headers in [
+            "Host: localhost:26374\r\nOrigin: https://example.com\r\nOrigin: \r\n",
+            "Host: attacker.example:26374\r\n",
+            "Host: localhost.attacker.example:26374\r\n",
+            "Host: localhost:invalid\r\n",
+            "",
+        ] {
+            assert_eq!(
+                route(&door, &request(headers)).0,
+                "403 Forbidden",
+                "{headers}"
+            );
+        }
+        for host in ["localhost:26374", "127.0.0.1:26374", "LOCALHOST"] {
+            let request = request(&format!("Host: {host}\r\n"));
+            assert!(request.local_host && !request.from_page);
+        }
+    }
 }

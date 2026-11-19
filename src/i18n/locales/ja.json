@@ -59,7 +59,7 @@
     "shell": "シェル",
     "addPane": "新しいフォルダーペインで開く",
     "gitMode": "git モードにする",
-    "takeOff": "カードから外す",
+    "takeOff": "端末一覧から外す",
     "remove": "フォルダを外し、配下のターミナルをすべて終了",
     "removeFailed": "一部のターミナルを終了できませんでした。もう一度削除してください。"
   },
@@ -107,8 +107,8 @@
   },
   "repository": {
     "close": "閉じる",
-    "graph": "カードに表示する",
-    "ungraph": "カードから外す",
+    "graph": "端末一覧に表示する",
+    "ungraph": "端末一覧から外す",
     "listing": "リポジトリを探しています",
     "none": "リポジトリはありません",
     "cutShort": "途中で探索を打ち切りました（フォルダが深すぎます）",
@@ -302,7 +302,15 @@
     "truncated": "先頭 {{kilobytes}} KB を表示",
     "patchCut": "差分の先頭のみ表示",
     "wrap": "{{name}} を折り返す",
-    "unwrap": "{{name}} の折り返しをやめる"
+    "unwrap": "{{name}} の折り返しをやめる",
+    "mediaRange": "再生位置・区間",
+    "mediaPosition": "再生位置（秒）",
+    "mediaStart": "開始（秒）",
+    "mediaEnd": "終了（秒）",
+    "mediaApply": "適用",
+    "mediaRangeInvalid": "0以上の秒数で、終了は開始より後、再生位置は区間内にしてください。",
+    "mediaPlayFailed": "再生を開始できませんでした。プレーヤーの再生ボタンで再試行してください。",
+    "mediaSeekFailed": "この配信元では指定位置に移動できません。読み込み後に再試行するか、ローカルファイルを開いてください。"
   },
   "monitor": {
     "title": "Monitor",
@@ -373,5 +381,36 @@
     },
     "running": "実行中のコマンド",
     "history": "観測の履歴"
+  },
+  "canvas": {
+    "title": "キャンバス",
+    "mcp": "MCPでエージェントから資料を表示",
+    "mcpCommand": "CodexのMCP登録コマンド",
+    "mcpCopy": "コマンドをコピー",
+    "mcpCopied": "コピーしました",
+    "mcpCopyFailed": "コピーできませんでした。コマンドを選択してコピーしてください。",
+    "mcpPreparing": "コマンドを準備中…",
+    "mcpFailed": "コマンドを準備できませんでした。",
+    "mcpUnavailable": "MCPが起動していません。設定を確認して再試行してください。",
+    "mcpRetry": "再試行",
+    "mcpHint": "totexを起動し、このコマンドを環境ごとに一度実行してください。以後は通常どおりCodexを起動すると、各ターミナルのキャンバスに接続します。",
+    "label": "キャンバス · {{name}}",
+    "startHint": "Ctrl+Shift + 矢印でフォルダを選択 · Enterで起動",
+    "add": "枠を追加",
+    "expand": "拡大表示",
+    "restore": "元のサイズに戻す",
+    "moveWindow": "ドラッグしてウィンドウを移動",
+    "remove": "表示枠を削除",
+    "keys": "Ctrl+Spaceを押しながら · 矢印で選択 · Ctrl+Aで追加 · Ctrl+Xで削除",
+    "imageFailed": "画像を読み込めませんでした。",
+    "empty": "空の枠",
+    "code": "コード",
+    "markdown": "資料",
+    "terminals": "ターミナル",
+    "terminal": "ターミナル {{number}} · {{name}}",
+    "start": "{{name}}でターミナルを起動",
+    "newTerminal": "ターミナルを追加（Ctrl+A）",
+    "closeTerminal": "ターミナルを閉じる（Ctrl+X）",
+    "addFolder": "左のエクスプローラーからフォルダを追加してください。"
   }
 }

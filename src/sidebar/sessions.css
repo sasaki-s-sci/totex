@@ -1,0 +1,55 @@
+.session-offer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mui-palette-text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.session-offer[data-offered] {
+  color: var(--mui-palette-primary-main);
+}
+.session-offer:hover {
+  color: var(--mui-palette-text-primary);
+}
+.session-offer:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main);
+  outline-offset: -2px;
+}
+/* Restored sessions can be active before the window controls have their header host. */
+.session-terminal .page__window-controls:empty,
+.session-empty-header .page__window-controls {
+  width: var(--session-header-reserve);
+}
+.session-terminal-area {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.session-terminal {
+  position: absolute;
+  inset: 0;
+}
+.session-terminal[hidden] {
+  /* Backlog replay needs the real grid size before the frontend can become ready. */
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
+}
+.session-terminal-empty {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--mui-palette-text-secondary);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px;
+}

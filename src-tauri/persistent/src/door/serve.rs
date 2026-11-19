@@ -44,28 +44,11 @@ const ACCEPT_PAUSE: Duration = Duration::from_millis(50);
 const HANDOVER: Duration = Duration::from_millis(400);
 const HANDOVER_PAUSE: Duration = Duration::from_millis(20);
 
-/// Binds the loopback listener and leaves it accepting.
-///
-/// `wanted` is the port a server that stood here before took, or nought. The
-/// same door is asked for so that a terminal holding an address from before the
-/// server was last switched off is holding the right one — and where the
-/// machine has since given that port to somebody else, the next free one is
-/// taken and the terminals from before are the ones that lose out.
-///
-/// With nothing to go back to it is `DOOR` that is asked for, which is the
-/// number written into the settings of an agent that can only be registered
-/// against a literal address. That registration is made once and read every
-/// time the agent starts, so the same port is asked for every time the server
-/// is stood — and where it cannot be had, any free one is taken and the agents
-/// registered against the number are the ones that lose out.
+/// Binds the registered port, failing rather than leaving clients at an old address.
 pub fn listen(door: Arc<Door>, wanted: u16) -> Result<Standing, String> {
-    let listener = match again(wanted) {
-        Some(listener) => listener,
-        None => match TcpListener::bind((LOOPBACK, super::DOOR)) {
-            Ok(listener) => listener,
-            Err(_) => TcpListener::bind((LOOPBACK, 0)).map_err(|error| error.to_string())?,
-        },
-    };
+    // Concurrent unit tests use private ports without taking the running app's port.
+    let port = if cfg!(test) { wanted } else { super::DOOR };
+    let listener = bind(port)?;
     let port = listener
         .local_addr()
         .map_err(|error| error.to_string())?
@@ -81,21 +64,20 @@ pub fn listen(door: Arc<Door>, wanted: u16) -> Result<Standing, String> {
     Ok(Standing { port, stopping })
 }
 
-/// The same door as last time, if it can be had.
-fn again(wanted: u16) -> Option<TcpListener> {
-    if wanted == 0 {
-        return None;
-    }
+/// A recently stopped listener gets time to release this same port.
+fn bind(port: u16) -> Result<TcpListener, String> {
     let deadline = std::time::Instant::now() + HANDOVER;
     loop {
-        if let Ok(listener) = TcpListener::bind((LOOPBACK, wanted)) {
-            return Some(listener);
-        }
-        if std::time::Instant::now() >= deadline {
-            // Somebody else has it now. The next free port is taken instead,
-            // and the terminals holding the old address are the ones that lose
-            // out — which is the honest end of a port this app never owned.
-            return None;
+        match TcpListener::bind((LOOPBACK, port)) {
+            Ok(listener) => return Ok(listener),
+            Err(error)
+                if error.kind() == std::io::ErrorKind::AddrInUse
+                    && std::time::Instant::now() < deadline => {}
+            Err(error) => {
+                return Err(format!(
+                    "Could not start totex MCP at http://{LOOPBACK}:{port}/mcp: {error}"
+                ));
+            }
         }
         std::thread::sleep(HANDOVER_PAUSE);
     }
@@ -143,5 +125,31 @@ fn talk(door: Arc<Door>, stream: TcpStream, stopping: Arc<AtomicBool>) -> std::i
             }
             Taken::Done => return Ok(()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_occupied_port_is_an_error_not_another_address() {
+        let occupied = TcpListener::bind((LOOPBACK, 0)).expect("test listener");
+        let port = occupied.local_addr().unwrap().port();
+        let error = bind(port).expect_err("must not open a different port");
+        assert!(error.contains(&format!("http://{LOOPBACK}:{port}/mcp")));
+    }
+
+    #[test]
+    fn a_released_port_is_reused_during_handover() {
+        let occupied = TcpListener::bind((LOOPBACK, 0)).expect("test listener");
+        let port = occupied.local_addr().unwrap().port();
+        let releasing = std::thread::spawn(move || {
+            std::thread::sleep(HANDOVER_PAUSE * 2);
+            drop(occupied);
+        });
+        let listener = bind(port).expect("reuse the released port");
+        releasing.join().unwrap();
+        assert_eq!(listener.local_addr().unwrap().port(), port);
     }
 }

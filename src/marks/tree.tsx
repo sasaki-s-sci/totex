@@ -14,10 +14,8 @@ export function CanvasButton({
 }) {
   return (
     <MarkButton label={label} aria-pressed={on} onClick={onClick}>
-      <Frame>
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <path d="M3 8 H21" />
-        {on ? <path d="m8 14 3 3 5-6" /> : <path d="M8 14 H16 M12 10 V18" />}
+      <Frame size={ROW_SIZE}>
+        <circle cx="12" cy="12" r="7.5" fill={on ? "currentColor" : "none"} />
       </Frame>
     </MarkButton>
   );
@@ -33,32 +31,10 @@ export function RepoRingMark({ on, size = SIZE }: { on: boolean; size?: number }
   );
 }
 
-/** Open nodes and a curved branch share the theme's one-pixel stroke. */
-export function GitMark({ on = false, size = ROW_SIZE }: { on?: boolean; size?: number }) {
-  return (
-    <Frame size={size}>
-      <path d="M7 7 V17 M17 9 V10 C17 14 7 12 7 17" />
-      <circle cx="7" cy="5" r="2" />
-      <circle cx="7" cy="19" r="2" />
-      <circle cx="17" cy="7" r="2" />
-      {on && <circle cx="7" cy="19" r="0.75" fill="currentColor" stroke="none" />}
-    </Frame>
-  );
-}
-
-/** Keep the branch inside the folder outline, without a background-coloured badge. */
-export function PaneFolderMark({ size = ROW_SIZE, git }: { size?: number; git?: boolean }) {
+export function PaneFolderMark({ size = ROW_SIZE }: { size?: number }) {
   return (
     <Frame size={size}>
       <path d={SHUT} />
-      {git && (
-        <>
-          <path d="M10 12 V15 M16 12 C16 14 10 13 10 15" />
-          <circle cx="10" cy="11" r="1" />
-          <circle cx="16" cy="11" r="1" />
-          <circle cx="10" cy="16" r="1" />
-        </>
-      )}
     </Frame>
   );
 }
@@ -103,17 +79,6 @@ export function LinkMark() {
   return (
     <Frame size={12}>
       <path d="m10 7 2-2a5 5 0 0 1 7 7l-2 2 M14 17l-2 2a5 5 0 0 1-7-7l2-2 M8 16l8-8" />
-    </Frame>
-  );
-}
-
-export function McpMark({ on }: { on: boolean }) {
-  return (
-    <Frame>
-      <g opacity={on ? 1 : 0.4}>
-        <path d="m2 11 10-9a3.5 3.5 0 0 1 5 5l-8 7 M14 4l-8 7a3.5 3.5 0 0 0 5 5l8-7" />
-        <path d="m17 7 1-1a3.5 3.5 0 0 1 4 5l-9 9 2 2" />
-      </g>
     </Frame>
   );
 }

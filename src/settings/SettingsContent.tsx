@@ -1,10 +1,11 @@
 import { Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { usePageWorkspace } from "../page/PageWorkspace";
+import { terminalPageId } from "../page/placement";
 import { AppearanceRows } from "./AppearanceRows";
-import { FileTitleRow } from "./FileTitleRow";
 import { FollowRows } from "./FollowRows";
 import { LanguageRow } from "./LanguageRow";
-import { MonitorRows } from "./MonitorRows";
+import { McpRows } from "./McpRows";
 import { ResumeRows } from "./ResumeRows";
 import { Group, Section } from "./Row";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
@@ -19,6 +20,11 @@ import { WheelRow } from "./WheelRow";
 
 export function SettingsContent() {
   const { t } = useTranslation();
+  const workspace = usePageWorkspace();
+  const terminal =
+    workspace?.terminals.find((session) => terminalPageId(session.id) === workspace.active) ??
+    workspace?.terminals.find((session) => terminalPageId(session.id) === workspace.showing) ??
+    workspace?.terminals[0];
   return (
     <Stack
       sx={{
@@ -29,13 +35,12 @@ export function SettingsContent() {
       }}
     >
       <SettingsSaveStatus />
-      <Section name={t("cards.title")}>
-        <TextSizeRow place="card" />
+      <Section name={t("canvas.title")}>
+        <McpRows cwd={terminal?.cwd} />
         <FollowRows />
         <SpareRow />
       </Section>
       <Section name={t("settings.page")}>
-        <FileTitleRow />
         <TextSizeRow place="page" />
         <UndoRow />
       </Section>
@@ -43,9 +48,6 @@ export function SettingsContent() {
         <WheelRow />
         <TextSizeRow place="terminal" />
         <TerminalSortRow />
-      </Section>
-      <Section name={t("monitor.title")}>
-        <MonitorRows />
       </Section>
       <Section name={t("resume.title")}>
         <ResumeRows />

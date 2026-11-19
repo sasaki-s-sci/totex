@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { verifyFileDragging } from "./fileDrag.browser.mjs";
 import { verifyFolderColours } from "./folderColours.browser.mjs";
 
-/** Real explorer, menu and inline naming field; only filesystem IPC is replaced. */
-export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
-  const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+export async function installFilesNative(page) {
   await page.addInitScript(() => {
     localStorage.setItem("totex.language", "en");
     const entries = new Map([
@@ -158,6 +155,13 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
     };
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
   });
+}
+
+/** Real explorer, menu and inline naming field; only filesystem IPC is replaced. */
+export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await installFilesNative(page);
   const row = (path) => page.locator(`[data-pick-row="/files/${path}"]`);
   const selected = () =>
     page
@@ -197,33 +201,10 @@ export async function verifyFiles(page, base = "http://127.0.0.1:18422") {
   await row("日本語.txt").waitFor();
 
   await reset();
-  await page.evaluate(() => {
-    const invoke = window.__TAURI_INTERNALS__.invoke;
-    window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
-      if (cmd === "space_tell")
-        return new Promise((resolve) => {
-          window.finishSpaceWrite = () =>
-            resolve({ space: args.path, told: true, settings: args.settings });
-        });
-      if (cmd === "space_standing" && args.path === "/files/other")
-        return new Promise((resolve) => {
-          window.finishSpaceRead = () =>
-            resolve({ space: args.path, told: true, settings: { mcp: true } });
-        });
-      return invoke(cmd, args);
-    };
-  });
-  await page.getByRole("button", { name: "Agents report from files", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: /^Agents report from / }).count(), 0);
   await row("other").getByRole("button", { name: "Go to", exact: true }).click();
-  await page.waitForFunction(() => Boolean(window.finishSpaceRead));
-  const door = page.getByRole("button", { name: /^Agents report from / });
-  assert.equal(await door.isDisabled(), true, "A new folder cannot use the old folder's setting");
-  await page.evaluate(() => window.finishSpaceRead());
-  await page.getByRole("button", { name: "Agents report from other", exact: true }).waitFor();
-  await page.evaluate(() => window.finishSpaceWrite());
-  await page.evaluate(() => new Promise(requestAnimationFrame));
-  assert.equal(await door.getAttribute("aria-label"), "Agents report from other");
-  assert.equal(await door.getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "other", exact: true }).first().waitFor();
+  assert.equal(await page.getByRole("button", { name: /^Agents report from / }).count(), 0);
 
   await reset();
   await page.getByRole("button", { name: "Add a folder or repositories", exact: true }).click();

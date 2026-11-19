@@ -29,6 +29,16 @@ export async function verifyEpubPreview(page, base = "http://127.0.0.1:18425") {
     await page.locator(".epub-reading iframe").first().getAttribute("sandbox"),
     "allow-same-origin",
   );
+  await page.locator(".epub-reading").evaluate((element) => {
+    element.dataset.canvasPane = "epub";
+    window.epubContextMenus = 0;
+    element.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      window.epubContextMenus++;
+    });
+  });
+  await frame().getByRole("heading", { name: "First chapter" }).click({ button: "right" });
+  assert.equal(await page.evaluate(() => window.epubContextMenus), 1);
   await frame().getByText("External link").click();
   assert.equal(page.url(), `${base}/tests/fixtures/epub-preview.html`);
   await frame().getByText("Other chapter").click();

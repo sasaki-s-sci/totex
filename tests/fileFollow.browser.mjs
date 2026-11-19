@@ -5,10 +5,14 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
+    if (window.top !== window) return;
     localStorage.setItem("totex.language", "en");
     let serial = 0;
     const callbacks = new Map();
     const listeners = new Map();
+    const canvases = {
+      "terminal-one": { id: "terminal-one", revision: 0, panes: [] },
+    };
     const file = { text: "alpha\nbeta\ngamma\n", exists: true, time: 1 };
     window.file = file;
     window.calls = [];
@@ -39,6 +43,19 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
       },
       async invoke(cmd, args) {
         window.calls.push(cmd);
+        if (cmd === "canvas_read") return structuredClone(Object.values(canvases));
+        if (cmd === "canvas_write") {
+          const old = canvases[args.id] ?? { id: args.id, revision: 0, panes: [] };
+          if (args.revision !== old.revision) throw new Error("The canvas changed");
+          const next = {
+            id: args.id,
+            revision: old.revision + 1,
+            panes: structuredClone(args.panes),
+          };
+          canvases[args.id] = next;
+          return structuredClone(next);
+        }
+        if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
         if (cmd === "plugin:event|listen") {
           const id = ++serial;
           listeners.set(id, { event: args.event, callback: args.handler });
@@ -121,9 +138,10 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
     window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {} };
   });
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto(`${base}/tests/fixtures/pages.html`);
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped`);
   const notes = page.getByRole("textbox", { name: "note.txt", exact: true });
   const note = notes.first();
+  const pane = page.locator('[data-session-canvas="terminal-one"] [data-canvas-pane="file-1"]');
   await note.waitFor();
   const text = () => note.evaluate((element) => element.textContent);
   await page.waitForFunction(() => window.calls.includes("stat_file"));
@@ -155,23 +173,34 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   await page.waitForTimeout(800);
   assert.equal(await page.evaluate(() => window.file.text), "ALPHA\nbeta\ngamma\ndeltatheirs\n");
 
-  // Close must keep a conflicted draft, while moving between hosts must remain possible.
-  await page.getByRole("button", { name: "Close note.txt", exact: true }).dispatchEvent("click");
+  // Close must keep a conflicted draft, while switching terminals must retain the editor.
+  await pane.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   const held = await page.evaluate(async () => {
     await new Promise(requestAnimationFrame);
     return window.pageSnapshot();
   });
-  assert.equal(held.values["files.open"].length, 1);
+  assert.equal(
+    held.values["canvas.terminals"]["terminal-one"].panes.some((pane) => pane.id === "file-1"),
+    true,
+  );
   assert.match(held.values["draft.1./tmp/note.txt"].text, /deltamine\n$/);
-  await page
-    .getByRole("button", { name: "Move note.txt to the sidebar", exact: true })
-    .dispatchEvent("click");
-  await page.getByRole("button", { name: "Move note.txt to the cards", exact: true }).waitFor();
-  assert.match(await text(), /deltamine\n$/);
-  await page
-    .getByRole("button", { name: "Move note.txt to the cards", exact: true })
-    .dispatchEvent("click");
-  await page.getByRole("button", { name: "Move note.txt to the sidebar", exact: true }).waitFor();
+  await page.evaluate(() => {
+    window.originalNote = document.querySelector('[role="textbox"][aria-label="note.txt"]');
+  });
+  await page.locator('[data-terminal-shown="true"] .xterm-helper-textarea').focus();
+  await page.keyboard.press("Control+2");
+  await page.locator('[data-session-canvas="terminal-two"]').waitFor({ state: "visible" });
+  await note.waitFor({ state: "hidden" });
+  await page.keyboard.press("Control+1");
+  await note.waitFor({ state: "visible" });
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.originalNote === document.querySelector('[role="textbox"][aria-label="note.txt"]'),
+    ),
+    true,
+  );
   assert.match(await text(), /deltamine\n$/);
 
   await standing.getByRole("button", { name: "Open beside" }).dispatchEvent("click");
@@ -269,7 +298,8 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   await standing.waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => window.lastExpected), "OTHER\nbeta\ngamma\n");
   assert.equal(await page.evaluate(() => window.file.text), "LOCAL\nbeta\ngamma");
-  await page.getByRole("button", { name: "Close note.txt", exact: true }).dispatchEvent("click");
+  await pane.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   await note.waitFor({ state: "detached" });
 
   // A conflict can also be discarded explicitly without overwriting the external edit.
@@ -287,7 +317,7 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   assert.equal(await page.evaluate(() => window.calls.includes("write_file")), false);
 
   // A change between the opening read and watcher startup must not become its baseline.
-  await page.goto(`${base}/tests/fixtures/pages.html?changed-before-stat`);
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&changed-before-stat`);
   await page.waitForFunction(
     () =>
       document.querySelector('[role="textbox"][aria-label="note.txt"]')?.textContent ===

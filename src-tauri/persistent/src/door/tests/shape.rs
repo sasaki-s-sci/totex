@@ -12,7 +12,7 @@ fn what_arrives_is_cut_to_what_is_shown() {
 
     let answer = rpc::answer(
         &held.door,
-        "nobody",
+        Some("nobody"),
         json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
             "name":"report",
             "arguments":{
@@ -35,7 +35,7 @@ fn what_arrives_is_cut_to_what_is_shown() {
     assert!(
         rpc::answer(
             &held.door,
-            "nobody",
+            Some("nobody"),
             br#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
         )
         .is_none()

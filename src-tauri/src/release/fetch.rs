@@ -37,7 +37,7 @@ pub async fn read(endpoint: &str, version: Option<&str>) -> Result<Manifest, Str
 /// names for its own download — see `totex_persistent::update` — and
 /// installing it twice is what `install_default` returns an error for, which
 /// is the answer "somebody already did" and not a failure.
-fn provider() {
+pub(crate) fn provider() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         let _ = rustls::crypto::ring::default_provider().install_default();

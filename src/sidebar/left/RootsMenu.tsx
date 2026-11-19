@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import type { Root } from "../../folder/api";
 import { displayPath } from "../../folder/format";
 import { sshHome, sshHostOf } from "../../lib/ssh";
-import { CloseMark, GitMark, MarkButton, PaneFolderMark, SIZE } from "../../marks";
+import { CloseMark, MarkButton, PaneFolderMark, SIZE } from "../../marks";
 import { groupRoots, ROOT_ICONS } from "./roots";
 import type { SshFailed, usePanes } from "./usePanes";
 
@@ -107,7 +107,7 @@ export function RootsMenu({
             {t("folder.asFolder")}
           </ToggleButton>
           <ToggleButton value="repository" sx={{ gap: 0.75, textTransform: "none" }}>
-            <GitMark on size={SIZE} />
+            <PaneFolderMark size={SIZE} />
             {t("folder.asRepositories")}
           </ToggleButton>
         </ToggleButtonGroup>
@@ -136,7 +136,10 @@ export function RootsMenu({
           }}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-            if (event.key === "Enter") keepTyped();
+            if (event.key === "Enter") {
+              event.preventDefault();
+              keepTyped();
+            }
           }}
           slotProps={{ htmlInput: { spellCheck: false, "aria-label": t("folder.pathHint") } }}
         />
@@ -219,7 +222,10 @@ export function RootsMenu({
           }}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-            if (event.key === "Enter") addSshTyped();
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addSshTyped();
+            }
           }}
           slotProps={{ htmlInput: { spellCheck: false, "aria-label": t("ssh.add") } }}
         />

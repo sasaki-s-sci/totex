@@ -87,6 +87,22 @@ export function EpubReading({ source, name }: { source: string; name: string }) 
         });
         rendition.current = reader;
         reader.hooks.content.register((contents: Contents) => {
+          contents.document.addEventListener("contextmenu", (event) => {
+            const frame = contents.document.defaultView?.frameElement;
+            if (!event.isTrusted || !frame?.closest("[data-canvas-pane]")) return;
+            const bounds = frame.getBoundingClientRect();
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            frame.dispatchEvent(
+              new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: true,
+                button: 2,
+                clientX: bounds.left + frame.clientLeft + event.clientX,
+                clientY: bounds.top + frame.clientTop + event.clientY,
+              }),
+            );
+          });
           contents.document.addEventListener(
             "click",
             (event) => {

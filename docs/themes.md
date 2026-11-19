@@ -52,8 +52,7 @@ two must differ. `terminal` is optional; without it xterm's defaults apply. Colo
 ```
 
 `radius` is 0–24 px, `font.size` is the UI size in px (10–18). `font.mono` is used by
-terminals and the agent views; file previews keep their own face, as their gutters are
-measured against it.
+terminals and the agent views; file previews keep their own face and line spacing.
 
 ## effects
 

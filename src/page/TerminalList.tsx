@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { baseName, displayPath } from "../folder/format";
 import { usePageWorkspace } from "./PageWorkspace";
 
-export function TerminalList() {
+export function TerminalList({ children }: { children?: ReactNode }) {
   const workspace = usePageWorkspace();
   if (!workspace) return null;
   const groups: { folder: string; start: number; ids: string[] }[] = [];
@@ -12,7 +13,7 @@ export function TerminalList() {
     else groups.push({ folder, start: index + 1, ids: [entry.id] });
   });
   return (
-    <div className="page__terminal-list" aria-hidden="true">
+    <div className="page__terminal-list">
       {groups.map(({ folder, start, ids }) => (
         <div className="page__terminal-group" key={ids[0]} title={displayPath(folder)}>
           <span className="page__terminal-name">{baseName(folder)}</span>
@@ -25,6 +26,7 @@ export function TerminalList() {
           </div>
         </div>
       ))}
+      {children}
     </div>
   );
 }

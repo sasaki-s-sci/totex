@@ -217,7 +217,7 @@ export function Level({
                 if (entry.isDir && !picksMore(event)) toggle(entry.path);
               }}
             >
-              <ListItemIcon sx={ICON}>
+              <ListItemIcon sx={[ICON, dim && !change && { color: IGNORED_COLOUR }]}>
                 {entry.isDir ? <FolderMark on={open} /> : <FileMark />}
               </ListItemIcon>
               <ListItemText

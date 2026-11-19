@@ -63,6 +63,15 @@ test("partial JSON uses defaults independently of migrated local preferences", (
   assert.equal(settingsFrom({ monitor: { text: "llm" } }).monitor.text, "agent");
 });
 
+test("canvas MCP is enabled for new settings and preserves an explicit opt-out", () => {
+  assert.equal(settingsFrom({}).mcpServing, true);
+  assert.equal(settingsFrom({ mcpServing: false }).mcpServing, false);
+  assert.equal(
+    legacySettings((key) => (key === "totex.mcp.serving" ? "no" : null)).mcpServing,
+    false,
+  );
+});
+
 test("a partial appearance keeps the other layers at their defaults", () => {
   assert.deepEqual(settingsFrom({}).appearance, DEFAULT_SETTINGS.appearance);
   assert.deepEqual(settingsFrom({ appearance: { colors: "mine" } }).appearance, {

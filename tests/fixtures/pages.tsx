@@ -6,7 +6,7 @@ import { keepFrontValue, snapshot } from "../../src/shell/state";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
 
-if (location.search.includes("terminal-resize")) {
+if (location.search.includes("terminal-resize") || location.search.includes("terminal-rendering")) {
   const { Terminal } = await import("@xterm/xterm");
   const terminals = new Map<string, InstanceType<typeof Terminal>>();
   const open = Terminal.prototype.open;
@@ -32,7 +32,7 @@ keepFrontValue(
     ? []
     : [{ id: 1, path: "/tmp/note.txt", folder: "/tmp", at: { x: 380, y: 240 } }],
 );
-keepFrontValue("window.settings", 1);
+keepFrontValue("window.settings", location.search.includes("canvas") ? 0 : 1);
 if (location.search.includes("columns")) {
   keepFrontValue("cards.layout", [["folder:/tmp", "folder:/elsewhere"]]);
   keepFrontValue("pages.expandedTerminals", ["terminal:terminal-other"]);

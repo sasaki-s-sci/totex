@@ -1,3 +1,4 @@
+import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
@@ -51,6 +52,8 @@ export type FileMenuTarget = {
   root: string;
   /** Two panes can show one folder; the name is typed in one of them. */
   pane: number;
+  /** Only the pane header or its blank area can remove the whole pane. */
+  paneRoot?: boolean;
   at: { x: number; y: number };
 };
 
@@ -60,10 +63,11 @@ type Props = {
   copied: readonly string[];
   onCopy: (paths: readonly string[]) => void;
   onName: (kind: Naming["kind"]) => void;
+  removePane?: { kind: "folder" | "repository"; run: () => void };
   onClose: () => void;
 };
 
-export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Props) {
+export function FileContextMenu({ target, copied, onCopy, onName, removePane, onClose }: Props) {
   const { t } = useTranslation();
   /** Removal is still asked in a box: it cannot be undone and is not visible from the row. */
   const [deleting, setDeleting] = useState(false);
@@ -252,6 +256,18 @@ export function FileContextMenu({ target, copied, onCopy, onName, onClose }: Pro
             onClick={() => {
               setFailed(false);
               setDeleting(true);
+            }}
+          />
+        )}
+        {removePane && <Divider />}
+        {removePane && (
+          <FileItem
+            icon={<CloseIcon />}
+            label={t(`${removePane.kind}.remove`)}
+            disabled={busy !== null}
+            onClick={() => {
+              onClose();
+              removePane.run();
             }}
           />
         )}
