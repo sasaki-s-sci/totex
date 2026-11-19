@@ -4,6 +4,8 @@ import {
   type PointerEvent,
   type RefObject,
   useCallback,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -14,8 +16,8 @@ type Options = {
   max: number;
   initial: number;
   /**
-   * `start` is a grip on the left edge (dragging left narrows), `end` on the right (dragging left
-   * widens).
+   * `start` is a grip on the left edge (dragging left widens), `end` on the right (dragging left
+   * narrows).
    */
   side: "start" | "end";
   /** A panel unmounted when empty needs this, or every reopen starts at the default. */
@@ -36,6 +38,15 @@ function stored(key: string | undefined, clamp: (width: number) => number, initi
 export function useResizeGrip({ min, max, initial, side, storageKey, element }: Options) {
   const clamp = useCallback((width: number) => Math.min(max, Math.max(min, width)), [max, min]);
   const [width, setWidth] = useState(() => stored(storageKey, clamp, initial));
+  const finishResize = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => finishResize.current?.(), []);
+
+  // CSS can cap the panel below its stored width in a narrow window.
+  const renderedWidth = useCallback(
+    () => (element.current ? Number.parseFloat(getComputedStyle(element.current).width) : width),
+    [element, width],
+  );
 
   const remember = useCallback(
     (next: number) => {
@@ -54,25 +65,44 @@ export function useResizeGrip({ min, max, initial, side, storageKey, element }: 
 
   const startResize = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || !event.isPrimary) return;
       event.preventDefault();
+      finishResize.current?.();
+      const source = event.currentTarget;
+      const pointerId = event.pointerId;
       const origin = event.clientX;
-      const originWidth = width;
-      let latest = width;
+      const originWidth = renderedWidth();
+      let latest = originWidth;
+      const listeners = new AbortController();
+      const options = { signal: listeners.signal };
 
-      const onMove = (move: globalThis.PointerEvent) => {
-        latest = clamp(originWidth + sign * (move.clientX - origin));
-        if (element.current) element.current.style.width = `${latest}px`;
-      };
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
+      const finish = () => {
+        listeners.abort();
+        finishResize.current = null;
+        if (source.hasPointerCapture(pointerId)) source.releasePointerCapture(pointerId);
         remember(latest);
       };
 
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
+      const onMove = (move: globalThis.PointerEvent) => {
+        if (move.pointerId !== pointerId) return;
+        if (!(move.buttons & 1)) return finish();
+        latest = clamp(originWidth + sign * (move.clientX - origin));
+        if (element.current) element.current.style.width = `${latest}px`;
+      };
+      const onEnd = (end: globalThis.PointerEvent) => {
+        if (end.pointerId === pointerId) finish();
+      };
+
+      // Keep receiving the release over embedded pages and outside the panel.
+      source.setPointerCapture(pointerId);
+      finishResize.current = finish;
+      source.addEventListener("lostpointercapture", onEnd, options);
+      window.addEventListener("pointermove", onMove, options);
+      window.addEventListener("pointerup", onEnd, options);
+      window.addEventListener("pointercancel", onEnd, options);
+      window.addEventListener("blur", finish, options);
     },
-    [clamp, element, remember, sign, width],
+    [clamp, element, remember, renderedWidth, sign],
   );
 
   const resizeByKey = useCallback(
@@ -80,9 +110,9 @@ export function useResizeGrip({ min, max, initial, side, storageKey, element }: 
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
       const towards = event.key === "ArrowLeft" ? -1 : 1;
-      remember(clamp(width + sign * towards * KEY_STEP));
+      remember(clamp(renderedWidth() + sign * towards * KEY_STEP));
     },
-    [clamp, remember, sign, width],
+    [clamp, remember, renderedWidth, sign],
   );
 
   // One bundle, so the side drawn cannot drift from the side measured.
@@ -114,6 +144,7 @@ export function ResizeGrip({ label, side, onPointerDown, onKeyDown }: GripProps)
         height: "100%",
         cursor: "col-resize",
         zIndex: 1,
+        touchAction: "none",
         userSelect: "none",
         outline: "none",
       }}

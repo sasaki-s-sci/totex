@@ -237,7 +237,8 @@ export function LeftSidebar({
       onPointerDownCapture={(event) => {
         const target = event.target as HTMLElement;
         pastePane.current = target.closest<HTMLElement>("[data-folder-pane]") ?? pastePane.current;
-        if (!target.closest("button, input, textarea, [role=button]")) event.currentTarget.focus();
+        if (!target.closest("button, input, textarea, [role=button], [role=separator]"))
+          event.currentTarget.focus();
       }}
       onKeyDown={(event) => {
         if (

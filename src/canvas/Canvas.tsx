@@ -2,23 +2,27 @@ import {
   Alert,
   Button,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
+  InputBase,
   ListSubheader,
   Menu,
   MenuItem,
 } from "@mui/material";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { baseName } from "../folder/format";
 import { guardSessionClose } from "../hooks/useSessions";
 import { hasFileDrag, mediaView, readFileDrag } from "../lib/filePreview";
+import { OPEN_PAGE, type PageRequest } from "../lib/openPage";
 import { markdownPart, mediaPart, settingsPart } from "../parts";
 import { keepFrontValue } from "../shell/state";
 import { CanvasFile } from "./CanvasFile";
 import type { CanvasProps } from "./CanvasProps";
 import { LiveFrame } from "./LiveFrame";
-import { adjacentPane, type CanvasPane, insertFiles, tileLayout } from "./model";
+import { adjacentPane, type CanvasPane, insertFiles, tileLayout, webAddress } from "./model";
 import { PictureReading } from "./nodes/preview/PictureReading";
 import { useCanvases } from "./useCanvases";
 import "./styles/index.css";
@@ -128,8 +132,15 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
   const [expanded, expand] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ left: number; top: number; paneId?: string } | null>(null);
   const [range, setRange] = useState<{ left: number; top: number; paneId: string } | null>(null);
+  const urlField = useId();
+  const [urlForm, setUrlForm] = useState<{
+    url: string;
+    target?: string;
+    pending: boolean;
+    error: string | null;
+  } | null>(null);
   const popupOpen = useRef(false);
-  popupOpen.current = menu !== null || range !== null;
+  popupOpen.current = menu !== null || range !== null || urlForm !== null;
   const [aspect, setAspect] = useState(1);
   const latest = useRef({ panes, selected, aspect });
   latest.current = { panes, selected, aspect };
@@ -148,6 +159,35 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
       change(id, (panes) => panes.filter((pane) => pane.id !== paneId)).catch(() => undefined),
     [id, change],
   );
+  const openPage = useCallback(
+    (address: string, target?: string) => {
+      const pane: CanvasPane = {
+        id: crypto.randomUUID(),
+        kind: "iframe",
+        url: webAddress(address.trim(), location.origin).href,
+      };
+      return change(id, (panes) => insertFiles(panes, [pane], target)).then(() => {
+        select(pane.id);
+        expand(null);
+      });
+    },
+    [id, change],
+  );
+  useEffect(() => {
+    const open = (event: Event) => {
+      const { url, sessionId } = (event as CustomEvent<PageRequest>).detail;
+      if (sessionId ? sessionId !== id : !shown) return;
+      try {
+        const pending = openPage(url);
+        event.preventDefault();
+        void pending.catch(() => undefined);
+      } catch {
+        // Invalid addresses are never claimed or persisted as canvas pages.
+      }
+    };
+    window.addEventListener(OPEN_PAGE, open);
+    return () => window.removeEventListener(OPEN_PAGE, open);
+  }, [id, shown, openPage]);
   const open = useCallback(
     (path: string, target?: string) => {
       const file = makeFile(path);
@@ -171,6 +211,7 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
     if (!shown) {
       setMenu(null);
       setRange(null);
+      setUrlForm(null);
       expand(null);
       return;
     }
@@ -364,6 +405,26 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
         )}
         <MenuItem
           onClick={() => {
+            setUrlForm({ url: "", target: menu?.paneId, pending: false, error: null });
+            setMenu(null);
+          }}
+        >
+          {t("canvas.openUrl")}
+        </MenuItem>
+        {menuPane?.kind === "iframe" && (
+          <MenuItem
+            onClick={() => {
+              setMenu(null);
+              void openUrl(menuPane.url).catch((error) =>
+                console.error("Could not open URL", error),
+              );
+            }}
+          >
+            {t("canvas.openInBrowser")}
+          </MenuItem>
+        )}
+        <MenuItem
+          onClick={() => {
             setMenu(null);
             add();
           }}
@@ -391,6 +452,63 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
           </MenuItem>
         )}
       </Menu>
+      <Dialog
+        open={urlForm !== null}
+        onClose={() => setUrlForm(null)}
+        container={() => host.current?.querySelector("dialog[open]") ?? document.body}
+        fullWidth
+        maxWidth="sm"
+        aria-labelledby={`${urlField}-title`}
+      >
+        <DialogTitle id={`${urlField}-title`}>{t("canvas.openUrlTitle")}</DialogTitle>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!urlForm || urlForm.pending || !urlForm.url.trim()) return;
+            const submitted = { ...urlForm, pending: true, error: null };
+            try {
+              const pending = openPage(submitted.url, submitted.target);
+              setUrlForm(submitted);
+              void pending
+                .then(() => setUrlForm((held) => (held === submitted ? null : held)))
+                .catch(() =>
+                  setUrlForm((held) =>
+                    held === submitted
+                      ? { ...held, pending: false, error: t("canvas.urlFailed") }
+                      : held,
+                  ),
+                );
+            } catch {
+              setUrlForm({ ...urlForm, error: t("canvas.invalidUrl") });
+            }
+          }}
+        >
+          <DialogContent className="canvas-url-form">
+            <label htmlFor={urlField}>{t("canvas.url")}</label>
+            <InputBase
+              id={urlField}
+              className="canvas-url-input"
+              fullWidth
+              autoFocus
+              placeholder="https://example.com"
+              value={urlForm?.url ?? ""}
+              disabled={urlForm?.pending}
+              onChange={(event) => {
+                const url = event.target.value;
+                setUrlForm((held) => held && { ...held, url, error: null });
+              }}
+              inputProps={{ spellCheck: false, inputMode: "url", autoCapitalize: "none" }}
+            />
+            {urlForm?.error && <p role="alert">{urlForm.error}</p>}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setUrlForm(null)}>{t("file.cancel")}</Button>
+            <Button type="submit" disabled={!urlForm?.url.trim() || urlForm.pending}>
+              {t("canvas.openUrlSubmit")}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
     </>
   );
 }

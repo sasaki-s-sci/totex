@@ -129,6 +129,8 @@ export function CliView({
     setFailed(false);
     setCopyFailed(false);
     setPasteFailed(false);
+    const activateLink = (event: MouseEvent, uri: string) =>
+      openTerminalLink(event, uri, session.id);
 
     // Keep the DOM renderer: swapping renderers on visibility changes also changes the PTY grid.
     const terminal = new Terminal({
@@ -139,11 +141,11 @@ export function CliView({
       theme: colours,
       scrollSensitivity: wheelFactor("cli"),
       overviewRuler: { width: SCROLLBAR },
-      linkHandler: { activate: openTerminalLink },
+      linkHandler: { activate: activateLink },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
-    terminal.loadAddon(new WebLinksAddon(openTerminalLink));
+    terminal.loadAddon(new WebLinksAddon(activateLink));
     // Sixel and iTerm2 inline images; storage held small because there are several terminals.
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);

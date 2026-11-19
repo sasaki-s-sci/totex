@@ -168,6 +168,23 @@
 .canvas-menu-file span {
   font-size: 11px;
 }
+.canvas-url-form label {
+  color: var(--mui-palette-text-secondary);
+}
+.canvas-url-form:focus-within label {
+  color: var(--mui-palette-primary-main);
+}
+.canvas-url-input input {
+  padding: 8px 0;
+  border: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+.canvas-url-form p {
+  margin: 8px 0 0;
+  color: var(--mui-palette-error-main);
+}
 .page.page--bare {
   position: relative;
   border: 0;
