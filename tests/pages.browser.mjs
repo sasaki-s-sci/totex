@@ -419,6 +419,27 @@ async function verifyTerminalStartup(page) {
     1,
   );
   await assertSingleTerminalViews(page);
+  const groups = page.locator(
+    "#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group:not(.session-offer)",
+  );
+  assert.deepEqual(
+    await groups.evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        folder: node.title,
+        numbers: [...node.querySelectorAll(".page__terminal-numbers span")].map(
+          (span) => span.textContent,
+        ),
+      })),
+    ),
+    [
+      { folder: "/tmp", numbers: ["1", "2", "4"] },
+      { folder: "/elsewhere", numbers: ["3"] },
+    ],
+    "A new terminal joins its existing path group and retains its shortcut number",
+  );
+  await showTerminal(page, 3, "terminal-other");
+  await showTerminal(page, 4, opened);
+  assert.equal(await groups.locator('[data-active="true"]').innerText(), "4");
   assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
   const available = page.locator("#cli-sidebar .page__header .page__terminal-list .session-offer");
   assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);

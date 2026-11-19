@@ -1,26 +1,24 @@
 import type { ReactNode } from "react";
 import { baseName, displayPath } from "../folder/format";
+import { groupBy } from "../lib/collections";
 import { usePageWorkspace } from "./PageWorkspace";
 
 export function TerminalList({ children }: { children?: ReactNode }) {
   const workspace = usePageWorkspace();
   if (!workspace) return null;
-  const groups: { folder: string; start: number; ids: string[] }[] = [];
-  workspace.numbered.forEach((entry, index) => {
-    const folder = entry.folder ?? entry.name;
-    const last = groups.at(-1);
-    if (last?.folder === folder) last.ids.push(entry.id);
-    else groups.push({ folder, start: index + 1, ids: [entry.id] });
-  });
+  const groups = groupBy(
+    workspace.numbered.map((entry, index) => ({ ...entry, number: index + 1 })),
+    (entry) => entry.folder ?? entry.name,
+  );
   return (
     <div className="page__terminal-list">
-      {groups.map(({ folder, start, ids }) => (
-        <div className="page__terminal-group" key={ids[0]} title={displayPath(folder)}>
+      {[...groups].map(([folder, entries]) => (
+        <div className="page__terminal-group" key={folder} title={displayPath(folder)}>
           <span className="page__terminal-name">{baseName(folder)}</span>
           <div className="page__terminal-numbers">
-            {ids.map((id, index) => (
+            {entries.map(({ id, number }) => (
               <span key={id} data-active={workspace.active === id}>
-                {start + index}
+                {number}
               </span>
             ))}
           </div>

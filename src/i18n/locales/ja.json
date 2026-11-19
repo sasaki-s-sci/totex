@@ -274,6 +274,7 @@
     "zoomOut": "縮小",
     "pdfFitWidth": "幅に合わせる",
     "fitView": "全体を表示",
+    "pictureControls": "Ctrl＋ホイールで拡大・縮小 · ＋ / −で倍率変更 · 0で全体を表示",
     "emptyDrawing": "表示できる図形がありません",
     "missingGlyphs": "一部の文字は利用可能なフォントで表示できません",
     "notPicture": "画像として表示できません",

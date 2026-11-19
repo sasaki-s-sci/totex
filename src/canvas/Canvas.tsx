@@ -19,6 +19,7 @@ import { CanvasFile } from "./CanvasFile";
 import type { CanvasProps } from "./CanvasProps";
 import { LiveFrame } from "./LiveFrame";
 import { adjacentPane, type CanvasPane, insertFiles, tileLayout } from "./model";
+import { PictureReading } from "./nodes/preview/PictureReading";
 import { useCanvases } from "./useCanvases";
 import "./styles/index.css";
 import "./canvas.css";
@@ -315,6 +316,7 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
             pane={pane}
             shown={shown}
             expanded={shown && expanded === pane.id}
+            toggleExpanded={() => expand(expanded === pane.id ? null : pane.id)}
             collapse={() => expand(null)}
             cwd={cwd}
             selected={active === pane.id}
@@ -398,6 +400,7 @@ function Pane({
   pane,
   shown,
   expanded,
+  toggleExpanded,
   collapse,
   cwd,
   selected,
@@ -415,6 +418,7 @@ function Pane({
   pane: CanvasPane;
   shown: boolean;
   expanded: boolean;
+  toggleExpanded: () => void;
   collapse: () => void;
   cwd: string;
   selected: boolean;
@@ -515,12 +519,7 @@ function Pane({
       failedImage === pane.src ? (
         <p role="alert">{t("canvas.imageFailed")}</p>
       ) : (
-        <img
-          className="canvas-image"
-          src={pane.src}
-          alt={title}
-          onError={() => failImage(pane.src)}
-        />
+        <PictureReading source={pane.src} name={title} onError={() => failImage(pane.src)} />
       )
     ) : pane.kind === "code" ? (
       <pre className="canvas-code">
@@ -545,6 +544,23 @@ function Pane({
       style={{ gridColumn: `span ${span}` }}
       onFocus={select}
       onPointerDown={select}
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest(".picture-reading")) {
+          event.preventDefault();
+          toggleExpanded();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (
+          event.key === "Enter" &&
+          event.target instanceof Element &&
+          event.target.closest(".picture-reading")
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleExpanded();
+        }
+      }}
       onDragOver={(event) => {
         if (hasFileDrag(event.dataTransfer)) {
           event.preventDefault();

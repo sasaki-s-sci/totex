@@ -10,6 +10,7 @@ import {
   useFileDiff,
 } from "../canvas/nodes/preview/diff";
 import { useDraft } from "../canvas/nodes/preview/draft";
+import { PictureReading } from "../canvas/nodes/preview/PictureReading";
 import { useReading } from "../canvas/nodes/preview/reading";
 import { insertTab, removeTab } from "../canvas/nodes/preview/text";
 import { rowOf, useWrappedRows } from "../canvas/nodes/preview/wrap";
@@ -121,6 +122,7 @@ export function FilePage({
   const Epub = epubPart.use(data.view === "epub");
   const nativeScroll =
     isMedia ||
+    data.view === "picture" ||
     data.view === "plain" ||
     data.view === "html" ||
     data.view === "table" ||
@@ -328,19 +330,11 @@ export function FilePage({
       )}
 
       {ready && data.view === "picture" && picture !== null && (
-        <div
-          className={`file-preview__picture${vector(data.path) ? " is-drawing" : ""}`}
-          ref={sheet}
-        >
+        <div className="file-preview__picture">
           {undrawn === picture ? (
             <p className="file-preview__message">{t("filePreview.notPicture")}</p>
           ) : (
-            <img
-              src={picture}
-              alt={data.name}
-              draggable={false}
-              onError={() => setUndrawn(picture)}
-            />
+            <PictureReading source={picture} name={data.name} onError={() => setUndrawn(picture)} />
           )}
         </div>
       )}

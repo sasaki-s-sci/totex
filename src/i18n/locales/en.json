@@ -274,6 +274,7 @@
     "zoomOut": "Zoom out",
     "pdfFitWidth": "Fit to width",
     "fitView": "Fit to view",
+    "pictureControls": "Ctrl + wheel to zoom · + / − to zoom · 0 to fit",
     "emptyDrawing": "No supported drawing entities found",
     "missingGlyphs": "Some characters could not be displayed with the available fonts",
     "notPicture": "Not drawable as a picture",
