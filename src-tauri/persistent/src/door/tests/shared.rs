@@ -4,8 +4,9 @@ use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 use totex_host::sync::lock;
 
-use super::{held, post, session};
+use super::{addressed, held, post, session};
 use crate::door::Door;
+use crate::door::http::{Request, route};
 
 const FIRST: &str = "550e8400-e29b-41d4-a716-446655440000";
 const SECOND: &str = "650e8400-e29b-41d4-a716-446655440000";
@@ -109,11 +110,87 @@ fn shell_titles_route_concurrent_codex_threads_in_the_same_folder() {
         r#"{"mcp":false}"#,
     )
     .unwrap();
-    let (_, disabled) = post(&url, &call(FIRST, FIRST, json!({})));
-    assert_eq!(disabled["result"]["isError"], true);
+    let (_, still_enabled) = post(&url, &call(FIRST, FIRST, json!({})));
+    assert_eq!(
+        still_enabled["result"]["structuredContent"],
+        first["result"]["structuredContent"]
+    );
     held.sessions.close("one");
     held.sessions.close("two");
     let (_, ended) = post(&url, &call(SECOND, SECOND, json!({})));
     assert_eq!(ended["result"]["isError"], true);
+    held.door.unserve();
+}
+
+#[cfg(unix)]
+#[test]
+fn one_switch_controls_every_folder_and_legacy_address() {
+    let held = held();
+    let (first_folder, first_url) = session(&held, "first-folder");
+    let (second_folder, second_url) = session(&held, "second-folder");
+    let shared = endpoint(&held.door);
+    let terminals = [
+        ("first-folder", FIRST, first_folder.path(), first_url),
+        ("second-folder", SECOND, second_folder.path(), second_url),
+    ];
+
+    for (id, thread, folder, own) in &terminals {
+        std::fs::write(folder.join(".totex/settings.json"), r#"{"mcp":false}"#).unwrap();
+        assert_eq!(
+            addressed(&held.door, id, &folder.display().to_string()).as_ref(),
+            Some(own)
+        );
+        lock(&held.door.bindings).observe(id, &format!("\x1b]2;{thread}\x07"));
+        let (_, written) = post(
+            &shared,
+            &call(
+                thread,
+                thread,
+                json!({
+                    "revision":0,"panes":[{"id":"evidence","kind":"markdown","text":id}]
+                }),
+            ),
+        );
+        assert!(written["result"]["isError"].is_null(), "{written}");
+        let (_, read) = post(own, &call(thread, thread, json!({})));
+        assert_eq!(
+            read["result"]["structuredContent"],
+            written["result"]["structuredContent"]
+        );
+        assert_eq!(read["result"]["structuredContent"]["id"], *id);
+    }
+
+    held.door.unserve();
+    for (id, thread, folder, own) in &terminals {
+        assert!(addressed(&held.door, id, &folder.display().to_string()).is_none());
+        for url in [&shared, own] {
+            let request = Request {
+                method: "POST".into(),
+                target: format!(
+                    "/{}",
+                    url.strip_prefix("http://")
+                        .unwrap()
+                        .split_once('/')
+                        .unwrap()
+                        .1
+                ),
+                bearer: None,
+                from_page: false,
+                local_host: true,
+                body: call(thread, thread, json!({})).to_string().into_bytes(),
+            };
+            assert_eq!(route(&held.door, &request).0, "404 Not Found");
+        }
+    }
+
+    held.door.serve().unwrap();
+    assert_eq!(endpoint(&held.door), shared);
+    for (id, thread, _, own) in &terminals {
+        for url in [&shared, own] {
+            let (_, read) = post(url, &call(thread, thread, json!({})));
+            assert_eq!(read["result"]["structuredContent"]["id"], *id);
+        }
+        held.sessions.close(id);
+    }
     held.door.unserve();
 }

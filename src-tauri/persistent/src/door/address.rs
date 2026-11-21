@@ -2,10 +2,8 @@
 
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
-use std::path::Path;
 
 use totex_host::host::Host;
-use totex_host::space;
 
 use super::{Door, LOOPBACK};
 
@@ -31,24 +29,13 @@ pub fn dressing(door: &Door, id: &str, cwd: &str) -> Vec<(String, String)> {
 /// A session's own door, as the address it is reached at and as the token that
 /// address is made of, or nothing where this session is to have none.
 ///
-/// Three things have to agree, and each of them says a different kind of no: no
-/// server was asked for, no route from where this shell is standing, and no
-/// wish for one in the folder it is standing in.
+/// The global switch enables every folder whose shell can reach this server.
 fn address(door: &Door, id: &str, cwd: &str) -> Option<(String, String)> {
-    // Read and let go of before anything else happens: what follows can ask a
-    // distribution a question, and every other door would wait on the answer.
     let (port, keys) = {
         let standing = door.standing();
         (standing.as_ref()?.port, door.keys.clone())
     };
     let host = reachable(cwd)?;
-    // What the folder itself says, which is the one answer that is nobody's
-    // guess: the switch above says there may be a door, `reachable` says it can
-    // be got at from here, and this says whether anybody working here wanted
-    // one. A space that has never been asked wants one — see `space::Settings`.
-    if !space::settings(Path::new(cwd)).mcp {
-        return None;
-    }
     let token = token(&keys, id);
     Some((format!("http://{host}:{port}/s/{token}"), token))
 }

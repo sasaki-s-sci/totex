@@ -381,7 +381,7 @@
   },
   "canvas": {
     "title": "Canvas",
-    "mcp": "Let agents display evidence via MCP",
+    "mcp": "Enable MCP for all folders",
     "mcpCommand": "Codex MCP registration command",
     "mcpCopy": "Copy command",
     "mcpCopied": "Copied",

@@ -1,9 +1,5 @@
-//! The folder a command line stands in, as the window asks about it.
-//!
-//! What a space is and where one is found is the machine's business — see
-//! `totex_host::space`, which is what the program holding the terminals reads
-//! when it dresses a shell. What is here is the window's two questions about
-//! one: what the space around a folder says, and telling it something.
+//! Legacy folder metadata exposed by the native window.
+//! Stored folder preferences remain readable; the app-wide switch controls MCP.
 
 use std::path::Path;
 

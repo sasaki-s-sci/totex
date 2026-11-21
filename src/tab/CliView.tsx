@@ -170,6 +170,25 @@ export function CliView({
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
     const scrollSpace = registerTerminalScroll(terminal, element);
+    const composition = element.querySelector<HTMLElement>(".composition-view");
+    const compositionScreen = element.querySelector<HTMLElement>(".xterm-screen");
+    const compositionHelpers = composition?.parentElement;
+    const placeComposition = () => {
+      if (!composition?.classList.contains("active") || !compositionScreen || !compositionHelpers)
+        return;
+      const style = compositionHelpers.style;
+      style.setProperty("--composition-width", compositionScreen.style.width);
+      style.setProperty("--composition-height", compositionScreen.style.height);
+      style.setProperty("--composition-indent", composition.style.left);
+      style.setProperty("--composition-line", composition.style.lineHeight);
+      style.setProperty(
+        "--composition-room",
+        `${parseFloat(compositionScreen.style.height) - parseFloat(composition.style.top)}px`,
+      );
+      composition.scrollTop = composition.scrollHeight;
+    };
+    element.addEventListener("compositionupdate", placeComposition);
+    const compositionRendered = terminal.onRender(placeComposition);
     drawn.current = terminal;
     const contextMenu = (event: MouseEvent) => {
       const selected = terminalTarget(terminal.getSelection(), session.cwd, location.origin);
@@ -539,6 +558,8 @@ export function CliView({
       stopSizing();
       element.removeEventListener("paste", onPaste, true);
       element.removeEventListener("contextmenu", contextMenu, true);
+      element.removeEventListener("compositionupdate", placeComposition);
+      compositionRendered.dispose();
       stopDrop();
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
@@ -623,6 +644,24 @@ export function CliView({
           padding: `${PAD.y}px 0 ${PAD.y}px ${PAD.x}px`,
           // Long IME composition must not scroll the terminal sideways to reveal its hidden input.
           overflowX: "clip",
+        },
+        "&& .composition-view": {
+          // Keep the cursor offset on the first line; later lines use the full terminal width.
+          left: "0 !important",
+          width: "var(--composition-width)",
+          height: "auto !important",
+          maxHeight: "var(--composition-height)",
+          whiteSpace: "pre-wrap",
+          overflowWrap: "anywhere",
+          textIndent: "var(--composition-indent)",
+          overflowY: "auto",
+          transform: "translateY(min(0px, calc(var(--composition-room) - 100%)))",
+        },
+        "& .xterm-helpers:has(.composition-view.active) .xterm-helper-textarea": {
+          // xterm copies the preview's bounds; keep its invisible IME anchor inside the cursor row.
+          maxWidth: "max(1px, calc(var(--composition-width) - var(--composition-indent)))",
+          height: "var(--composition-line) !important",
+          lineHeight: "var(--composition-line) !important",
         },
         // The viewport covers the padding too; outrank xterm's default black regardless of load order.
         "&& .xterm-viewport": { backgroundColor: look.seeThrough ? "transparent" : opaque },

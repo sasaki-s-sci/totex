@@ -113,9 +113,11 @@ running terminal service.
 Starting totex starts its MCP listener at the fixed loopback address
 `127.0.0.1:26374`. The shared endpoint exposes `canvas`; each call is routed to
 the terminal running that Codex thread. MCP is enabled by default for new
-settings. An explicit `"mcpServing": false` remains disabled, and the Canvas
-section in Settings retains the enable switch. A port conflict is reported as
-an error instead of silently choosing another port. The explorer has no MCP button.
+settings. The Canvas section in Settings has one app-wide enable switch:
+turning it on enables MCP for every folder, and turning it off stops access for
+all folders. An explicit `"mcpServing": false` remains disabled. A port conflict
+is reported as an error instead of silently choosing another port. The explorer
+has no MCP button.
 
 Setup has two steps: launch totex, then run its Codex registration command once
 per environment. **Settings → Canvas → Copy command** supplies the command for
@@ -144,7 +146,8 @@ distribution's Codex home. Registration prepares the Windows curl bridge and
 updates Codex's configuration in that distribution. No manual bridge creation
 is needed. Preparing or copying the command does not register Codex; only running
 it changes Codex's settings. SSH terminals cannot reach the local listener and
-show an unsupported-environment error. Folder-level `mcp: false` remains honored.
+show an unsupported-environment error. Legacy `.totex/settings.json` files are
+left intact, but their `mcp` value no longer overrides the app-wide switch.
 
 Call `canvas` with `{}` to read `{ id, revision, panes }`. Merge the desired
 changes with the returned panes, then submit the complete array with the revision

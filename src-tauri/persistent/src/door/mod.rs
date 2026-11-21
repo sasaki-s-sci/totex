@@ -227,18 +227,12 @@ impl Door {
 
     fn terminal(&self, meta: &serde_json::Value) -> Result<String, String> {
         let id = lock(&self.bindings).resolve(meta)?;
-        let session = self
-            .sessions
+        self.sessions
             .running()
             .into_iter()
             .find(|session| session.id == id)
-            .ok_or("The terminal has ended")?;
-        if !totex_host::space::settings(std::path::Path::new(&session.cwd)).mcp {
-            return Err(
-                "MCP is disabled for this terminal's folder in .totex/settings.json".into(),
-            );
-        }
-        Ok(id)
+            .map(|session| session.id)
+            .ok_or_else(|| "The terminal has ended".into())
     }
 
     /// Takes it down again, and takes the reports with it: with the door shut

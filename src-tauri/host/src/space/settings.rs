@@ -19,14 +19,8 @@ const FILE: &str = "settings.json";
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
-    /// Whether a session started here is handed this window's own door.
-    ///
-    /// On unless it is turned off, because the switch that opens the door at
-    /// all is already off until somebody asks for it — see `mcp::serve`. Asking
-    /// twice, once for the machine and again for every folder on it, would mean
-    /// a server somebody turned on that nothing could reach. So a space is
-    /// where the answer is narrowed rather than where it is given: `.totex`
-    /// appears here to say *not this one*.
+    /// Legacy folder preference, retained when reading and writing old files.
+    /// MCP access is controlled only by the app-wide listener switch.
     pub mcp: bool,
 }
 

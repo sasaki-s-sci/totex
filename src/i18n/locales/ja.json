@@ -381,7 +381,7 @@
   },
   "canvas": {
     "title": "キャンバス",
-    "mcp": "MCPでエージェントから資料を表示",
+    "mcp": "MCPを有効にする（全フォルダ共通）",
     "mcpCommand": "CodexのMCP登録コマンド",
     "mcpCopy": "コマンドをコピー",
     "mcpCopied": "コピーしました",

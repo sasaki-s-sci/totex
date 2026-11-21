@@ -122,7 +122,7 @@ async function installSetupNative(page) {
 }
 
 const enabledCheckbox = (page) =>
-  page.getByRole("checkbox", { name: "Let agents display evidence via MCP", exact: true });
+  page.getByRole("checkbox", { name: "Enable MCP for all folders", exact: true });
 const commandBox = (page) => page.getByLabel("Codex MCP registration command", { exact: true });
 
 async function savedEnabled(page, enabled) {
@@ -250,6 +250,7 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
 
     await switchTerminal(page, 2, "mcp-wsl");
     await assertCommand(page, replies.wsl.environment, replies.wsl.command);
+    assert.equal(await enabledCheckbox(page).isChecked(), true, "ON applies to another folder");
     await page.setViewportSize({ width: 720, height: 1000 });
     await page.waitForFunction(() => {
       const element = document.querySelector('[aria-label="Codex MCP registration command"]');
@@ -287,6 +288,20 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
       await page.getByText("stale preparation must never be shown", { exact: true }).count(),
       0,
     );
+
+    await enabledCheckbox(page).uncheck();
+    await savedEnabled(page, false);
+    await page.waitForFunction(() => window.mcpSetupFixture.port === null);
+    await switchTerminal(page, 1, "mcp-local");
+    assert.equal(await enabledCheckbox(page).isChecked(), false, "OFF applies to every folder");
+    assert.equal(await commandBox(page).count(), 0);
+    await page.evaluate(() => {
+      const fixture = window.mcpSetupFixture;
+      fixture.modes[fixture.local] = "ready";
+    });
+    await enabledCheckbox(page).check();
+    await savedEnabled(page, true);
+    await assertCommand(page, replies.local.environment, replies.local.command);
 
     const state = await page.evaluate(async () => {
       const fixture = window.mcpSetupFixture;
