@@ -96,9 +96,11 @@ jobs:
               exit 0
             fi
           fi
+          # GitHub's status search can lag behind a completed workflow_run event.
           gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/build.yml/runs" \
-            -f head_sha="$head" -f status=success -f per_page=100 >"$RUNNER_TEMP/build-runs.json"
-          count=$(jq --arg repo "$GITHUB_REPOSITORY" '[.workflow_runs[] |
+            -f head_sha="$head" -f per_page=100 >"$RUNNER_TEMP/build-runs.json"
+          count=$(jq --arg repo "$GITHUB_REPOSITORY" --arg head "$head" '[.workflow_runs[] |
+            select(.head_sha == $head and .status == "completed" and .conclusion == "success") |
             select(.head_repository.full_name == $repo) |
             select(.event == "push" or .event == "workflow_dispatch") |
             select(.head_branch == "main" or (.head_branch | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")))] | length' \
