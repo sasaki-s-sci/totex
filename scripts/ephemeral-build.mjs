@@ -192,6 +192,7 @@ export function prepareViews(root) {
   parts.push(
     readFileSync(resolve(root, "index.html"), "utf8").replaceAll("\r\n", "\n"),
     readFileSync(resolve(root, "front.html"), "utf8").replaceAll("\r\n", "\n"),
+    readFileSync(resolve(root, "browser.html"), "utf8").replaceAll("\r\n", "\n"),
     readFileSync(resolve(root, "vite.config.ts"), "utf8").replaceAll("\r\n", "\n"),
   );
   parts.push(

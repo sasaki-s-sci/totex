@@ -50,6 +50,7 @@ export async function installCanvasNative(page) {
     const byteSize = (text) => new TextEncoder().encode(text).length;
     const picture =
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOQ8LL+DwACuAGd8psO1AAAAABJRU5ErkJggg==";
+    const ordering = location.search.includes("ordering");
     const running = new Map([
       [
         "terminal-one",
@@ -59,13 +60,19 @@ export async function installCanvasNative(page) {
         ? [
             [
               "terminal-two",
-              { id: "terminal-two", cwd: "/tmp", rows: 24, cols: 80, meta: '{"branch":"worker"}' },
+              {
+                id: "terminal-two",
+                cwd: "/tmp",
+                rows: 24,
+                cols: 80,
+                meta: ordering ? '{"branch":"worker","folder":true}' : '{"branch":"worker"}',
+              },
             ],
             [
               "terminal-other",
               {
                 id: "terminal-other",
-                cwd: "/elsewhere",
+                cwd: ordering ? "/elsewhere/tmp" : "/elsewhere",
                 rows: 24,
                 cols: 80,
                 meta: '{"branch":"other"}',
@@ -258,6 +265,7 @@ export async function installCanvasNative(page) {
         if (cmd === "app_settings_read") {
           const value = {
             ...args.initial,
+            ...(ordering ? { terminalSort: "createdAt" } : {}),
             monitor: { ...args.initial.monitor, enabled: location.search.includes("grouped") },
           };
           return { path: "/tmp/totex.json", text: JSON.stringify(value), value };

@@ -12,7 +12,7 @@ import {
 import { createPortal, flushSync } from "react-dom";
 import { usePageKeys } from "../hooks/usePageKeys";
 import type { useSessions } from "../hooks/useSessions";
-import { settingsNow } from "../lib/appSettings";
+import { groupBy } from "../lib/collections";
 import { shellSession } from "../lib/session";
 import { frontInactive } from "../shell/bridge";
 import { useFrontState } from "../shell/state";
@@ -77,7 +77,16 @@ export function PageWorkspace({
     ],
     [registered, order],
   );
-  const numbered = useMemo(() => entries.filter((entry) => entry.id !== "file:-1"), [entries]);
+  const numbered = useMemo(
+    () =>
+      [
+        ...groupBy(
+          entries.filter((entry) => entry.id !== "file:-1"),
+          (entry) => entry.folder ?? entry.name,
+        ).values(),
+      ].flat(),
+    [entries],
+  );
   const reorderTerminals = sessions.reorder;
   const reorder = useCallback(
     (ids: readonly string[]) => {
@@ -107,7 +116,7 @@ export function PageWorkspace({
   const [hosts, setHosts] = useState<ReadonlyMap<string, HTMLElement>>(new Map());
   const { sessions: terminals, showing, paged, page, dock, hide, restore } = sessions;
   const shownId = showing === null ? fileShowing : terminalPageId(showing);
-  const [sidebarOpen, setSidebarOpen] = useFrontState("pages.sidebarOpen", shownId !== null);
+  const [sidebarOpen, setSidebarOpen] = useFrontState("pages.sidebarOpen", true);
 
   useLayoutEffect(() => {
     if (shownId !== null) setSidebarOpen(true);
@@ -280,21 +289,28 @@ export function PageWorkspace({
     close,
     create: () => {
       const terminal = terminals.find((session) => terminalPageId(session.id) === selected);
-      if (terminal)
-        sessions.open(
-          shellSession(terminal.cwd, terminal.branch, terminal.folder),
-          settingsNow().terminalSort === "createdWhere" ? terminal.id : undefined,
-        );
+      if (!terminal) return;
+      const next = shellSession(terminal.cwd, terminal.branch, terminal.folder);
+      sessions.open(next, terminal.id);
+      reorder(
+        numbered.flatMap((entry) =>
+          entry.id === selected ? [entry.id, terminalPageId(next.id)] : [entry.id],
+        ),
+      );
     },
   });
 
   const openSidebar = useCallback(() => {
     setSidebarOpen(true);
     if (shownId !== null) return;
+    if (active !== null && terminals.some((terminal) => terminal.id === active)) {
+      show(terminalPageId(active));
+      return;
+    }
     const next = entries.find((entry) => placement(entry.id) === "sidebar");
     if (next) show(next.id);
     else if (terminals[0]) show(terminalPageId(terminals[0].id));
-  }, [shownId, entries, placement, show, terminals]);
+  }, [shownId, entries, placement, show, terminals, active]);
 
   const horizontal = useRef<{ key: string; offset: number } | null>(null);
   useEffect(() => {

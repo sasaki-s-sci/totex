@@ -7,7 +7,9 @@ import ephemeralBuild from "./scripts/ephemeral-build.mjs";
 export default defineConfig({
   // Keep SDK modules available to the transform in development as well.
   optimizeDeps: { exclude: ["@tauri-apps/api"] },
-  build: { rollupOptions: { input: { shell: "index.html", front: "front.html" } } },
+  build: {
+    rollupOptions: { input: { shell: "index.html", front: "front.html", browser: "browser.html" } },
+  },
   plugins: [
     {
       name: "shell-native-slots",

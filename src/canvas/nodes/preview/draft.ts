@@ -108,6 +108,23 @@ export function useDraft(
   const depth = useRef(undoDepth);
   depth.current = undoDepth;
 
+  useEffect(() => {
+    if (!(window as Window & { __TOTEX_BROWSER_CANVAS__?: boolean }).__TOTEX_BROWSER_CANVAS__)
+      return;
+    const leaving = (event: BeforeUnloadEvent) => {
+      if (
+        writing.current ||
+        dirty.current ||
+        (editable && paper && draftOf(paper) !== kept.current)
+      ) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", leaving);
+    return () => window.removeEventListener("beforeunload", leaving);
+  }, [editable, paper]);
+
   useLayoutEffect(() => {
     if (!paper) return;
     return () => {

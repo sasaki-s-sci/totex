@@ -1,5 +1,5 @@
 import { Alert, Box, Snackbar } from "@mui/material";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
@@ -9,14 +9,16 @@ import { useServing } from "../hooks/useServing";
 import { useSessions } from "../hooks/useSessions";
 import { useSpares } from "../hooks/useSpares";
 import { useWorkspaces } from "../hooks/useWorkspace";
+import { canvasDropContext, canvasUploadFrame, isPreviewDrop } from "../lib/canvasDrop";
 import { pasteMedia } from "../lib/clipboard";
-import { hasFileDrag, readFileDrag } from "../lib/filePreview";
+import { hasFileDrag, isLocalFileDrag, readFileDrag } from "../lib/filePreview";
+import { dropFilesOnFrame } from "../lib/frameFileDrop";
 import type { Graphed } from "../lib/graphed";
 import { typing } from "../lib/keys";
 import { useEver } from "../lib/onDemand";
+import { type FileRequest, OPEN_FILE } from "../lib/openFile";
 import { sessionsInPlaces, underPlace } from "../lib/placeSessions";
 import { worktreeBranches, worktreeHomes } from "../lib/worktrees";
-import { Frame, MarkButton } from "../marks";
 import { PageWorkspace } from "../page/PageWorkspace";
 import { canvasPart, EMPTY_WORKSPACE, sidebarPart, worktreePart } from "../parts";
 import { useResumeRuntime } from "../resume/runtime";
@@ -27,12 +29,13 @@ import {
   LeftSidebar,
   type Pane,
 } from "../sidebar/LeftSidebar";
+import { SidebarReopen } from "../sidebar/SidebarReopen";
 import type { Repository } from "../types/git";
 import { SshPassword } from "./SshPassword";
 import { useFolderRoots } from "./useFolderRoots";
 import { useWindowBoot } from "./useWindowBoot";
 import { useWindowMenus } from "./useWindowMenus";
-import { HEADER_INSET, WindowControls } from "./WindowControls";
+import { WindowControls } from "./WindowControls";
 
 /** LeftSidebar | Canvas | RightSidebar, and the menus drawn over them. */
 export function Window() {
@@ -59,6 +62,18 @@ export function Window() {
   useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   const files = useFileDrops(sessions.active);
   const drops = useDrops(canvasHost, files.openFiles);
+  const [uploadFailed, setUploadFailed] = useState(false);
+  useEffect(() => {
+    const open = (event: Event) => {
+      const request = (event as CustomEvent<FileRequest>).detail;
+      if (!request || !sessions.sessions.some((session) => session.id === request.sessionId))
+        return;
+      event.preventDefault();
+      files.openFiles([request.path], null, undefined, { sessionId: request.sessionId });
+    };
+    window.addEventListener(OPEN_FILE, open);
+    return () => window.removeEventListener(OPEN_FILE, open);
+  }, [sessions.sessions, files.openFiles]);
   const deletePlace = useCallback(
     async (place: Graphed) => {
       const kept = graphed.filter((folder) => folder.root !== place.root).map((f) => f.root);
@@ -144,20 +159,7 @@ export function Window() {
           // No ground: the body paints it, so the wave can sit between the two.
         }}
       >
-        {!leftOpen && (
-          <Box sx={{ position: "absolute", top: HEADER_INSET, left: HEADER_INSET, zIndex: 1200 }}>
-            <MarkButton
-              label={t("folder.expandSidebar")}
-              aria-expanded={leftOpen}
-              aria-controls="folder-sidebar"
-              onClick={() => setLeftOpen(true)}
-            >
-              <Frame>
-                <path d="M9 6 15 12 9 18" />
-              </Frame>
-            </MarkButton>
-          </Box>
-        )}
+        {!leftOpen && <SidebarReopen side="left" onClick={() => setLeftOpen(true)} />}
         <LeftSidebar
           open={leftOpen}
           onClose={() => setLeftOpen(false)}
@@ -208,22 +210,55 @@ export function Window() {
           }}
           onDragOver={(event) => {
             if (!hasFileDrag(event.dataTransfer)) return;
+            const target = event.target as Element;
+            if (
+              !isPreviewDrop(target, { x: event.clientX, y: event.clientY }) &&
+              !(isLocalFileDrag(event.dataTransfer) && canvasUploadFrame(target))
+            )
+              return;
             event.preventDefault();
             event.dataTransfer.dropEffect = "copy";
           }}
           onDrop={(event) => {
+            const target = event.target as Element;
+            const at = { x: event.clientX, y: event.clientY };
             const paths = readFileDrag(event.dataTransfer)
               .filter((entry) => !entry.isDir)
               .map((entry) => entry.path);
             if (!paths.length) return;
+            const preview = isPreviewDrop(target, at);
+            const frame = isLocalFileDrag(event.dataTransfer) ? canvasUploadFrame(target) : null;
+            if (!preview && !frame) return;
             event.preventDefault();
-            files.openFiles(paths, { x: event.clientX, y: event.clientY });
+            event.stopPropagation();
+            if (preview) files.openFiles(paths, at, undefined, canvasDropContext(target));
+            else if (frame) {
+              setUploadFailed(false);
+              void dropFilesOnFrame(frame, paths, at).catch(() => setUploadFailed(true));
+            }
           }}
           sx={{ position: "relative", flex: 1, minWidth: 0 }}
         >
           <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>
             <Alert severity="error" onClose={() => setPasteFailed(false)}>
               {t("file.pasteFailed")}
+            </Alert>
+          </Snackbar>
+          <Snackbar
+            open={uploadFailed || drops.uploadFailed}
+            onClose={() => {
+              setUploadFailed(false);
+              drops.clearUploadFailure();
+            }}
+          >
+            <Alert
+              severity="error"
+              onClose={() => {
+                setUploadFailed(false);
+                drops.clearUploadFailure();
+              }}
+            >
+              {t("file.uploadFailed")}
             </Alert>
           </Snackbar>
           {Canvas && (

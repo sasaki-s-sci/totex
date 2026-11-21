@@ -11,6 +11,11 @@ with Ctrl+Shift and the arrows, then press Enter. No dropdown opens.
 The header shows names and terminal numbers without button backgrounds. Repository,
 folder and terminal close buttons are absent; Ctrl+X still closes the active
 terminal, and a sidebar pane's header menu can remove that pane and its terminals.
+Terminals in the same full folder path stay together, with consecutive numbers
+from left to right. Ctrl+A inserts beside the current terminal in that folder
+and shifts later numbers. There is no terminal-order setting.
+Each sidebar can be closed completely; a small arrow near the top reopens it,
+including over an expanded resource, without discarding its contents.
 Explorer entries use ordinary folder/file icons. The placement control is an
 outline circle before placement and a filled circle after it. Ignored entries dim
 both text and icons unless a Git change needs to be highlighted.
@@ -21,6 +26,10 @@ buffer without changing the PTY size or asking the application to redraw. Inacti
 canvases remain mounted, so an iframe's DOM, JavaScript state and scroll position
 survive a terminal switch. A full page reload or replacing the iframe URL can
 reload that application.
+
+Drag a boundary between canvas panes to change their relative widths or heights.
+The proportions are retained per terminal. Focus a boundary and use arrow keys
+for keyboard resizing; Escape cancels a drag.
 
 ## Keyboard and files
 
@@ -42,7 +51,9 @@ Canvas control is active only while Ctrl+Space is held. Releasing it returns
 focus to the current terminal. Removing a pane removes its display, not its
 source file. An edited file must save successfully before its pane or terminal
 can be closed. Right-click a pane to see its file name and path (or served URL),
-**Expand**, **Add pane** and **Remove pane**. An empty canvas offers only **Add pane**. Empty
+**Expand**, **Add pane** and **Remove pane**. **Open URL** supplies a borderless
+address field; terminal Ctrl+click opens the address in that terminal's canvas.
+Right-click a terminal URL or file path for its Open and Copy actions. Empty
 canvases and panes display only the shortcut hint.
 
 **Expand** opens the existing file or preview in an overlay. Its editor, iframe
@@ -59,8 +70,12 @@ and Shift+F10 also open the selected pane's menu. A menu opened during held
 selection remains usable after releasing the chord.
 
 Double-click an explorer file to open it in the current terminal's canvas. Drag
-a file onto an empty pane to fill it, or onto existing content to add a pane
-beside it. Agents supply URLs and paths through MCP; there is no canvas path
+a file onto an empty pane to fill it, or onto a pane's edge to add a pane beside
+it. A drop in the middle of a running web application belongs to its upload
+handler. The native window forwards dropped file bytes to the application when
+the WebView owns the OS drop; absolute filesystem paths are not exposed.
+Applications that require trusted OS drag events can reject that forwarding.
+Agents supply URLs and paths through MCP; there is no canvas path
 input. Editor shortcuts keep their normal text-editing behavior.
 The center's top strip moves the native window when dragged. It has no permanent
 line and becomes visible only on hover; file dropping remains available below it.
@@ -73,6 +88,25 @@ draft first and stays in the editor if saving fails. Local HTML previews are
 scriptless; use a localhost iframe for a running application.
 
 MCP explicitly chooses the renderer, including for URLs without an extension.
+
+## Canvas in an external browser
+
+Choose **Open canvas in browser** from the canvas menu to open that canvas in a
+regular browser tab. It stays pinned to its terminal when the native window
+switches terminals. Both views use the same revisioned panes and file saves;
+MCP canvas changes reach both. Embedded applications have their own browser
+instance, which survives subsequent terminal switches.
+
+Browser automation MCP can click, type, inspect and operate the tab's contents,
+including its embedded applications. The existing totex `canvas` tool continues
+to read and update the panes. No browser-tab management commands are added.
+
+The window serves the tab on an authenticated loopback URL. That URL grants
+access to one canvas and its files, so treat it as private. Browser code cannot
+call general native commands or read arbitrary paths; add new local files through
+the native canvas or its MCP tool. Closing the terminal or the native window
+ends access. This feature requires a native window update, with no change to the
+running terminal service.
 
 ## Agent-driven evidence
 
@@ -258,3 +292,10 @@ copying, failure/retry, and selected-terminal changes without retaining an old
 environment's command. It also covers a fixed-port startup error and retry.
 Native setup tests cover registration, shell quoting, preserved Codex settings,
 and terminal routing through Codex thread identity.
+
+The terminal ordering, input and context-menu browser checks cover insertion,
+renumbering, long IME composition, URL/path actions and retained terminal state.
+`tests/canvasDrop.browser.mjs` covers preview boundaries and application uploads;
+`tests/canvasResize.browser.mjs` covers pointer/keyboard resizing and cleanup.
+`tests/browserCanvas.browser.mjs` verifies the separate browser entry, pinned
+canvas updates, interactive applications and guarded file saves.

@@ -432,14 +432,15 @@ async function verifyTerminalStartup(page) {
       })),
     ),
     [
-      { folder: "/tmp", numbers: ["1", "2", "4"] },
-      { folder: "/elsewhere", numbers: ["3"] },
+      { folder: "/tmp", numbers: ["1", "2", "3"] },
+      { folder: "/elsewhere", numbers: ["4"] },
     ],
-    "A new terminal joins its existing path group and retains its shortcut number",
+    "A new terminal joins its path group and shifts the following shortcut numbers",
   );
-  await showTerminal(page, 3, "terminal-other");
-  await showTerminal(page, 4, opened);
-  assert.equal(await groups.locator('[data-active="true"]').innerText(), "4");
+  await showTerminal(page, 3, "terminal-two");
+  await showTerminal(page, 4, "terminal-other");
+  await showTerminal(page, 2, opened);
+  assert.equal(await groups.locator('[data-active="true"]').innerText(), "2");
   assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
   const available = page.locator("#cli-sidebar .page__header .page__terminal-list .session-offer");
   assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
@@ -500,14 +501,135 @@ async function verifyTerminalStartup(page) {
   await assertSingleTerminalViews(page);
 }
 
-async function runCanvasChecks(page, base, checks) {
+async function verifyTerminalInsertion(page) {
+  const groups = page.locator(
+    "#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group:not(.session-offer)",
+  );
+  await assertOrder(["terminal-one", "terminal-two", "terminal-other"], 2);
+  await page.evaluate(() => {
+    window.orderedTerminalHosts = [...document.querySelectorAll("[data-terminal]")].map((host) => ({
+      id: host.dataset.terminal,
+      host,
+      xterm: host.querySelector(".xterm"),
+      attaches: window.pageCalls.filter(
+        ({ cmd, args }) => cmd === "pty_attach" && args.id === host.dataset.terminal,
+      ).length,
+    }));
+  });
+
+  async function assertOrder(ids, firstGroupSize) {
+    assert.deepEqual(
+      await groups.evaluateAll((nodes) =>
+        nodes.map((node) => ({
+          folder: node.title,
+          name: node.querySelector(".page__terminal-name").textContent,
+          numbers: [...node.querySelectorAll(".page__terminal-numbers span")].map((span) =>
+            Number(span.textContent),
+          ),
+        })),
+      ),
+      [
+        { folder: "/tmp", name: "tmp", numbers: ids.slice(0, firstGroupSize).map((_, i) => i + 1) },
+        {
+          folder: "/elsewhere/tmp",
+          name: "tmp",
+          numbers: ids.slice(firstGroupSize).map((_, i) => firstGroupSize + i + 1),
+        },
+      ],
+      "Groups use the full path and displayed numbers stay contiguous",
+    );
+    for (const [index, id] of ids.entries()) {
+      await showTerminal(page, index + 1, id);
+      assert.equal(await groups.locator('[data-active="true"]').innerText(), String(index + 1));
+    }
+  }
+
+  async function createAfter(number, id) {
+    await showTerminal(page, number, id);
+    const before = await page.evaluate(
+      async () => (await window.pageSnapshot()).values["sessions.list"],
+    );
+    const source = before.find((session) => session.id === id);
+    await page.keyboard.press("Control+a");
+    await page.waitForFunction(
+      async (count) => (await window.pageSnapshot()).values["sessions.list"].length === count + 1,
+      before.length,
+    );
+    const { opened, call } = await page.evaluate(async () => {
+      const { values } = await window.pageSnapshot();
+      const opened = values["sessions.list"].find(
+        (session) => session.id === values["sessions.active"],
+      );
+      return {
+        opened,
+        call: window.pageCalls.filter(
+          ({ cmd, args }) => cmd === "pty_open" && args.id === opened.id,
+        ),
+      };
+    });
+    assert.ok(
+      !before.some((session) => session.id === opened.id),
+      "Creation keeps existing IDs distinct",
+    );
+    assert.deepEqual(
+      { cwd: opened.cwd, branch: opened.branch, folder: opened.folder },
+      { cwd: source.cwd, branch: source.branch, folder: source.folder },
+      "Ctrl+A inherits the selected terminal's directory and metadata",
+    );
+    assert.equal(call.length, 1, "The new terminal starts exactly once");
+    assert.equal(call[0].args.cwd, source.cwd);
+    assert.deepEqual(JSON.parse(call[0].args.meta), {
+      branch: source.branch,
+      ...(source.folder ? { folder: true } : {}),
+    });
+    await terminalFor(page, opened.id).locator(".xterm").waitFor();
+    assert.equal(await groups.locator('[data-active="true"]').innerText(), String(number + 1));
+    return opened.id;
+  }
+
+  const first = await createAfter(1, "terminal-one");
+  await assertOrder(["terminal-one", first, "terminal-two", "terminal-other"], 3);
+  const second = await createAfter(1, "terminal-one");
+  await assertOrder(["terminal-one", second, first, "terminal-two", "terminal-other"], 4);
+  const middle = await createAfter(4, "terminal-two");
+  await assertOrder(["terminal-one", second, first, "terminal-two", middle, "terminal-other"], 5);
+  const other = await createAfter(6, "terminal-other");
+  const order = ["terminal-one", second, first, "terminal-two", middle, "terminal-other", other];
+  await assertOrder(order, 5);
+  for (const id of order) {
+    await page.keyboard.press("Control+ArrowDown");
+    await terminalFor(page, id).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
+    assert.equal(await terminalFor(page, id).getAttribute("data-terminal-shown"), "true");
+  }
+  assert.equal(
+    await page.evaluate(() =>
+      window.orderedTerminalHosts.every(
+        ({ id, host, xterm, attaches }) =>
+          host === document.querySelector(`[data-terminal="${id}"]`) &&
+          xterm === host.querySelector(".xterm") &&
+          attaches ===
+            window.pageCalls.filter(({ cmd, args }) => cmd === "pty_attach" && args.id === id)
+              .length,
+      ),
+    ),
+    true,
+    "Renumbering preserves existing terminal hosts, xterms and native attachments",
+  );
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "pty_close")),
+    false,
+  );
+  await assertSingleTerminalViews(page);
+}
+
+async function runCanvasChecks(page, base, checks, query = "") {
   const errors = [];
   const report = (error) => errors.push(error.message);
   page.on("pageerror", report);
   try {
     await installCanvasNative(page);
     await page.setViewportSize({ width: 1440, height: 960 });
-    await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&offers&mixed`);
+    await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&offers&mixed${query}`);
     await canvasFor(page, "terminal-one")
       .getByRole("textbox", { name: "note.txt", exact: true })
       .waitFor();
@@ -537,6 +659,10 @@ export async function verifyPages(page, base = "http://127.0.0.1:18422") {
 
 export async function verifyTerminalPanes(page, base = "http://127.0.0.1:18422") {
   return runCanvasChecks(page, base, [verifyFrameRetention, verifyTerminalStartup]);
+}
+
+export async function verifyTerminalOrdering(page, base = "http://127.0.0.1:18422") {
+  return runCanvasChecks(page, base, [verifyTerminalInsertion], "&ordering");
 }
 
 export async function verifyMixedPages(page, base = "http://127.0.0.1:18422") {

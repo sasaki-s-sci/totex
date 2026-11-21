@@ -45,10 +45,6 @@ export function followRepository(repoId: string): Promise<void> {
   return invoke("follow_repository", { repoId });
 }
 
-export function fetchRepository(repoId: string): Promise<void> {
-  return invoke("fetch_repository", { repoId });
-}
-
 export const DRAFT_PREFIX = "dev/";
 
 /** A random tail rather than a counter: two windows may cut a branch a second apart. */

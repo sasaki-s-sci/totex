@@ -216,6 +216,16 @@ async function run() {
     capabilities: { "tauri:options": { application: binary } },
   });
   await smoke(browser, repository, step);
+  if (process.env.TOTEX_E2E_PLAYWRIGHT) {
+    const { chromium } = await import(process.env.TOTEX_E2E_PLAYWRIGHT);
+    const { browserCanvas } = await import("./browserCanvas.mjs");
+    await browserCanvas(browser, repository, step, {
+      chromium,
+      executablePath: process.env.TOTEX_E2E_CHROMIUM,
+      env,
+      output,
+    });
+  }
   checkRunning(recorder, "FFmpeg");
 }
 

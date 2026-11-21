@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { onFetchAsked, sayFetching, useFollowing } from "../lib/follow";
-import { fetchRepository, followRepository } from "../lib/workspace";
+import { useFollowing } from "../lib/follow";
+import { followRepository } from "../lib/workspace";
 import type { Repository } from "../types/git";
 
 // Minutes: this catches somebody else's push, not a live feed.
@@ -34,30 +34,22 @@ export function useAutoFollow(repositories: readonly Repository[]) {
   // Rounds queue behind each other: two inside one repository trip git's lock.
   const queue = useRef<Promise<void>>(Promise.resolve());
 
-  const round = useCallback((pressed: boolean) => {
+  const round = useCallback(() => {
     const pass = async () => {
       const now = Date.now();
       const wanted = new Set<string>();
-      let missed = false;
       // One at a time; nothing waits on this.
       for (const repository of latest.current) {
         if (!open.current) break;
         wanted.add(repository.id);
-        if (!pressed && now - (asked.current.get(repository.id) ?? 0) < EVERY) continue;
+        if (now - (asked.current.get(repository.id) ?? 0) < EVERY) continue;
         // Stamped before the crossing so a remote that never answers is asked at the same rate.
         asked.current.set(repository.id, now);
-        if (pressed) {
-          await fetchRepository(repository.id).catch(() => {
-            missed = true;
-          });
-        } else {
-          await followRepository(repository.id).catch(() => undefined);
-        }
+        await followRepository(repository.id).catch(() => undefined);
       }
       for (const id of asked.current.keys()) {
         if (!wanted.has(id)) asked.current.delete(id);
       }
-      if (pressed) sayFetching(missed ? "failed" : "rest");
     };
 
     queue.current = queue.current.then(pass);
@@ -71,7 +63,7 @@ export function useAutoFollow(repositories: readonly Repository[]) {
     let again: ReturnType<typeof setTimeout> | undefined;
 
     const turn = async () => {
-      await round(false);
+      await round();
       if (alive) again = setTimeout(() => void turn(), EVERY);
     };
 
@@ -82,7 +74,4 @@ export function useAutoFollow(repositories: readonly Repository[]) {
       clearTimeout(again);
     };
   }, [following, key, round]);
-
-  // Heard even while following is off: the button is the explicit ask.
-  useEffect(() => onFetchAsked(() => void round(true)), [round]);
 }

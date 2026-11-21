@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles";
-import { StrictMode } from "react";
+import { Fragment, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { loadSettings } from "../../src/lib/appSettings";
 import { keepFrontValue, snapshot } from "../../src/shell/state";
@@ -17,14 +17,15 @@ if (location.search.includes("terminal-resize") || location.search.includes("ter
   Object.assign(window, { pageTerminals: terminals });
 }
 
+const ordering = location.search.includes("ordering");
+const groupedSessions = [
+  { id: "terminal-two", cwd: "/tmp", branch: "worker", ...(ordering ? { folder: true } : {}) },
+  { id: "terminal-other", cwd: ordering ? "/elsewhere/tmp" : "/elsewhere", branch: "other" },
+];
+if (ordering) groupedSessions.reverse();
 keepFrontValue("sessions.list", [
   { id: "terminal-one", cwd: "/tmp", branch: "main" },
-  ...(location.search.includes("grouped")
-    ? [
-        { id: "terminal-two", cwd: "/tmp", branch: "worker" },
-        { id: "terminal-other", cwd: "/elsewhere", branch: "other" },
-      ]
-    : []),
+  ...(location.search.includes("grouped") ? groupedSessions : []),
 ]);
 keepFrontValue(
   "files.open",
@@ -33,6 +34,7 @@ keepFrontValue(
     : [{ id: 1, path: "/tmp/note.txt", folder: "/tmp", at: { x: 380, y: 240 } }],
 );
 keepFrontValue("window.settings", location.search.includes("canvas") ? 0 : 1);
+if (location.search.includes("sidebar-closed")) keepFrontValue("pages.sidebarOpen", false);
 if (location.search.includes("columns")) {
   keepFrontValue("cards.layout", [["folder:/tmp", "folder:/elsewhere"]]);
   keepFrontValue("pages.expandedTerminals", ["terminal:terminal-other"]);
@@ -62,10 +64,12 @@ const { Window } = await import("../../src/window/Window");
 Object.assign(window, { pageSnapshot: snapshot });
 const root = document.getElementById("root");
 if (!root) throw new Error("Missing fixture root");
+// Measure production terminal identity without StrictMode's effect replay on keyed moves.
+const Mode = ordering ? Fragment : StrictMode;
 createRoot(root).render(
-  <StrictMode>
+  <Mode>
     <ThemeProvider theme={theme}>
       <Window />
     </ThemeProvider>
-  </StrictMode>,
+  </Mode>,
 );

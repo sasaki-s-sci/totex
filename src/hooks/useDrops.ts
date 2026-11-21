@@ -5,6 +5,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { copyInto, moveInto } from "../folder/api";
 import { folderUnder } from "../folder/dropInto";
+import { canvasDropContext, canvasUploadFrame, isPreviewDrop } from "../lib/canvasDrop";
+import type { FilePreviewRequest } from "../lib/filePreview";
+import { dropFilesOnFrame } from "../lib/frameFileDrop";
 import { dropOnTerminal, terminalUnder } from "../lib/terminalDrop";
 
 const REFUSAL_MS = 2400;
@@ -12,16 +15,25 @@ const REFUSAL_MS = 2400;
 export interface Drops {
   into: string | null;
   refused: string | null;
+  uploadFailed: boolean;
+  clearUploadFailure: () => void;
   mark: (into: string | null) => void;
   take: (paths: readonly string[], into: string, operation?: "copy" | "move") => void;
 }
 
 export function useDrops(
   main: RefObject<HTMLElement | null>,
-  openFiles: (paths: readonly string[], at: { x: number; y: number } | null) => void,
+  openFiles: (
+    paths: readonly string[],
+    at: { x: number; y: number } | null,
+    folder?: string,
+    context?: Pick<FilePreviewRequest, "sessionId" | "paneId">,
+  ) => void,
 ): Drops {
   const [into, setInto] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  const [uploadFailed, setUploadFailed] = useState(false);
+  const clearUploadFailure = useCallback(() => setUploadFailed(false), []);
   const forget = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -61,12 +73,14 @@ export function useDrops(
     void appWindow
       .onDragDropEvent(async ({ payload }) => {
         const current = ++latest;
+        const owner = main.current?.querySelector("[data-session-canvas]:not([hidden])");
         if (payload.type === "leave") {
           setInto(null);
           return;
         }
         if (payload.type === "enter") {
           setRefused(null);
+          setUploadFailed(false);
           scale = appWindow.scaleFactor().catch(() => null);
         }
         // A quick drop can arrive before enter has received the window's scale.
@@ -92,18 +106,21 @@ export function useDrops(
 
         setInto(null);
         // A drop over the column but on no row stays the column's; only the canvas opens a card.
-        const bounds = main.current?.getBoundingClientRect();
-        if (
-          payload.paths.length === 0 ||
-          !bounds ||
-          at.x < bounds.left ||
-          at.x > bounds.right ||
-          at.y < bounds.top ||
-          at.y > bounds.bottom
-        ) {
-          return;
+        const target = document.elementFromPoint(at.x, at.y);
+        if (!payload.paths.length || !target || !main.current?.contains(target)) return;
+        if (owner !== main.current?.querySelector("[data-session-canvas]:not([hidden])")) return;
+        if (isPreviewDrop(target, at)) {
+          openFiles(payload.paths, at, undefined, canvasDropContext(target));
+        } else {
+          const frame = canvasUploadFrame(target);
+          if (frame) {
+            try {
+              await dropFilesOnFrame(frame, payload.paths, at);
+            } catch {
+              if (!cancelled) setUploadFailed(true);
+            }
+          }
         }
-        openFiles(payload.paths, at);
       })
       .then((unlisten) => {
         if (cancelled) unlisten();
@@ -117,5 +134,5 @@ export function useDrops(
     };
   }, [openFiles, take]);
 
-  return { into, refused, mark, take };
+  return { into, refused, mark, take, uploadFailed, clearUploadFailure };
 }

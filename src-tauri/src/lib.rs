@@ -1,5 +1,6 @@
 mod app_settings;
 mod ask;
+mod canvas_browser;
 mod clipboard;
 mod derived;
 mod display;
@@ -205,11 +206,17 @@ pub fn run() {
                 .build(),
         )
         .plugin(
+            tauri::plugin::Builder::<_, ()>::new("canvas-file-drop")
+                .js_init_script_on_all_frames(include_str!("frame_file_drop.js"))
+                .build(),
+        )
+        .plugin(
             tauri_plugin_opener::Builder::new()
                 .open_js_links_on_click(false)
                 .build(),
         )
         .manage(serving)
+        .manage(canvas_browser::Browser::default())
         .manage(kept)
         .manage(reached)
         // A release that has come down and is waiting for the restart -- see
@@ -345,6 +352,7 @@ pub fn run() {
             mcp::mcp_reports,
             mcp::canvas_read,
             mcp::canvas_write,
+            canvas_browser::canvas_browser_open,
             monitor::monitor_configure,
             monitor::monitor_snapshots,
             monitor::monitor_refresh,

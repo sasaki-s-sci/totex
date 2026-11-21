@@ -29,12 +29,18 @@ export function useFileDrops(sessionId?: string | null) {
   const nextFilePreview = useRef(Math.max(-1, ...filePreviews.map((file) => file.id)) + 1);
 
   const openFiles = useCallback(
-    (paths: readonly string[], at: { x: number; y: number } | null, folder?: string) => {
+    (
+      paths: readonly string[],
+      at: { x: number; y: number } | null,
+      folder?: string,
+      context?: Pick<FilePreviewRequest, "sessionId" | "paneId">,
+    ) => {
       setFilePreviews((current) => [
         ...current,
         ...paths.map((path, index) => ({
           id: nextFilePreview.current++,
-          sessionId: owner.current ?? undefined,
+          sessionId: context?.sessionId ?? owner.current ?? undefined,
+          paneId: context?.paneId,
           path,
           folder,
           at: at ? { x: at.x + index * 18, y: at.y + index * 18 } : null,

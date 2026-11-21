@@ -1,4 +1,4 @@
-import { Alert, Box, Button } from "@mui/material";
+import { Alert, Box, Button, Menu, MenuItem } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppSettings } from "../lib/appSettings";
 import { clipboardFiles, copyText, pasteMedia, readClipboard } from "../lib/clipboard";
+import { openFile } from "../lib/openFile";
+import { openPage } from "../lib/openPage";
 import {
   attachShell,
   DATA_EVENT,
@@ -23,6 +25,7 @@ import { registerTerminalClipboard } from "../lib/terminalClipboard";
 import { registerTerminalDrop, terminalPaths } from "../lib/terminalDrop";
 import { openTerminalLink } from "../lib/terminalLinks";
 import { registerTerminalScroll } from "../lib/terminalScroll";
+import { type TerminalTarget, terminalTarget, terminalTextAt } from "../lib/terminalTargets";
 import { useWheel, wheelFactor } from "../lib/wheel";
 import { ResumeBar } from "../resume/ResumeBar";
 import { frontInactive, readyAfter } from "../shell/bridge";
@@ -37,7 +40,7 @@ const ANOTHER_LINE = "\x1b\r";
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
 const FONT = 12;
-// On the emulator's own element, the one place the fit addon subtracts it.
+// On the emulator's own element, where fit subtracts it; the scrollbar supplies the right inset.
 const PAD = { x: 8, y: 4 };
 // Reserved beside the text as the overview ruler's width, which is what the fit addon takes
 // off whether or not a bar is drawn; the slider is dressed inside it by canvas/styles/terminal.css.
@@ -74,6 +77,12 @@ export function CliView({
   const look = useTerminalLook();
   const { t } = useTranslation();
   const [copyFailed, setCopyFailed] = useState(false);
+  const [openFailed, setOpenFailed] = useState(false);
+  const [menu, setMenu] = useState<{
+    top: number;
+    left: number;
+    target: TerminalTarget;
+  } | null>(null);
   const [pasteFailed, setPasteFailed] = useState(false);
   const [failed, setFailed] = useState(false);
   const [connectionAttempt, retryConnection] = useState(0);
@@ -128,9 +137,20 @@ export function CliView({
     if (!element) return;
     setFailed(false);
     setCopyFailed(false);
+    setOpenFailed(false);
+    setMenu(null);
     setPasteFailed(false);
     const activateLink = (event: MouseEvent, uri: string) =>
       openTerminalLink(event, uri, session.id);
+    let hoveredLink: string | null = null;
+    const linkHover = {
+      hover: (_event: MouseEvent, uri: string) => {
+        hoveredLink = uri;
+      },
+      leave: () => {
+        hoveredLink = null;
+      },
+    };
 
     // Keep the DOM renderer: swapping renderers on visibility changes also changes the PTY grid.
     const terminal = new Terminal({
@@ -141,16 +161,28 @@ export function CliView({
       theme: colours,
       scrollSensitivity: wheelFactor("cli"),
       overviewRuler: { width: SCROLLBAR },
-      linkHandler: { activate: activateLink },
+      linkHandler: { activate: activateLink, ...linkHover, allowNonHttpProtocols: true },
     });
     const fit = new FitAddon();
     terminal.loadAddon(fit);
-    terminal.loadAddon(new WebLinksAddon(activateLink));
+    terminal.loadAddon(new WebLinksAddon(activateLink, linkHover));
     // Sixel and iTerm2 inline images; storage held small because there are several terminals.
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
     const scrollSpace = registerTerminalScroll(terminal, element);
     drawn.current = terminal;
+    const contextMenu = (event: MouseEvent) => {
+      const selected = terminalTarget(terminal.getSelection(), session.cwd, location.origin);
+      const text = hoveredLink ?? terminalTextAt(terminal, event.clientX, event.clientY);
+      const target = hoveredLink
+        ? terminalTarget(hoveredLink, session.cwd, location.origin)
+        : (selected ?? terminalTarget(text ?? "", session.cwd, location.origin));
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setMenu({ top: event.clientY, left: event.clientX, target });
+    };
+    element.addEventListener("contextmenu", contextMenu, true);
     const stateKey = `terminal.${viewer ? "viewer." : ""}${session.id}`;
     const forget = readOnSnapshot(stateKey, () => ({
       scroll: terminal.buffer.active.viewportY,
@@ -506,6 +538,7 @@ export function CliView({
       resize.disconnect();
       stopSizing();
       element.removeEventListener("paste", onPaste, true);
+      element.removeEventListener("contextmenu", contextMenu, true);
       stopDrop();
       void incoming.then((stop) => stop());
       void finished.then((stop) => stop());
@@ -551,7 +584,10 @@ export function CliView({
   }, [terminalText]);
   useEffect(() => {
     showing.current = shown;
-    if (!shown) return;
+    if (!shown) {
+      setMenu(null);
+      return;
+    }
     catchUpNow.current?.();
     const frame = requestAnimationFrame(() => {
       const terminal = drawn.current;
@@ -583,7 +619,11 @@ export function CliView({
         transform: scale === 1 ? undefined : `scale(${1 / scale})`,
         transformOrigin: "0 0",
         boxShadow: failed ? "inset 0 2px 0 0 var(--mui-palette-error-main)" : "none",
-        "& > .xterm": { padding: `${PAD.y}px ${PAD.x}px` },
+        "& > .xterm": {
+          padding: `${PAD.y}px 0 ${PAD.y}px ${PAD.x}px`,
+          // Long IME composition must not scroll the terminal sideways to reveal its hidden input.
+          overflowX: "clip",
+        },
         // The viewport covers the padding too; outrank xterm's default black regardless of load order.
         "&& .xterm-viewport": { backgroundColor: look.seeThrough ? "transparent" : opaque },
       }}
@@ -619,6 +659,49 @@ export function CliView({
           {t("terminal.copyFailed")}
         </Alert>
       )}
+      {openFailed && (
+        <Alert
+          severity="error"
+          onClose={() => setOpenFailed(false)}
+          sx={{ position: "absolute", top: 0, right: 0, zIndex: 10 }}
+        >
+          {t("terminal.openFailed")}
+        </Alert>
+      )}
+      <Menu
+        open={menu !== null}
+        onClose={() => setMenu(null)}
+        container={() => host?.closest("dialog[open]") ?? document.body}
+        anchorReference="anchorPosition"
+        anchorPosition={menu ?? undefined}
+      >
+        <MenuItem
+          onClick={() => {
+            if (!menu) return;
+            const { target } = menu;
+            setMenu(null);
+            setOpenFailed(
+              !(target.kind === "url"
+                ? openPage(target.value, session.id)
+                : openFile(target.value, session.id)),
+            );
+          }}
+        >
+          {t(menu?.target.kind === "url" ? "terminal.openUrl" : "terminal.openFile")}
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (!menu) return;
+            const { value } = menu.target;
+            setMenu(null);
+            void copyText(value)
+              .then(() => setCopyFailed(false))
+              .catch(() => setCopyFailed(true));
+          }}
+        >
+          {t(menu?.target.kind === "url" ? "terminal.copyUrl" : "file.copyPath")}
+        </MenuItem>
+      </Menu>
       <ResumeBar id={session.id} />
     </Box>
   );

@@ -4,6 +4,7 @@ import {
   FILE_DRAG_TYPE,
   FILES_DRAG_TYPE,
   hasFileDrag,
+  isLocalFileDrag,
   readFileDrag,
   writeFileDrag,
 } from "../src/lib/filePreview.ts";
@@ -42,6 +43,12 @@ test("single-file drags preserve the existing preview format", () => {
   const legacy = transfer();
   legacy.setData(FILE_DRAG_TYPE, "/work/old.txt");
   assert.deepEqual(readFileDrag(legacy), [{ path: "/work/old.txt", isDir: false }]);
+  assert.equal(isLocalFileDrag(data), true);
+  assert.equal(
+    isLocalFileDrag(legacy),
+    false,
+    "A MIME marker alone never authorizes uploading local bytes",
+  );
 });
 
 test("malformed multi-entry payloads never fall back to a different operation", () => {

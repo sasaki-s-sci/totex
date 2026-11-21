@@ -43,6 +43,10 @@ notify-debouncer-full = "0.7.0"
 # src/front. The program itself is taken by the persistent half -- see persistent/src/update.rs
 # -- with the same client and the same key.
 base64 = "0.22.1"
+# Resource grants follow parsed Markdown links, never link-like code samples.
+pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
+# The HTML parser already used by Tauri's asset build, also needed at runtime here.
+dom_query = { version = "0.27.0", default-features = false }
 dirs = "6.0.0"
 flate2 = "1.1.9"
 semver = "1.0.28"

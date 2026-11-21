@@ -9,12 +9,15 @@ import {
   ListSubheader,
   Menu,
   MenuItem,
+  Snackbar,
 } from "@mui/material";
+import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { baseName } from "../folder/format";
 import { guardSessionClose } from "../hooks/useSessions";
+import { isPreviewDrop } from "../lib/canvasDrop";
 import { hasFileDrag, mediaView, readFileDrag } from "../lib/filePreview";
 import { OPEN_PAGE, type PageRequest } from "../lib/openPage";
 import { markdownPart, mediaPart, settingsPart } from "../parts";
@@ -25,6 +28,7 @@ import { LiveFrame } from "./LiveFrame";
 import { adjacentPane, type CanvasPane, insertFiles, tileLayout, webAddress } from "./model";
 import { PictureReading } from "./nodes/preview/PictureReading";
 import { useCanvases } from "./useCanvases";
+import { useCanvasResize } from "./useCanvasResize";
 import "./styles/index.css";
 import "./canvas.css";
 
@@ -61,11 +65,13 @@ export function Canvas({
       if (processing.current.has(request.id)) continue;
       processing.current.add(request.id);
       const id = request.sessionId ?? current.id;
-      const target = request.at
-        ? document
-            .elementFromPoint(request.at.x, request.at.y)
-            ?.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane
-        : undefined;
+      const target =
+        request.paneId ??
+        (request.at
+          ? document
+              .elementFromPoint(request.at.x, request.at.y)
+              ?.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane
+          : undefined);
       const file = { ...makeFile(request.path), id: `file-${request.id}` };
       keepFrontValue(`canvas.file.${id}/${file.id}`, request.id);
       void state
@@ -124,7 +130,7 @@ type BoardProps = {
   registerSave: ReturnType<typeof useCanvases>["registerSave"];
 };
 
-function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardProps) {
+export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardProps) {
   const { t } = useTranslation();
   const host = useRef<HTMLElement>(null);
   const [selected, select] = useState<string | null>(null);
@@ -132,6 +138,7 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
   const [expanded, expand] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ left: number; top: number; paneId?: string } | null>(null);
   const [range, setRange] = useState<{ left: number; top: number; paneId: string } | null>(null);
+  const [browserFailed, setBrowserFailed] = useState(false);
   const urlField = useId();
   const [urlForm, setUrlForm] = useState<{
     url: string;
@@ -145,6 +152,14 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
   const latest = useRef({ panes, selected, aspect });
   latest.current = { panes, selected, aspect };
   const layout = tileLayout(panes.length, aspect);
+  const resize = useCanvasResize({
+    id,
+    host,
+    layout,
+    enabled: shown && expanded === null,
+    columnLabel: t("canvas.resizeColumns"),
+    rowLabel: t("canvas.resizeRows"),
+  });
   useEffect(() => {
     if (expanded && !panes.some((pane) => pane.id === expanded)) expand(null);
   }, [expanded, panes]);
@@ -340,10 +355,7 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
           select(paneId ?? null);
           setMenu({ left: event.clientX, top: event.clientY, paneId });
         }}
-        style={{
-          gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${layout.rows}, minmax(0, 1fr))`,
-        }}
+        style={resize.style}
       >
         {!panes.length && (
           <div className="canvas-empty">
@@ -376,6 +388,7 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
             }}
           />
         ))}
+        {resize.grips}
       </section>
       <Menu
         open={menu !== null}
@@ -411,6 +424,19 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
         >
           {t("canvas.openUrl")}
         </MenuItem>
+        {!("__TOTEX_BROWSER_CANVAS__" in window) && (
+          <MenuItem
+            onClick={() => {
+              setMenu(null);
+              setBrowserFailed(false);
+              void invoke<string>("canvas_browser_open", { id, token: crypto.randomUUID() })
+                .then((url) => openUrl(url))
+                .catch(() => setBrowserFailed(true));
+            }}
+          >
+            {t("canvas.openCanvasInBrowser")}
+          </MenuItem>
+        )}
         {menuPane?.kind === "iframe" && (
           <MenuItem
             onClick={() => {
@@ -452,6 +478,11 @@ function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardPro
           </MenuItem>
         )}
       </Menu>
+      <Snackbar open={shown && browserFailed} onClose={() => setBrowserFailed(false)}>
+        <Alert severity="error" onClose={() => setBrowserFailed(false)}>
+          {t("canvas.browserFailed")}
+        </Alert>
+      </Snackbar>
       <Dialog
         open={urlForm !== null}
         onClose={() => setUrlForm(null)}
@@ -656,6 +687,7 @@ function Pane({
     <section
       className="canvas-pane"
       data-canvas-pane={pane.id}
+      data-canvas-kind={pane.kind}
       data-selected={selected || undefined}
       aria-label={title}
       tabIndex={-1}
@@ -680,12 +712,16 @@ function Pane({
         }
       }}
       onDragOver={(event) => {
-        if (hasFileDrag(event.dataTransfer)) {
+        if (
+          hasFileDrag(event.dataTransfer) &&
+          isPreviewDrop(event.target as Element, { x: event.clientX, y: event.clientY })
+        ) {
           event.preventDefault();
           event.dataTransfer.dropEffect = "copy";
         }
       }}
       onDrop={(event) => {
+        if (!isPreviewDrop(event.target as Element, { x: event.clientX, y: event.clientY })) return;
         const files = readFileDrag(event.dataTransfer).filter((entry) => !entry.isDir);
         if (!files.length) return;
         event.preventDefault();

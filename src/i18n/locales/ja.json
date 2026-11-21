@@ -9,6 +9,10 @@
     "closeWorkspace": "このワークスペースとターミナルを閉じる"
   },
   "terminal": {
+    "openUrl": "URLを開く",
+    "copyUrl": "URLをコピー",
+    "openFile": "ファイルを開く",
+    "openFailed": "リンクまたはファイルを開けませんでした。",
     "closeFailed": "ターミナルを終了できませんでした。開いたまま保持しています。もう一度お試しください。",
     "connectFailed": "ターミナルに接続できませんでした。セッションは保持しています。",
     "retry": "再接続",
@@ -86,6 +90,7 @@
     "copyMany": "{{count}} 件をコピー",
     "paste": "貼り付け",
     "pasteFailed": "画像・動画を保存できませんでした。もう一度お試しください。",
+    "uploadFailed": "ドロップしたファイルをアップロードできませんでした。もう一度お試しください。",
     "pasteMany": "{{count}} 件を貼り付け",
     "copyContents": "中身をコピー",
     "duplicate": "複製",
@@ -206,18 +211,9 @@
     "themeRefused": "{{file}}: {{error}}",
     "language": "言語",
     "terminalUsage": "端末の CPU・メモリ",
-    "terminalSort": "ターミナルの並び",
-    "createdWhere": "作った場所",
-    "createdAt": "作った順",
     "pageText": "ページの文字サイズ",
     "cardText": "カードの文字サイズ",
     "terminalText": "ターミナルの文字サイズ",
-    "spareWorktree": "新しいブランチ用にワークツリーを先に用意",
-    "follow": "リモートに追従",
-    "fetch": "いま fetch する",
-    "now": "fetch",
-    "fetching": "fetch 中…",
-    "fetchFailed": "届きませんでした",
     "wheel": "ホイール"
   },
   "update": {
@@ -405,6 +401,8 @@
     "invalidUrl": "アプリ外のHTTPまたはHTTPSのURLを入力してください。認証情報を含むURLは使えません。",
     "urlFailed": "ページを開けませんでした。もう一度お試しください。",
     "openInBrowser": "ブラウザーで開く",
+    "openCanvasInBrowser": "canvasをブラウザーで開く",
+    "browserFailed": "ブラウザーでcanvasを開けませんでした。もう一度お試しください。",
     "expand": "拡大表示",
     "restore": "元のサイズに戻す",
     "moveWindow": "ドラッグしてウィンドウを移動",
@@ -419,6 +417,8 @@
     "start": "{{name}}でターミナルを起動",
     "newTerminal": "ターミナルを追加（Ctrl+A）",
     "closeTerminal": "ターミナルを閉じる（Ctrl+X）",
-    "addFolder": "左のエクスプローラーからフォルダを追加してください。"
+    "addFolder": "左のエクスプローラーからフォルダを追加してください。",
+    "resizeColumns": "canvasの列幅を変更",
+    "resizeRows": "canvasの行の高さを変更"
   }
 }

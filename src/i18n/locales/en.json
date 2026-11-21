@@ -9,6 +9,10 @@
     "closeWorkspace": "Close workspace and end its terminals"
   },
   "terminal": {
+    "openUrl": "Open URL",
+    "copyUrl": "Copy URL",
+    "openFile": "Open file",
+    "openFailed": "Could not open the link or file.",
     "closeFailed": "Could not end the terminal. It is still open; try again.",
     "connectFailed": "Could not connect to the terminal. Your session has been kept.",
     "retry": "Retry connection",
@@ -86,6 +90,7 @@
     "copyMany": "Copy {{count}} items",
     "paste": "Paste",
     "pasteFailed": "Could not save the pasted image or video. Try again.",
+    "uploadFailed": "Could not upload the dropped files. Try again.",
     "pasteMany": "Paste {{count}} items",
     "copyContents": "Copy contents",
     "duplicate": "Duplicate",
@@ -206,18 +211,9 @@
     "themeRefused": "{{file}}: {{error}}",
     "language": "Language",
     "terminalUsage": "Terminal CPU and memory",
-    "terminalSort": "Terminal sort",
-    "createdWhere": "Created where",
-    "createdAt": "Created at",
     "pageText": "Page text size",
     "cardText": "Card text size",
     "terminalText": "Terminal text size",
-    "spareWorktree": "Keep a spare worktree for new branches",
-    "follow": "Follow remotes",
-    "fetch": "Fetch now",
-    "now": "Fetch",
-    "fetching": "Fetching…",
-    "fetchFailed": "Could not reach",
     "wheel": "Wheel"
   },
   "update": {
@@ -405,6 +401,8 @@
     "invalidUrl": "Enter an HTTP or HTTPS URL without credentials, outside the application.",
     "urlFailed": "Could not open the page. Try again.",
     "openInBrowser": "Open in browser",
+    "openCanvasInBrowser": "Open canvas in browser",
+    "browserFailed": "Could not open the canvas in your browser. Try again.",
     "expand": "Expand",
     "restore": "Restore size",
     "moveWindow": "Drag to move the window",
@@ -419,6 +417,8 @@
     "start": "Start terminal in {{name}}",
     "newTerminal": "New terminal (Ctrl+A)",
     "closeTerminal": "Close terminal (Ctrl+X)",
-    "addFolder": "Add a folder from the explorer to start."
+    "addFolder": "Add a folder from the explorer to start.",
+    "resizeColumns": "Resize canvas columns",
+    "resizeRows": "Resize canvas rows"
   }
 }

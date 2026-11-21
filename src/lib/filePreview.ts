@@ -2,12 +2,18 @@ import { type SelectionEntry, topLevelEntries } from "./fileSelection.ts";
 
 export const FILE_DRAG_TYPE = "application/x-totex-file";
 export const FILES_DRAG_TYPE = "application/x-totex-files";
+const localDrags = new WeakSet<DataTransfer>();
+
+export function isLocalFileDrag(transfer: DataTransfer): boolean {
+  return localDrags.has(transfer);
+}
 
 export function hasFileDrag(transfer: Pick<DataTransfer, "types">): boolean {
   return transfer.types.includes(FILES_DRAG_TYPE) || transfer.types.includes(FILE_DRAG_TYPE);
 }
 
 export function writeFileDrag(transfer: DataTransfer, entries: readonly SelectionEntry[]): void {
+  localDrags.add(transfer);
   const picked = topLevelEntries(entries);
   transfer.effectAllowed = "copyMove";
   transfer.setData(
@@ -62,6 +68,7 @@ export type FilePreviewView =
 
 export type FilePreviewRequest = {
   sessionId?: string;
+  paneId?: string;
   id: number;
   path: string;
   folder?: string;

@@ -15,6 +15,7 @@ for (const name of [
   "pnpm-lock.yaml",
   "index.html",
   "front.html",
+  "browser.html",
   "vite.config.ts",
   "tsconfig.json",
 ]) {

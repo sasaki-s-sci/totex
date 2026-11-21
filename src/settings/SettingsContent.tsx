@@ -3,14 +3,11 @@ import { useTranslation } from "react-i18next";
 import { usePageWorkspace } from "../page/PageWorkspace";
 import { terminalPageId } from "../page/placement";
 import { AppearanceRows } from "./AppearanceRows";
-import { FollowRows } from "./FollowRows";
 import { LanguageRow } from "./LanguageRow";
 import { McpRows } from "./McpRows";
 import { ResumeRows } from "./ResumeRows";
 import { Group, Section } from "./Row";
 import { SettingsSaveStatus } from "./SettingsSaveStatus";
-import { SpareRow } from "./SpareRow";
-import { TerminalSortRow } from "./TerminalSortRow";
 import { TextSizeRow } from "./TextSizeRow";
 import { ThemeRow } from "./ThemeRow";
 import { UndoRow } from "./UndoRow";
@@ -37,8 +34,6 @@ export function SettingsContent() {
       <SettingsSaveStatus />
       <Section name={t("canvas.title")}>
         <McpRows cwd={terminal?.cwd} />
-        <FollowRows />
-        <SpareRow />
       </Section>
       <Section name={t("settings.page")}>
         <TextSizeRow place="page" />
@@ -47,7 +42,6 @@ export function SettingsContent() {
       <Section name={t("settings.terminal")}>
         <WheelRow />
         <TextSizeRow place="terminal" />
-        <TerminalSortRow />
       </Section>
       <Section name={t("resume.title")}>
         <ResumeRows />

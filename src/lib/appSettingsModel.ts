@@ -123,8 +123,6 @@ export type AppSettings = {
   /** Theme ids per layer; see src/theme/declaration.ts. */
   appearance: { colors: string; style: string; effects: string };
   language: "system" | "en" | "ja";
-  /** Where Ctrl+A puts its terminal: after the one it was pressed in, or after every other. */
-  terminalSort: "createdWhere" | "createdAt";
   follow: boolean;
   /** Whether a worktree is kept checked out ahead of time for the next branch to take. */
   spareWorktree: boolean;
@@ -157,7 +155,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
   appearance: { colors: "neon", style: "default", effects: "none" },
   language: "system",
-  terminalSort: "createdWhere",
   follow: false,
   spareWorktree: true,
   mcpServing: true,
@@ -207,7 +204,6 @@ export function legacySettings(read: (key: string) => string | null): AppSetting
       colors: pick("totex.preset", ["neon", "classic"], "neon"),
     },
     language: pick("totex.language", ["system", "en", "ja"], "system"),
-    terminalSort: "createdWhere",
     follow: read("totex.follow") === "on",
     spareWorktree: true,
     mcpServing: read("totex.mcp.serving") !== "no",

@@ -165,7 +165,7 @@ pub(super) fn clean_path(path: &Path) -> PathBuf {
 /// Linux build a backslash is an ordinary letter, and the answer has to be the
 /// same in both builds. Which kind of far machine makes no difference here —
 /// the host reads its own spelling apart and writes it back.
-pub(super) fn resolve(raw: &str) -> Result<(Host, PathBuf), String> {
+pub(crate) fn resolve(raw: &str) -> Result<(Host, PathBuf), String> {
     if raw.is_empty() {
         return Err("empty-path".to_string());
     }

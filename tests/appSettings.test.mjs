@@ -22,7 +22,6 @@ test("migrates the user preferences that survive, reading the reading size", () 
       theme: "dark",
       appearance: { colors: "classic", style: "default", effects: "none" },
       language: "ja",
-      terminalSort: "createdWhere",
       follow: true,
       spareWorktree: true,
       mcpServing: true,

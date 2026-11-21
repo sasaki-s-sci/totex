@@ -1,0 +1,52 @@
+.canvas-resize-grip {
+  position: absolute;
+  z-index: 4;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  outline: none;
+}
+.canvas-resize-grip[data-canvas-resize="columns"] {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+}
+.canvas-resize-grip[data-canvas-resize="rows"] {
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 8px;
+  cursor: row-resize;
+}
+.canvas-resize-grip::after {
+  content: "";
+  position: absolute;
+}
+.canvas-resize-grip[data-canvas-resize="columns"]::after {
+  inset: 0 3px;
+}
+.canvas-resize-grip[data-canvas-resize="rows"]::after {
+  inset: 3px 0;
+}
+.canvas-resize-grip:hover::after,
+.canvas-resize-grip:focus-visible::after,
+.canvas-resize-grip[data-active]::after {
+  background: var(--mui-palette-primary-main);
+}
+.session-canvas[data-canvas-resizing]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+.session-canvas[data-canvas-resizing="columns"]::after {
+  cursor: col-resize;
+}
+.session-canvas[data-canvas-resizing="rows"]::after {
+  cursor: row-resize;
+}
