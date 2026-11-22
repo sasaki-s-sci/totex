@@ -103,6 +103,50 @@ export async function verifyTerminalInput(page, base = "http://127.0.0.1:18422")
       const cols = await page.evaluate(() => window.pageTerminals.get("terminal-one").cols);
       const rows = await page.evaluate(() => window.pageTerminals.get("terminal-one").rows);
       for (const row of [1, rows]) {
+        for (const text of ["にゅ", "にゅうりょくちゅう"]) {
+          const wraps = text.length * 2 > 6;
+          const firstRow = row === rows && wraps ? row - 1 : row;
+          const lastRow = firstRow + Number(wraps);
+          await output(
+            `\x1b[2J\x1b[${firstRow};1HPREFIX\x1b[${lastRow};${cols - 3}HTAIL\x1b[${row};${cols - 5}H`,
+          );
+          const screen = await host.locator(".xterm-screen").boundingBox();
+          const cell = { width: screen.width / cols, height: screen.height / rows };
+          const clips = [
+            { x: screen.x, y: screen.y + (firstRow - 1) * cell.height, width: 6 * cell.width },
+            {
+              x: screen.x + (cols - 2) * cell.width,
+              y: screen.y + (lastRow - 1) * cell.height,
+              width: 2 * cell.width,
+            },
+          ].map((clip) => ({ ...clip, height: cell.height }));
+          const before = [];
+          for (const clip of clips) before.push(await page.screenshot({ clip }));
+          await cdp.send("Input.imeSetComposition", {
+            text,
+            selectionStart: 0,
+            selectionEnd: text.length,
+          });
+          // TUI output also repositions the preview while the IME remains active.
+          await page.evaluate(() => {
+            const terminal = window.pageTerminals.get("terminal-one");
+            terminal.refresh(0, terminal.rows - 1);
+          });
+          for (const [index, clip] of clips.entries()) {
+            const during = await page.screenshot({ clip });
+            assert.ok(
+              during.equals(before[index]),
+              `${mode}, row ${row}, ${text}: text outside the composition stays visibly painted`,
+            );
+          }
+          await cdp.send("Input.imeSetComposition", {
+            text: "",
+            selectionStart: 0,
+            selectionEnd: 0,
+          });
+        }
+      }
+      for (const row of [1, rows]) {
         await output(`\x1b[2J\x1b[${row};${cols - 5}H`);
         for (const text of [
           "長い日本語の入力テキスト",

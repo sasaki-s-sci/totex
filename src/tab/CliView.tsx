@@ -176,6 +176,12 @@ export function CliView({
     const placeComposition = () => {
       if (!composition?.classList.contains("active") || !compositionScreen || !compositionHelpers)
         return;
+      // xterm replaces this text on each update; only the text should cover existing terminal cells.
+      if (!composition.firstElementChild) {
+        const text = document.createElement("span");
+        text.textContent = composition.textContent;
+        composition.replaceChildren(text);
+      }
       const style = compositionHelpers.style;
       style.setProperty("--composition-width", compositionScreen.style.width);
       style.setProperty("--composition-height", compositionScreen.style.height);
@@ -647,6 +653,9 @@ export function CliView({
         },
         "&& .composition-view": {
           // Keep the cursor offset on the first line; later lines use the full terminal width.
+          backgroundColor: "transparent",
+          color: palette.text.primary,
+          "& > span": { backgroundColor: opaque },
           left: "0 !important",
           width: "var(--composition-width)",
           height: "auto !important",
