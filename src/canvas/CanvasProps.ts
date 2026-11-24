@@ -3,8 +3,10 @@ import type { FilePreviewRequest, FilePreviewView } from "../lib/filePreview";
 import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
 import type { BranchPick, WorkRequest, WorktreeBrowseRequest } from "./graphActions";
+import type { useCanvases } from "./useCanvases";
 
 export type CanvasProps = {
+  state: ReturnType<typeof useCanvases>;
   workspace: Workspace;
 
   folders: readonly Folder[];
@@ -24,6 +26,7 @@ export type CanvasProps = {
   onCloseWorkspace: (root: string) => Promise<boolean>;
 
   onEndSession: (session: Session, exited?: boolean) => void;
+  onNewTerminal: (session: Session) => void;
 
   filePreviews: readonly FilePreviewRequest[];
 

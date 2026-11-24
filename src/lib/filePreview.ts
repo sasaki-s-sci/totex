@@ -1,3 +1,4 @@
+import type { Edge } from "../canvas/layout";
 import { type SelectionEntry, topLevelEntries } from "./fileSelection.ts";
 
 export const FILE_DRAG_TYPE = "application/x-totex-file";
@@ -66,9 +67,14 @@ export type FilePreviewView =
   | "model"
   | "epub";
 
-export type FilePreviewRequest = {
+export type FileDropContext = {
   sessionId?: string;
   paneId?: string;
+  replace?: boolean;
+  edge?: Edge;
+};
+
+export type FilePreviewRequest = FileDropContext & {
   id: number;
   path: string;
   folder?: string;

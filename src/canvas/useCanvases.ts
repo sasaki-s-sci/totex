@@ -1,6 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readOnSnapshot, useFrontState } from "../shell/state";
+import { canvasGeometry } from "./geometry";
+import {
+  type CanvasSplit,
+  type Edge,
+  fitSplit,
+  insertSplit,
+  readLayouts,
+  reconcileSplit,
+  tileSplit,
+} from "./layout";
 import { type CanvasPane, paneSource, type TerminalCanvas } from "./model";
 
 export function useCanvases() {
@@ -8,6 +18,18 @@ export function useCanvases() {
     "canvas.terminals",
     {},
   );
+  const [layouts, setLayouts] = useFrontState<Record<string, CanvasSplit>>("canvas.layouts", () => {
+    try {
+      return readLayouts(JSON.parse(localStorage.getItem("totex.canvas.layouts") ?? "{}"));
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("totex.canvas.layouts", JSON.stringify(layouts));
+    } catch {}
+  }, [layouts]);
   const current = useRef(canvases);
   const saves = useRef(new Map<string, () => Promise<boolean>>());
   const queue = useRef(Promise.resolve());
@@ -33,6 +55,18 @@ export function useCanvases() {
     if ((current.current[next.id]?.revision ?? -1) >= next.revision) return;
     current.current = { ...current.current, [next.id]: next };
     setCanvases(current.current);
+    setLayouts((before) => {
+      if (!before[next.id]) return before;
+      const tree = reconcileSplit(
+        before[next.id],
+        was?.panes.map((pane) => pane.id) ?? [],
+        next.panes.map((pane) => pane.id),
+      );
+      const updated = { ...before };
+      if (tree) updated[next.id] = tree;
+      else delete updated[next.id];
+      return updated;
+    });
     setError(null);
   }, []);
   useEffect(() => {
@@ -56,7 +90,11 @@ export function useCanvases() {
   }, [accept]);
 
   const change = useCallback(
-    (id: string, update: (panes: CanvasPane[]) => CanvasPane[]) => {
+    (
+      id: string,
+      update: (panes: CanvasPane[]) => CanvasPane[],
+      placement?: { source: string; edge: Edge; target?: string },
+    ) => {
       const operation = queue.current
         .catch(() => undefined)
         .then(async () => {
@@ -64,6 +102,8 @@ export function useCanvases() {
           for (const next of await invoke<TerminalCanvas[]>("canvas_read")) await accept(next);
           const was = current.current[id] ?? { id, revision: 0, panes: [] };
           const panes = update(was.panes);
+          const element = document.querySelector(`[data-session-canvas="${CSS.escape(id)}"]`);
+          const geometry = placement && element ? canvasGeometry(element) : null;
           // Save first; a failed save never removes a file from the canonical canvas.
           for (const pane of was.panes) {
             const next = panes.find((one) => one.id === pane.id);
@@ -77,6 +117,25 @@ export function useCanvases() {
             revision: was.revision,
           });
           await accept(next);
+          if (placement)
+            setLayouts((before) => {
+              const ids = was.panes.map((pane) => pane.id);
+              const tree = before[id]
+                ? reconcileSplit(before[id], [], ids)
+                : tileSplit(ids, geometry?.aspect ?? 1);
+              const placed = insertSplit(
+                tree && geometry ? fitSplit(tree, geometry.panes) : tree,
+                placement.source,
+                placement.edge,
+                placement.target,
+              );
+              const latest = reconcileSplit(
+                placed,
+                [],
+                (current.current[id]?.panes ?? []).map((pane) => pane.id),
+              );
+              return latest ? { ...before, [id]: latest } : before;
+            });
           setError(null);
         });
       queue.current = operation;
@@ -91,6 +150,15 @@ export function useCanvases() {
       saves.current.delete(key);
     };
   }, []);
+  const arrange = useCallback((id: string, tree: CanvasSplit) => {
+    const panes = current.current[id]?.panes ?? [];
+    const next = reconcileSplit(
+      tree,
+      [],
+      panes.map((pane) => pane.id),
+    );
+    if (next) setLayouts((before) => ({ ...before, [id]: next }));
+  }, []);
   const saveSession = useCallback(async (id: string) => {
     try {
       await queue.current.catch(() => undefined);
@@ -104,5 +172,14 @@ export function useCanvases() {
       return false;
     }
   }, []);
-  return { canvases, change, registerSave, saveSession, error, clearError: () => setError(null) };
+  return {
+    canvases,
+    layouts,
+    arrange,
+    change,
+    registerSave,
+    saveSession,
+    error,
+    clearError: () => setError(null),
+  };
 }

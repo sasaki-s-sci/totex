@@ -5,9 +5,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { copyInto, moveInto } from "../folder/api";
 import { folderUnder } from "../folder/dropInto";
-import { canvasDropContext, canvasUploadFrame, isPreviewDrop } from "../lib/canvasDrop";
-import type { FilePreviewRequest } from "../lib/filePreview";
-import { dropFilesOnFrame } from "../lib/frameFileDrop";
+import { type CanvasDrop, canvasDropTarget } from "../lib/canvasDrop";
+import { type FileDropContext, hasFileDrag, readFileDrag } from "../lib/filePreview";
 import { dropOnTerminal, terminalUnder } from "../lib/terminalDrop";
 
 const REFUSAL_MS = 2400;
@@ -15,8 +14,7 @@ const REFUSAL_MS = 2400;
 export interface Drops {
   into: string | null;
   refused: string | null;
-  uploadFailed: boolean;
-  clearUploadFailure: () => void;
+  preview: CanvasDrop | null;
   mark: (into: string | null) => void;
   take: (paths: readonly string[], into: string, operation?: "copy" | "move") => void;
 }
@@ -27,13 +25,12 @@ export function useDrops(
     paths: readonly string[],
     at: { x: number; y: number } | null,
     folder?: string,
-    context?: Pick<FilePreviewRequest, "sessionId" | "paneId">,
+    context?: FileDropContext,
   ) => void,
 ): Drops {
   const [into, setInto] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
-  const [uploadFailed, setUploadFailed] = useState(false);
-  const clearUploadFailure = useCallback(() => setUploadFailed(false), []);
+  const [preview, setPreview] = useState<CanvasDrop | null>(null);
   const forget = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -69,6 +66,35 @@ export function useDrops(
     // Scale read once per drag: the window answers in physical pixels, the document in CSS pixels.
     let scale: Promise<number | null> | null = null;
     let latest = 0;
+    const targetAt = (target: Element | null, at: { x: number; y: number }) =>
+      target && (main.current?.contains(target) || target.closest(".layout-bounds"))
+        ? canvasDropTarget(target, at)
+        : null;
+    const showPreview = (next: CanvasDrop | null) =>
+      setPreview((before) =>
+        before?.host === next?.host && before?.context.edge === next?.context.edge ? before : next,
+      );
+    const internal = (event: DragEvent) => {
+      if (!event.dataTransfer || !hasFileDrag(event.dataTransfer)) return;
+      const at = { x: event.clientX, y: event.clientY };
+      const drop = targetAt(event.target instanceof Element ? event.target : null, at);
+      showPreview(event.type === "drop" ? null : drop);
+      if (!drop) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      if (event.type === "drop") {
+        const paths = readFileDrag(event.dataTransfer)
+          .filter((entry) => !entry.isDir)
+          .map((entry) => entry.path);
+        if (paths.length) openFiles(paths, at, undefined, drop.context);
+      }
+    };
+    const clear = () => setPreview(null);
+    document.addEventListener("dragover", internal, true);
+    document.addEventListener("drop", internal, true);
+    document.addEventListener("dragleave", clear, true);
+    document.addEventListener("dragend", clear, true);
 
     void appWindow
       .onDragDropEvent(async ({ payload }) => {
@@ -76,11 +102,11 @@ export function useDrops(
         const owner = main.current?.querySelector("[data-session-canvas]:not([hidden])");
         if (payload.type === "leave") {
           setInto(null);
+          setPreview(null);
           return;
         }
         if (payload.type === "enter") {
           setRefused(null);
-          setUploadFailed(false);
           scale = appWindow.scaleFactor().catch(() => null);
         }
         // A quick drop can arrive before enter has received the window's scale.
@@ -91,10 +117,13 @@ export function useDrops(
         const terminal = terminalUnder(at.x, at.y);
         if (terminal) {
           setInto(null);
+          setPreview(null);
           if (payload.type === "drop") dropOnTerminal(terminal, payload.paths);
           return;
         }
         const folder = folderUnder(at.x, at.y);
+        const drop = folder ? null : targetAt(document.elementFromPoint(at.x, at.y), at);
+        showPreview(payload.type === "drop" ? null : drop);
         if (payload.type !== "drop") {
           setInto(folder);
           return;
@@ -105,22 +134,9 @@ export function useDrops(
         }
 
         setInto(null);
-        // A drop over the column but on no row stays the column's; only the canvas opens a card.
-        const target = document.elementFromPoint(at.x, at.y);
-        if (!payload.paths.length || !target || !main.current?.contains(target)) return;
+        if (!payload.paths.length || !drop) return;
         if (owner !== main.current?.querySelector("[data-session-canvas]:not([hidden])")) return;
-        if (isPreviewDrop(target, at)) {
-          openFiles(payload.paths, at, undefined, canvasDropContext(target));
-        } else {
-          const frame = canvasUploadFrame(target);
-          if (frame) {
-            try {
-              await dropFilesOnFrame(frame, payload.paths, at);
-            } catch {
-              if (!cancelled) setUploadFailed(true);
-            }
-          }
-        }
+        openFiles(payload.paths, at, undefined, drop.context);
       })
       .then((unlisten) => {
         if (cancelled) unlisten();
@@ -131,8 +147,12 @@ export function useDrops(
     return () => {
       cancelled = true;
       stop?.();
+      document.removeEventListener("dragover", internal, true);
+      document.removeEventListener("drop", internal, true);
+      document.removeEventListener("dragleave", clear, true);
+      document.removeEventListener("dragend", clear, true);
     };
   }, [openFiles, take]);
 
-  return { into, refused, mark, take, uploadFailed, clearUploadFailure };
+  return { into, refused, mark, take, preview };
 }

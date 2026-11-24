@@ -1,3 +1,5 @@
+import CheckIcon from "@mui/icons-material/Check";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import {
   Alert,
   Button,
@@ -5,29 +7,42 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  IconButton,
   InputBase,
-  ListSubheader,
   Menu,
   MenuItem,
   Snackbar,
 } from "@mui/material";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { baseName } from "../folder/format";
 import { guardSessionClose } from "../hooks/useSessions";
-import { isPreviewDrop } from "../lib/canvasDrop";
-import { hasFileDrag, mediaView, readFileDrag } from "../lib/filePreview";
+import { canvasDropTarget } from "../lib/canvasDrop";
+import { copyText } from "../lib/clipboard";
+import { type FileDropContext, hasFileDrag, mediaView, readFileDrag } from "../lib/filePreview";
 import { OPEN_PAGE, type PageRequest } from "../lib/openPage";
+import { useTerminalPages } from "../lib/terminalPages";
 import { markdownPart, mediaPart, settingsPart } from "../parts";
 import { keepFrontValue } from "../shell/state";
 import { CanvasFile } from "./CanvasFile";
+import { CanvasPages } from "./CanvasPages";
 import type { CanvasProps } from "./CanvasProps";
 import { LiveFrame } from "./LiveFrame";
-import { adjacentPane, type CanvasPane, insertFiles, tileLayout, webAddress } from "./model";
+import { type CanvasSplit, paneGrid } from "./layout";
+import { adjacentPane, type CanvasGrid, type CanvasPane, insertFiles, webAddress } from "./model";
 import { PictureReading } from "./nodes/preview/PictureReading";
-import { useCanvases } from "./useCanvases";
+import type { CanvasPage } from "./pages";
+import type { useCanvases } from "./useCanvases";
 import { useCanvasResize } from "./useCanvasResize";
 import "./styles/index.css";
 import "./canvas.css";
@@ -39,15 +54,17 @@ const emptyPanes: CanvasPane[] = [];
 const makeFile = (path: string): CanvasPane => ({ id: crypto.randomUUID(), kind: "file", path });
 
 export function Canvas({
+  state,
   sessions,
   showing,
+  onNewTerminal,
   filePreviews,
   onCloseFilePreview,
   settingsRequest,
   onCloseSettings,
 }: CanvasProps) {
   const { t } = useTranslation();
-  const state = useCanvases();
+  const pages = useTerminalPages();
   const processing = useRef(new Set<number>());
   const current = sessions.find((session) => session.id === showing) ?? sessions[0];
   const Settings = settingsPart.use(settingsRequest > 0);
@@ -67,7 +84,7 @@ export function Canvas({
       const id = request.sessionId ?? current.id;
       const target =
         request.paneId ??
-        (request.at
+        (!request.edge && request.at
           ? document
               .elementFromPoint(request.at.x, request.at.y)
               ?.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane
@@ -75,12 +92,20 @@ export function Canvas({
       const file = { ...makeFile(request.path), id: `file-${request.id}` };
       keepFrontValue(`canvas.file.${id}/${file.id}`, request.id);
       void state
-        .change(id, (panes) =>
-          panes.some((pane) => pane.id === file.id) ? panes : insertFiles(panes, [file], target),
+        .change(
+          id,
+          (panes) =>
+            panes.some((pane) => pane.id === file.id)
+              ? panes
+              : request.edge
+                ? [...panes, file]
+                : insertFiles(panes, [file], target, request.replace),
+          request.edge ? { source: file.id, edge: request.edge, target } : undefined,
         )
         .then(() => onCloseFilePreview(request.id))
         .catch(() => {
           processing.current.delete(request.id);
+          onCloseFilePreview(request.id);
         });
     }
   }, [filePreviews, current, state.change, onCloseFilePreview]);
@@ -94,8 +119,11 @@ export function Canvas({
           cwd={session.cwd}
           shown={session.id === current?.id}
           panes={state.canvases[session.id]?.panes ?? emptyPanes}
+          tree={state.layouts[session.id]}
           change={state.change}
           registerSave={state.registerSave}
+          pages={pages.filter((page) => page.cwd === session.cwd)}
+          onNewTerminal={() => onNewTerminal(session)}
         />
       ))}
       {!current && (
@@ -126,19 +154,36 @@ type BoardProps = {
   cwd: string;
   shown: boolean;
   panes: CanvasPane[];
+  tree?: CanvasSplit;
   change: ReturnType<typeof useCanvases>["change"];
   registerSave: ReturnType<typeof useCanvases>["registerSave"];
+  pages?: readonly CanvasPage[];
+  onNewTerminal?: () => void;
 };
 
-export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: BoardProps) {
+export function SessionCanvas({
+  id,
+  cwd,
+  shown,
+  panes,
+  tree,
+  change,
+  registerSave,
+  pages = [],
+  onNewTerminal,
+}: BoardProps) {
   const { t } = useTranslation();
   const host = useRef<HTMLElement>(null);
   const [selected, select] = useState<string | null>(null);
   const [held, setHeld] = useState(false);
   const [expanded, expand] = useState<string | null>(null);
+  const [reloads, reload] = useState<Record<string, number>>({});
   const [menu, setMenu] = useState<{ left: number; top: number; paneId?: string } | null>(null);
   const [range, setRange] = useState<{ left: number; top: number; paneId: string } | null>(null);
   const [browserFailed, setBrowserFailed] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
+  const copyValueId = useId();
   const urlField = useId();
   const [urlForm, setUrlForm] = useState<{
     url: string;
@@ -149,9 +194,19 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
   const popupOpen = useRef(false);
   popupOpen.current = menu !== null || range !== null || urlForm !== null;
   const [aspect, setAspect] = useState(1);
-  const latest = useRef({ panes, selected, aspect });
-  latest.current = { panes, selected, aspect };
-  const layout = tileLayout(panes.length, aspect);
+  const layout = paneGrid(
+    tree,
+    panes.map((pane) => pane.id),
+    aspect,
+  );
+  const latest = useRef({ panes, selected, aspect, layout });
+  latest.current = { panes, selected, aspect, layout };
+  // Moving an iframe's DOM node reloads it; reorder grid positions while keeping mounted nodes.
+  const drawOrder = useRef<string[]>([]);
+  drawOrder.current = [
+    ...drawOrder.current.filter((id) => panes.some((pane) => pane.id === id)),
+    ...panes.filter((pane) => !drawOrder.current.includes(pane.id)).map((pane) => pane.id),
+  ];
   const resize = useCanvasResize({
     id,
     host,
@@ -160,8 +215,15 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
     columnLabel: t("canvas.resizeColumns"),
     rowLabel: t("canvas.resizeRows"),
   });
+  const previousPanes = useRef(panes);
   useEffect(() => {
-    if (expanded && !panes.some((pane) => pane.id === expanded)) expand(null);
+    if (
+      expanded &&
+      (!panes.some((pane) => pane.id === expanded) ||
+        panes.some((pane) => !previousPanes.current.some((before) => before.id === pane.id)))
+    )
+      expand(null);
+    previousPanes.current = panes;
   }, [expanded, panes]);
   const add = useCallback(() => {
     const pane: CanvasPane = { id: crypto.randomUUID(), kind: "empty" };
@@ -204,9 +266,16 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
     return () => window.removeEventListener(OPEN_PAGE, open);
   }, [id, shown, openPage]);
   const open = useCallback(
-    (path: string, target?: string) => {
+    (path: string, context: FileDropContext) => {
       const file = makeFile(path);
-      void change(id, (panes) => insertFiles(panes, [file], target))
+      void change(
+        id,
+        (panes) =>
+          context.edge
+            ? [...panes, file]
+            : insertFiles(panes, [file], context.paneId, context.replace),
+        context.edge ? { source: file.id, edge: context.edge, target: context.paneId } : undefined,
+      )
         .then(() => select(file.id))
         .catch(() => undefined);
     },
@@ -287,13 +356,13 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
       event.stopImmediatePropagation();
       if (event.key === "Escape") return release();
       if (event.repeat) return;
-      const { panes, selected, aspect } = latest.current;
+      const { panes, selected, aspect, layout } = latest.current;
       const at = Math.max(
         0,
         panes.findIndex((pane) => pane.id === selected),
       );
       if (event.key.startsWith("Arrow")) {
-        const next = panes[adjacentPane(panes.length, at, event.key, aspect)];
+        const next = panes[adjacentPane(panes.length, at, event.key, aspect, layout)];
         select(next?.id ?? null);
         focusPane(next?.id);
       } else if (event.ctrlKey && event.key.toLowerCase() === "x" && panes[at])
@@ -335,6 +404,17 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
     menuPane?.kind === "video" ||
     menuPane?.kind === "audio" ||
     (menuPane?.kind === "file" && mediaView(menuPane.path) !== null);
+  const menuName = menuPath
+    ? baseName(menuPath)
+    : menuPane
+      ? menuPane.title || t(`canvas.${menuPane.kind}`, { defaultValue: menuPane.kind })
+      : baseName(cwd);
+  const copy = (key: string, value: string) => {
+    setCopyFailed(false);
+    void copyText(value)
+      .then(() => setCopied(key))
+      .catch(() => setCopyFailed(true));
+  };
   return (
     <>
       <section
@@ -353,41 +433,44 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
               ? event.target.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane
               : undefined;
           select(paneId ?? null);
+          setCopied(null);
           setMenu({ left: event.clientX, top: event.clientY, paneId });
         }}
         style={resize.style}
       >
-        {!panes.length && (
-          <div className="canvas-empty">
-            <p>{t("canvas.keys")}</p>
-          </div>
-        )}
-        {panes.map((pane, index) => (
-          <Pane
-            key={pane.id}
-            cacheKey={`${id}/${pane.id}`}
-            pane={pane}
-            shown={shown}
-            expanded={shown && expanded === pane.id}
-            toggleExpanded={() => expand(expanded === pane.id ? null : pane.id)}
-            collapse={() => expand(null)}
-            cwd={cwd}
-            selected={active === pane.id}
-            held={held}
-            span={layout.cells[index].span}
-            select={() => select(pane.id)}
-            open={(path) => open(path, pane.id)}
-            remove={() => remove(pane.id)}
-            rangeAnchor={range?.paneId === pane.id ? range : null}
-            closeRange={() => setRange(null)}
-            registerSave={(save) => registerSave(`${id}/${pane.id}`, save)}
-            replace={(update) => {
-              void change(id, (panes) =>
-                panes.map((one) => (one.id === pane.id ? update(one) : one)),
-              ).catch(() => undefined);
-            }}
-          />
-        ))}
+        {!panes.length && <CanvasPages pages={pages} open={(url) => openPage(url)} />}
+        {drawOrder.current.map((paneId) => {
+          const index = panes.findIndex((pane) => pane.id === paneId);
+          const pane = panes[index];
+          return (
+            <Pane
+              key={pane.id}
+              cacheKey={`${id}/${pane.id}`}
+              pane={pane}
+              shown={shown}
+              expanded={shown && expanded === pane.id}
+              toggleExpanded={() => expand(expanded === pane.id ? null : pane.id)}
+              collapse={() => expand(null)}
+              cwd={cwd}
+              selected={active === pane.id}
+              held={held}
+              cell={layout.cells[index]}
+              select={() => select(pane.id)}
+              open={(path, context) => open(path, context ?? { paneId: pane.id })}
+              empty={<CanvasPages pages={pages} open={(url) => openPage(url, pane.id)} />}
+              reload={reloads[pane.id] ?? 0}
+              remove={() => remove(pane.id)}
+              rangeAnchor={range?.paneId === pane.id ? range : null}
+              closeRange={() => setRange(null)}
+              registerSave={(save) => registerSave(`${id}/${pane.id}`, save)}
+              replace={(update) => {
+                void change(id, (panes) =>
+                  panes.map((one) => (one.id === pane.id ? update(one) : one)),
+                ).catch(() => undefined);
+              }}
+            />
+          );
+        })}
         {resize.grips}
       </section>
       <Menu
@@ -400,11 +483,65 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
         anchorReference="anchorPosition"
         anchorPosition={menu ?? undefined}
       >
-        {menuPath && (
-          <ListSubheader disableSticky className="canvas-menu-file">
-            <strong>{baseName(menuPath)}</strong>
-            <span>{menuPath}</span>
-          </ListSubheader>
+        {[
+          { key: "name", value: menuName, label: t("canvas.copyName") },
+          {
+            key: "path",
+            value: menuPath ?? cwd,
+            label: t(menuPane?.kind === "iframe" ? "terminal.copyUrl" : "file.copyPath"),
+          },
+        ].map(({ key, value, label }) => (
+          <MenuItem
+            key={key}
+            className="canvas-menu-copy"
+            aria-label={label}
+            aria-describedby={`${copyValueId}-${key}`}
+            onClick={() => copy(key, value)}
+          >
+            <span
+              id={`${copyValueId}-${key}`}
+              className={key === "name" ? "canvas-menu-name" : "canvas-menu-path"}
+            >
+              {value}
+            </span>
+            <IconButton
+              size="small"
+              aria-label={label}
+              aria-describedby={`${copyValueId}-${key}`}
+              title={copied === key ? t("canvas.mcpCopied") : label}
+              tabIndex={-1}
+              onClick={(event) => {
+                event.stopPropagation();
+                copy(key, value);
+              }}
+            >
+              {copied === key ? (
+                <CheckIcon fontSize="small" />
+              ) : (
+                <ContentCopyIcon fontSize="small" />
+              )}
+            </IconButton>
+          </MenuItem>
+        ))}
+        {onNewTerminal && (
+          <MenuItem
+            onClick={() => {
+              setMenu(null);
+              onNewTerminal();
+            }}
+          >
+            {t("canvas.openTerminal")}
+          </MenuItem>
+        )}
+        {menuPane?.kind === "iframe" && (
+          <MenuItem
+            onClick={() => {
+              reload((before) => ({ ...before, [menuPane.id]: (before[menuPane.id] ?? 0) + 1 }));
+              setMenu(null);
+            }}
+          >
+            {t("canvas.reloadPage")}
+          </MenuItem>
         )}
         {menuPane && menuPane.kind !== "empty" && (
           <MenuItem
@@ -478,6 +615,11 @@ export function SessionCanvas({ id, cwd, shown, panes, change, registerSave }: B
           </MenuItem>
         )}
       </Menu>
+      <Snackbar open={shown && copyFailed} onClose={() => setCopyFailed(false)}>
+        <Alert severity="error" onClose={() => setCopyFailed(false)}>
+          {t("canvas.copyFailed")}
+        </Alert>
+      </Snackbar>
       <Snackbar open={shown && browserFailed} onClose={() => setBrowserFailed(false)}>
         <Alert severity="error" onClose={() => setBrowserFailed(false)}>
           {t("canvas.browserFailed")}
@@ -554,9 +696,11 @@ function Pane({
   cwd,
   selected,
   held,
-  span,
+  cell,
   select,
   open,
+  empty,
+  reload,
   remove,
   rangeAnchor,
   closeRange,
@@ -572,9 +716,11 @@ function Pane({
   cwd: string;
   selected: boolean;
   held: boolean;
-  span: number;
+  cell: CanvasGrid["cells"][number];
   select: () => void;
-  open: (path: string) => void;
+  open: (path: string, context?: FileDropContext) => void;
+  empty: ReactNode;
+  reload: number;
   remove: () => Promise<void>;
   rangeAnchor: { left: number; top: number } | null;
   closeRange: () => void;
@@ -609,7 +755,7 @@ function Pane({
   const register = useCallback((callback: () => Promise<boolean>) => save.current(callback), []);
   const content =
     pane.kind === "iframe" ? (
-      <LiveFrame url={pane.url} title={title} />
+      <LiveFrame key={reload} url={pane.url} title={title} />
     ) : pane.kind === "file" || ("src" in pane && localSource) ? (
       <CanvasFile
         key={pane.kind === "file" ? pane.path : pane.src}
@@ -679,9 +825,7 @@ function Pane({
         {Markdown && <Markdown text={pane.text} path={`${cwd}/canvas.md`} onOpenFile={open} />}
       </div>
     ) : (
-      <div className="canvas-empty">
-        <p>{t("canvas.keys")}</p>
-      </div>
+      empty
     );
   return (
     <section
@@ -691,7 +835,10 @@ function Pane({
       data-selected={selected || undefined}
       aria-label={title}
       tabIndex={-1}
-      style={{ gridColumn: `span ${span}` }}
+      style={{
+        gridColumn: `${cell.column + 1} / span ${cell.span}`,
+        gridRow: `${cell.row + 1} / span ${cell.rowSpan}`,
+      }}
       onFocus={select}
       onPointerDown={select}
       onDoubleClick={(event) => {
@@ -714,19 +861,23 @@ function Pane({
       onDragOver={(event) => {
         if (
           hasFileDrag(event.dataTransfer) &&
-          isPreviewDrop(event.target as Element, { x: event.clientX, y: event.clientY })
+          canvasDropTarget(event.target as Element, { x: event.clientX, y: event.clientY })
         ) {
           event.preventDefault();
           event.dataTransfer.dropEffect = "copy";
         }
       }}
       onDrop={(event) => {
-        if (!isPreviewDrop(event.target as Element, { x: event.clientX, y: event.clientY })) return;
+        const drop = canvasDropTarget(event.target as Element, {
+          x: event.clientX,
+          y: event.clientY,
+        });
+        if (!drop) return;
         const files = readFileDrag(event.dataTransfer).filter((entry) => !entry.isDir);
         if (!files.length) return;
         event.preventDefault();
         event.stopPropagation();
-        for (const file of files) open(file.path);
+        for (const file of files) open(file.path, drop.context);
       }}
     >
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: Native Escape and the Close button dismiss this dialog; clicks here only handle its backdrop. */}

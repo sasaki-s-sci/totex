@@ -2,7 +2,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { Fragment, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { loadSettings } from "../../src/lib/appSettings";
-import { keepFrontValue, snapshot } from "../../src/shell/state";
+import { keepFrontValue, snapshot, takeCarried } from "../../src/shell/state";
 import { appearanceNow, themeFrom } from "../../src/theme";
 import "../../src/i18n";
 
@@ -23,10 +23,15 @@ const groupedSessions = [
   { id: "terminal-other", cwd: ordering ? "/elsewhere/tmp" : "/elsewhere", branch: "other" },
 ];
 if (ordering) groupedSessions.reverse();
-keepFrontValue("sessions.list", [
-  { id: "terminal-one", cwd: "/tmp", branch: "main" },
-  ...(location.search.includes("grouped") ? groupedSessions : []),
-]);
+keepFrontValue(
+  "sessions.list",
+  location.search.includes("no-sessions")
+    ? []
+    : [
+        { id: "terminal-one", cwd: "/tmp", branch: "main" },
+        ...(location.search.includes("grouped") ? groupedSessions : []),
+      ],
+);
 keepFrontValue(
   "files.open",
   location.search.includes("onlyterminals")
@@ -58,6 +63,10 @@ if (
   ]);
 }
 await loadSettings();
+if (location.search.includes("carried")) {
+  await import("../../src/lib/terminalPages");
+  await takeCarried();
+}
 const { colors, style } = appearanceNow();
 const theme = themeFrom(colors, style);
 const { Window } = await import("../../src/window/Window");

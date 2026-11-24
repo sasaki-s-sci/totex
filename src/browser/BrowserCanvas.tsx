@@ -21,6 +21,7 @@ function BrowserCanvas({ session }: { session: Session }) {
         cwd={session.cwd}
         shown
         panes={state.canvases[session.id]?.panes ?? []}
+        tree={state.layouts[session.id]}
         change={state.change}
         registerSave={state.registerSave}
       />

@@ -1,9 +1,14 @@
-/** Workspace roots and sidebar explorers that survive closing the process. */
+/** Workspace roots, sidebar explorers and collected pages that survive closing the process. */
 // Named for the update it was first kept for; a program before this one still writes it there.
 export const CARRIED = "totex.relaunch";
 
 // Terminals are recovered from the service; file IDs and page layout belong to the live process.
-export const CARRIES = ["window.roots", "window.foldersOpen", "folders.panes"] as const;
+export const CARRIES = [
+  "window.roots",
+  "window.foldersOpen",
+  "folders.panes",
+  "canvas.pages",
+] as const;
 
 /** The document to keep: only the carried keys this front holds. */
 export function pickCarried(values: Readonly<Record<string, unknown>>): {

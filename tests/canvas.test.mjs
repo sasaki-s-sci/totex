@@ -45,6 +45,7 @@ test("a drop fills an empty pane but preserves an existing document", () => {
   assert.deepEqual(insertFiles([old, blank], incoming, "blank"), [old, ...incoming]);
   assert.deepEqual(insertFiles([old], incoming, "old"), [old, ...incoming]);
   assert.deepEqual(insertFiles([old], incoming), [old, ...incoming]);
+  assert.deepEqual(insertFiles([old, blank], incoming, "old", true), [...incoming, blank]);
 });
 
 test("served pages cannot use app origins, native protocols or embedded credentials", () => {

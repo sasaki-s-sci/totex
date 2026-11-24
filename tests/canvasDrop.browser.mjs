@@ -38,15 +38,15 @@ async function pointAt(target, edge) {
   return {
     x:
       edge === "left"
-        ? box.x + 12
+        ? box.x + 2
         : edge === "right"
-          ? box.x + box.width - 12
+          ? box.x + box.width - 2
           : box.x + box.width / 2,
     y:
       edge === "top"
-        ? box.y + 12
+        ? box.y + 2
         : edge === "bottom"
-          ? box.y + box.height - 12
+          ? box.y + box.height - 2
           : box.y + box.height / 2,
   };
 }
@@ -137,16 +137,61 @@ async function panes(page, id) {
   return page.evaluate((id) => window.canvasStates[id]?.panes ?? [], id);
 }
 
-/** Native path routing and real browser file drops share the same live iframe fixture. */
-export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18422") {
+export async function verifyCanvasDropsWithoutTerminal(page, base = "http://127.0.0.1:18426") {
+  await installCanvasNative(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  for (const action of ["layout", "page", "double-click", "multiple"]) {
+    await page.goto(`${base}/tests/fixtures/pages.html?canvas&onlyterminals&no-sessions`);
+    await page.locator(".layout-bounds").waitFor();
+    await page.locator("#folder-sidebar").getByText("tmp", { exact: true }).first().click();
+    await page.locator('[data-pick-row="/tmp/sub"]').click();
+    const file = page.locator('[data-pick-row="/tmp/sub/child.txt"]');
+    await file.waitFor();
+    assert.equal(await page.locator("[data-session-canvas]").count(), 0);
+    if (action === "double-click") await file.dblclick();
+    else if (action === "multiple")
+      await internalDrop(page, page.locator("main .canvas-empty"), [
+        "/tmp/sub/child.txt",
+        "/tmp/note.txt",
+      ]);
+    else {
+      const from = await file.boundingBox();
+      const to = await page
+        .locator(action === "layout" ? ".layout-bounds" : "main .canvas-empty")
+        .boundingBox();
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2, { steps: 3 });
+      await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+      await page.locator(".canvas-drop-preview").waitFor();
+      await page.mouse.up();
+    }
+    await page.getByRole("textbox", { name: "child.txt", exact: true }).waitFor();
+    if (action === "multiple")
+      await page.getByRole("textbox", { name: "note.txt", exact: true }).waitFor();
+    const started = await page.evaluate(() =>
+      window.pageCalls.filter(({ cmd }) => cmd === "pty_open"),
+    );
+    assert.equal(started.length, 1, `${action}: starts exactly one terminal`);
+    assert.equal(started[0].args.cwd, action === "double-click" ? "/tmp" : "/tmp/sub");
+    assert.equal(await page.locator("[data-session-canvas]").count(), 1);
+    assert.equal(
+      await page.locator("[data-canvas-kind=file]").count(),
+      action === "multiple" ? 2 : 1,
+    );
+  }
+  return { emptyLayoutBox: true, emptyPage: true, doubleClick: true, oneSessionPerDrop: true };
+}
+
+/** Application-native drops open panes; browser-managed uploads inside an iframe still work. */
+export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const errors = [];
   const collect = (error) => errors.push(error.message);
   page.on("pageerror", collect);
   const directory = await mkdtemp(join(tmpdir(), "totex-drop-"));
   const browserPath = join(directory, "browser upload.txt");
-  const browserText = "Browser file bytes 日本語\n";
-  await writeFile(browserPath, browserText);
+  await writeFile(browserPath, "Browser file bytes 日本語\n");
   try {
     await page.addInitScript({ content: await readFile(bridge, "utf8") });
     await page.addInitScript({ content: await readFile(uploadBridge, "utf8") });
@@ -159,334 +204,190 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18422") {
     );
     await page.addInitScript(() => {
       if (window.top !== window) return;
+      localStorage.removeItem("totex.canvas.layouts");
       window.canvasStates["terminal-one"].panes = [
         { id: "upload", kind: "iframe", url: "http://127.0.0.1:18424/upload" },
         { id: "blank", kind: "empty" },
       ];
       window.canvasStates["terminal-other"] = { id: "terminal-other", revision: 1, panes: [] };
-      for (const name of [
-        "blank",
-        "frame-edge",
-        "edge",
-        "native-edge",
-        "expanded-edge",
-        "empty-canvas",
-      ])
-        window.pageFiles[`/tmp/${name}.txt`] = `Preview of ${name}`;
-      const nativeFiles = {
-        "C:\\private\\native upload.txt": [
-          ...new TextEncoder().encode("Native file bytes 日本語\n"),
-        ],
-        "/tmp/native.png": [
-          ...atob(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGOQ8LL+DwACuAGd8psO1AAAAABJRU5ErkJggg==",
-          ),
-        ].map((character) => character.charCodeAt(0)),
-      };
-      const invoke = window.__TAURI_INTERNALS__.invoke;
-      window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
-        if (cmd !== "fs_read_file" || !nativeFiles[args.path]) return invoke(cmd, args);
-        window.pageCalls.push({ cmd, args });
-        if (window.holdNativeRead)
-          return new Promise((resolve) => {
-            window.releaseNativeRead = () => resolve(nativeFiles[args.path]);
-          });
-        return Promise.resolve(nativeFiles[args.path]);
-      };
     });
-    await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);
+    const fixture = `${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`;
     const first = page.locator('[data-session-canvas="terminal-one"]');
-    await first.locator('[data-canvas-pane="blank"]').waitFor();
-    await first
-      .frameLocator("iframe")
-      .frameLocator("iframe")
-      .getByText("Drop a file in this application", { exact: true })
-      .waitFor();
+    const editor = (name) => page.getByRole("textbox", { name, exact: true });
+    const reset = async () => {
+      await page.goto(fixture);
+      await page.locator('[data-layout-pane="blank"]').waitFor();
+      await first
+        .frameLocator("iframe")
+        .frameLocator("iframe")
+        .getByText("Drop a file in this application", { exact: true })
+        .waitFor();
+      await settle(page);
+    };
+    await reset();
     const upload = page.frame({ url: uploadUrl });
-    assert.ok(upload);
-    await upload
-      .frameLocator("iframe")
-      .getByText("Drop a file in this application", { exact: true })
-      .waitFor();
     const nested = page.frame({ url: nestedUrl });
-    assert.ok(nested);
-
     await browserDrop(page, upload.locator("#drop"), browserPath);
     await upload.waitForFunction(() => window.uploads.length === 1);
-    const expectedFile = {
-      name: "browser upload.txt",
-      type: "text/plain",
-      size: Buffer.byteLength(browserText),
-      text: browserText,
-    };
-    assert.deepEqual(
-      await upload.evaluate(() => window.uploads),
-      [{ type: "drop", trusted: true, files: [expectedFile] }],
-      "The served application's upload handler receives a real File and its contents",
-    );
-    await browserDrop(page, upload.getByLabel("Upload files"), browserPath);
-    await upload.waitForFunction(() => window.uploads.length === 2);
-    assert.deepEqual(
-      await upload.evaluate(() => window.uploads[1]),
-      { type: "change", trusted: true, files: [expectedFile] },
-      "A native browser drop still populates the application's file input",
+    assert.equal(
+      await upload.evaluate(() => window.uploads[0].files[0].text),
+      "Browser file bytes 日本語\n",
     );
     await browserDrop(page, nested.locator("#drop"), browserPath);
     await nested.waitForFunction(() => window.uploads.length === 1);
-    assert.deepEqual(await nested.evaluate(() => window.uploads[0].files), [expectedFile]);
-    assert.deepEqual(
-      (await panes(page, "terminal-one")).map((pane) => pane.id),
-      ["upload", "blank"],
-      "Application uploads never create file preview panes",
-    );
     assert.equal(await upload.evaluate(() => typeof window.__TAURI_INTERNALS__), "undefined");
 
-    const nativePath = "C:\\private\\native upload.txt";
-    const nativeText = "Native file bytes 日本語\n";
-    const nativeFile = {
-      name: "native upload.txt",
-      type: "text/plain",
-      size: Buffer.byteLength(nativeText),
-      text: nativeText,
-    };
-    await nativeDrop(page, upload.locator("#drop"), [nativePath]);
-    await upload.waitForFunction(() => window.uploads.length === 3);
+    // Native centers now open files, including the center of a running webpage.
+    await nativeDrop(page, first.locator('[data-canvas-pane="upload"]'), ["/tmp/dropped.txt"]);
+    await editor("dropped.txt").waitFor();
     assert.deepEqual(
-      await upload.evaluate(() => window.uploads[2]),
-      { type: "drop", trusted: false, files: [nativeFile] },
-      "The Windows bridge supplies full file contents without exposing the native path",
+      (await panes(page, "terminal-one")).map((p) => p.path ?? p.id),
+      ["/tmp/dropped.txt", "blank"],
     );
-    await nativeDrop(page, upload.getByLabel("Upload files"), ["/tmp/native.png"]);
-    await upload.waitForFunction(() => window.uploads.length === 4);
-    assert.deepEqual(
-      await upload
-        .getByLabel("Upload files")
-        .evaluate((input) =>
-          [...input.files].map((file) => ({ name: file.name, type: file.type, size: file.size })),
-        ),
-      [{ name: "native.png", type: "image/png", size: 70 }],
-      "Upload inputs receive the original filename and image MIME type",
-    );
-    await nativeDrop(page, nested.locator("#drop"), [nativePath]);
-    await nested.waitForFunction(() => window.uploads.length === 2);
-    assert.deepEqual(
-      await nested.evaluate(() => window.uploads[1].files),
-      [nativeFile],
-      "Native files traverse nested iframe borders and coordinate offsets",
-    );
-    await upload.getByLabel("Upload files").evaluate((input) => {
-      input.multiple = false;
-    });
-    await nativeDrop(page, upload.getByLabel("Upload files"), [nativePath, "/tmp/native.png"]);
-    await upload.waitForFunction(() => window.uploads.length === 5);
-    assert.deepEqual(
-      await upload.evaluate(() => window.uploads[4].files),
-      [nativeFile],
-      "An input that accepts one file receives only the first drop entry",
-    );
-    await upload.getByLabel("Upload files").evaluate((input) => {
-      input.disabled = true;
-    });
-    await nativeDrop(page, upload.getByLabel("Upload files"), [nativePath]);
-    assert.equal(
-      await upload.evaluate(() => window.uploads.length),
-      5,
-      "Disabled inputs remain disabled during native drops",
-    );
-    await upload.getByLabel("Upload files").evaluate((input) => {
-      input.disabled = false;
-      input.addEventListener("drop", (event) => event.preventDefault(), { once: true });
-    });
-    await nativeDrop(page, upload.getByLabel("Upload files"), ["/tmp/native.png"]);
-    assert.equal(
-      await upload.evaluate(() => window.uploads.length),
-      5,
-      "The application's preventDefault overrides the file-input fallback",
-    );
-
-    await upload.evaluate(() => {
-      const box = document.querySelector("#drop").getBoundingClientRect();
-      window.postMessage(
-        {
-          type: "totex:frame-file-drop",
-          x: box.x + 40,
-          y: box.y + 40,
-          files: [new File(["spoof"], "spoof.txt")],
-        },
-        "*",
-      );
-      parent.postMessage(
-        { type: "totex:frame-file-drop", x: 40, y: 40, paths: ["/private/secret"] },
-        "*",
-      );
-    });
-    const wrapper = upload.parentFrame();
-    await wrapper.evaluate(() => {
-      const frame = document.querySelector("iframe");
-      for (const data of [
-        { x: NaN, y: 50, files: [new File(["spoof"], "spoof.txt")] },
-        { x: 50, y: 50, files: [{ name: "spoof.txt", path: "/private/secret" }] },
-      ])
-        frame.contentWindow.postMessage(
-          { type: "totex:frame-file-drop", ...data },
-          "http://127.0.0.1:18424",
-        );
-    });
-    await settle(page);
-    assert.equal(
-      await upload.evaluate(() => window.uploads.length),
-      5,
-      "The bridge rejects self messages, nonfinite coordinates and forged Files",
-    );
-    assert.equal(
-      await page.evaluate(() =>
-        window.pageCalls.some(
-          ({ cmd, args }) => cmd === "fs_read_file" && args.path === "/private/secret",
-        ),
-      ),
-      false,
-    );
-
-    await page.evaluate(() => {
-      window.holdNativeRead = true;
-    });
-    await nativeDrop(page, upload.locator("#drop"), [nativePath]);
-    await page.waitForFunction(() => typeof window.releaseNativeRead === "function");
-    await switchTerminal(page, 2, "terminal-two");
-    await page.evaluate(() => {
-      window.holdNativeRead = false;
-      window.releaseNativeRead();
-    });
-    await settle(page);
-    assert.equal(
-      await upload.evaluate(() => window.uploads.length),
-      5,
-      "Switching terminals cancels an unfinished upload to its hidden page",
-    );
-    await switchTerminal(page, 1, "terminal-one");
-    assert.deepEqual(
-      (await panes(page, "terminal-one")).map((pane) => pane.id),
-      ["upload", "blank"],
-      "Native application uploads never open extra preview panes",
-    );
-    await internalDrop(page, upload.locator("#drop"), ["/private/secret"]);
-    await settle(page);
-    assert.equal(
-      await page.evaluate(() =>
-        window.pageCalls.some(
-          ({ cmd, args }) => cmd === "fs_read_file" && args.path === "/private/secret",
-        ),
-      ),
-      false,
-      "An arbitrary custom drag MIME cannot request native file reads",
-    );
-    await internalDrop(page, upload.locator("#drop"), [nativePath], undefined, true);
-    await upload.waitForFunction(() => window.uploads.length === 6);
-    assert.deepEqual(
-      await upload.evaluate(() => window.uploads[5].files),
-      [nativeFile],
-      "Only a file drag created by totex can upload native paths through the iframe center",
-    );
-
+    assert.equal(await first.locator('[data-canvas-pane="upload"]').count(), 0);
     const accepted = await internalDrop(page, first.locator('[data-canvas-pane="blank"]'), [
-      "/tmp/blank.txt",
+      "/tmp/note.txt",
     ]);
     assert.equal(accepted.overPrevented, true);
     assert.equal(accepted.dropPrevented, true);
-    await first.getByRole("textbox", { name: "blank.txt", exact: true }).waitFor();
-    assert.deepEqual(
-      (await panes(page, "terminal-one")).map((pane) => pane.path ?? pane.id),
-      ["upload", "/tmp/blank.txt"],
-      "An empty pane is filled once, without a duplicate from the outer canvas",
-    );
-    await nativeDrop(
-      page,
-      first.locator('[data-canvas-pane="upload"]'),
-      ["/tmp/frame-edge.txt"],
-      "bottom",
-    );
-    await first.getByRole("textbox", { name: "frame-edge.txt", exact: true }).waitFor();
-    assert.deepEqual(
-      (await panes(page, "terminal-one")).map((pane) => pane.path ?? pane.id),
-      ["upload", "/tmp/frame-edge.txt", "/tmp/blank.txt"],
-      "A web application's outer edge opens a sibling preview while preserving the application",
-    );
-    assert.equal(await upload.evaluate(() => window.uploads.length), 6);
+    await editor("note.txt").waitFor();
+    assert.equal((await panes(page, "terminal-one")).length, 2, "A center drop opens exactly once");
 
+    // Both drop sources and both surfaces use the same preview and all four root edges.
+    for (const [edge, miniature, native] of [
+      ["left", true, true],
+      ["right", false, true],
+      ["top", true, false],
+      ["bottom", false, false],
+    ]) {
+      await reset();
+      const running = page.frame({ url: uploadUrl });
+      const target = miniature ? page.locator(".layout-bounds") : first;
+      const position = await pointAt(target, edge);
+      await page.evaluate(
+        ({ position, native }) => {
+          if (native) {
+            window.pageEmit("tauri://drag-enter", { paths: ["/tmp/dropped.txt"], position });
+          } else {
+            const data = new DataTransfer();
+            data.setData("application/x-totex-file", "/tmp/dropped.txt");
+            window.testFileDrag = data;
+            document.elementFromPoint(position.x, position.y).dispatchEvent(
+              new DragEvent("dragover", {
+                bubbles: true,
+                cancelable: true,
+                clientX: position.x,
+                clientY: position.y,
+                dataTransfer: data,
+              }),
+            );
+          }
+        },
+        { position, native },
+      );
+      const preview = page.locator(".canvas-drop-preview");
+      await preview.waitFor();
+      assert.equal(await preview.getAttribute("data-edge"), edge);
+      const previewBox = await preview.boundingBox();
+      const hostBox = await preview.locator("..").boundingBox();
+      assert.ok(
+        Math.abs((previewBox.width * previewBox.height) / (hostBox.width * hostBox.height) - 0.5) <
+          0.02,
+      );
+      if (edge === "left")
+        await page.screenshot({ path: "/tmp/totex-file-drop-preview.png", animations: "disabled" });
+      await page.evaluate(
+        ({ position, native }) => {
+          if (native)
+            window.pageEmit("tauri://drag-drop", { paths: ["/tmp/dropped.txt"], position });
+          else
+            document.elementFromPoint(position.x, position.y).dispatchEvent(
+              new DragEvent("drop", {
+                bubbles: true,
+                cancelable: true,
+                clientX: position.x,
+                clientY: position.y,
+                dataTransfer: window.testFileDrag,
+              }),
+            );
+        },
+        { position, native },
+      );
+      await editor("dropped.txt").waitFor();
+      await page.waitForFunction((edge) => {
+        const canvas = document
+          .querySelector('[data-session-canvas="terminal-one"]')
+          .getBoundingClientRect();
+        const pane = [...document.querySelectorAll("[data-canvas-pane]")]
+          .find((p) => p.querySelector('[aria-label="dropped.txt"]'))
+          .getBoundingClientRect();
+        const horizontal = edge === "left" || edge === "right";
+        return (
+          Math.abs(pane.width / canvas.width - (horizontal ? 0.5 : 1)) < 0.01 &&
+          Math.abs(pane.height / canvas.height - (horizontal ? 1 : 0.5)) < 0.01 &&
+          Math.abs((pane.x - canvas.x) / canvas.width - (edge === "right" ? 0.5 : 0)) < 0.01 &&
+          Math.abs((pane.y - canvas.y) / canvas.height - (edge === "bottom" ? 0.5 : 0)) < 0.01
+        );
+      }, edge);
+      assert.deepEqual(
+        (await panes(page, "terminal-one")).slice(0, 2).map((p) => p.id),
+        ["upload", "blank"],
+      );
+      assert.ok(!running.isDetached(), "Splitting keeps the running iframe mounted");
+      assert.equal(await preview.count(), 0);
+    }
+
+    // A pane's inner edge divides only that pane, on the page and in its miniature.
+    for (const miniature of [true, false]) {
+      await reset();
+      const whole = await first.boundingBox();
+      const original = await first.locator('[data-canvas-pane="upload"]').boundingBox();
+      const edge = original.width < whole.width * 0.9 ? "right" : "bottom";
+      const target = miniature
+        ? page.locator('[data-layout-pane="upload"]')
+        : first.locator('[data-canvas-pane="upload"]');
+      await internalDrop(page, target, ["/tmp/dropped.txt"], edge);
+      await editor("dropped.txt").waitFor();
+      await settle(page);
+      const file = await editor("dropped.txt")
+        .locator("xpath=ancestor::*[@data-canvas-pane]")
+        .boundingBox();
+      assert.ok(
+        Math.abs((file.width * file.height) / (original.width * original.height) - 0.5) < 0.02,
+      );
+      const untouched = await first.locator('[data-canvas-pane="blank"]').boundingBox();
+      assert.ok(
+        Math.abs((untouched.width * untouched.height) / (whole.width * whole.height) - 0.5) < 0.02,
+      );
+    }
+
+    // Empty canvases, expanded pages, terminal ownership and terminal path drops.
     await switchTerminal(page, 2, "terminal-two");
     const second = page.locator('[data-session-canvas="terminal-two"]');
     const code = second.locator('[data-canvas-pane="worker-code"]');
-    const beforeCenter = await panes(page, "terminal-two");
-    assert.deepEqual(
-      await internalDrop(page, code, ["/tmp/ignored.txt"]),
-      {
-        overPrevented: false,
-        dropPrevented: false,
-        bubble: ["dragover", "drop"],
-      },
-      "Occupied content keeps its drag/drop events in the center",
-    );
-    await nativeDrop(page, code, ["/tmp/ignored-native.txt"]);
-    assert.deepEqual(
-      await panes(page, "terminal-two"),
-      beforeCenter,
-      "An occupied pane's center never opens a native file preview",
-    );
-
-    await internalDrop(page, code, ["/tmp/edge.txt"], "right");
-    await second.getByRole("textbox", { name: "edge.txt", exact: true }).waitFor();
-    assert.deepEqual(
-      (await panes(page, "terminal-two")).map((pane) => pane.path ?? pane.id),
-      ["worker-code", "/tmp/edge.txt"],
-      "An edge drop inserts beside the addressed pane",
-    );
-    await nativeDrop(page, code, ["/tmp/native-edge.txt"], "left");
-    await second.getByRole("textbox", { name: "native-edge.txt", exact: true }).waitFor();
-    assert.deepEqual(
-      (await panes(page, "terminal-two")).map((pane) => pane.path ?? pane.id),
-      ["worker-code", "/tmp/native-edge.txt", "/tmp/edge.txt"],
-      "Native edge routing preserves the source and its terminal owner",
-    );
-    assert.deepEqual(
-      (await panes(page, "terminal-one")).map((pane) => pane.path ?? pane.id),
-      ["upload", "/tmp/frame-edge.txt", "/tmp/blank.txt"],
-    );
     await code.click({ button: "right" });
     await page.getByRole("menuitem", { name: "Expand", exact: true }).click();
+    await page.getByRole("menu").waitFor({ state: "hidden" });
     const expanded = code.locator("dialog[open]");
     await expanded.waitFor();
-    const expandedEdge = await pointAt(expanded, "left");
-    const mainBox = await page.locator("main").boundingBox();
-    assert.ok(
-      expandedEdge.x < mainBox.x,
-      "The expanded pane extends beyond the original canvas bounds",
-    );
-    await nativeDrop(page, expanded, ["/tmp/expanded-edge.txt"], "left");
-    await page.waitForFunction(() =>
-      window.canvasStates["terminal-two"].panes.some(
-        (pane) => pane.path === "/tmp/expanded-edge.txt",
-      ),
-    );
-    assert.deepEqual(
-      (await panes(page, "terminal-two")).map((pane) => pane.path ?? pane.id),
-      ["worker-code", "/tmp/expanded-edge.txt", "/tmp/native-edge.txt", "/tmp/edge.txt"],
-      "A native drop on an expanded edge stays with its pane even outside the normal canvas box",
-    );
-    await expanded.getByRole("button", { name: "Close", exact: true }).click();
-    await second.getByRole("textbox", { name: "expanded-edge.txt", exact: true }).waitFor();
+    await nativeDrop(page, expanded, ["/tmp/expanded.txt"], "left");
+    await editor("expanded.txt").waitFor();
+    assert.equal(await expanded.count(), 0, "A split restores the grid so both panes are visible");
+    assert.equal(await code.count(), 1);
+    assert.equal((await panes(page, "terminal-one")).length, 3);
+    await code.hover();
+    await nativeDrop(page, code, ["/tmp/center.txt"]);
+    await editor("center.txt").waitFor();
+    assert.equal(await code.count(), 0);
 
     await switchTerminal(page, 3, "terminal-other");
     const empty = page.locator('[data-session-canvas="terminal-other"]');
-    await nativeDrop(page, empty, ["/tmp/empty-canvas.txt"]);
-    await empty.getByRole("textbox", { name: "empty-canvas.txt", exact: true }).waitFor();
-    assert.deepEqual(
-      (await panes(page, "terminal-other")).map((pane) => pane.path),
-      ["/tmp/empty-canvas.txt"],
-    );
-
+    await nativeDrop(page, empty, ["/tmp/one.txt", "/tmp/two.txt"]);
+    await editor("one.txt").waitFor();
+    await editor("two.txt").waitFor();
+    assert.equal((await panes(page, "terminal-other")).length, 2);
     const terminal = page.locator('#cli-sidebar [data-terminal="terminal-other"]');
-    const paths = ["/tmp/one.txt", "/tmp/two words.txt"];
-    await nativeDrop(page, terminal, paths);
+    await nativeDrop(page, terminal, ["/tmp/two words.txt"]);
     await page.waitForFunction(() =>
       window.pageCalls.some(
         ({ cmd, args }) =>
@@ -495,28 +396,64 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18422") {
           args.data.includes("'/tmp/two words.txt'"),
       ),
     );
-    await internalDrop(page, terminal, ["/tmp/internal path.txt"]);
-    await page.waitForFunction(() =>
-      window.pageCalls.some(
-        ({ cmd, args }) =>
-          cmd === "pty_write" &&
-          args.id === "terminal-other" &&
-          args.data.includes("'/tmp/internal path.txt'"),
+    assert.equal((await panes(page, "terminal-other")).length, 2);
+
+    // A pre-existing file-0 must not swallow a new double-click after a frontend restart.
+    await reset();
+    await page.evaluate(() => {
+      window.canvasStates["terminal-one"].panes.push({
+        id: "file-0",
+        kind: "file",
+        path: "/tmp/note.txt",
+      });
+      window.canvasStates["terminal-one"].revision++;
+    });
+    await editor("note.txt").waitFor();
+    await page.locator("#folder-sidebar").getByText("tmp", { exact: true }).first().click();
+    await page.locator('[data-pick-row="/tmp/sub"]').click();
+    const entry = page.locator('[data-pick-row="/tmp/sub/child.txt"]');
+    await entry.dblclick();
+    await editor("child.txt").waitFor();
+    assert.equal(
+      (await panes(page, "terminal-one")).filter((p) => p.path === "/tmp/sub/child.txt").length,
+      1,
+    );
+    assert.equal(await page.locator('[data-canvas-pane="file-0"]').count(), 1);
+
+    const before = (await panes(page, "terminal-one")).length;
+    const source = await entry.boundingBox();
+    const to = await page.locator(".layout-bounds").boundingBox();
+    await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(source.x + source.width / 2 + 10, source.y + source.height / 2, {
+      steps: 3,
+    });
+    await page.mouse.move(to.x + 2, to.y + to.height / 2, { steps: 10 });
+    await page.locator(".canvas-drop-preview").waitFor();
+    await page.mouse.up();
+    await page.waitForFunction(
+      (before) => window.canvasStates["terminal-one"].panes.length === before + 1,
+      before,
+    );
+    assert.equal(
+      await page.evaluate(() =>
+        window.pageCalls.some(({ cmd }) =>
+          ["fs_move_into", "fs_copy_into", "fs_delete_file"].includes(cmd),
+        ),
       ),
+      false,
     );
-    assert.deepEqual(
-      (await panes(page, "terminal-other")).map((pane) => pane.path),
-      ["/tmp/empty-canvas.txt"],
-      "Terminal drops still paste paths without creating preview panes",
-    );
+    await page.screenshot({ path: "/tmp/totex-file-drop-result.png", animations: "disabled" });
     assert.deepEqual(errors, []);
     return {
-      browserUploads: true,
-      nativeUploads: true,
-      nestedUploads: true,
-      emptyAreas: true,
-      paneEdges: true,
-      terminalPaths: true,
+      centerOpen: true,
+      snapEdges: true,
+      nestedSplits: true,
+      nativeAndPointerDrag: true,
+      doubleClick: true,
+      iframeRetention: true,
+      expanded: true,
+      terminalOwnership: true,
     };
   } finally {
     page.off("pageerror", collect);

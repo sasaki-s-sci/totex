@@ -1,6 +1,7 @@
 import { Alert, Box, Divider, Stack } from "@mui/material";
 import { type DragEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { type LayoutBoxOptions, useLayoutBox } from "../canvas/useLayoutBox";
 import { createEntry, renameFile } from "../folder/api";
 import { DROP_INTO, folderUnder } from "../folder/dropInto";
 import { baseName, folderOf, isInside } from "../folder/format";
@@ -35,6 +36,7 @@ export type { FolderDestination, FolderUngraph, Pane } from "./left/usePanes";
 const SIZING: Sizing = { min: 200, max: 560, initial: 288, storageKey: "totex.sidebarWidth" };
 
 export interface LeftSidebarProps {
+  layout?: LayoutBoxOptions | null;
   open: boolean;
   onClose: () => void;
   /** Where the panes stood last run. */
@@ -78,8 +80,10 @@ export function LeftSidebar({
   homes,
   branches,
   onDeletePane,
+  layout,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
+  const layoutBox = useLayoutBox(layout ?? null, open);
   const { terminalUsage } = useAppSettings();
   const showUsage = open && terminalUsage;
   const usage = useTerminalUsage(showUsage);
@@ -311,6 +315,7 @@ export function LeftSidebar({
                 <SettingsMark />
               </MarkButton>
             )}
+            {layoutBox.trash}
           </Stack>
           <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_INSET }}>
             <MarkButton
@@ -328,6 +333,7 @@ export function LeftSidebar({
       }
     >
       <RootsMenu {...panes} />
+      {layoutBox.box}
 
       <Box
         ref={panes.column}
@@ -336,9 +342,8 @@ export function LeftSidebar({
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          overflowY: "auto",
-          // The rail's width is held from the start, so a row's buttons stay put when it appears.
-          scrollbarGutter: "stable",
+          // Reserve the rail even in WebViews without scrollbar-gutter support.
+          overflowY: "scroll",
         }}
         onDragOver={(event) => {
           if (!moving(event.dataTransfer)) return;

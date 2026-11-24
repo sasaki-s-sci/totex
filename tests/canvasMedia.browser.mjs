@@ -153,8 +153,8 @@ export async function verifyCanvasMedia(page, base = "http://127.0.0.1:18422") {
     await page.locator(`[data-canvas-pane="${id}"]`).click({ button: "right" });
     const menu = page.getByRole("menu");
     await menu.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
-    assert.equal(await menu.locator(".canvas-menu-file strong").innerText(), name);
-    assert.equal(await menu.locator(".canvas-menu-file span").innerText(), path);
+    assert.equal(await menu.locator(".canvas-menu-name").innerText(), name);
+    assert.equal(await menu.locator(".canvas-menu-path").innerText(), path);
     await page.keyboard.press("Escape");
     await menu.waitFor({ state: "detached" });
   }

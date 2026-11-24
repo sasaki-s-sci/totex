@@ -8,15 +8,15 @@ import {
   useRef,
 } from "react";
 import { useFrontState } from "../shell/state";
-import type { tileLayout } from "./model";
+import { type Axis, gridBoundaries } from "./layout";
+import type { CanvasGrid } from "./model";
 import "./canvasResize.css";
 
-type Axis = "columns" | "rows";
-type Sizing = Partial<Record<Axis, number[]>>;
+type Sizing = Partial<Record<Axis, number[]>> & { layout?: string };
 type Options = {
   id: string;
   host: RefObject<HTMLElement | null>;
-  layout: ReturnType<typeof tileLayout>;
+  layout: CanvasGrid;
   enabled: boolean;
   columnLabel: string;
   rowLabel: string;
@@ -46,8 +46,8 @@ function stored(key: string): Sizing {
   }
 }
 
-function template(weights: number[]): string {
-  const minimum = `min(${MIN_SIZE}px, max(0px, calc((100% - ${weights.length - 1}px) / ${weights.length})))`;
+function template(weights: number[], least: number): string {
+  const minimum = `min(${least}px, max(0px, calc((100% - ${weights.length - 1}px) / ${weights.length})))`;
   return weights.map((weight) => `minmax(${minimum}, ${weight}fr)`).join(" ");
 }
 
@@ -55,11 +55,14 @@ function template(weights: number[]): string {
 export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLabel }: Options) {
   const storageKey = `totex.canvas.sizes.${id}`;
   const [sizing, setSizing] = useFrontState<Sizing>(`canvas.sizes.${id}`, () => stored(storageKey));
-  const columns = shares(sizing?.columns, layout.columns);
-  const rows = shares(sizing?.rows, layout.rows);
+  const saved = sizing?.layout === layout.key ? sizing : undefined;
+  const columns = shares(saved?.columns ?? layout.weights?.columns, layout.columns);
+  const rows = shares(saved?.rows ?? layout.weights?.rows, layout.rows);
+  // In a split layout, several small tracks can belong to one spanning pane.
+  const least = layout.key ? 0 : MIN_SIZE;
   const style: CSSProperties = {
-    gridTemplateColumns: template(columns),
-    gridTemplateRows: template(rows),
+    gridTemplateColumns: template(columns, least),
+    gridTemplateRows: template(rows, least),
   };
   const current = useRef({ style, enabled });
   current.current = { style, enabled };
@@ -73,7 +76,7 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
   // biome-ignore lint/correctness/useExhaustiveDependencies: cancel a gesture when its grid or visibility changes
   useLayoutEffect(
     () => () => finishResize.current?.(false),
-    [enabled, layout.columns, layout.rows, layout.cells.length],
+    [enabled, layout.columns, layout.rows, layout.cells.length, layout.key],
   );
 
   const sizes = (axis: Axis) => {
@@ -87,12 +90,12 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
   };
   const remember = (axis: Axis, values: number[]) => {
     const weights = shares(values, values.length);
-    if (host.current) host.current.style[property[axis]] = template(weights);
-    setSizing((before) => ({ ...before, [axis]: weights }));
+    if (host.current) host.current.style[property[axis]] = template(weights, least);
+    setSizing({ columns, rows, [axis]: weights, layout: layout.key });
   };
   const adjust = (values: number[], boundary: number, delta: number) => {
     const total = values[boundary - 1] + values[boundary];
-    const minimum = Math.min(MIN_SIZE, values.reduce((sum, size) => sum + size, 0) / values.length);
+    const minimum = Math.min(MIN_SIZE, ...values);
     const first = Math.max(minimum, Math.min(total - minimum, values[boundary - 1] + delta));
     return values.map((size, index) =>
       index === boundary - 1 ? first : index === boundary ? total - first : size,
@@ -103,7 +106,7 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
       host.current.style[property[axis]] = values.map((size) => `${size}px`).join(" ");
   };
 
-  const start = (event: PointerEvent<HTMLHRElement>, axis: Axis, boundary: number) => {
+  const startResize = (event: PointerEvent<HTMLHRElement>, axis: Axis, boundary: number) => {
     if (!enabled || event.button !== 0 || !event.isPrimary) return;
     event.preventDefault();
     event.stopPropagation();
@@ -201,15 +204,15 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
     remember(axis, next);
   };
 
-  const grip = (axis: Axis, boundary: number, row = 0) => {
+  const grip = ({ axis, boundary, start, end }: ReturnType<typeof gridBoundaries>[number]) => {
     const weights = axis === "columns" ? columns : rows;
     return (
       <hr
-        key={`${axis}-${boundary}-${row}`}
+        key={`${axis}-${boundary}-${start}`}
         className="canvas-resize-grip"
         data-canvas-resize={axis}
         data-boundary={boundary}
-        data-row={row}
+        data-row={axis === "columns" ? start : boundary}
         tabIndex={0}
         aria-label={`${axis === "columns" ? columnLabel : rowLabel} ${boundary}`}
         aria-orientation={axis === "columns" ? "vertical" : "horizontal"}
@@ -222,22 +225,18 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
           axis === "columns"
             ? {
                 gridColumn: `${boundary + 1} / ${boundary + 2}`,
-                gridRow: `${row + 1} / ${row + 2}`,
+                gridRow: `${start + 1} / ${end + 1}`,
               }
-            : { gridColumn: "1 / -1", gridRow: `${boundary + 1} / ${boundary + 2}` }
+            : {
+                gridColumn: `${start + 1} / ${end + 1}`,
+                gridRow: `${boundary + 1} / ${boundary + 2}`,
+              }
         }
-        onPointerDown={(event) => start(event, axis, boundary)}
+        onPointerDown={(event) => startResize(event, axis, boundary)}
         onKeyDown={(event) => byKey(event, axis, boundary)}
       />
     );
   };
-  const grips = enabled
-    ? [
-        ...layout.cells
-          .filter((cell) => cell.column > 0)
-          .map((cell) => grip("columns", cell.column, cell.row)),
-        ...Array.from({ length: layout.rows - 1 }, (_, row) => grip("rows", row + 1)),
-      ]
-    : [];
+  const grips = enabled ? gridBoundaries(layout).map(grip) : [];
   return { style, grips };
 }

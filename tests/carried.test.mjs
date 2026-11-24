@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CARRIES, pickCarried, readCarried } from "../src/shell/carried.ts";
 
-test("only workspace places and sidebar state are carried across a program restart", () => {
+test("workspace places, sidebar state and collected pages survive a program restart", () => {
   const values = {
     "window.roots": [{ kind: "repository", root: "/home/a/repo" }],
     "folders.panes": [],
+    "canvas.pages": [{ cwd: "/tmp", url: "http://localhost:3000/", command: "pnpm dev" }],
     "canvas.viewport": { x: 1, y: 2, zoom: 0.5 },
     "sessions.list": [{ id: "a" }],
     "cards.layout": [["file:1", "terminal:a"]],
@@ -15,6 +16,7 @@ test("only workspace places and sidebar state are carried across a program resta
     values: {
       "window.roots": [{ kind: "repository", root: "/home/a/repo" }],
       "folders.panes": [],
+      "canvas.pages": [{ cwd: "/tmp", url: "http://localhost:3000/", command: "pnpm dev" }],
     },
   });
 });

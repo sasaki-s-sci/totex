@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { remote } from "webdriverio";
+import { canvasDrops } from "./canvasDrops.mjs";
 import { writeReport } from "./report.mjs";
 import { checkRunning, freePort, launch, stop, stopPersistent, waitFor } from "./runtime.mjs";
 import { smoke } from "./smoke.mjs";
@@ -216,6 +217,7 @@ async function run() {
     capabilities: { "tauri:options": { application: binary } },
   });
   await smoke(browser, repository, step);
+  await canvasDrops(browser, repository, step);
   if (process.env.TOTEX_E2E_PLAYWRIGHT) {
     const { chromium } = await import(process.env.TOTEX_E2E_PLAYWRIGHT);
     const { browserCanvas } = await import("./browserCanvas.mjs");

@@ -1,37 +1,52 @@
-import type { FilePreviewRequest } from "./filePreview";
+import { dropEdge, type Edge } from "../canvas/layout";
+import type { FileDropContext } from "./filePreview";
 
 type Point = { x: number; y: number };
 
-export function canvasDropContext(
-  target: Element | null,
-): Pick<FilePreviewRequest, "sessionId" | "paneId"> {
-  return {
-    sessionId: target?.closest<HTMLElement>("[data-session-canvas]")?.dataset.sessionCanvas,
-    paneId: target?.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane,
+export type CanvasDrop = { context: FileDropContext; host: Element };
+
+export function canvasDropTarget(target: Element | null, at: Point): CanvasDrop | null {
+  const miniature = target?.closest<HTMLElement>(".layout-bounds");
+  const canvas =
+    miniature?.querySelector<HTMLElement>(".layout-map") ??
+    target?.closest<HTMLElement>("[data-session-canvas]") ??
+    target
+      ?.closest(".canvas-window-drag")
+      ?.parentElement?.querySelector<HTMLElement>("[data-session-canvas]:not([hidden])") ??
+    target?.closest<HTMLElement>(".terminal-canvases");
+  if (!canvas) return null;
+  const sessionId = miniature ? canvas.dataset.layoutCanvas : canvas.dataset.sessionCanvas;
+  if (!sessionId) return { context: {}, host: canvas };
+  const selector = miniature ? "[data-layout-pane]" : "[data-canvas-pane]";
+  // Divider handles sit above pane edges, so resolve the pane underneath by position too.
+  const pane =
+    target?.closest<HTMLElement>(selector) ??
+    [...canvas.querySelectorAll<HTMLElement>(`:scope > ${selector}`)].find((element) => {
+      const rect = element.getBoundingClientRect();
+      return (
+        at.x >= rect.left - 1 &&
+        at.x <= rect.right + 1 &&
+        at.y >= rect.top - 1 &&
+        at.y <= rect.bottom + 1
+      );
+    });
+  const expanded = pane?.querySelector("dialog[open]");
+  const edgeAt = (element: Element, band: number): Edge | null => {
+    const rect = element.getBoundingClientRect();
+    return dropEdge(at.x - rect.left, at.y - rect.top, rect.width, rect.height, band);
   };
-}
-
-/** Occupied pages keep their center for application interaction. */
-export function isPreviewDrop(target: Element | null, at: Point): boolean {
-  const pane = target?.closest<HTMLElement>("[data-canvas-pane]");
-  if (!pane) return !!target?.closest(".session-canvas, .canvas-empty, .canvas-window-drag");
-  if (pane.dataset.canvasKind === "empty") return true;
-  const bounds = (pane.querySelector("dialog[open]") ?? pane).getBoundingClientRect();
-  const edge = Math.min(24, bounds.width / 4, bounds.height / 4);
-  return (
-    at.x >= bounds.left &&
-    at.x <= bounds.right &&
-    at.y >= bounds.top &&
-    at.y <= bounds.bottom &&
-    Math.min(at.x - bounds.left, bounds.right - at.x, at.y - bounds.top, bounds.bottom - at.y) <=
-      edge
-  );
-}
-
-export function canvasUploadFrame(target: Element | null): HTMLIFrameElement | null {
-  return target instanceof HTMLIFrameElement &&
-    target.matches(".canvas-frame") &&
-    target.closest('[data-canvas-kind="iframe"]')
-    ? target
-    : null;
+  const outerEdge =
+    !expanded && ((miniature && edgeAt(miniature, 4)) || edgeAt(canvas, miniature ? 4 : 24));
+  if (outerEdge) return { context: { sessionId, edge: outerEdge }, host: canvas };
+  const host = expanded ?? pane ?? canvas;
+  const edge = pane ? (edgeAt(host, miniature ? 12 : 24) ?? undefined) : undefined;
+  return {
+    context: {
+      sessionId,
+      paneId: miniature ? pane?.dataset.layoutPane : pane?.dataset.canvasPane,
+      replace: !edge,
+      edge,
+    },
+    host,
+  };
 }

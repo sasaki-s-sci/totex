@@ -24,6 +24,7 @@ import type { Session } from "../lib/session";
 import { registerTerminalClipboard } from "../lib/terminalClipboard";
 import { registerTerminalDrop, terminalPaths } from "../lib/terminalDrop";
 import { openTerminalLink } from "../lib/terminalLinks";
+import { registerTerminalPages } from "../lib/terminalPages";
 import { registerTerminalScroll } from "../lib/terminalScroll";
 import { type TerminalTarget, terminalTarget, terminalTextAt } from "../lib/terminalTargets";
 import { useWheel, wheelFactor } from "../lib/wheel";
@@ -170,6 +171,7 @@ export function CliView({
     terminal.loadAddon(new ImageAddon({ storageLimit: 32 }));
     terminal.open(element);
     const scrollSpace = registerTerminalScroll(terminal, element);
+    let pages: ReturnType<typeof registerTerminalPages> | undefined;
     const composition = element.querySelector<HTMLElement>(".composition-view");
     const compositionScreen = element.querySelector<HTMLElement>(".xterm-screen");
     const compositionHelpers = composition?.parentElement;
@@ -520,6 +522,7 @@ export function CliView({
         replaying = held.upto !== 4 || held.text !== "\x1b[6n";
         await new Promise<void>((resolve) => terminal.write(held.text, resolve));
         if (!live) return;
+        pages = viewer ? undefined : registerTerminalPages(terminal, session);
         replaying = false;
         reached = held.upto;
         for (const said of waiting) say(said);
@@ -572,6 +575,7 @@ export function CliView({
       // The shell is left running; closing the session is what ends it.
       clipboard.dispose();
       scrollSpace.dispose();
+      pages?.dispose();
       for (const handler of queryHandlers) handler.dispose();
       terminal.dispose();
       forget();

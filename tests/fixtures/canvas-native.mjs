@@ -81,6 +81,7 @@ export async function installCanvasNative(page) {
           ]
         : []),
     ]);
+    if (location.search.includes("no-sessions")) running.clear();
     window.pageEmit = (event, payload) => {
       for (const listener of listeners.values()) {
         if (listener.event === event) callbacks.get(listener.handler)?.({ event, payload });

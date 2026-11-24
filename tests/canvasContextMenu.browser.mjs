@@ -68,9 +68,17 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
   await target.click({ button: "right" });
   const menu = page.getByRole("menu");
   await menu.waitFor();
+  await page.waitForFunction(() => {
+    const paper = document.querySelector(".MuiMenu-paper");
+    return paper && getComputedStyle(paper).transform === "none";
+  });
   const bounds = await menu.boundingBox();
   assert.ok(Math.abs(bounds.x - (targetBounds.x + targetBounds.width / 2)) < 25);
-  assert.ok(Math.abs(bounds.y - (targetBounds.y + targetBounds.height / 2)) < 25);
+  const expectedY = Math.min(
+    targetBounds.y + targetBounds.height / 2,
+    page.viewportSize().height - bounds.height - 16,
+  );
+  assert.ok(Math.abs(bounds.y - expectedY) < 25);
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   await page.locator('[data-canvas-pane="live"]').waitFor({ state: "detached" });
   assert.equal(await page.locator('[data-canvas-pane="html"]').count(), 1);

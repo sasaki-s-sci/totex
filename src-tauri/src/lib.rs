@@ -10,6 +10,7 @@ mod fs_watch;
 mod git;
 mod mcp;
 mod monitor;
+mod page_status;
 mod persistent;
 mod pty;
 mod release;
@@ -353,6 +354,7 @@ pub fn run() {
             mcp::canvas_read,
             mcp::canvas_write,
             canvas_browser::canvas_browser_open,
+            page_status::canvas_page_status,
             monitor::monitor_configure,
             monitor::monitor_snapshots,
             monitor::monitor_refresh,
