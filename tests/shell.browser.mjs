@@ -116,6 +116,12 @@ export async function verifyShell(
         if (cmd === "pty_attach")
           return running.has(args.id) ? { text: `Running ${args.id}\r\n`, upto: 0 } : null;
         if (cmd === "canvas_read") return structuredClone([...canvases.values()]);
+        if (cmd === "canvas_open")
+          return structuredClone(canvases.get(args.id) ?? { id: args.id, revision: 0, panes: [] });
+        if (cmd === "canvas_close") {
+          canvases.delete(args.id);
+          return null;
+        }
         if (cmd === "canvas_write") {
           const was = canvases.get(args.id) ?? { id: args.id, revision: 0, panes: [] };
           if (was.revision !== args.revision) throw new Error("Canvas revision changed");

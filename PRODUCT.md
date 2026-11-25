@@ -8,7 +8,7 @@ web
 
 ## Product Purpose
 
-totex is a desktop workspace for working with agents in terminals. Each terminal owns a canvas of evidence: running web pages, screenshots, files, code, and documents. Selecting a terminal selects its canvas.
+totex is a desktop workspace for working with agents in terminals. Each tab owns one canvas associated with one folder and any number of terminals. Terminals in a canvas share its evidence: screenshots, files, code, documents, and explicitly embedded agent previews. The same folder can have several independent canvas tabs.
 
 ## Operating Context
 
@@ -16,12 +16,13 @@ The user wants to work through conversation and keyboard shortcuts without movin
 
 ## Capabilities and Constraints
 
-- The center is entirely the selected terminal's drawing area, divided only by straight lines. No titles, tabs, toolbars, view choosers, path inputs or terminal summaries. Empty panes show only shortcuts; add/remove and media range controls open from the context menu.
-- The right sidebar retains its original compact terminal header. Repositories and folders added with the explorer's + remain visible by name, including those with no terminal. Ctrl+Shift selects an empty folder in that header; Enter starts its terminal.
+- The central header matches the sidebar height. Each canvas tab centers its terminal numbers and close button, with its folder name overlapping the bottom border. Show only the last folder name unless different paths share it; then include just enough parents to distinguish them. The surface below is divided by straight lines. Empty panes offer collected URLs as cards with the command on the top border and the URL below, without a section heading or operation hints; add/remove and media range controls open from the context menu.
+- The right sidebar header contains a collapse button at its left and window controls at its right. Ctrl+Left/Right switches terminals within a canvas; Ctrl+Up/Down switches canvas tabs. The tab row's + chooses a folder for a new canvas; each tab's + adds a terminal. Empty header space accepts file drops and window dragging. Closing the last terminal retains the canvas.
 - Holding Ctrl+Space enables canvas selection with arrow keys. Ctrl+X removes a displayed pane; Ctrl+A adds an empty pane. Releasing the chord returns focus to the terminal. Removing a pane never deletes its source file.
+- Holding Ctrl+Shift offers folders for a new canvas. Arrow keys choose a folder and Enter creates the canvas; releasing the chord or pressing Escape cancels. Text editors retain their selection shortcuts, and copy/paste keeps its input until arrow navigation enters the chooser.
 - Files open on double click and can be dropped into a pane. Existing file editing safeguards remain.
-- Served pages run JavaScript in isolated iframes, without access to native app commands.
-- Launching totex starts MCP on a fixed loopback port. Settings offers one Codex registration command per environment, including WSL. Codex starts normally, including with its shared daemon, and each terminal retains its own canvas.
+- URLs opened by the user go directly to the default browser in independent tabs. Explicit MCP iframe previews remain isolated from native app commands. Ctrl+plus/minus zooms the focused resource or terminal; Ctrl+0 resets its zoom.
+- Launching totex starts MCP on a fixed loopback port. Settings offers one Codex registration command per environment, including WSL. Codex starts normally, including with its shared daemon, and terminals in the same canvas share its panes and revision, while other tabs remain independent.
 
 ## Brand Commitments
 

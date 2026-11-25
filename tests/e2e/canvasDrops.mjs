@@ -93,6 +93,7 @@ export async function canvasDrops(browser, repository, step) {
       ],
     },
   ]);
+  await browser.$(".canvas-tab-close").click();
   await browser.$("[data-session-canvas]").waitForExist({ reverse: true });
   unlinkSync(path);
 }

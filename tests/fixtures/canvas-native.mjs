@@ -174,6 +174,14 @@ export async function installCanvasNative(page) {
           window.canvasStates[args.id] = next;
           return structuredClone(next);
         }
+        if (cmd === "canvas_open")
+          return structuredClone(
+            window.canvasStates[args.id] ?? { id: args.id, revision: 0, panes: [] },
+          );
+        if (cmd === "canvas_close") {
+          delete window.canvasStates[args.id];
+          return null;
+        }
         if (cmd === "plugin:clipboard-manager|read_text") return window.pageClipboard;
         if (cmd === "clipboard_files") return [];
         if (cmd === "terminal_paths") return args.paths;

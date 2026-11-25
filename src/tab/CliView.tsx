@@ -28,6 +28,7 @@ import { registerTerminalPages } from "../lib/terminalPages";
 import { registerTerminalScroll } from "../lib/terminalScroll";
 import { type TerminalTarget, terminalTarget, terminalTextAt } from "../lib/terminalTargets";
 import { useWheel, wheelFactor } from "../lib/wheel";
+import { zoomed, zoomKey } from "../lib/zoom";
 import { ResumeBar } from "../resume/ResumeBar";
 import { frontInactive, readyAfter } from "../shell/bridge";
 import { frontValue, readOnSnapshot } from "../shell/state";
@@ -118,6 +119,7 @@ export function CliView({
     ended.current = onEnded;
   }, [onEnded]);
   const { terminalText } = useAppSettings();
+  const [zoom, setZoom] = useState(1);
   const drawnAt = useRef(scale);
   const compactAt = useRef(compact);
   const textAt = useRef(terminalText);
@@ -349,6 +351,12 @@ export function CliView({
     element.addEventListener("paste", onPaste, true);
 
     terminal.attachCustomKeyEventHandler((event) => {
+      const zoomStep = zoomKey(event);
+      if (zoomStep !== null) {
+        event.preventDefault();
+        if (event.type === "keydown") setZoom((before) => zoomed(before, zoomStep));
+        return false;
+      }
       if (event.type !== "keydown") return true;
       const plain = !event.altKey && !event.metaKey;
 
@@ -610,9 +618,9 @@ export function CliView({
     settle.current?.();
   }, [compact]);
   useEffect(() => {
-    textAt.current = terminalText;
+    textAt.current = terminalText * zoom;
     settle.current?.();
-  }, [terminalText]);
+  }, [terminalText, zoom]);
   useEffect(() => {
     showing.current = shown;
     if (!shown) {

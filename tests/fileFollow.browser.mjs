@@ -44,6 +44,12 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
       async invoke(cmd, args) {
         window.calls.push(cmd);
         if (cmd === "canvas_read") return structuredClone(Object.values(canvases));
+        if (cmd === "canvas_open")
+          return structuredClone(canvases[args.id] ?? { id: args.id, revision: 0, panes: [] });
+        if (cmd === "canvas_close") {
+          delete canvases[args.id];
+          return null;
+        }
         if (cmd === "canvas_write") {
           const old = canvases[args.id] ?? { id: args.id, revision: 0, panes: [] };
           if (args.revision !== old.revision) throw new Error("The canvas changed");

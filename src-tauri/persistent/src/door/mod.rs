@@ -1,4 +1,4 @@
-//! A fixed local MCP endpoint and the canvas owned by each terminal.
+//! A fixed local MCP endpoint and canvases shared by their member terminals.
 //! Codex's request IDs are matched to the IDs it emits in terminal titles.
 //! Legacy per-terminal URLs remain valid for clients registered that way.
 
@@ -118,6 +118,7 @@ pub struct Door {
     standing: Mutex<Option<Standing>>,
     said: Mutex<HashMap<String, Report>>,
     canvases: Mutex<HashMap<String, canvas::Canvas>>,
+    canvas_folders: Mutex<HashMap<String, String>>,
     /// The sessions the doors are for: which of them is running is what says
     /// whether an address is anybody's.
     sessions: Arc<Sessions>,
@@ -141,6 +142,7 @@ impl Door {
             standing: Mutex::new(None),
             said: Mutex::new(HashMap::new()),
             canvases: Mutex::new(HashMap::new()),
+            canvas_folders: Mutex::new(HashMap::new()),
             sessions: Arc::clone(&sessions),
             reporting: Mutex::new(Vec::new()),
         });
@@ -163,7 +165,9 @@ impl Door {
                 return;
             }
             lock(&ending.bindings).forget(id);
-            lock(&ending.canvases).remove(id);
+            if !lock(&ending.canvas_folders).contains_key(id) {
+                lock(&ending.canvases).remove(id);
+            }
             if ending.said().remove(id).is_none() {
                 return;
             }

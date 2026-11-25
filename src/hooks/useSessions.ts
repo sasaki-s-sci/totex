@@ -219,6 +219,7 @@ export function useSessions() {
     sessions,
     reorder,
     showing,
+    selected,
     active,
     activePlace,
     setActivePlace,

@@ -70,7 +70,7 @@ fn real_endpoint_scopes_files_commands_canvas_writes_and_media() {
             dir.to_string_lossy().into_owned(),
             24,
             80,
-            None,
+            (id == "pinned").then(|| json!({"canvas":"shared-canvas"}).to_string()),
         )
         .unwrap();
     }
@@ -122,7 +122,8 @@ fn real_endpoint_scopes_files_commands_canvas_writes_and_media() {
     let (status, value) = api("canvas_read", json!({"id":"other"}));
     assert_eq!(status, 200);
     assert_eq!(value.as_array().unwrap().len(), 1);
-    assert_eq!(value[0]["id"], "pinned");
+    assert_eq!(value[0]["id"], "shared-canvas");
+    assert_eq!(api("session", json!({})).1["canvas"], "shared-canvas");
     assert_eq!(api("read_file_head", json!({"path":document})).0, 200);
     assert_eq!(api("read_file_data", json!({"path":image})).0, 200);
     assert_eq!(api("read_file_head", json!({"path":secret})).0, 400);
@@ -161,7 +162,7 @@ fn real_endpoint_scopes_files_commands_canvas_writes_and_media() {
         assert_eq!(
             api(
                 "canvas_write",
-                json!({"id":"pinned","revision":1,"panes":[pane]})
+                json!({"id":"shared-canvas","revision":1,"panes":[pane]})
             )
             .0,
             400

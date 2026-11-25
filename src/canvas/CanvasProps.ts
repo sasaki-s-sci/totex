@@ -4,9 +4,12 @@ import type { Session } from "../lib/session";
 import type { Repository, Workspace } from "../types/git";
 import type { BranchPick, WorkRequest, WorktreeBrowseRequest } from "./graphActions";
 import type { useCanvases } from "./useCanvases";
+import type { CanvasTab } from "./useCanvasTabs";
 
 export type CanvasProps = {
   state: ReturnType<typeof useCanvases>;
+  tabs: readonly CanvasTab[];
+  activeCanvas: string | null;
   workspace: Workspace;
 
   folders: readonly Folder[];

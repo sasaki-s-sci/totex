@@ -189,7 +189,10 @@ export function PageWorkspace({
     const shown = terminals.find((session) => terminalPageId(session.id) === shownId);
     if (!shown) return;
     // Restored, not opened: the shown terminal stays on top.
-    const fresh = shellSession(shown.cwd, shown.branch, shown.folder);
+    const fresh = {
+      ...shellSession(shown.cwd, shown.branch, shown.folder),
+      canvas: shown.canvas ?? shown.id,
+    };
     restore(fresh, false);
     setSplit(terminalPageId(fresh.id));
     activate(terminalPageId(fresh.id), "sidebar");
@@ -268,7 +271,15 @@ export function PageWorkspace({
       const end = terminal ? () => sessions.end(terminal) : closers.current.get(id);
       if (!end) return;
       const at = numbered.findIndex((entry) => entry.id === id);
-      const next = [...numbered.slice(at + 1), ...numbered.slice(0, at)];
+      const next = [...numbered.slice(at + 1), ...numbered.slice(0, at)].filter(
+        (entry) =>
+          !terminal ||
+          terminals.some(
+            (session) =>
+              terminalPageId(session.id) === entry.id &&
+              (session.canvas ?? session.id) === (terminal.canvas ?? terminal.id),
+          ),
+      );
       pending.current.add(id);
       try {
         if (!(await end()) || activePage.current !== id) return;

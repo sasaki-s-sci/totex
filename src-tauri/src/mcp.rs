@@ -63,6 +63,20 @@ pub fn mcp_reports<R: Runtime>(app: AppHandle<R>) -> Vec<Reported> {
 }
 
 #[tauri::command(async)]
+pub fn canvas_open<R: Runtime>(
+    app: AppHandle<R>,
+    id: String,
+    cwd: String,
+) -> Result<totex_persistent::door::canvas::Canvas, String> {
+    crate::persistent::link(&app).asked("canvas_open", json!({ "id": id, "cwd": cwd }))
+}
+
+#[tauri::command(async)]
+pub fn canvas_close<R: Runtime>(app: AppHandle<R>, id: String) -> Result<(), String> {
+    crate::persistent::link(&app).asked("canvas_close", json!({ "id": id }))
+}
+
+#[tauri::command(async)]
 pub fn canvas_read<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<Vec<totex_persistent::door::canvas::Canvas>, String> {

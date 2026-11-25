@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { ZOOM_EVENT, zoomed, zoomKey } from "../../../lib/zoom";
 import "./pictureReading.css";
 
 export function PictureReading({
@@ -11,13 +11,12 @@ export function PictureReading({
   name: string;
   onError: () => void;
 }) {
-  const { t } = useTranslation();
   const host = useRef<HTMLElement>(null);
   const zoom = useRef(1);
   const resize = useCallback((value: number, point?: { x: number; y: number }) => {
     const element = host.current;
     if (!element) return;
-    const next = Math.min(8, Math.max(1, value));
+    const next = Math.min(8, Math.max(0.25, value));
     const ratio = next / zoom.current;
     const x = point?.x ?? element.clientWidth / 2;
     const y = point?.y ?? element.clientHeight / 2;
@@ -42,31 +41,37 @@ export function PictureReading({
       });
     };
     // React's delegated wheel listeners are passive, so browser zoom needs a native listener.
+    const keyZoom = (event: Event) => {
+      const step = (event as CustomEvent).detail;
+      if (step === -1 || step === 0 || step === 1) resize(zoomed(zoom.current, step));
+    };
     element.addEventListener("wheel", wheel, { passive: false });
-    return () => element.removeEventListener("wheel", wheel);
+    element.addEventListener(ZOOM_EVENT, keyZoom);
+    return () => {
+      element.removeEventListener("wheel", wheel);
+      element.removeEventListener(ZOOM_EVENT, keyZoom);
+    };
   }, [resize]);
   return (
     <section
       ref={host}
       className="picture-reading nodrag nopan nowheel"
       aria-label={name}
-      title={t("filePreview.pictureControls")}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: Keyboard users focus the image viewport to zoom and scroll it.
       tabIndex={0}
       onKeyDown={(event) => {
-        if (event.altKey || event.metaKey) return;
-        const next =
-          event.key === "+" || event.key === "="
-            ? zoom.current * 1.25
-            : event.key === "-"
-              ? zoom.current / 1.25
-              : event.key === "0"
-                ? 1
-                : null;
-        if (next === null) return;
+        const step = zoomKey({
+          isComposing: event.nativeEvent.isComposing,
+          key: event.key,
+          code: event.code,
+          ctrlKey: true,
+          metaKey: event.metaKey,
+          altKey: event.altKey,
+        });
+        if (step === null) return;
         event.preventDefault();
         event.stopPropagation();
-        resize(next);
+        resize(zoomed(zoom.current, step));
       }}
     >
       <img src={source} alt={name} draggable={false} onLoad={() => resize(1)} onError={onError} />

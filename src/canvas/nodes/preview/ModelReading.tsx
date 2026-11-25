@@ -258,9 +258,6 @@ export function ModelReading({
         <p className="model-reading__note">{t("filePreview.modelMaterialsIgnored")}</p>
       )}
       <div className="model-reading__viewport" ref={host} />
-      {status === "ready" && (
-        <p className="model-reading__note">{t("filePreview.modelControls")}</p>
-      )}
     </div>
   );
 }

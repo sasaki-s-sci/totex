@@ -325,89 +325,95 @@ fn answer(
     with: Value,
 ) -> (Option<Result<Value, String>>, Option<Then>) {
     let held = &serving.held;
-    let answer = match command {
-        "open" => read::<Opened>(with).and_then(|at| {
-            held.sessions
-                .open(&at.id, &at.cwd, at.rows, at.cols, at.meta)
-                .map(|()| Value::Null)
-        }),
-        "sessions" => said(held.sessions.running()),
-        "monitor_configure" => read::<MonitorConfig>(with)
-            .and_then(|at| held.monitor.configure(at.config).map(|()| Value::Null)),
-        "monitor_snapshots" => said(held.monitor.snapshots()),
-        "monitor_refresh" => {
-            read::<Named>(with).and_then(|at| held.monitor.refresh(&at.id).map(|()| Value::Null))
-        }
-        "monitor_agents" => read::<MonitorAgents>(with).map(|at| {
-            held.monitor.agents(at.ids);
-            Value::Null
-        }),
-        "monitor_models" => read::<MonitorModels>(with)
-            .and_then(|at| said(held.monitor.models(at.agent, at.command, at.args)?)),
-        "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
-        "write" => read::<Written>(with)
-            .and_then(|at| held.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
-        "resize" => read::<Resized>(with).and_then(|at| {
-            held.sessions
-                .resize(&at.id, at.rows, at.cols)
-                .map(|()| Value::Null)
-        }),
-        "close" => read::<Named>(with).map(|at| {
-            held.sessions.close(&at.id);
-            Value::Null
-        }),
-        "door_serving" => said(held.door.serving()),
-        "door_serve" => held.door.serve().and_then(said),
-        "door_stop" => {
-            held.door.unserve();
-            Ok(Value::Null)
-        }
-        "door_reports" => said(held.door.reports()),
-        "canvas_read" => said(held.door.canvases()),
-        "canvas_write" => read::<crate::door::canvas::Write>(with)
-            .and_then(|at| held.door.draw(&at.id, at.panes, at.revision).and_then(said)),
-        "door_setups" => said(held.door.setups()),
-        "door_install" => {
-            read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))
-        }
-        "store_get" => read::<Stored>(with).and_then(|at| said(held.store.get(&at.name)?)),
-        "store_put" => read::<Putting>(with)
-            .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
-        "store_list" => said(held.store.list()),
-        "take_program" => read::<update::Taking>(with).and_then(|taking| {
-            let _updating = serving
-                .updating
-                .try_lock()
-                .map_err(|_| "an update is already in progress".to_string())?;
-            let telling = Arc::clone(serving);
-            update::take(&serving.home, &taking, move |taken, length| {
-                telling.broadcast(&Told::Coming { taken, length });
-            })
-            .and_then(said)
-        }),
-        "relaunch" => read::<Relaunch>(with).map(|relaunch| {
-            let mut pending = lock(&client.relaunch);
-            if pending.is_none() {
-                // The last terminal can exit while the installer is still running.
-                serving.relaunching.fetch_add(1, Ordering::SeqCst);
+    let answer =
+        match command {
+            "open" => read::<Opened>(with).and_then(|at| {
+                held.sessions
+                    .open(&at.id, &at.cwd, at.rows, at.cols, at.meta)
+                    .map(|()| Value::Null)
+            }),
+            "sessions" => said(held.sessions.running()),
+            "monitor_configure" => read::<MonitorConfig>(with)
+                .and_then(|at| held.monitor.configure(at.config).map(|()| Value::Null)),
+            "monitor_snapshots" => said(held.monitor.snapshots()),
+            "monitor_refresh" => read::<Named>(with)
+                .and_then(|at| held.monitor.refresh(&at.id).map(|()| Value::Null)),
+            "monitor_agents" => read::<MonitorAgents>(with).map(|at| {
+                held.monitor.agents(at.ids);
+                Value::Null
+            }),
+            "monitor_models" => read::<MonitorModels>(with)
+                .and_then(|at| said(held.monitor.models(at.agent, at.command, at.args)?)),
+            "attach" => read::<Named>(with).and_then(|at| said(held.sessions.attach(&at.id))),
+            "write" => read::<Written>(with)
+                .and_then(|at| held.sessions.write(&at.id, &at.data).map(|()| Value::Null)),
+            "resize" => read::<Resized>(with).and_then(|at| {
+                held.sessions
+                    .resize(&at.id, at.rows, at.cols)
+                    .map(|()| Value::Null)
+            }),
+            "close" => read::<Named>(with).map(|at| {
+                held.sessions.close(&at.id);
+                Value::Null
+            }),
+            "door_serving" => said(held.door.serving()),
+            "door_serve" => held.door.serve().and_then(said),
+            "door_stop" => {
+                held.door.unserve();
+                Ok(Value::Null)
             }
-            *pending = Some(relaunch);
-            Value::Null
-        }),
-        "stop" => {
-            // Answered first, ended second: the window is waiting to hear that
-            // it was heard, and a socket closed by a process that has exited is
-            // not an answer.
-            let then: Then = Box::new(|serving| {
-                serving.held.monitor.stop();
-                serving.held.sessions.close_all();
-                serving.held.door.unserve();
-                (serving.ending)();
-            });
-            return (Some(Ok(Value::Null)), Some(then));
-        }
-        _ => return (None, None),
-    };
+            "door_reports" => said(held.door.reports()),
+            "canvas_read" => said(held.door.canvases()),
+            "canvas_open" => {
+                let at = read::<crate::door::canvas::Open>(with);
+                at.and_then(|at| held.door.open_canvas(&at.id, &at.cwd).and_then(said))
+            }
+            "canvas_close" => read::<Named>(with)
+                .and_then(|at| held.door.close_canvas(&at.id).map(|()| Value::Null)),
+            "canvas_write" => read::<crate::door::canvas::Write>(with)
+                .and_then(|at| held.door.draw(&at.id, at.panes, at.revision).and_then(said)),
+            "door_setups" => said(held.door.setups()),
+            "door_install" => {
+                read::<Installing>(with).and_then(|at| held.door.install(at.agent).and_then(said))
+            }
+            "store_get" => read::<Stored>(with).and_then(|at| said(held.store.get(&at.name)?)),
+            "store_put" => read::<Putting>(with)
+                .and_then(|at| held.store.put(&at.name, at.value).map(|()| Value::Null)),
+            "store_list" => said(held.store.list()),
+            "take_program" => read::<update::Taking>(with).and_then(|taking| {
+                let _updating = serving
+                    .updating
+                    .try_lock()
+                    .map_err(|_| "an update is already in progress".to_string())?;
+                let telling = Arc::clone(serving);
+                update::take(&serving.home, &taking, move |taken, length| {
+                    telling.broadcast(&Told::Coming { taken, length });
+                })
+                .and_then(said)
+            }),
+            "relaunch" => read::<Relaunch>(with).map(|relaunch| {
+                let mut pending = lock(&client.relaunch);
+                if pending.is_none() {
+                    // The last terminal can exit while the installer is still running.
+                    serving.relaunching.fetch_add(1, Ordering::SeqCst);
+                }
+                *pending = Some(relaunch);
+                Value::Null
+            }),
+            "stop" => {
+                // Answered first, ended second: the window is waiting to hear that
+                // it was heard, and a socket closed by a process that has exited is
+                // not an answer.
+                let then: Then = Box::new(|serving| {
+                    serving.held.monitor.stop();
+                    serving.held.sessions.close_all();
+                    serving.held.door.unserve();
+                    (serving.ending)();
+                });
+                return (Some(Ok(Value::Null)), Some(then));
+            }
+            _ => return (None, None),
+        };
     (Some(answer), None)
 }
 

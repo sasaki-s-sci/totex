@@ -2,6 +2,48 @@ use super::{held, post, session};
 use serde_json::json;
 
 #[test]
+fn canvas_members_share_revisions_and_outlive_their_terminals() {
+    let held = held();
+    let (folder, _) = session(&held, "canvas-owner");
+    let cwd = folder.path().to_string_lossy();
+    held.door.open_canvas("canvas-owner", &cwd).unwrap();
+    held.sessions
+        .open(
+            "member",
+            &cwd,
+            24,
+            80,
+            Some(json!({"canvas":"canvas-owner"}).to_string()),
+        )
+        .unwrap();
+    held.sessions
+        .open("independent", &cwd, 24, 80, None)
+        .unwrap();
+    let panes = serde_json::from_value(json!([
+        {"id":"shared","kind":"file","path":"notes.txt"}
+    ]))
+    .unwrap();
+    let written = held.door.draw("member", panes, Some(0)).unwrap();
+    assert_eq!(written.id, "canvas-owner");
+    assert_eq!(held.door.canvas("canvas-owner").panes, written.panes);
+    assert_eq!(held.door.canvas("member").revision, written.revision);
+    assert!(held.door.canvas("independent").panes.is_empty());
+    assert!(held.door.draw("canvas-owner", vec![], Some(0)).is_err());
+    assert!(held.door.close_canvas("canvas-owner").is_err());
+    held.sessions.close("canvas-owner");
+    assert_eq!(held.door.canvas("member").panes, written.panes);
+    held.sessions.close("member");
+    assert_eq!(held.door.canvas("canvas-owner").panes, written.panes);
+    held.door
+        .draw("canvas-owner", vec![], Some(written.revision))
+        .unwrap();
+    held.door.close_canvas("canvas-owner").unwrap();
+    assert!(held.door.draw("canvas-owner", vec![], None).is_err());
+    held.sessions.close("independent");
+    held.door.unserve();
+}
+
+#[test]
 fn file_paths_follow_the_terminal_host() {
     use crate::door::canvas::file_path;
     let cwd = r"\\wsl.localhost\Ubuntu\home\a\repo";

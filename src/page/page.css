@@ -177,6 +177,10 @@
   pointer-events: auto;
 }
 
+.page--sidebar .page__header > .page__tool {
+  z-index: 1;
+}
+
 .page .page__body[hidden] {
   display: none;
 }

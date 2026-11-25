@@ -11,7 +11,13 @@ async function focusTerminal(page) {
 async function showTerminal(page, number, id) {
   await focusTerminal(page);
   await page.keyboard.press(`Control+${number}`);
-  await canvasFor(page, id).waitFor({ state: "visible" });
+  const canvasId = await page.evaluate(async (id) => {
+    const session = (await window.pageSnapshot()).values["sessions.list"].find(
+      (one) => one.id === id,
+    );
+    return session.canvas ?? session.id;
+  }, id);
+  await canvasFor(page, canvasId).waitFor({ state: "visible" });
   await terminalFor(page, id).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
   assert.equal(await terminalFor(page, id).getAttribute("data-terminal-shown"), "true");
 }
@@ -61,11 +67,7 @@ async function assertEmptyCanvas(page, id) {
   const canvas = canvasFor(page, id);
   await canvas.locator(".canvas-empty").waitFor();
   assert.equal(await canvas.locator("[data-canvas-pane]").count(), 0);
-  assert.equal(
-    (await canvas.innerText()).trim(),
-    "Hold Ctrl+Space · arrows to select · Ctrl+A to add · Ctrl+X to remove",
-    "An unused canvas only shows its keyboard shortcut hint",
-  );
+  assert.equal((await canvas.innerText()).trim(), "", "An unused canvas has no instruction text");
 }
 
 async function assertSingleTerminalViews(page) {
@@ -74,6 +76,7 @@ async function assertSingleTerminalViews(page) {
     const hosts = [...document.querySelectorAll("[data-terminal]")];
     return {
       sessions: values["sessions.list"].map((session) => session.id).sort(),
+      tabs: values["canvas.tabs"].map((tab) => tab.id).sort(),
       hosts: hosts.map((node) => node.dataset.terminal).sort(),
       canvases: [...document.querySelectorAll("[data-session-canvas]")]
         .map((node) => node.dataset.sessionCanvas)
@@ -85,7 +88,7 @@ async function assertSingleTerminalViews(page) {
     };
   });
   assert.deepEqual(state.hosts, state.sessions, "Every terminal has exactly one DOM host");
-  assert.deepEqual(state.canvases, state.sessions, "Every terminal owns exactly one canvas");
+  assert.deepEqual(state.canvases, state.tabs, "Each tab owns one shared canvas");
   assert.ok(
     state.xterms.every((count) => count === 1),
     "Every terminal has one xterm instance",
@@ -113,8 +116,8 @@ async function assertSingleTerminalViews(page) {
     await page
       .locator("#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-list")
       .count(),
-    1,
-    "Terminal location remains in the original compact sidebar header",
+    0,
+    "Terminal navigation lives in the canvas tabs",
   );
   assert.equal(
     await page.getByText(/Legacy (task|request) summary must not be rendered/).count(),
@@ -281,8 +284,10 @@ async function verifyCanvasEditing(page) {
   });
   try {
     const target = first.locator(`[data-canvas-pane="${blank}"]`);
-    await target.dispatchEvent("dragover", { dataTransfer: transfer });
-    await target.dispatchEvent("drop", { dataTransfer: transfer });
+    const box = await target.boundingBox();
+    const at = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 };
+    await target.dispatchEvent("dragover", { dataTransfer: transfer, ...at });
+    await target.dispatchEvent("drop", { dataTransfer: transfer, ...at });
   } finally {
     await transfer.dispose();
   }
@@ -385,124 +390,40 @@ async function verifyExplorerContext(page) {
 
 async function verifyTerminalStartup(page) {
   await showTerminal(page, 1, "terminal-one");
-  const count = await page.evaluate(
-    async () => (await window.pageSnapshot()).values["sessions.list"].length,
-  );
+  const before = await page.evaluate(() => structuredClone(window.canvasStates["terminal-one"]));
   await page.keyboard.press("Control+a");
   await page.waitForFunction(
-    async (count) => (await window.pageSnapshot()).values["sessions.list"].length === count + 1,
-    count,
+    async () => (await window.pageSnapshot()).values["sessions.list"].length === 4,
   );
-  const opened = await page.evaluate(async () => {
-    const { values } = await window.pageSnapshot();
-    return values["sessions.active"];
-  });
-  await assertEmptyCanvas(page, opened);
-  await paneMenu(page, canvasFor(page, opened));
-  assert.equal(await page.getByRole("menuitem", { name: "Remove pane", exact: true }).count(), 0);
+  const opened = await page.evaluate(
+    async () => (await window.pageSnapshot()).values["sessions.active"],
+  );
+  await terminalFor(page, opened).locator(".xterm").waitFor();
+  assert.deepEqual(await page.evaluate(() => window.canvasStates["terminal-one"]), before);
+  assert.equal(await canvasFor(page, "terminal-one").isVisible(), true);
+  assert.equal(await canvasFor(page, opened).count(), 0);
+  await assertSingleTerminalViews(page);
+  await page.getByRole("button", { name: "New canvas", exact: true }).click();
+  await page.getByRole("menuitem", { name: "/empty-a", exact: true }).click();
+  const newCanvas = page.locator("[data-session-canvas]:not([hidden])");
+  const id = await newCanvas.getAttribute("data-session-canvas");
+  await assertEmptyCanvas(page, id);
+  await paneMenu(page, newCanvas);
   await page.getByRole("menuitem", { name: "Add pane", exact: true }).click();
-  const blank = await blankPane(page, opened);
-  await paneMenu(page, canvasFor(page, opened).locator(`[data-canvas-pane="${blank}"]`));
+  const blank = await blankPane(page, id);
+  await paneMenu(page, newCanvas.locator(`[data-canvas-pane="${blank}"]`));
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
-  await assertEmptyCanvas(page, opened);
-  await terminalFor(page, opened).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
-  assert.equal(await terminalFor(page, opened).getAttribute("data-terminal-shown"), "true");
-  assert.equal(
-    await page.evaluate(
-      (id) =>
-        window.pageCalls.filter(({ cmd, args }) => cmd === "pty_open" && args.id === id).length,
-      opened,
-    ),
-    1,
-  );
-  await assertSingleTerminalViews(page);
-  const groups = page.locator(
-    "#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group:not(.session-offer)",
-  );
-  assert.deepEqual(
-    await groups.evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        folder: node.title,
-        numbers: [...node.querySelectorAll(".page__terminal-numbers span")].map(
-          (span) => span.textContent,
-        ),
-      })),
-    ),
-    [
-      { folder: "/tmp", numbers: ["1", "2", "3"] },
-      { folder: "/elsewhere", numbers: ["4"] },
-    ],
-    "A new terminal joins its path group and shifts the following shortcut numbers",
-  );
-  await showTerminal(page, 3, "terminal-two");
-  await showTerminal(page, 4, "terminal-other");
-  await showTerminal(page, 2, opened);
-  assert.equal(await groups.locator('[data-active="true"]').innerText(), "2");
-  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
-  const available = page.locator("#cli-sidebar .page__header .page__terminal-list .session-offer");
-  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
-  for (const offer of await available.all()) assert.equal(await offer.isVisible(), true);
-
-  await focusTerminal(page);
-  await page.keyboard.down("Control");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("ArrowDown");
-  const offered = page.locator('#cli-sidebar .session-offer[data-offered="true"]');
-  await offered.waitFor();
-  const folder = await offered.getAttribute("title");
-  assert.ok(["/empty-a", "/empty-b"].includes(folder));
-  await page.keyboard.up("Shift");
-  await page.keyboard.up("Control");
-  await offered.waitFor({ state: "detached" });
-  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
-  assert.equal(
-    await page.locator(`#cli-sidebar .session-offer[title="${folder}"]`).isVisible(),
-    true,
-  );
-
-  await page.keyboard.down("Control");
-  await page.keyboard.down("Shift");
-  await page.keyboard.press("ArrowDown");
-  assert.equal(await offered.getAttribute("title"), folder);
-  await page.keyboard.press("Enter");
-  await page.keyboard.up("Shift");
-  await page.keyboard.up("Control");
-  await page.waitForFunction(
-    async (count) => (await window.pageSnapshot()).values["sessions.list"].length === count + 2,
-    count,
-  );
-  const selected = await page.evaluate(async () => {
-    const { values } = await window.pageSnapshot();
-    return values["sessions.list"].find((session) => session.id === values["sessions.active"]);
-  });
-  assert.equal(selected.cwd, folder);
-  await assertEmptyCanvas(page, selected.id);
-  await terminalFor(page, selected.id).locator(".xterm").waitFor();
-  await assertSingleTerminalViews(page);
-  assert.equal(await page.locator('[data-offered="true"]').count(), 0);
-  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
-  assert.equal(await page.locator(`#cli-sidebar .session-offer[title="${folder}"]`).count(), 0);
-  const running = page.locator(
-    `#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group[title="${folder}"]`,
-  );
-  assert.equal(await running.locator(".page__terminal-name").innerText(), folder.slice(1));
-  assert.equal(await running.locator('.page__terminal-numbers [data-active="true"]').count(), 1);
-
+  await assertEmptyCanvas(page, id);
   await focusTerminal(page);
   await page.keyboard.press("Control+x");
-  await terminalFor(page, selected.id).waitFor({ state: "detached" });
-  const restored = page.locator(`#cli-sidebar .session-offer[title="${folder}"]`);
-  await restored.waitFor();
-  assert.equal(await restored.innerText(), folder.slice(1));
-  assert.deepEqual(await available.allTextContents(), ["empty-a", "empty-b"]);
-  await assertSingleTerminalViews(page);
+  await terminalFor(page, id).waitFor({ state: "detached" });
+  await assertEmptyCanvas(page, id);
+  await page.getByRole("button", { name: "Close canvas /empty-a", exact: true }).click();
+  await canvasFor(page, id).waitFor({ state: "detached" });
 }
 
 async function verifyTerminalInsertion(page) {
-  const groups = page.locator(
-    "#cli-sidebar .session-terminal:not([hidden]) .page__terminal-group:not(.session-offer)",
-  );
-  await assertOrder(["terminal-one", "terminal-two", "terminal-other"], 2);
+  await assertOrder(["terminal-one", "terminal-two", "terminal-other"]);
   await page.evaluate(() => {
     window.orderedTerminalHosts = [...document.querySelectorAll("[data-terminal]")].map((host) => ({
       id: host.dataset.terminal,
@@ -514,30 +435,20 @@ async function verifyTerminalInsertion(page) {
     }));
   });
 
-  async function assertOrder(ids, firstGroupSize) {
-    assert.deepEqual(
-      await groups.evaluateAll((nodes) =>
-        nodes.map((node) => ({
-          folder: node.title,
-          name: node.querySelector(".page__terminal-name").textContent,
-          numbers: [...node.querySelectorAll(".page__terminal-numbers span")].map((span) =>
-            Number(span.textContent),
-          ),
-        })),
-      ),
-      [
-        { folder: "/tmp", name: "tmp", numbers: ids.slice(0, firstGroupSize).map((_, i) => i + 1) },
-        {
-          folder: "/elsewhere/tmp",
-          name: "tmp",
-          numbers: ids.slice(firstGroupSize).map((_, i) => firstGroupSize + i + 1),
-        },
-      ],
-      "Groups use the full path and displayed numbers stay contiguous",
+  async function assertOrder(ids) {
+    const members = await page.evaluate(
+      async () => (await window.pageSnapshot()).values["sessions.list"],
     );
+    assert.equal(members.length, ids.length);
+    assert.equal(await page.locator(".canvas-tab").count(), 3);
     for (const [index, id] of ids.entries()) {
       await showTerminal(page, index + 1, id);
-      assert.equal(await groups.locator('[data-active="true"]').innerText(), String(index + 1));
+      assert.equal(
+        await page
+          .locator('.canvas-tab[data-active] .canvas-tab-terminals [aria-pressed="true"]')
+          .count(),
+        1,
+      );
     }
   }
 
@@ -578,25 +489,31 @@ async function verifyTerminalInsertion(page) {
     assert.deepEqual(JSON.parse(call[0].args.meta), {
       branch: source.branch,
       ...(source.folder ? { folder: true } : {}),
+      canvas: source.canvas ?? source.id,
     });
     await terminalFor(page, opened.id).locator(".xterm").waitFor();
-    assert.equal(await groups.locator('[data-active="true"]').innerText(), String(number + 1));
+
     return opened.id;
   }
 
   const first = await createAfter(1, "terminal-one");
-  await assertOrder(["terminal-one", first, "terminal-two", "terminal-other"], 3);
+  await assertOrder(["terminal-one", first, "terminal-two", "terminal-other"]);
   const second = await createAfter(1, "terminal-one");
-  await assertOrder(["terminal-one", second, first, "terminal-two", "terminal-other"], 4);
+  await assertOrder(["terminal-one", second, first, "terminal-two", "terminal-other"]);
   const middle = await createAfter(4, "terminal-two");
-  await assertOrder(["terminal-one", second, first, "terminal-two", middle, "terminal-other"], 5);
+  await assertOrder(["terminal-one", second, first, "terminal-two", middle, "terminal-other"]);
   const other = await createAfter(6, "terminal-other");
   const order = ["terminal-one", second, first, "terminal-two", middle, "terminal-other", other];
-  await assertOrder(order, 5);
-  for (const id of order) {
-    await page.keyboard.press("Control+ArrowDown");
-    await terminalFor(page, id).locator(".xterm-helper-textarea").waitFor({ state: "attached" });
-    assert.equal(await terminalFor(page, id).getAttribute("data-terminal-shown"), "true");
+  await assertOrder(order);
+  for (const tab of await page.locator(".canvas-tab").all()) {
+    await tab.getByRole("tab").click();
+    const buttons = tab.locator(".canvas-tab-terminals button[aria-pressed]");
+    await buttons.first().click();
+    const count = await buttons.count();
+    for (let i = 0; i < count; i++) {
+      await page.keyboard.press("Control+ArrowRight");
+      assert.equal(await buttons.nth((i + 1) % count).getAttribute("aria-pressed"), "true");
+    }
   }
   assert.equal(
     await page.evaluate(() =>

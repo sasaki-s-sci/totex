@@ -26,7 +26,8 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
         ];
       if (cmd === "plugin:clipboard-manager|write_text" && window.refuseCopy)
         throw new Error("Clipboard unavailable");
-      if (cmd === "canvas_write" && window.refusePage) throw new Error("Cannot save canvas");
+      if (cmd === "plugin:opener|open_url" && window.refusePage)
+        throw new Error("Cannot open browser");
       return invoke(cmd, args);
     };
   });
@@ -109,17 +110,20 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     window.refusePage = true;
   });
   await blank.getByRole("button", { name: `Open ${url}`, exact: true }).click();
-  await page.getByText("Error: Cannot save canvas", { exact: true }).waitFor();
+  await page.getByText("Could not open your browser. Try again.", { exact: true }).waitFor();
   assert.equal(await blank.count(), 1);
   await page.evaluate(() => {
     window.refusePage = false;
   });
   await blank.getByRole("button", { name: `Open ${url}`, exact: true }).click();
-  await blank.waitFor({ state: "detached" });
   await page.waitForFunction(
-    (url) => window.canvasStates["terminal-one"].panes.some((pane) => pane.url === url),
+    (url) =>
+      window.pageCalls.some(
+        ({ cmd, args }) => cmd === "plugin:opener|open_url" && args.url === url,
+      ),
     url,
   );
+  assert.equal(await blank.isVisible(), true);
   assert.equal(await page.locator('[data-canvas-pane="source"]').count(), 1);
   assert.equal(await page.evaluate(() => window.canvasStates["terminal-one"].panes.length), 2);
 
@@ -137,7 +141,8 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   assert.equal(opened.cwd, "/tmp");
   assert.equal(JSON.parse(opened.meta).branch, "main");
   assert.equal(JSON.parse(opened.meta).folder, undefined);
-  const emptyCanvas = page.locator(`[data-session-canvas="${newId}"]`);
+  const emptyCanvas = page.locator('[data-session-canvas="terminal-one"]');
+  assert.equal(JSON.parse(opened.meta).canvas, "terminal-one");
   await emptyCanvas.getByRole("button", { name: `Open ${url}`, exact: true }).waitFor();
   assert.equal(await emptyCanvas.getByText("https://elsewhere.example/").count(), 0);
   const kept = await page.evaluate(

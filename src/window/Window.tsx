@@ -1,8 +1,10 @@
 import { Alert, Box, Snackbar } from "@mui/material";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CanvasTabs } from "../canvas/CanvasTabs";
 import { FileDropPreview } from "../canvas/FileDropPreview";
 import { useCanvases } from "../canvas/useCanvases";
+import { canvasOf, useCanvasTabs } from "../canvas/useCanvasTabs";
 import { baseName, folderOf } from "../folder/format";
 import { useAutoFollow } from "../hooks/useAutoFollow";
 import { useCanvasWork } from "../hooks/useCanvasWork";
@@ -55,8 +57,11 @@ export function Window() {
 
   const sessions = useSessions();
   const canvas = useCanvases();
-  const current =
-    sessions.sessions.find((one) => one.id === sessions.active) ?? sessions.sessions[0];
+  const tabs = useCanvasTabs(sessions, canvas);
+  const current = tabs.current;
+  const terminal =
+    sessions.sessions.find((one) => one.id === sessions.selected) ??
+    sessions.sessions.find((one) => canvasOf(one) === current?.id);
   useResumeRuntime(sessions);
 
   const { workspace, folders: graphed } = useWorkspaces(folders.roots);
@@ -64,11 +69,10 @@ export function Window() {
   const branches = useMemo(() => worktreeBranches(workspace), [workspace]);
   useAutoFollow(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
   useSpares(workspace?.repositories ?? EMPTY_WORKSPACE.repositories);
-  const files = useFileDrops(sessions.active, (path, folder) => {
+  const files = useFileDrops(current?.id, (path, folder) => {
     const cwd = folder ?? folderOf(path) ?? ".";
     const session = shellSession(cwd, baseName(cwd), true);
-    sessions.open(session);
-    return session.id;
+    return tabs.openTab(session);
   });
   const drops = useDrops(canvasHost, files.openFiles);
   useEffect(() => {
@@ -77,7 +81,9 @@ export function Window() {
       if (!request || !sessions.sessions.some((session) => session.id === request.sessionId))
         return;
       event.preventDefault();
-      files.openFiles([request.path], null, undefined, { sessionId: request.sessionId });
+      const session = sessions.sessions.find((session) => session.id === request.sessionId);
+      if (session)
+        files.openFiles([request.path], null, undefined, { sessionId: canvasOf(session) });
     };
     window.addEventListener(OPEN_FILE, open);
     return () => window.removeEventListener(OPEN_FILE, open);
@@ -85,10 +91,10 @@ export function Window() {
   const deletePlace = useCallback(
     async (place: Graphed) => {
       const kept = graphed.filter((folder) => folder.root !== place.root).map((f) => f.root);
-      await sessions.endMatching(sessionsInPlaces([place], workspace?.repositories ?? [], kept));
+      await tabs.endMatching(sessionsInPlaces([place], workspace?.repositories ?? [], kept));
       setUngraph({ root: place.root, kind: place.kind });
     },
-    [sessions.endMatching, workspace, graphed],
+    [tabs.endMatching, workspace, graphed],
   );
   const deletePane = useCallback(
     async (pane: Pane) => {
@@ -98,9 +104,9 @@ export function Window() {
       ];
       const ownedRoots = new Set(owned.map((place) => place.root));
       const kept = graphed.filter((folder) => !ownedRoots.has(folder.root)).map((f) => f.root);
-      await sessions.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? [], kept));
+      await tabs.endMatching(sessionsInPlaces(owned, workspace?.repositories ?? [], kept));
     },
-    [sessions.endMatching, workspace, graphed],
+    [tabs.endMatching, workspace, graphed],
   );
   const closeRepository = useCallback(
     (repository: Repository) => {
@@ -128,14 +134,14 @@ export function Window() {
         ),
       ].filter((path) => !(underPlace(path, root) && underPlace(root, path)));
       try {
-        await sessions.endMatching(sessionsInPlaces([{ kind: "folder", root }], [], kept));
+        await tabs.endMatching(sessionsInPlaces([{ kind: "folder", root }], [], kept));
         return true;
       } catch {
         setRemoveFailed(true);
         return false;
       }
     },
-    [sessions.endMatching, workspace, graphed],
+    [tabs.endMatching, workspace, graphed],
   );
 
   const browseFolder = useCallback(
@@ -148,7 +154,7 @@ export function Window() {
     [graphed],
   );
   const work = useCanvasWork({
-    openSession: sessions.open,
+    openSession: tabs.open,
     fail,
     onBrowseFolder: browseFolder,
   });
@@ -158,7 +164,7 @@ export function Window() {
   const WorktreeMenu = worktreePart.use(useEver(menus.worktree !== null));
 
   return (
-    <PageWorkspace sessions={sessions}>
+    <PageWorkspace sessions={{ ...sessions, open: tabs.open }}>
       <Box
         sx={{
           position: "relative",
@@ -227,8 +233,22 @@ export function Window() {
                 .then((paths) => files.openFiles(paths, null))
                 .catch(() => setPasteFailed(true));
           }}
-          sx={{ position: "relative", flex: 1, minWidth: 0 }}
+          sx={{
+            position: "relative",
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+          }}
         >
+          <CanvasTabs
+            tabs={tabs}
+            sessions={sessions.sessions}
+            activeTerminal={terminal?.id}
+            workspace={workspace ?? EMPTY_WORKSPACE}
+            folders={graphed}
+            fail={fail}
+          />
           <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>
             <Alert severity="error" onClose={() => setPasteFailed(false)}>
               {t("file.pasteFailed")}
@@ -238,6 +258,8 @@ export function Window() {
           {Canvas && (
             <Canvas
               state={canvas}
+              tabs={tabs.tabs}
+              activeCanvas={current?.id ?? null}
               workspace={workspace ?? EMPTY_WORKSPACE}
               folders={graphed}
               sessions={sessions.sessions}
@@ -250,9 +272,7 @@ export function Window() {
               onCloseFolder={closeFolder}
               onCloseWorkspace={closeWorkspace}
               onEndSession={sessions.end}
-              onNewTerminal={(session) =>
-                sessions.open(shellSession(session.cwd, session.branch, session.folder), session.id)
-              }
+              onNewTerminal={tabs.addTerminal}
               filePreviews={files.filePreviews}
               onPreviewFile={files.previewFile}
               onCloseFilePreview={files.closeFilePreview}
@@ -267,7 +287,7 @@ export function Window() {
             workspace={workspace ?? EMPTY_WORKSPACE}
             folders={graphed}
             sessions={sessions.sessions}
-            showing={sessions.active}
+            showing={terminal?.id ?? null}
             onOpenWork={work.openWork}
             onEndSession={sessions.end}
           />
@@ -296,8 +316,8 @@ export function Window() {
           <WorktreeMenu
             target={menus.worktree}
             onClose={menus.closeWorktree}
-            onOpen={sessions.open}
-            onEndAttached={sessions.endIn}
+            onOpen={tabs.open}
+            onEndAttached={(cwd) => tabs.endMatching((session) => session.cwd === cwd)}
           />
         )}
       </Box>

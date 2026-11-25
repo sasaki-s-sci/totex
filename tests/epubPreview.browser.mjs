@@ -32,6 +32,8 @@ export async function verifyEpubPreview(page, base = "http://127.0.0.1:18425") {
   await page.locator(".epub-reading").evaluate((element) => {
     element.dataset.canvasPane = "epub";
     window.epubContextMenus = 0;
+    window.epubZoom = [];
+    element.addEventListener("totex:zoom", (event) => window.epubZoom.push(event.detail));
     element.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       window.epubContextMenus++;
@@ -39,6 +41,9 @@ export async function verifyEpubPreview(page, base = "http://127.0.0.1:18425") {
   });
   await frame().getByRole("heading", { name: "First chapter" }).click({ button: "right" });
   assert.equal(await page.evaluate(() => window.epubContextMenus), 1);
+  await frame().getByRole("heading", { name: "First chapter" }).click();
+  for (const key of ["Control+=", "Control+-", "Control+0"]) await page.keyboard.press(key);
+  assert.deepEqual(await page.evaluate(() => window.epubZoom), [1, -1, 0]);
   await frame().getByText("External link").click();
   assert.equal(page.url(), `${base}/tests/fixtures/epub-preview.html`);
   await frame().getByText("Other chapter").click();

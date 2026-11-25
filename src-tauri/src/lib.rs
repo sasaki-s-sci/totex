@@ -352,6 +352,8 @@ pub fn run() {
             mcp::mcp_stop,
             mcp::mcp_reports,
             mcp::canvas_read,
+            mcp::canvas_open,
+            mcp::canvas_close,
             mcp::canvas_write,
             canvas_browser::canvas_browser_open,
             page_status::canvas_page_status,

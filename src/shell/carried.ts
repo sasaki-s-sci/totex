@@ -8,6 +8,8 @@ export const CARRIES = [
   "window.foldersOpen",
   "folders.panes",
   "canvas.pages",
+  "canvas.tabs",
+  "canvas.active",
 ] as const;
 
 /** The document to keep: only the carried keys this front holds. */

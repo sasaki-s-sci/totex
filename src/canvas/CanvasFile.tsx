@@ -22,8 +22,10 @@ export function CanvasFile({
   open,
   remove,
   registerSave,
+  zoom = 1,
 }: {
   cacheKey: string;
+  zoom?: number;
   path: string;
   format?: "picture" | "video" | "audio";
   view?: CanvasFileView;
@@ -123,6 +125,7 @@ export function CanvasFile({
   const data = nodes[0]?.data;
   return data ? (
     <FilePage
+      zoom={zoom}
       data={data}
       bare
       registerSave={register}

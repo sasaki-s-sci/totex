@@ -1,4 +1,4 @@
-//! A terminal's evidence, shared by its MCP client and the window.
+//! Evidence shared by a canvas's terminals and the window.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -90,14 +90,68 @@ pub struct Write {
     pub revision: Option<u64>,
 }
 
+#[derive(Deserialize)]
+pub struct Open {
+    pub id: String,
+    pub cwd: String,
+}
+
+fn shared_id(session: &crate::session::Running) -> String {
+    session
+        .meta
+        .as_deref()
+        .and_then(|meta| serde_json::from_str::<Value>(meta).ok())
+        .and_then(|meta| {
+            meta.get("canvas")?
+                .as_str()
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| session.id.clone())
+}
+
 impl Door {
+    pub fn open_canvas(&self, id: &str, cwd: &str) -> Result<Canvas, String> {
+        if id.is_empty() || id.len() > 8192 || cwd.is_empty() || cwd.contains('\0') {
+            return Err("A canvas needs an ID and a folder".into());
+        }
+        let mut folders = lock(&self.canvas_folders);
+        if folders.get(id).is_some_and(|folder| folder != cwd) {
+            return Err("The canvas belongs to another folder".into());
+        }
+        folders.insert(id.to_owned(), cwd.to_owned());
+        drop(folders);
+        Ok(self.canvas(id))
+    }
+
+    pub fn close_canvas(&self, id: &str) -> Result<(), String> {
+        if self
+            .sessions
+            .running()
+            .iter()
+            .any(|session| shared_id(session) == id)
+        {
+            return Err("Close the canvas terminals first".into());
+        }
+        lock(&self.canvas_folders).remove(id);
+        lock(&self.canvases).remove(id);
+        Ok(())
+    }
+
     pub fn canvases(&self) -> Vec<Canvas> {
         lock(&self.canvases).values().cloned().collect()
     }
 
     pub fn canvas(&self, id: &str) -> Canvas {
+        let id = self
+            .sessions
+            .running()
+            .iter()
+            .find(|session| session.id == id)
+            .map(shared_id)
+            .unwrap_or_else(|| id.to_owned());
         lock(&self.canvases)
-            .get(id)
+            .get(&id)
             .cloned()
             .unwrap_or_else(|| Canvas {
                 id: id.to_string(),
@@ -116,8 +170,15 @@ impl Door {
             .sessions
             .running()
             .into_iter()
-            .find(|session| session.id == id)
-            .ok_or("The terminal has ended")?;
+            .find(|session| session.id == id);
+        let canvas_id = session
+            .as_ref()
+            .map(shared_id)
+            .unwrap_or_else(|| id.to_owned());
+        let cwd = session
+            .map(|session| session.cwd)
+            .or_else(|| lock(&self.canvas_folders).get(id).cloned())
+            .ok_or("The canvas has closed")?;
         validate(&panes)?;
         for pane in &mut panes {
             let path = match &mut pane.content {
@@ -132,20 +193,20 @@ impl Door {
                 _ => None,
             };
             if let Some(path) = path {
-                *path = file_path(&session.cwd, path);
+                *path = file_path(&cwd, path);
             }
         }
         let mut canvases = lock(&self.canvases);
-        let current = canvases.get(id).map_or(0, |canvas| canvas.revision);
+        let current = canvases.get(&canvas_id).map_or(0, |canvas| canvas.revision);
         if revision.is_some_and(|expected| expected != current) {
             return Err("The canvas changed. Read it again before replacing it.".into());
         }
         let canvas = Canvas {
-            id: id.to_string(),
+            id: canvas_id.clone(),
             revision: current + 1,
             panes,
         };
-        canvases.insert(id.to_string(), canvas.clone());
+        canvases.insert(canvas_id, canvas.clone());
         Ok(canvas)
     }
 }
@@ -263,7 +324,7 @@ pub fn tool() -> Value {
     json!({
         "name": "canvas",
         "title": "Show evidence on this terminal's canvas",
-        "description": "Read or replace this terminal's canvas. Omit panes to read. Supply panes to replace the entire layout; [] clears it. Read first, preserve existing panes and IDs, and include revision so a concurrent user edit is not overwritten. Use iframe for a running web app (JavaScript enabled), image for a screenshot, video or audio for media supported by the browser's codecs, file for a document, code for literal code, markdown for an explanation, empty for a drop target. Image/video/audio src accepts an HTTP(S) URL or file path. File view may be text or preview; omit it for the file type's default. File/video/audio playback optionally sets start, end, position (seconds) and playing (boolean); times must be finite and nonnegative, end greater than start (default 0), and position inside supplied bounds. Paths are relative to this terminal's starting directory or absolute, retaining its WSL/SSH host. The layout fills the center with straight separators. Other terminals are unaffected.",
+        "description": "Read or replace this terminal's canvas. Omit panes to read. Supply panes to replace the entire layout; [] clears it. Read first, preserve existing panes and IDs, and include revision so a concurrent user edit is not overwritten. Use iframe for a running web app (JavaScript enabled), image for a screenshot, video or audio for media supported by the browser's codecs, file for a document, code for literal code, markdown for an explanation, empty for a drop target. Image/video/audio src accepts an HTTP(S) URL or file path. File view may be text or preview; omit it for the file type's default. File/video/audio playback optionally sets start, end, position (seconds) and playing (boolean); times must be finite and nonnegative, end greater than start (default 0), and position inside supplied bounds. Paths are relative to this terminal's starting directory or absolute, retaining its WSL/SSH host. The layout fills the center with straight separators. Terminals in the same canvas share these panes. Other canvas tabs are unaffected.",
         "inputSchema": {
             "type": "object", "additionalProperties": false,
             "properties": {

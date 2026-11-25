@@ -113,6 +113,7 @@ export function launchJob(session: Session, line: string, spec: string | null): 
     id: session.id,
     cwd: session.cwd,
     branch: session.branch,
+    ...(session.canvas ? { canvas: session.canvas } : null),
     ...(session.folder ? { folder: true } : null),
     line: launch.line,
     agent,
@@ -193,7 +194,7 @@ export function resumeJob(id: string, open: readonly string[]): void {
   const line = resumeLine(job, prompt);
   let into = job.id;
   if (!open.includes(job.id)) {
-    const session = shellSession(job.cwd, job.branch, job.folder);
+    const session = { ...shellSession(job.cwd, job.branch, job.folder), canvas: job.canvas };
     opener?.open(session);
     into = session.id;
   }
@@ -210,7 +211,13 @@ export function resumeJob(id: string, open: readonly string[]): void {
     lost: null,
   });
   touched();
-  void startShell({ id: into, cwd: job.cwd, branch: job.branch, folder: job.folder })
+  void startShell({
+    id: into,
+    cwd: job.cwd,
+    branch: job.branch,
+    folder: job.folder,
+    canvas: job.canvas,
+  })
     .then(() => writeShell(into, `${line}\n`))
     .catch(() => undefined);
 }
@@ -256,7 +263,13 @@ async function restore(): Promise<void> {
       continue;
     }
     // Its terminal comes back either way, under the same name, where the graph left room for it.
-    opener?.restore({ id: job.id, cwd: job.cwd, branch: job.branch, folder: job.folder });
+    opener?.restore({
+      id: job.id,
+      cwd: job.cwd,
+      branch: job.branch,
+      folder: job.folder,
+      canvas: job.canvas,
+    });
     if (judged.act === "auto") resumeJob(job.id, [job.id]);
     else offers.set(job.id, judged.doubts);
   }

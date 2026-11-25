@@ -1,5 +1,6 @@
 (() => {
   const type = "totex:frame-context-menu";
+  const zoomType = "totex:frame-zoom";
   let enabled = false;
   const frames = () => [...document.querySelectorAll("iframe")];
   const owns = (frame) =>
@@ -24,14 +25,14 @@
       for (const frame of frames()) configure(frame);
       return;
     }
-    if (data.type !== type && data.type !== `${type}:ready`) return;
+    if (data.type !== type && data.type !== `${type}:ready` && data.type !== zoomType) return;
     const frame = frames().find((frame) => frame.contentWindow === event.source);
     if (!frame) return;
     if (data.type === `${type}:ready`) {
       configure(frame);
       return;
     }
-    if ((!enabled && !owns(frame)) || !Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+    if (!enabled && !owns(frame)) return;
     const bounds = frame.getBoundingClientRect();
     if (
       !frame.clientWidth ||
@@ -42,6 +43,13 @@
       getComputedStyle(frame).visibility !== "visible"
     )
       return;
+    if (data.type === zoomType) {
+      if (document.activeElement !== frame || ![-1, 0, 1].includes(data.step)) return;
+      if (enabled) window.parent.postMessage({ type: zoomType, step: data.step }, "*");
+      else frame.dispatchEvent(new CustomEvent("totex:zoom", { bubbles: true, detail: data.step }));
+      return;
+    }
+    if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
     const x =
       bounds.left +
       ((frame.clientLeft + Math.max(0, Math.min(data.x, frame.clientWidth))) * bounds.width) /
@@ -64,6 +72,32 @@
     }
   });
 
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (
+        !enabled ||
+        !event.isTrusted ||
+        event.isComposing ||
+        event.altKey ||
+        !(event.ctrlKey || event.metaKey)
+      )
+        return;
+      const step =
+        event.key === "+" || event.key === "=" || event.code === "NumpadAdd"
+          ? 1
+          : event.key === "-" || event.code === "NumpadSubtract"
+            ? -1
+            : event.key === "0"
+              ? 0
+              : null;
+      if (step === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.parent.postMessage({ type: zoomType, step }, "*");
+    },
+    true,
+  );
   window.addEventListener(
     "contextmenu",
     (event) => {

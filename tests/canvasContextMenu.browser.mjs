@@ -46,6 +46,13 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
   await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);
   const html = page.locator('[data-canvas-pane="html"]').frameLocator("iframe");
   await html.getByRole("heading", { name: "HTML evidence" }).waitFor();
+  await html.getByRole("heading", { name: "HTML evidence" }).click();
+  await page.keyboard.press("Control+=");
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-canvas-pane="html"] .canvas-pane-zoom').dataset.zoom === "1.25",
+  );
+  await page.keyboard.press("Control+0");
   const live = page.frame({ url: "http://127.0.0.1:18424/context" });
   assert.ok(live);
   await live.getByRole("button", { name: "Click me", exact: true }).click();

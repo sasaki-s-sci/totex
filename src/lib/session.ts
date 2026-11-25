@@ -13,6 +13,7 @@ export type Session = {
    * the terminal stands by the row that opened it.
    */
   folder?: boolean;
+  canvas?: string;
 };
 
 let started = 0;
@@ -38,12 +39,14 @@ export function orderSessions(
 type Kept = {
   branch: string;
   folder?: boolean;
+  canvas?: string;
 };
 
 export function sessionMeta(session: Session): string {
   return JSON.stringify({
     branch: session.branch,
     ...(session.folder ? { folder: true } : null),
+    ...(session.canvas ? { canvas: session.canvas } : null),
   } satisfies Kept);
 }
 
@@ -66,11 +69,15 @@ export function restored(running: readonly Running[]): Session[] {
   });
 }
 
-function kept(meta: string | null): Pick<Session, "branch" | "folder"> {
+function kept(meta: string | null): Pick<Session, "branch" | "folder" | "canvas"> {
   if (!meta) return { branch: "" };
   try {
-    const { branch, folder } = JSON.parse(meta) as Partial<Kept>;
-    return { branch: branch ?? "", ...(folder === true ? { folder: true } : null) };
+    const { branch, folder, canvas } = JSON.parse(meta) as Partial<Kept>;
+    return {
+      branch: branch ?? "",
+      ...(folder === true ? { folder: true } : null),
+      ...(typeof canvas === "string" && canvas ? { canvas } : null),
+    };
   } catch {
     return { branch: "" };
   }

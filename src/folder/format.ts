@@ -25,6 +25,26 @@ export function baseName(path: string): string {
   return name || path;
 }
 
+/** Add parents only far enough to distinguish different paths with the same folder name. */
+export function folderLabels(paths: readonly string[]): string[] {
+  const normalized = paths.map((path) => displayPath(path).replace(/\/+$/, ""));
+  return normalized.map((path, index) => {
+    const parts = path.split("/");
+    let label = displayPath(baseName(paths[index]));
+    for (
+      let depth = 2;
+      depth <= parts.length &&
+      normalized.some(
+        (other) => other !== path && (other === label || other.endsWith(`/${label}`)),
+      );
+      depth++
+    ) {
+      label = parts.slice(-depth).join("/");
+    }
+    return label;
+  });
+}
+
 /** Spelled the way the path was: git is asked about a file in this. */
 export function folderOf(path: string): string | null {
   const { root, rest } = split(path);

@@ -3,6 +3,7 @@ import type { NavItem } from "epubjs/types/navigation";
 import type Section from "epubjs/types/section";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ZOOM_EVENT, zoomKey } from "../../../lib/zoom";
 import { sourceBytes } from "./documentSource";
 import { cleanEpubDocument, internalEpubLink, prepareEpub } from "./epubSource";
 import "./epubReading.css";
@@ -87,6 +88,14 @@ export function EpubReading({ source, name }: { source: string; name: string }) 
         });
         rendition.current = reader;
         reader.hooks.content.register((contents: Contents) => {
+          contents.document.addEventListener("keydown", (event) => {
+            const step = zoomKey(event);
+            const frame = contents.document.defaultView?.frameElement;
+            if (step === null || !event.isTrusted || !frame?.closest("[data-canvas-pane]")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            frame.dispatchEvent(new CustomEvent(ZOOM_EVENT, { bubbles: true, detail: step }));
+          });
           contents.document.addEventListener("contextmenu", (event) => {
             const frame = contents.document.defaultView?.frameElement;
             if (!event.isTrusted || !frame?.closest("[data-canvas-pane]")) return;

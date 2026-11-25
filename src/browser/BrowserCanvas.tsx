@@ -14,14 +14,15 @@ import "../theme/rail.css";
 
 function BrowserCanvas({ session }: { session: Session }) {
   const state = useCanvases();
+  const id = session.canvas ?? session.id;
   return (
     <main className="terminal-canvases" aria-label={session.branch || session.cwd}>
       <SessionCanvas
-        id={session.id}
+        id={id}
         cwd={session.cwd}
         shown
-        panes={state.canvases[session.id]?.panes ?? []}
-        tree={state.layouts[session.id]}
+        panes={state.canvases[id]?.panes ?? []}
+        tree={state.layouts[id]}
         change={state.change}
         registerSave={state.registerSave}
       />

@@ -82,7 +82,8 @@ export async function browserCanvas(
     await step("MCPから実ターミナルのキャンバスにWebページとファイルを表示する", async () => {
       await invoke("mcp_serve");
       serving = true;
-      await native.$(`#cli-sidebar .session-offer[title="${repository}"]`).click();
+      await native.$('[aria-label="New canvas"]').click();
+      await native.$('[role="menuitem"]').click();
       await native.$('[data-terminal-shown="true"]').waitForExist();
       id = await native.$('[data-terminal-shown="true"]').getAttribute("data-terminal");
       const credentialFile = join(repository, ".git/browser-canvas-mcp-url");

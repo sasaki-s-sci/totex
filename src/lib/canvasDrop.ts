@@ -6,13 +6,19 @@ type Point = { x: number; y: number };
 export type CanvasDrop = { context: FileDropContext; host: Element };
 
 export function canvasDropTarget(target: Element | null, at: Point): CanvasDrop | null {
+  if (target?.closest(".canvas-header-space")) {
+    const canvas = target
+      .closest("main")
+      ?.querySelector<HTMLElement>("[data-session-canvas]:not([hidden])");
+    return {
+      context: { sessionId: canvas?.dataset.sessionCanvas, replace: false },
+      host: canvas ?? target,
+    };
+  }
   const miniature = target?.closest<HTMLElement>(".layout-bounds");
   const canvas =
     miniature?.querySelector<HTMLElement>(".layout-map") ??
     target?.closest<HTMLElement>("[data-session-canvas]") ??
-    target
-      ?.closest(".canvas-window-drag")
-      ?.parentElement?.querySelector<HTMLElement>("[data-session-canvas]:not([hidden])") ??
     target?.closest<HTMLElement>(".terminal-canvases");
   if (!canvas) return null;
   const sessionId = miniature ? canvas.dataset.layoutCanvas : canvas.dataset.sessionCanvas;

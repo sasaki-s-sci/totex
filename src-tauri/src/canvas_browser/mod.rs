@@ -41,7 +41,7 @@ pub fn canvas_browser_open<R: Runtime>(
         .iter()
         .find(|session| session.id == id)
         .ok_or("The terminal has ended")?;
-    let current = canvas(&app, &id)?;
+    let current = canvas(&app, running)?;
     let mut access = scope::Access::default();
     access.update(&current, &running.cwd, true);
     if !valid_token(&token) {
@@ -135,7 +135,16 @@ fn session<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Running, String> 
         .ok_or("The terminal has ended".into())
 }
 
-fn canvas<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<Canvas, String> {
+fn canvas<R: Runtime>(app: &AppHandle<R>, running: &Running) -> Result<Canvas, String> {
+    let meta = running
+        .meta
+        .as_deref()
+        .and_then(|meta| serde_json::from_str::<Value>(meta).ok());
+    let id = meta
+        .as_ref()
+        .and_then(|meta| meta["canvas"].as_str())
+        .filter(|id| !id.is_empty())
+        .unwrap_or(&running.id);
     crate::persistent::link(app)
         .asked::<Vec<Canvas>>("canvas_read", json!({}))?
         .into_iter()
@@ -169,7 +178,7 @@ fn string<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
 fn invoke<R: Runtime>(app: &AppHandle<R>, grant: &mut Grant, call: Call) -> Result<Value, String> {
     let id = grant.id.as_str();
     let running = session(app, id)?;
-    let current = canvas(app, id)?;
+    let current = canvas(app, &running)?;
     grant.access.update(&current, &running.cwd, true);
     let args = call.args;
     match call.command.as_str() {
@@ -180,12 +189,12 @@ fn invoke<R: Runtime>(app: &AppHandle<R>, grant: &mut Grant, call: Call) -> Resu
                 .and_then(|text| serde_json::from_str(text).ok())
                 .unwrap_or(Value::Null);
             Ok(
-                json!({"id":id,"cwd":running.cwd,"branch":meta["branch"].as_str().unwrap_or(""),"folder":meta["folder"]}),
+                json!({"id":id,"canvas":current.id,"cwd":running.cwd,"branch":meta["branch"].as_str().unwrap_or(""),"folder":meta["folder"]}),
             )
         }
         "canvas_read" => encode(vec![current]),
         "canvas_write" => {
-            if string(&args, "id")? != id {
+            if string(&args, "id")? != current.id {
                 return Err("This browser tab belongs to another canvas".into());
             }
             let panes: Vec<Pane> =
@@ -542,7 +551,7 @@ fn media<R: Runtime>(
     let result: Result<_, String> = (|| {
         let mut grant = grant.lock().map_err(|e| e.to_string())?;
         let running = session(app, &grant.id)?;
-        let current = canvas(app, &grant.id)?;
+        let current = canvas(app, &running)?;
         grant.access.update(&current, &running.cwd, true);
         if !grant.access.readable(&current, &path) {
             return Err("This file is not part of this canvas".into());

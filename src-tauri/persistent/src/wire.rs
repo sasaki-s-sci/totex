@@ -75,6 +75,8 @@ pub const ANSWERS: &[&str] = &[
     "door_stop",
     "door_reports",
     "canvas_read",
+    "canvas_open",
+    "canvas_close",
     "canvas_write",
     "door_setups",
     "door_install",

@@ -65,7 +65,7 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
     await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped`);
     await note(page).waitFor();
     await page.locator('[data-terminal="terminal-other"] .xterm').waitFor({ state: "attached" });
-    const drag = page.locator(".canvas-window-drag[data-tauri-drag-region]");
+    const drag = page.locator(".canvas-header-space[data-tauri-drag-region]");
     await page.mouse.move(0, 0);
     const restingDrag = await drag.evaluate((element) => {
       const style = getComputedStyle(element);
@@ -83,11 +83,6 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
     assert.equal(restingDrag.background, "rgba(0, 0, 0, 0)");
     assert.deepEqual(restingDrag.borders, ["0px", "0px", "0px", "0px"]);
     assert.equal(restingDrag.cursor, "grab");
-    await drag.hover();
-    assert.notEqual(
-      await drag.evaluate((element) => getComputedStyle(element).backgroundColor),
-      restingDrag.background,
-    );
     await page.mouse.move(0, 0);
     const live = page.frame({ url: "http://127.0.0.1:18424/live" });
     assert.ok(live);

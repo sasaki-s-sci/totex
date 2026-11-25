@@ -123,6 +123,7 @@ async function openPlaces(page, base, query = "") {
             entries: [],
             truncated: false,
           };
+        if (cmd === "canvas_open") return { id: args.id, revision: 0, panes: [] };
         if (cmd === "app_settings_read")
           return {
             path: "/tmp/totex-place-settings.json",
@@ -166,31 +167,11 @@ async function showPlaceTerminal(page, number, id) {
   await page.locator(`#cli-sidebar [data-terminal="${id}"][data-terminal-shown="true"]`).waitFor();
 }
 
-async function holdFolderOffers(page) {
-  const input = page.locator('[data-terminal-shown="true"] .xterm-helper-textarea');
-  if (await input.count()) await input.focus();
-  await page.keyboard.down("Control");
-  await page.keyboard.down("Shift");
-  await page.evaluate(() => new Promise(requestAnimationFrame));
-}
-
-async function releaseFolderOffers(page) {
-  await page.keyboard.up("Shift");
-  await page.keyboard.up("Control");
-  await page
-    .locator('#cli-sidebar .session-offer[data-offered="true"]')
-    .waitFor({ state: "detached" });
-}
-
-async function assertFolderOffer(page, path, name) {
-  const offer = page.locator(
-    `#cli-sidebar .page__header .page__terminal-list .session-offer[title="${path}"]`,
-  );
+async function assertFolderOffer(page, path) {
+  await page.getByRole("button", { name: "New canvas", exact: true }).click();
+  const offer = page.getByRole("menuitem", { name: path, exact: true });
   await offer.waitFor();
-  assert.equal(await offer.count(), 1, "Empty folders appear once in the compact header");
-  assert.equal(await offer.innerText(), name, "The visible header uses the folder name alone");
-  assert.equal(await page.locator("#cli-sidebar .session-offers").count(), 0);
-  return offer;
+  await page.keyboard.press("Escape");
 }
 
 async function verifyAddedRepository(page) {
@@ -202,66 +183,26 @@ async function verifyAddedRepository(page) {
   await path.press("Enter");
   await page.getByRole("menu").waitFor({ state: "detached" });
   await sidebar.getByRole("button", { name: "Show in terminal list", exact: true }).click();
-  await assertFolderOffer(page, "/projects/app", "app");
-  await assertFolderOffer(page, "/worktrees/feature", "feature");
-  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
-  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
-
-  await holdFolderOffers(page);
-  await page
-    .locator('#cli-sidebar .session-offer[title="/projects/app"][data-offered="true"]')
-    .waitFor();
-  await releaseFolderOffers(page);
-  await assertFolderOffer(page, "/projects/app", "app");
-  await holdFolderOffers(page);
-  await page.keyboard.press("ArrowRight");
-  await page
-    .locator('#cli-sidebar .session-offer[title="/worktrees/feature"][data-offered="true"]')
-    .waitFor();
-  await page.keyboard.press("ArrowLeft");
-  await page
-    .locator('#cli-sidebar .session-offer[title="/projects/app"][data-offered="true"]')
-    .waitFor();
-  await page.keyboard.press("Enter");
-  await releaseFolderOffers(page);
+  await assertFolderOffer(page, "/projects/app");
+  await assertFolderOffer(page, "/worktrees/feature");
+  await page.getByRole("button", { name: "New canvas", exact: true }).click();
+  await page.getByRole("menuitem", { name: "/projects/app", exact: true }).click();
   await page.waitForFunction(() => window.nativePlaces.length === 1);
   const session = await page.evaluate(() => window.nativePlaces[0]);
-  assert.equal(
-    session.cwd,
-    "/projects/app",
-    "Ctrl+Shift+Enter starts the selected persistent folder",
-  );
+  assert.equal(session.cwd, "/projects/app");
   const terminal = page.locator(`#cli-sidebar [data-terminal="${session.id}"]`);
   await terminal.locator(".xterm-helper-textarea").waitFor({ state: "attached" });
-  assert.equal(await page.locator('#cli-sidebar .session-offer[title="/projects/app"]').count(), 0);
-  const group = page.locator(
-    '#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-group[title="/projects/app"]',
-  );
-  assert.equal(await group.locator(".page__terminal-name").innerText(), "app");
-  assert.equal(
-    await group.locator('.page__terminal-numbers [data-active="true"]').innerText(),
-    "1",
-  );
-  assert.equal(
-    await page.evaluate(() => window.placeCalls.filter(({ cmd }) => cmd === "pty_open").length),
-    1,
-  );
-
+  const tab = page
+    .locator(".canvas-tab")
+    .filter({ has: page.getByRole("tab", { name: "/projects/app", exact: true }) });
+  assert.equal(await tab.locator('[aria-pressed="true"]').innerText(), "1");
   await terminal.locator(".xterm-helper-textarea").press("Control+x");
   await terminal.waitFor({ state: "detached" });
-  const returned = await assertFolderOffer(page, "/projects/app", "app");
-  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
-  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
-
-  await returned.click();
+  assert.equal(await tab.count(), 1, "Closing the final terminal retains its canvas");
+  await tab.getByRole("button", { name: "New terminal", exact: true }).click();
   await page.waitForFunction(() => window.nativePlaces.length === 1);
-  const clicked = await page.evaluate(() => window.nativePlaces[0]);
-  assert.equal(clicked.cwd, "/projects/app", "The empty global header also accepts pointer input");
-  const clickedTerminal = page.locator(`#cli-sidebar [data-terminal="${clicked.id}"]`);
-  await clickedTerminal.locator(".xterm-helper-textarea").press("Control+x");
-  await clickedTerminal.waitFor({ state: "detached" });
-  await assertFolderOffer(page, "/projects/app", "app");
-  await page.locator("#cli-sidebar .session-empty-header .page__header").waitFor();
+  await tab.getByRole("button", { name: "Close canvas /projects/app", exact: true }).click();
+  await tab.waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
 }
 
@@ -269,17 +210,13 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   const errors = await openPlaces(page, base);
   const sidebar = page.locator("#folder-sidebar");
   const folder = sidebar.locator('[data-folder-pane="1"]');
-  const worktree = page.locator('#cli-sidebar .session-offer[title="/worktrees/feature"]');
+
   async function removePane(header, name) {
     await header.click({ button: "right" });
     await page.getByRole("menuitem", { name, exact: true }).click();
   }
   await folder.waitFor();
   await showPlaceTerminal(page, 2, "repo-cli");
-  await assertFolderOffer(page, "/worktrees/feature", "feature");
-  await holdFolderOffers(page);
-  await worktree.waitFor();
-  await releaseFolderOffers(page);
   await assertFolderOffer(page, "/worktrees/feature", "feature");
   const terminal = page.locator('#cli-sidebar [data-terminal="repo-cli"]');
   await terminal.locator(".xterm-screen").waitFor();
@@ -343,7 +280,6 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   await repositoryRow.waitFor({ state: "detached" });
   await terminal.waitFor({ state: "detached" });
   assert.equal(await page.locator('[data-session-canvas="repo-cli"]').count(), 0);
-  assert.equal(await worktree.count(), 0, "Removing the repository removes its empty-folder offer");
 
   await removePane(
     folder.getByRole("button", { name: "notes", exact: true }).last(),
@@ -356,10 +292,7 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
   await folder.waitFor({ state: "detached" });
   const empty = page.locator(".terminal-canvases .canvas-empty");
   await empty.waitFor();
-  assert.equal(
-    (await empty.innerText()).trim(),
-    "Ctrl+Shift + arrows to choose a folder · Enter to start",
-  );
+  assert.equal((await empty.innerText()).trim(), "");
   assert.equal(await page.locator(".terminal-canvases button, .terminal-canvases form").count(), 0);
   await verifyAddedRepository(page);
   assert.equal(
@@ -412,16 +345,8 @@ export async function verifyWorkspaceIsolation(page, base = "http://127.0.0.1:18
     await page.evaluate(() => window.nativePlaces.some((session) => session.id === "repo-cli")),
     false,
   );
-  await page.locator('[data-session-canvas="repo-cli"]').waitFor({ state: "detached" });
+  assert.equal(await page.locator('[data-session-canvas="repo-cli"]').count(), 1);
   assert.equal(await page.locator('[data-session-canvas="feature-cli"]').count(), 1);
-  await assertFolderOffer(page, "/projects/app", "app");
-  await holdFolderOffers(page);
-  assert.equal(
-    await page.locator('#cli-sidebar .session-offer[title="/projects/app"]').count(),
-    1,
-    "Ending a terminal leaves its folder available for a new terminal",
-  );
-  await releaseFolderOffers(page);
   await assertFolderOffer(page, "/projects/app", "app");
   assert.equal(
     await page.evaluate(() =>

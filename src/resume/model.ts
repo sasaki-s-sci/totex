@@ -370,6 +370,7 @@ export type Job = {
   id: string;
   cwd: string;
   branch: string;
+  canvas?: string;
   folder?: boolean;
   /** As it was typed in, with whatever totex added to it. */
   line: string;

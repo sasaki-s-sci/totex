@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { baseName, displayPath, folderOf, isInside } from "../src/folder/format.ts";
+import { baseName, displayPath, folderLabels, folderOf, isInside } from "../src/folder/format.ts";
 
 test("a root keeps its spelling and anything else is its last step", () => {
   assert.equal(baseName("/"), "/");
@@ -53,4 +53,31 @@ test("display turns backslashes forward and leaves ssh spellings alone", () => {
   assert.equal(displayPath("C:\\Users\\a"), "C:/Users/a");
   assert.equal(displayPath("\\\\wsl.localhost\\Ubuntu\\home"), "//wsl.localhost/Ubuntu/home");
   assert.equal(displayPath("ssh://box/home/a"), "ssh://box/home/a");
+});
+
+test("folder labels stay short for unique names and repeated canvases of the same folder", () => {
+  assert.deepEqual(folderLabels(["/work/app", "/home/docs", "/work/app/"]), ["app", "docs", "app"]);
+  assert.deepEqual(folderLabels(["C:\\work\\app", "C:/work/app/"]), ["app", "app"]);
+});
+
+test("folder labels include only the ancestors needed to distinguish matching names", () => {
+  assert.deepEqual(
+    folderLabels(["/work/team/app", "/home/team/app", "/work/tools/app", "/work/team/app"]),
+    ["work/team/app", "home/team/app", "tools/app", "work/team/app"],
+  );
+  assert.deepEqual(folderLabels(["/app", "/work/app"]), ["/app", "work/app"]);
+  assert.deepEqual(folderLabels(["/work/app"]), ["app"]);
+});
+
+test("folder labels distinguish drives and hosts and preserve root names", () => {
+  assert.deepEqual(folderLabels(["C:\\work\\app", "D:/work/app"]), ["C:/work/app", "D:/work/app"]);
+  assert.deepEqual(folderLabels(["ssh://one/home/app", "ssh://two/home/app"]), [
+    "one/home/app",
+    "two/home/app",
+  ]);
+  assert.deepEqual(folderLabels(["\\\\one\\share\\app", "\\\\two\\share\\app"]), [
+    "one/share/app",
+    "two/share/app",
+  ]);
+  assert.deepEqual(folderLabels(["/", "C:\\", "ssh://one/"]), ["/", "C:/", "ssh://one/"]);
 });

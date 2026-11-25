@@ -32,6 +32,7 @@ import { copyText } from "../lib/clipboard";
 import { type FileDropContext, hasFileDrag, mediaView, readFileDrag } from "../lib/filePreview";
 import { OPEN_PAGE, type PageRequest } from "../lib/openPage";
 import { useTerminalPages } from "../lib/terminalPages";
+import { ZOOM_EVENT, type ZoomStep, zoomed, zoomKey } from "../lib/zoom";
 import { markdownPart, mediaPart, settingsPart } from "../parts";
 import { keepFrontValue } from "../shell/state";
 import { CanvasFile } from "./CanvasFile";
@@ -39,11 +40,19 @@ import { CanvasPages } from "./CanvasPages";
 import type { CanvasProps } from "./CanvasProps";
 import { LiveFrame } from "./LiveFrame";
 import { type CanvasSplit, paneGrid } from "./layout";
-import { adjacentPane, type CanvasGrid, type CanvasPane, insertFiles, webAddress } from "./model";
+import {
+  adjacentPane,
+  type CanvasGrid,
+  type CanvasPane,
+  insertFiles,
+  paneSource,
+  webAddress,
+} from "./model";
 import { PictureReading } from "./nodes/preview/PictureReading";
 import type { CanvasPage } from "./pages";
 import type { useCanvases } from "./useCanvases";
 import { useCanvasResize } from "./useCanvasResize";
+import { canvasOf } from "./useCanvasTabs";
 import "./styles/index.css";
 import "./canvas.css";
 
@@ -55,8 +64,9 @@ const makeFile = (path: string): CanvasPane => ({ id: crypto.randomUUID(), kind:
 
 export function Canvas({
   state,
+  tabs,
+  activeCanvas,
   sessions,
-  showing,
   onNewTerminal,
   filePreviews,
   onCloseFilePreview,
@@ -66,11 +76,11 @@ export function Canvas({
   const { t } = useTranslation();
   const pages = useTerminalPages();
   const processing = useRef(new Set<number>());
-  const current = sessions.find((session) => session.id === showing) ?? sessions[0];
+  const current = tabs.find((tab) => tab.id === activeCanvas);
   const Settings = settingsPart.use(settingsRequest > 0);
   useEffect(() => {
     const stops = sessions.map((session) =>
-      guardSessionClose(session.id, () => state.saveSession(session.id)),
+      guardSessionClose(session.id, () => state.saveSession(canvasOf(session))),
     );
     return () => {
       for (const stop of stops) stop();
@@ -81,7 +91,8 @@ export function Canvas({
     for (const request of filePreviews) {
       if (processing.current.has(request.id)) continue;
       processing.current.add(request.id);
-      const id = request.sessionId ?? current.id;
+      const member = sessions.find((session) => session.id === request.sessionId);
+      const id = member ? canvasOf(member) : (request.sessionId ?? current.id);
       const target =
         request.paneId ??
         (!request.edge && request.at
@@ -108,15 +119,17 @@ export function Canvas({
           onCloseFilePreview(request.id);
         });
     }
-  }, [filePreviews, current, state.change, onCloseFilePreview]);
+  }, [filePreviews, current, sessions, state.change, onCloseFilePreview]);
   return (
     <div className="terminal-canvases">
-      <div className="canvas-window-drag" data-tauri-drag-region title={t("canvas.moveWindow")} />
-      {sessions.map((session) => (
+      {tabs.map((session) => (
         <SessionCanvas
           key={session.id}
           id={session.id}
           cwd={session.cwd}
+          members={sessions
+            .filter((member) => canvasOf(member) === session.id)
+            .map((member) => member.id)}
           shown={session.id === current?.id}
           panes={state.canvases[session.id]?.panes ?? emptyPanes}
           tree={state.layouts[session.id]}
@@ -126,11 +139,7 @@ export function Canvas({
           onNewTerminal={() => onNewTerminal(session)}
         />
       ))}
-      {!current && (
-        <div className="canvas-empty">
-          <p>{t("canvas.startHint")}</p>
-        </div>
-      )}
+      {!current && <div className="canvas-empty" />}
       {state.error && (
         <Alert className="canvas-error" severity="error" onClose={state.clearError}>
           {state.error}
@@ -152,6 +161,7 @@ export function Canvas({
 type BoardProps = {
   id: string;
   cwd: string;
+  members?: readonly string[];
   shown: boolean;
   panes: CanvasPane[];
   tree?: CanvasSplit;
@@ -164,6 +174,7 @@ type BoardProps = {
 export function SessionCanvas({
   id,
   cwd,
+  members = [],
   shown,
   panes,
   tree,
@@ -187,7 +198,6 @@ export function SessionCanvas({
   const urlField = useId();
   const [urlForm, setUrlForm] = useState<{
     url: string;
-    target?: string;
     pending: boolean;
     error: string | null;
   } | null>(null);
@@ -236,35 +246,29 @@ export function SessionCanvas({
       change(id, (panes) => panes.filter((pane) => pane.id !== paneId)).catch(() => undefined),
     [id, change],
   );
-  const openPage = useCallback(
-    (address: string, target?: string) => {
-      const pane: CanvasPane = {
-        id: crypto.randomUUID(),
-        kind: "iframe",
-        url: webAddress(address.trim(), location.origin).href,
-      };
-      return change(id, (panes) => insertFiles(panes, [pane], target)).then(() => {
-        select(pane.id);
-        expand(null);
-      });
-    },
-    [id, change],
-  );
+  const openPage = useCallback((address: string) => {
+    const url = webAddress(address.trim(), location.origin).href;
+    setBrowserFailed(false);
+    return openUrl(url).catch((error) => {
+      setBrowserFailed(true);
+      throw error;
+    });
+  }, []);
   useEffect(() => {
     const open = (event: Event) => {
       const { url, sessionId } = (event as CustomEvent<PageRequest>).detail;
-      if (sessionId ? sessionId !== id : !shown) return;
+      if (sessionId ? sessionId !== id && !members.includes(sessionId) : !shown) return;
       try {
         const pending = openPage(url);
         event.preventDefault();
         void pending.catch(() => undefined);
       } catch {
-        // Invalid addresses are never claimed or persisted as canvas pages.
+        // Invalid addresses are never handed to the browser.
       }
     };
     window.addEventListener(OPEN_PAGE, open);
     return () => window.removeEventListener(OPEN_PAGE, open);
-  }, [id, shown, openPage]);
+  }, [id, members, shown, openPage]);
   const open = useCallback(
     (path: string, context: FileDropContext) => {
       const file = makeFile(path);
@@ -438,7 +442,7 @@ export function SessionCanvas({
         }}
         style={resize.style}
       >
-        {!panes.length && <CanvasPages pages={pages} open={(url) => openPage(url)} />}
+        {!panes.length && <CanvasPages pages={pages} open={openPage} />}
         {drawOrder.current.map((paneId) => {
           const index = panes.findIndex((pane) => pane.id === paneId);
           const pane = panes[index];
@@ -457,7 +461,7 @@ export function SessionCanvas({
               cell={layout.cells[index]}
               select={() => select(pane.id)}
               open={(path, context) => open(path, context ?? { paneId: pane.id })}
-              empty={<CanvasPages pages={pages} open={(url) => openPage(url, pane.id)} />}
+              empty={<CanvasPages pages={pages} open={openPage} />}
               reload={reloads[pane.id] ?? 0}
               remove={() => remove(pane.id)}
               rangeAnchor={range?.paneId === pane.id ? range : null}
@@ -555,7 +559,7 @@ export function SessionCanvas({
         )}
         <MenuItem
           onClick={() => {
-            setUrlForm({ url: "", target: menu?.paneId, pending: false, error: null });
+            setUrlForm({ url: "", pending: false, error: null });
             setMenu(null);
           }}
         >
@@ -563,10 +567,14 @@ export function SessionCanvas({
         </MenuItem>
         {!("__TOTEX_BROWSER_CANVAS__" in window) && (
           <MenuItem
+            disabled={!members.length}
             onClick={() => {
               setMenu(null);
               setBrowserFailed(false);
-              void invoke<string>("canvas_browser_open", { id, token: crypto.randomUUID() })
+              void invoke<string>("canvas_browser_open", {
+                id: members[0],
+                token: crypto.randomUUID(),
+              })
                 .then((url) => openUrl(url))
                 .catch(() => setBrowserFailed(true));
             }}
@@ -578,9 +586,7 @@ export function SessionCanvas({
           <MenuItem
             onClick={() => {
               setMenu(null);
-              void openUrl(menuPane.url).catch((error) =>
-                console.error("Could not open URL", error),
-              );
+              void openPage(menuPane.url).catch(() => undefined);
             }}
           >
             {t("canvas.openInBrowser")}
@@ -640,7 +646,7 @@ export function SessionCanvas({
             if (!urlForm || urlForm.pending || !urlForm.url.trim()) return;
             const submitted = { ...urlForm, pending: true, error: null };
             try {
-              const pending = openPage(submitted.url, submitted.target);
+              const pending = openPage(submitted.url);
               setUrlForm(submitted);
               void pending
                 .then(() => setUrlForm((held) => (held === submitted ? null : held)))
@@ -728,6 +734,36 @@ function Pane({
   registerSave: (save: () => Promise<boolean>) => () => void;
 }) {
   const { t } = useTranslation();
+  const paneHost = useRef<HTMLElement>(null);
+  const source = paneSource(pane);
+  const [magnification, magnify] = useState({ source, scale: 1 });
+  const zoom = magnification.source === source ? magnification.scale : 1;
+  const zoomBy = useCallback(
+    (step: ZoomStep) => {
+      const picture = paneHost.current?.querySelector(".picture-reading");
+      if (picture) {
+        picture.dispatchEvent(new CustomEvent(ZOOM_EVENT, { detail: step }));
+        return;
+      }
+      magnify((before) => ({
+        source,
+        scale: zoomed(before.source === source ? before.scale : 1, step),
+      }));
+    },
+    [source],
+  );
+  useEffect(() => {
+    const element = paneHost.current;
+    if (!element) return;
+    const receive = (event: Event) => {
+      const step = (event as CustomEvent).detail;
+      if (step !== -1 && step !== 0 && step !== 1) return;
+      event.stopPropagation();
+      zoomBy(step);
+    };
+    element.addEventListener(ZOOM_EVENT, receive);
+    return () => element.removeEventListener(ZOOM_EVENT, receive);
+  }, [zoomBy]);
   const dialog = useRef<HTMLDialogElement>(null);
   useLayoutEffect(() => {
     const element = dialog.current;
@@ -758,6 +794,7 @@ function Pane({
       <LiveFrame key={reload} url={pane.url} title={title} />
     ) : pane.kind === "file" || ("src" in pane && localSource) ? (
       <CanvasFile
+        zoom={zoom}
         key={pane.kind === "file" ? pane.path : pane.src}
         cacheKey={cacheKey}
         path={pane.kind === "file" ? pane.path : pane.src}
@@ -829,6 +866,7 @@ function Pane({
     );
   return (
     <section
+      ref={paneHost}
       className="canvas-pane"
       data-canvas-pane={pane.id}
       data-canvas-kind={pane.kind}
@@ -840,7 +878,11 @@ function Pane({
         gridRow: `${cell.row + 1} / span ${cell.rowSpan}`,
       }}
       onFocus={select}
-      onPointerDown={select}
+      onPointerDown={(event) => {
+        select();
+        if (!event.currentTarget.contains(document.activeElement))
+          event.currentTarget.focus({ preventScroll: true });
+      }}
       onDoubleClick={(event) => {
         if (event.target instanceof Element && event.target.closest(".picture-reading")) {
           event.preventDefault();
@@ -848,6 +890,13 @@ function Pane({
         }
       }}
       onKeyDown={(event) => {
+        const step = zoomKey(event.nativeEvent);
+        if (step !== null && !event.defaultPrevented) {
+          event.preventDefault();
+          event.stopPropagation();
+          zoomBy(step);
+          return;
+        }
         if (
           event.key === "Enter" &&
           event.target instanceof Element &&
@@ -906,7 +955,15 @@ function Pane({
             <Button onClick={collapse}>{t("common.close", { defaultValue: "Close" })}</Button>
           </div>
         )}
-        <div className="canvas-pane-content">{content}</div>
+        <div className="canvas-pane-content">
+          <div
+            className="canvas-pane-zoom"
+            data-zoom={zoom}
+            style={{ transform: zoom === 1 ? undefined : `scale(${zoom})` }}
+          >
+            {content}
+          </div>
+        </div>
       </dialog>
       {held && <div className="canvas-select-cover" aria-hidden="true" />}
     </section>

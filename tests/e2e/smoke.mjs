@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { waitFor } from "./runtime.mjs";
 
 /** All actions enter through WebDriver input; Git reads independently verify the backend. */
 export async function smoke(browser, repository, step) {
   const repositoryRow = `#folder-sidebar [data-repo-row$=":${repository}"]`;
-  const folderOffer = `#cli-sidebar .page__header .page__terminal-list .session-offer[title="${repository}"]`;
   const terminal = '#cli-sidebar [data-terminal-shown="true"]';
   const git = (...args) =>
     execFileSync("git", ["-C", repository, ...args], { encoding: "utf8" }).trim();
@@ -78,64 +77,21 @@ export async function smoke(browser, repository, step) {
   await step("実リポジトリをターミナル起動候補に追加する", async () => {
     await click('#folder-sidebar [aria-label="Show in terminal list"]');
     await browser.$('#folder-sidebar [aria-label="Remove from terminal list"]').waitForDisplayed();
-    await browser.$(folderOffer).waitForDisplayed();
-    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
     await browser.$("#cli-sidebar .session-empty-header .page__header").waitForDisplayed();
     assert.equal((await browser.$$("#cli-sidebar .xterm")).length, 0);
-    assert.equal((await browser.$$("#cli-sidebar .session-offers")).length, 0);
     assert.equal(git("log", "-1", "--format=%s"), "Initial E2E commit");
-
-    await browser.performActions([
-      {
-        type: "key",
-        id: "terminal-keyboard",
-        actions: [
-          { type: "keyDown", value: "\uE009" },
-          { type: "keyDown", value: "\uE008" },
-          { type: "keyDown", value: "\uE015" },
-          { type: "keyUp", value: "\uE015" },
-          { type: "keyUp", value: "\uE008" },
-          { type: "keyUp", value: "\uE009" },
-        ],
-      },
-    ]);
-    await browser
-      .$('#cli-sidebar .session-offer[data-offered="true"]')
-      .waitForExist({ reverse: true });
-    assert.equal(await browser.$(folderOffer).isDisplayed(), true);
-    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
   });
 
-  await step("Ctrl+Shiftでフォルダーを選び、ターミナルを開く", async () => {
-    await browser.performActions([
-      {
-        type: "key",
-        id: "terminal-keyboard",
-        actions: [
-          { type: "keyDown", value: "\uE009" },
-          { type: "keyDown", value: "\uE008" },
-          { type: "keyDown", value: "\uE015" },
-          { type: "keyUp", value: "\uE015" },
-          { type: "keyDown", value: "\uE007" },
-          { type: "keyUp", value: "\uE007" },
-          { type: "keyUp", value: "\uE008" },
-          { type: "keyUp", value: "\uE009" },
-        ],
-      },
-    ]);
+  await step("Canvas タブを追加して実ターミナルを開く", async () => {
+    await click('[aria-label="New canvas"]');
+    await click('[role="menuitem"]');
     await browser.$(`${terminal} .xterm-helper-textarea`).waitForExist({ timeout: 20000 });
     await browser.$(".session-canvas:not([hidden])").waitForDisplayed();
     assert.equal((await browser.$$("main .xterm")).length, 0);
     assert.equal((await browser.$$("#cli-sidebar .xterm")).length, 1);
-    assert.equal((await browser.$$(folderOffer)).length, 0);
-    const headerGroup = await browser.$(
-      `#cli-sidebar .session-terminal:not([hidden]) .page__header .page__terminal-group[title="${repository}"]`,
-    );
-    assert.equal(await headerGroup.$(".page__terminal-name").getText(), basename(repository));
-    assert.equal(
-      await headerGroup.$('.page__terminal-numbers [data-active="true"]').getText(),
-      "1",
-    );
+    assert.equal(await browser.$('.canvas-tab [role="tab"]').getAttribute("title"), repository);
+    assert.equal(await browser.$('.canvas-tab-terminals [aria-pressed="true"]').getText(), "1");
+    assert.equal((await browser.$$("#cli-sidebar .page__terminal-list")).length, 0);
     await click(`${terminal} .xterm-screen`);
   });
 
@@ -236,6 +192,63 @@ export async function smoke(browser, repository, step) {
     assert.ok(existsSync(join(repository, "terminal-proof.txt")));
   });
 
+  await step("共有 Canvas のズームとターミナル切り替え", async () => {
+    await click('.session-canvas:not([hidden]) [role="textbox"]');
+    await controlKey("=");
+    await browser.$('.canvas-pane-zoom[data-zoom="1.25"]').waitForExist();
+    await controlKey("-");
+    await controlKey("-");
+    await browser.$('.canvas-pane-zoom[data-zoom="0.8"]').waitForExist();
+    await controlKey("0");
+    const first = await browser.$(terminal).getAttribute("data-terminal");
+    const canvas = await browser
+      .$(".session-canvas:not([hidden])")
+      .getAttribute("data-session-canvas");
+    await click(`${terminal} .xterm-screen`);
+    const font = await browser.execute(() =>
+      parseFloat(
+        getComputedStyle(document.querySelector('[data-terminal-shown="true"] .xterm-rows'))
+          .fontSize,
+      ),
+    );
+    await controlKey("=");
+    await browser.waitUntil(
+      async () =>
+        await browser.execute(
+          (font) =>
+            parseFloat(
+              getComputedStyle(document.querySelector('[data-terminal-shown="true"] .xterm-rows'))
+                .fontSize,
+            ) > font,
+          font,
+        ),
+    );
+    await controlKey("0");
+    await click('.canvas-tab [aria-label="New terminal"]');
+    await browser.waitUntil(
+      async () => (await browser.$(terminal).getAttribute("data-terminal")) !== first,
+    );
+    assert.equal((await browser.$$("[data-session-canvas]")).length, 1);
+    assert.equal(
+      await browser.$(".session-canvas:not([hidden])").getAttribute("data-session-canvas"),
+      canvas,
+    );
+    await controlKey("\uE012");
+    await browser.waitUntil(
+      async () => (await browser.$(terminal).getAttribute("data-terminal")) === first,
+    );
+    await controlKey("\uE014");
+    await browser.waitUntil(
+      async () => (await browser.$(terminal).getAttribute("data-terminal")) !== first,
+    );
+    await controlKey("x");
+    await browser.waitUntil(async () => (await browser.$$("#cli-sidebar .xterm")).length === 1);
+    assert.equal(
+      await browser.$(".session-canvas:not([hidden])").getAttribute("data-session-canvas"),
+      canvas,
+    );
+  });
+
   await step("Ctrl+Space中だけ表示枠を削除し、ファイルとターミナルを保つ", async () => {
     await click(`${terminal} .xterm-screen`);
     await browser.performActions([
@@ -269,12 +282,14 @@ export async function smoke(browser, repository, step) {
     );
   });
 
-  await step("最後のターミナルを閉じてもリポジトリ名が右上に残る", async () => {
+  await step("最後のターミナルを閉じても Canvas タブが残る", async () => {
     await controlKey("x");
     await browser.$("#cli-sidebar .xterm").waitForExist({ reverse: true });
-    await browser.$(folderOffer).waitForDisplayed();
-    assert.equal(await browser.$(folderOffer).getText(), basename(repository));
+    await browser.$('.canvas-tab [role="tab"]').waitForDisplayed();
+    assert.equal(await browser.$('.canvas-tab [role="tab"]').getAttribute("title"), repository);
     await browser.$("#cli-sidebar .session-empty-header .page__header").waitForDisplayed();
     assert.ok(existsSync(join(repository, "terminal-proof.txt")));
+    await click(".canvas-tab-close");
+    await browser.$("[data-session-canvas]").waitForExist({ reverse: true });
   });
 }

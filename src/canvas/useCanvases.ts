@@ -33,6 +33,7 @@ export function useCanvases() {
   const current = useRef(canvases);
   const saves = useRef(new Map<string, () => Promise<boolean>>());
   const queue = useRef(Promise.resolve());
+  const opened = useRef(new Map<string, Promise<void>>());
   const [error, setError] = useState<string | null>(null);
   useEffect(
     () =>
@@ -98,6 +99,7 @@ export function useCanvases() {
       const operation = queue.current
         .catch(() => undefined)
         .then(async () => {
+          await opened.current.get(id);
           // A file can be opened before the first poll has restored the agent's canvas.
           for (const next of await invoke<TerminalCanvas[]>("canvas_read")) await accept(next);
           const was = current.current[id] ?? { id, revision: 0, panes: [] };
@@ -172,7 +174,44 @@ export function useCanvases() {
       return false;
     }
   }, []);
+  const open = useCallback(
+    (id: string, cwd: string) => {
+      const pending = opened.current.get(id);
+      if (pending) return pending;
+      const opening = invoke<TerminalCanvas>("canvas_open", { id, cwd })
+        .then(accept)
+        .catch((failure) => {
+          opened.current.delete(id);
+          setError(String(failure));
+          throw failure;
+        });
+      opened.current.set(id, opening);
+      return opening;
+    },
+    [accept],
+  );
+  const close = useCallback(
+    async (id: string) => {
+      await opened.current.get(id);
+      if (!(await saveSession(id)))
+        throw new Error("Save the edited files before closing this canvas.");
+      await invoke("canvas_close", { id });
+      opened.current.delete(id);
+      const remaining = { ...current.current };
+      delete remaining[id];
+      current.current = remaining;
+      setCanvases(remaining);
+      setLayouts((before) => {
+        const next = { ...before };
+        delete next[id];
+        return next;
+      });
+    },
+    [saveSession],
+  );
   return {
+    open,
+    close,
     canvases,
     layouts,
     arrange,
