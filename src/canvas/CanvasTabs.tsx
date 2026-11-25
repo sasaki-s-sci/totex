@@ -20,6 +20,7 @@ export function CanvasTabs({
   activeTerminal,
   workspace,
   folders,
+  onNewPage,
   fail,
 }: {
   tabs: ReturnType<typeof useCanvasTabs>;
@@ -27,6 +28,7 @@ export function CanvasTabs({
   activeTerminal?: string;
   workspace: Workspace;
   folders: readonly Folder[];
+  onNewPage: () => void;
   fail: () => void;
 }) {
   const { t } = useTranslation();
@@ -151,16 +153,16 @@ export function CanvasTabs({
       event.stopPropagation();
       if (event.repeat) return;
       const { tabs, sessions, activeTerminal, pick } = latest.current;
-      const vertical = event.key === "ArrowUp" || event.key === "ArrowDown";
-      const items = vertical
+      const horizontal = event.key === "ArrowLeft" || event.key === "ArrowRight";
+      const items = horizontal
         ? tabs.tabs
         : sessions.filter((session) => canvasOf(session) === tabs.current?.id);
       if (!items.length) return;
       const at = items.findIndex(
-        (item) => item.id === (vertical ? tabs.current?.id : activeTerminal),
+        (item) => item.id === (horizontal ? tabs.current?.id : activeTerminal),
       );
-      const next = items[(at + step + items.length) % items.length];
-      if (vertical) pick(next.id);
+      const next = items[(at + (horizontal ? step : -step) + items.length) % items.length];
+      if (horizontal) pick(next.id);
       else if (tabs.current) pick(tabs.current.id, next.id);
     };
     const release = (event: KeyboardEvent) => {
@@ -284,6 +286,14 @@ export function CanvasTabs({
         +
       </button>
       <div className="canvas-header-space" data-tauri-drag-region />
+      <button
+        className="canvas-new-page"
+        type="button"
+        disabled={!tabs.current}
+        onClick={onNewPage}
+      >
+        {t("canvas.newPage")}
+      </button>
       <Menu anchorEl={menu} open={menu !== null} onClose={() => setMenu(null)}>
         {items}
       </Menu>

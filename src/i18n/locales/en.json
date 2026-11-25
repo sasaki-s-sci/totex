@@ -380,6 +380,7 @@
   "canvas": {
     "tabs": "Canvases",
     "newTab": "New canvas",
+    "newPage": "New page",
     "closeTab": "Close canvas {{path}}",
     "selectTerminal": "Terminal {{number}}",
     "layout": "Layout",
@@ -396,7 +397,6 @@
     "copyFailed": "Could not copy. Try again.",
     "openTerminal": "New terminal",
     "openCollectedUrl": "Open {{url}}",
-    "unknownCommand": "Command unavailable",
     "title": "Canvas",
     "mcp": "Enable MCP for all folders",
     "mcpCommand": "Codex MCP registration command",

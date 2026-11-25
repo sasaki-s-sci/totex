@@ -135,7 +135,11 @@ export function Canvas({
           tree={state.layouts[session.id]}
           change={state.change}
           registerSave={state.registerSave}
-          pages={pages.filter((page) => page.cwd === session.cwd)}
+          pages={pages.filter((page) =>
+            sessions.some(
+              (member) => member.id === page.sessionId && canvasOf(member) === session.id,
+            ),
+          )}
           onNewTerminal={() => onNewTerminal(session)}
         />
       ))}
@@ -198,6 +202,7 @@ export function SessionCanvas({
   const urlField = useId();
   const [urlForm, setUrlForm] = useState<{
     url: string;
+    paneId?: string;
     pending: boolean;
     error: string | null;
   } | null>(null);
@@ -246,14 +251,16 @@ export function SessionCanvas({
       change(id, (panes) => panes.filter((pane) => pane.id !== paneId)).catch(() => undefined),
     [id, change],
   );
-  const openPage = useCallback((address: string) => {
-    const url = webAddress(address.trim(), location.origin).href;
-    setBrowserFailed(false);
-    return openUrl(url).catch((error) => {
-      setBrowserFailed(true);
-      throw error;
-    });
-  }, []);
+  const openPage = useCallback(
+    (address: string, target?: string) => {
+      const url = webAddress(address.trim(), location.origin).href;
+      const page: CanvasPane = { id: crypto.randomUUID(), kind: "iframe", url };
+      return change(id, (panes) =>
+        insertFiles(panes, [page], target ?? panes.find((pane) => pane.kind === "empty")?.id),
+      ).then(() => select(page.id));
+    },
+    [id, change],
+  );
   useEffect(() => {
     const open = (event: Event) => {
       const { url, sessionId } = (event as CustomEvent<PageRequest>).detail;
@@ -263,7 +270,7 @@ export function SessionCanvas({
         event.preventDefault();
         void pending.catch(() => undefined);
       } catch {
-        // Invalid addresses are never handed to the browser.
+        // Invalid addresses are never embedded in the canvas.
       }
     };
     window.addEventListener(OPEN_PAGE, open);
@@ -461,7 +468,7 @@ export function SessionCanvas({
               cell={layout.cells[index]}
               select={() => select(pane.id)}
               open={(path, context) => open(path, context ?? { paneId: pane.id })}
-              empty={<CanvasPages pages={pages} open={openPage} />}
+              empty={<CanvasPages pages={pages} open={(url) => openPage(url, pane.id)} />}
               reload={reloads[pane.id] ?? 0}
               remove={() => remove(pane.id)}
               rangeAnchor={range?.paneId === pane.id ? range : null}
@@ -559,7 +566,7 @@ export function SessionCanvas({
         )}
         <MenuItem
           onClick={() => {
-            setUrlForm({ url: "", pending: false, error: null });
+            setUrlForm({ url: "", paneId: menuPane?.id, pending: false, error: null });
             setMenu(null);
           }}
         >
@@ -586,7 +593,8 @@ export function SessionCanvas({
           <MenuItem
             onClick={() => {
               setMenu(null);
-              void openPage(menuPane.url).catch(() => undefined);
+              setBrowserFailed(false);
+              void openUrl(menuPane.url).catch(() => setBrowserFailed(true));
             }}
           >
             {t("canvas.openInBrowser")}
@@ -646,7 +654,7 @@ export function SessionCanvas({
             if (!urlForm || urlForm.pending || !urlForm.url.trim()) return;
             const submitted = { ...urlForm, pending: true, error: null };
             try {
-              const pending = openPage(submitted.url);
+              const pending = openPage(submitted.url, submitted.paneId);
               setUrlForm(submitted);
               void pending
                 .then(() => setUrlForm((held) => (held === submitted ? null : held)))

@@ -11,23 +11,25 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     ];
     window.canvasStates["terminal-two"].panes = [];
     window.canvasStates["terminal-other"] = { id: "terminal-other", revision: 1, panes: [] };
+    window.pageStandings = [
+      { id: "terminal-one", doing: "running", said: "pnpm dev", running: "node vite.js" },
+      {
+        id: "terminal-two",
+        doing: "running",
+        said: "python -m http.server 9000",
+        running: "python",
+      },
+      { id: "terminal-other", doing: "running", said: "npm start", running: "node server.js" },
+    ];
     const invoke = window.__TAURI_INTERNALS__.invoke;
     window.__TAURI_INTERNALS__.invoke = async (cmd, args = {}) => {
-      if (cmd === "pty_standing")
-        return [
-          { id: "terminal-one", doing: "running", said: "pnpm dev", running: "node vite.js" },
-          {
-            id: "terminal-two",
-            doing: "running",
-            said: "python -m http.server 9000",
-            running: "python",
-          },
-          { id: "terminal-other", doing: "running", said: "npm start", running: "node server.js" },
-        ];
+      if (cmd === "pty_standing") {
+        if (window.refuseStanding) throw new Error("Status unavailable");
+        return window.pageStandings;
+      }
       if (cmd === "plugin:clipboard-manager|write_text" && window.refuseCopy)
         throw new Error("Clipboard unavailable");
-      if (cmd === "plugin:opener|open_url" && window.refusePage)
-        throw new Error("Cannot open browser");
+      if (cmd === "canvas_write" && window.refusePage) throw new Error("Cannot open canvas page");
       return invoke(cmd, args);
     };
   });
@@ -53,9 +55,15 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   await emit("terminal-other", 1, "\r\nhttps://elsewhere.example/\r\n");
   const blank = page.locator('[data-canvas-pane="blank"]');
   await blank.getByRole("button", { name: `Open ${url}`, exact: true }).waitFor();
-  await blank.getByRole("button", { name: `Open ${second}`, exact: true }).waitFor();
+  const otherCanvas = page.locator('[data-session-canvas="terminal-two"]');
+  await otherCanvas.getByText(second, { exact: true }).waitFor({ state: "attached" });
   assert.equal(await blank.getByText("pnpm dev", { exact: true }).count(), 1);
-  assert.equal(await blank.getByText("python -m http.server 9000", { exact: true }).count(), 1);
+  assert.equal(await blank.getByText(second, { exact: true }).count(), 0);
+  assert.equal(await otherCanvas.getByText(url, { exact: true }).count(), 0);
+  assert.equal(
+    await otherCanvas.getByText("python -m http.server 9000", { exact: true }).count(),
+    1,
+  );
   assert.equal(
     await blank
       .getByRole("button", { name: `Open ${url}`, exact: true })
@@ -68,6 +76,59 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   await emit("terminal-one", 3, `\r\n${url}\r\n`);
   await page.waitForTimeout(350);
   assert.equal(await blank.getByRole("button", { name: `Open ${url}`, exact: true }).count(), 1);
+
+  let seq = 3;
+  const ignored = [];
+  for (const [doing, running] of [
+    ["agent", "codex"],
+    ["working", "claude"],
+    ["agent", "opencode"],
+    ["idle", null],
+    ["running", "unreadable"],
+  ]) {
+    await page.evaluate(
+      ({ doing, running }) => {
+        window.refuseStanding = running === "unreadable";
+        window.pageStandings[0] = { id: "terminal-one", doing, said: null, running };
+      },
+      { doing, running },
+    );
+    const ignoredUrl = `https://${running ?? "unknown"}.example/`;
+    ignored.push(ignoredUrl);
+    await emit("terminal-one", ++seq, `\r\n${ignoredUrl}\r\n`);
+    await page.waitForTimeout(650);
+  }
+  await page.evaluate(() => {
+    window.refuseStanding = false;
+    window.pageStandings[0] = {
+      id: "terminal-one",
+      doing: "running",
+      said: "pnpm dev",
+      running: "node vite.js",
+    };
+  });
+  await emit("terminal-one", ++seq, "\r\nhttps://known.example/\r\n");
+  await blank.getByText("https://known.example/", { exact: true }).waitFor();
+  const collected = await page.evaluate(
+    async () => (await window.pageSnapshot()).values["canvas.pages"],
+  );
+  for (const ignoredUrl of ignored) {
+    assert.equal(await blank.getByText(ignoredUrl, { exact: true }).count(), 0);
+    assert.equal(
+      collected.some(({ url }) => url === ignoredUrl),
+      false,
+    );
+  }
+
+  await emit("terminal-one", ++seq, `\r\n${ignored[0]}\r\n`);
+  await blank.getByText(ignored[0], { exact: true }).waitFor();
+  const repeated = await page.evaluate(
+    async () => (await window.pageSnapshot()).values["canvas.pages"],
+  );
+  assert.equal(repeated.find(({ url }) => url === ignored[0]).command, "pnpm dev");
+  assert.equal(await blank.getByText(ignored[1], { exact: true }).count(), 0);
+  await emit("terminal-one", ++seq, `\r\n\x1b]8;;${ignored[1]}\x07Named link\x1b]8;;\x07\r\n`);
+  await blank.getByText(ignored[1], { exact: true }).waitFor();
 
   await page.locator('[data-canvas-pane="source"]').click({ button: "right" });
   for (const [label, value] of [
@@ -110,7 +171,7 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     window.refusePage = true;
   });
   await blank.getByRole("button", { name: `Open ${url}`, exact: true }).click();
-  await page.getByText("Could not open your browser. Try again.", { exact: true }).waitFor();
+  await page.getByText("Error: Cannot open canvas page", { exact: true }).waitFor();
   assert.equal(await blank.count(), 1);
   await page.evaluate(() => {
     window.refusePage = false;
@@ -118,14 +179,28 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   await blank.getByRole("button", { name: `Open ${url}`, exact: true }).click();
   await page.waitForFunction(
     (url) =>
-      window.pageCalls.some(
-        ({ cmd, args }) => cmd === "plugin:opener|open_url" && args.url === url,
+      window.canvasStates["terminal-one"].panes.some(
+        (pane) => pane.kind === "iframe" && pane.url === url,
       ),
     url,
   );
-  assert.equal(await blank.isVisible(), true);
+  await page
+    .frameLocator(".canvas-frame")
+    .frameLocator("iframe")
+    .getByRole("heading", { name: "Development preview" })
+    .waitFor();
+  assert.equal(await blank.count(), 0);
   assert.equal(await page.locator('[data-canvas-pane="source"]').count(), 1);
   assert.equal(await page.evaluate(() => window.canvasStates["terminal-one"].panes.length), 2);
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "plugin:opener|open_url")),
+    false,
+  );
+  const newPage = page.getByRole("button", { name: "New page", exact: true });
+  await newPage.focus();
+  await newPage.press("Enter");
+  await page.waitForFunction(() => window.canvasStates["terminal-one"].panes.length === 3);
+  assert.equal(await page.evaluate(() => window.canvasStates["terminal-two"].panes.length), 0);
 
   await page.locator('[data-canvas-pane="source"]').click({ button: "right" });
   await page.getByRole("menuitem", { name: "New terminal", exact: true }).click();
@@ -144,19 +219,40 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   const emptyCanvas = page.locator('[data-session-canvas="terminal-one"]');
   assert.equal(JSON.parse(opened.meta).canvas, "terminal-one");
   await emptyCanvas.getByRole("button", { name: `Open ${url}`, exact: true }).waitFor();
+  await page.evaluate((id) => {
+    window.pageStandings.push({
+      id,
+      doing: "running",
+      said: "pnpm preview",
+      running: "node vite.js",
+    });
+  }, newId);
+  await emit(newId, 1, `\r\n${url}\r\n`);
+  await emptyCanvas.getByText("pnpm preview", { exact: true }).waitFor();
+  assert.equal(
+    await emptyCanvas.getByRole("button", { name: `Open ${url}`, exact: true }).count(),
+    2,
+  );
+  assert.equal(await otherCanvas.getByText(url, { exact: true }).count(), 0);
   assert.equal(await emptyCanvas.getByText("https://elsewhere.example/").count(), 0);
   const kept = await page.evaluate(
     async () => (await window.pageSnapshot()).values["canvas.pages"],
   );
   assert.ok(
-    kept.some((entry) => entry.cwd === "/tmp" && entry.url === url && entry.command === "pnpm dev"),
+    kept.some(
+      (entry) =>
+        entry.sessionId === "terminal-one" && entry.url === url && entry.command === "pnpm dev",
+    ),
   );
   return {
     copy: true,
     failures: true,
-    folderPages: true,
+    sessionPages: true,
+    knownCommandsOnly: true,
     commandLabels: true,
     newTerminal: true,
+    headerNewPage: true,
+    embeddedByDefault: true,
     snapshot: true,
   };
 }
@@ -176,19 +272,29 @@ export async function verifyCanvasPagesRestore(page, base = "http://127.0.0.1:18
         return {
           values: {
             "canvas.pages": [
-              { cwd: "/tmp", url: "https://restored.example/", command: "pnpm preview" },
+              {
+                sessionId: "terminal-one",
+                url: "https://restored.example/",
+                command: "pnpm preview",
+              },
+              { cwd: "/tmp", url: "https://legacy.example/", command: "pnpm preview" },
+              { sessionId: "terminal-one", url: "https://unknown.example/", command: null },
+              { sessionId: "closed-terminal", url: "https://closed.example/", command: "pnpm dev" },
             ],
           },
         };
       if (cmd === "persistent_put" && args.name === "totex.relaunch")
         window.keptPages = args.value.values["canvas.pages"];
+      if (cmd === "pty_standing")
+        return [
+          { id: "terminal-one", doing: "running", said: "pnpm dev", running: "node vite.js" },
+        ];
       return invoke(cmd, args);
     };
   });
   await page.goto(`${base}/tests/fixtures/pages.html?canvas&onlyterminals&terminal-resize&carried`);
   await page.getByRole("button", { name: "Open https://restored.example/", exact: true }).waitFor();
   await page.getByText("pnpm preview", { exact: true }).waitFor();
-  await page.getByRole("button", { name: "Open https://history.example/", exact: true }).waitFor();
   assert.equal(await page.getByText("pnpm preview", { exact: true }).count(), 1);
   await page.waitForFunction(() => window.pageCalls.some(({ cmd }) => cmd === "pty_attach"));
   await page.evaluate(() =>
@@ -199,6 +305,15 @@ export async function verifyCanvasPagesRestore(page, base = "http://127.0.0.1:18
     }),
   );
   await page.getByRole("button", { name: "Open https://linked.example/", exact: true }).waitFor();
+  for (const name of ["history", "legacy", "unknown", "closed"]) {
+    assert.equal(
+      await page
+        .locator(".canvas-pages")
+        .getByText(`https://${name}.example/`, { exact: true })
+        .count(),
+      0,
+    );
+  }
   await page.waitForFunction(() =>
     window.keptPages?.some(({ url }) => url === "https://linked.example/"),
   );

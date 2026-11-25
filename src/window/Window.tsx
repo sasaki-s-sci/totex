@@ -247,6 +247,15 @@ export function Window() {
             activeTerminal={terminal?.id}
             workspace={workspace ?? EMPTY_WORKSPACE}
             folders={graphed}
+            onNewPage={() => {
+              if (!current) return;
+              void canvas
+                .change(current.id, (panes) => [
+                  ...panes,
+                  { id: crypto.randomUUID(), kind: "empty" },
+                ])
+                .catch(() => undefined);
+            }}
             fail={fail}
           />
           <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>

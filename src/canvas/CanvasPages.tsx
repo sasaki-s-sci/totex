@@ -18,7 +18,7 @@ export function CanvasPages({
       {pages.length > 0 && (
         <ul>
           {pages.map((page, index) => (
-            <li key={page.url}>
+            <li key={`${page.sessionId}/${page.url}`}>
               <ButtonBase
                 className="canvas-page-link"
                 disabled={opening !== null}
@@ -32,7 +32,7 @@ export function CanvasPages({
                 }}
               >
                 <code className="canvas-page-command" id={`${descriptionId}-${index}`}>
-                  {page.command ?? t("canvas.unknownCommand")}
+                  {page.command}
                 </code>
                 <span className="canvas-page-url">{page.url}</span>
               </ButtonBase>

@@ -182,19 +182,19 @@ export async function verifyCanvasTabs(page, base = "http://127.0.0.1:18426") {
   );
   assert.equal(meta.canvas, "terminal-one");
   await page.locator('[data-terminal-shown="true"] .xterm-helper-textarea').focus();
-  await page.keyboard.press("Control+ArrowLeft");
+  await page.keyboard.press("Control+ArrowUp");
   assert.equal(
     await page.locator('[data-terminal-shown="true"]').getAttribute("data-terminal"),
     "terminal-one",
   );
-  await page.keyboard.press("Control+ArrowRight");
+  await page.keyboard.press("Control+ArrowDown");
   assert.equal(
     await page.locator('[data-terminal-shown="true"]').getAttribute("data-terminal"),
     member,
   );
-  await page.keyboard.press("Control+ArrowDown");
+  await page.keyboard.press("Control+ArrowRight");
   await page.locator('[data-session-canvas="terminal-two"]').waitFor({ state: "visible" });
-  await page.keyboard.press("Control+ArrowUp");
+  await page.keyboard.press("Control+ArrowLeft");
   await first.waitFor({ state: "visible" });
   assert.equal(
     await page.locator('[data-terminal-shown="true"]').getAttribute("data-terminal"),

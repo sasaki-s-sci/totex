@@ -20,28 +20,38 @@ export function useTerminalPages(): readonly CanvasPage[] {
 export function registerTerminalPages(terminal: Terminal, session: Session) {
   let live = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let seen = new Set<string>();
+  // Retained output cannot be attributed to the command running now.
+  const seen = new Map(
+    [terminal.buffer.normal, terminal.buffer.alternate].map((buffer) => [
+      buffer.type,
+      pageUrls(buffer, location.origin),
+    ]),
+  );
   const linked = new Set<string>();
-  const collect = async (readCommand = true) => {
+  const collect = async () => {
     timer = undefined;
-    const urls = new Set([...pageUrls(terminal.buffer.active, location.origin), ...linked]);
+    const buffer = terminal.buffer.active;
+    const urls = pageUrls(buffer, location.origin);
+    const previous = seen.get(buffer.type);
+    const added = new Set(linked);
     linked.clear();
-    const added = [...urls].filter((url) => !seen.has(url));
-    seen = urls;
-    if (!added.length) return;
-    let command: string | null = null;
-    if (readCommand) {
-      try {
-        const standing = await invoke<Glance[]>("pty_standing");
-        command = pageCommand(standing.find((one) => one.id === session.id));
-      } catch {
-        // A missed status read must not lose an otherwise usable URL.
-      }
+    // shortcut: equal-count scrollback turnover can miss a repeat; use line markers if needed.
+    for (const [url, count] of urls) {
+      if (count > (previous?.get(url) ?? 0)) added.add(url);
     }
-    if (!live) return;
+    seen.set(buffer.type, urls);
+    if (!added.size) return;
+    let command: string | null = null;
+    try {
+      const standing = await invoke<Glance[]>("pty_standing");
+      command = pageCommand(standing.find((one) => one.id === session.id));
+    } catch {
+      return;
+    }
+    if (!live || !command) return;
     pages = rememberPages(
       currentPages(),
-      added.map((url) => ({ cwd: session.cwd, url, command })),
+      [...added].map((url) => ({ sessionId: session.id, url, command })),
     );
     keepFrontValue("canvas.pages", pages);
     changes.notify();
@@ -57,8 +67,6 @@ export function registerTerminalPages(terminal: Terminal, session: Session) {
     } catch {}
     return false;
   });
-  // Retained output may predate the current command; preserve its saved labels.
-  void collect(false);
   return {
     dispose() {
       live = false;

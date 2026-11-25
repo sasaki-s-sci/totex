@@ -9,7 +9,6 @@
 .canvas-tabs {
   display: flex;
   min-width: 0;
-  max-width: calc(100% - 96px);
   padding-bottom: 8px;
   margin-bottom: -8px;
   pointer-events: none;
@@ -50,7 +49,8 @@
   line-height: 1;
   cursor: pointer;
 }
-.canvas-tab-close:hover {
+.canvas-tab-close:hover,
+.canvas-new-page:hover:not(:disabled) {
   outline: 1px solid var(--mui-palette-divider);
   outline-offset: -1px;
 }
@@ -123,4 +123,9 @@
   flex: 1;
   min-width: 64px;
   cursor: grab;
+}
+.canvas-header .canvas-new-page {
+  flex: none;
+  padding: 0 8px;
+  white-space: nowrap;
 }

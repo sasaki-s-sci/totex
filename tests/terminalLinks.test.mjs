@@ -21,7 +21,7 @@ function click(ctrlKey = true, button = 0) {
   };
 }
 
-test("Ctrl+left-click opens a canvas page owned by its terminal without using the desktop opener", () => {
+test("plain and Ctrl+left-click open a canvas page owned by its terminal without using the desktop opener", () => {
   const opened = [];
   const native = [];
   mockIPC((command) => native.push(command));
@@ -30,7 +30,7 @@ test("Ctrl+left-click opens a canvas page owned by its terminal without using th
     event.preventDefault();
   });
   for (const url of ["https://example.com/path?q=1#part", "http://localhost:3000/"]) {
-    openTerminalLink(click(), url, "terminal-one");
+    openTerminalLink(click(url.startsWith("http:")), url, "terminal-one");
   }
   assert.deepEqual(opened, [
     { url: "https://example.com/path?q=1#part", sessionId: "terminal-one" },
@@ -39,11 +39,10 @@ test("Ctrl+left-click opens a canvas page owned by its terminal without using th
   assert.deepEqual(native, []);
 });
 
-test("ordinary clicks, other mouse buttons and non-web links do not open", () => {
+test("other mouse buttons and non-web links do not open", () => {
   const opened = [];
   mockIPC((command) => opened.push(command));
   window.addEventListener(OPEN_PAGE, (event) => opened.push(event.detail));
-  openTerminalLink(click(false), "https://example.com/");
   openTerminalLink(click(true, 1), "https://example.com/");
   openTerminalLink(click(true, 2), "https://example.com/");
   for (const url of [

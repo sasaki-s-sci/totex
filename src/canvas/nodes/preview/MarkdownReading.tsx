@@ -64,7 +64,7 @@ export function MarkdownReading({
   useEffect(() => {
     const host = page.current;
     if (!host) return;
-    const follow = (link: Element, internal: boolean) => {
+    const follow = (link: Element) => {
       const target = linkTarget(link.getAttribute("data-href") ?? "", path);
       if (!target) return;
       if (target.kind === "anchor") {
@@ -74,7 +74,7 @@ export function MarkdownReading({
         );
         found?.scrollIntoView({ block: "start" });
       } else if (target.kind === "web") {
-        if (internal && /^https?:/i.test(target.url))
+        if (/^https?:/i.test(target.url))
           openPage(
             target.url,
             host.closest<HTMLElement>("[data-session-canvas]")?.dataset.sessionCanvas,
@@ -91,14 +91,14 @@ export function MarkdownReading({
       // The end of a selection dragged across a link is not a press on it.
       if (!(window.getSelection()?.isCollapsed ?? true)) return;
       event.preventDefault();
-      follow(link, event.ctrlKey);
+      follow(link);
     };
     const key = (event: KeyboardEvent) => {
       if (event.key !== "Enter") return;
       const link = (event.target as Element | null)?.closest?.("a[data-href]");
       if (!link || !host.contains(link)) return;
       event.preventDefault();
-      follow(link, event.ctrlKey);
+      follow(link);
     };
     host.addEventListener("click", click);
     host.addEventListener("keydown", key);

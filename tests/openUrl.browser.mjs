@@ -15,13 +15,11 @@ async function openInput(page, id) {
   return dialog(page).getByRole("textbox", { name: "URL", exact: true });
 }
 
-async function opened(page, url) {
+async function opened(page, url, id = "terminal-one") {
   await page.waitForFunction(
-    (url) =>
-      window.pageCalls.some(
-        ({ cmd, args }) => cmd === "plugin:opener|open_url" && args.url === url,
-      ),
-    url,
+    ({ url, id }) =>
+      window.canvasStates[id].panes.some((pane) => pane.kind === "iframe" && pane.url === url),
+    { url, id },
   );
 }
 
@@ -36,12 +34,7 @@ async function terminalLink(page, label) {
   // xterm renders text below its pointer-handling screen.
   await page.mouse.move(x, y);
   await host.locator(".xterm-cursor-pointer").waitFor();
-  await page.keyboard.down("Control");
-  try {
-    await page.mouse.click(x, y);
-  } finally {
-    await page.keyboard.up("Control");
-  }
+  await page.mouse.click(x, y);
 }
 
 /** Real URL input, Markdown, xterm and frames; native IO and the remote pages are fixtures. */
@@ -63,6 +56,9 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
         body: `<h1>${new URL(route.request().url()).pathname}</h1><script>window.urlPageLoaded=true</script>`,
       }),
     );
+    await page.route("https://example.com/ordinary", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<h1>Ordinary link</h1>" }),
+    );
     await page.addInitScript(() => {
       if (window.top !== window) return;
       window.canvasStates["terminal-one"].panes = [
@@ -80,8 +76,8 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
       window.refuseUrlWrite = false;
       const invoke = window.__TAURI_INTERNALS__.invoke;
       window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
-        if (cmd === "plugin:opener|open_url" && window.refuseUrlWrite)
-          return Promise.reject(new Error("Temporary browser opening failure"));
+        if (cmd === "canvas_write" && window.refuseUrlWrite)
+          return Promise.reject(new Error("Temporary canvas write failure"));
         return invoke(cmd, args);
       };
     });
@@ -137,9 +133,18 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
     await dialog(page).getByRole("button", { name: "Open", exact: true }).click();
     await dialog(page).waitFor({ state: "hidden" });
     await opened(page, manual);
-    assert.deepEqual(await pages(page), initial, "Opening a URL preserves all canvas resources");
+    assert.deepEqual(
+      (await pages(page)).filter((pane) => pane.kind !== "iframe"),
+      initial.filter((pane) => pane.kind !== "empty"),
+      "Opening a URL replaces the empty pane and preserves other resources",
+    );
     assert.deepEqual(await pages(page, "terminal-two"), other);
-    assert.equal(await page.locator(".canvas-frame").count(), 0);
+    await page
+      .frameLocator(".canvas-frame")
+      .frameLocator("iframe")
+      .getByRole("heading", { name: "/url-manual", exact: true })
+      .waitFor();
+    assert.equal(await page.frame({ url: manual }).evaluate(() => window.urlPageLoaded), true);
 
     await pane(page, "links")
       .getByRole("link", { name: "Internal link", exact: true })
@@ -152,9 +157,10 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
           .filter(({ cmd }) => cmd === "plugin:opener|open_url")
           .map(({ args }) => args.url),
       ),
-      [manual, `${remote}/url-markdown`, "https://example.com/ordinary"],
-      "Both Markdown click modes use the default browser",
+      [],
+      "Plain and modified Markdown clicks stay inside the canvas",
     );
+    await opened(page, "https://example.com/ordinary");
     await terminalLink(page, "Open terminal page");
     await opened(page, `${remote}/url-terminal`);
     await terminalLink(page, `${remote}/url-detected`);
@@ -172,8 +178,7 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
     await expandedInput.press("Enter");
     await opened(page, `${remote}/url-expanded`);
     await dialog(page).waitFor({ state: "hidden" });
-    assert.equal(await page.locator("dialog[open]").count(), 1);
-    await page.locator("dialog[open]").getByRole("button", { name: "Close", exact: true }).click();
+    await page.locator("dialog[open]").waitFor({ state: "hidden" });
 
     const pending = await openInput(page, "links");
     await pending.fill(`${remote}/url-cancelled`);
@@ -195,11 +200,27 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
       await page.evaluate(
         () => window.pageCalls.filter(({ cmd }) => cmd === "plugin:opener|open_url").length,
       ),
-      7,
-      "Terminal links use the default browser",
+      0,
+      "Terminal links stay inside their own canvas",
+    );
+    const firstUrl = (await pages(page, "terminal-two")).find(
+      (pane) => pane.url === `${remote}/url-terminal`,
+    );
+    await pane(page, firstUrl.id).focus();
+    await page.keyboard.press("Shift+F10");
+    await page.getByRole("menuitem", { name: "Open in browser", exact: true }).click();
+    await page.waitForFunction(() =>
+      window.pageCalls.some(({ cmd }) => cmd === "plugin:opener|open_url"),
+    );
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.pageCalls.filter(({ cmd }) => cmd === "plugin:opener|open_url").at(-1).args.url,
+      ),
+      `${remote}/url-terminal`,
     );
     assert.deepEqual(errors, []);
-    return "Direct browser opening from URL input, Markdown and terminal links; validation, retry and retained canvas";
+    return "Embedded URL input, Markdown and plain terminal clicks; validation, retry, canvas ownership and explicit external opening";
   } finally {
     await page.keyboard.up("Control");
     page.off("pageerror", collect);

@@ -511,8 +511,12 @@ async function verifyTerminalInsertion(page) {
     await buttons.first().click();
     const count = await buttons.count();
     for (let i = 0; i < count; i++) {
-      await page.keyboard.press("Control+ArrowRight");
+      await page.keyboard.press("Control+ArrowUp");
       assert.equal(await buttons.nth((i + 1) % count).getAttribute("aria-pressed"), "true");
+    }
+    for (let i = 0; i < count; i++) {
+      await page.keyboard.press("Control+ArrowDown");
+      assert.equal(await buttons.nth(count - i - 1).getAttribute("aria-pressed"), "true");
     }
   }
   assert.equal(

@@ -380,6 +380,7 @@
   "canvas": {
     "tabs": "Canvas",
     "newTab": "Canvas を追加",
+    "newPage": "新しいページ",
     "closeTab": "Canvas {{path}} を閉じる",
     "selectTerminal": "ターミナル {{number}}",
     "layout": "レイアウト",
@@ -396,7 +397,6 @@
     "copyFailed": "コピーできませんでした。もう一度お試しください。",
     "openTerminal": "新しいターミナル",
     "openCollectedUrl": "{{url}} を開く",
-    "unknownCommand": "コマンド不明",
     "title": "キャンバス",
     "mcp": "MCPを有効にする（全フォルダ共通）",
     "mcpCommand": "CodexのMCP登録コマンド",

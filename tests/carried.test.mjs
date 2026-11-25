@@ -6,7 +6,7 @@ test("workspace places, sidebar state and collected pages survive a program rest
   const values = {
     "window.roots": [{ kind: "repository", root: "/home/a/repo" }],
     "folders.panes": [],
-    "canvas.pages": [{ cwd: "/tmp", url: "http://localhost:3000/", command: "pnpm dev" }],
+    "canvas.pages": [{ sessionId: "a", url: "http://localhost:3000/", command: "pnpm dev" }],
     "canvas.viewport": { x: 1, y: 2, zoom: 0.5 },
     "sessions.list": [{ id: "a" }],
     "cards.layout": [["file:1", "terminal:a"]],
@@ -16,7 +16,7 @@ test("workspace places, sidebar state and collected pages survive a program rest
     values: {
       "window.roots": [{ kind: "repository", root: "/home/a/repo" }],
       "folders.panes": [],
-      "canvas.pages": [{ cwd: "/tmp", url: "http://localhost:3000/", command: "pnpm dev" }],
+      "canvas.pages": [{ sessionId: "a", url: "http://localhost:3000/", command: "pnpm dev" }],
     },
   });
 });
