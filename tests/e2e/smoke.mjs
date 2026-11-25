@@ -233,11 +233,11 @@ export async function smoke(browser, repository, step) {
       await browser.$(".session-canvas:not([hidden])").getAttribute("data-session-canvas"),
       canvas,
     );
-    await controlKey("\uE012");
+    await controlKey("\uE015");
     await browser.waitUntil(
       async () => (await browser.$(terminal).getAttribute("data-terminal")) === first,
     );
-    await controlKey("\uE014");
+    await controlKey("\uE013");
     await browser.waitUntil(
       async () => (await browser.$(terminal).getAttribute("data-terminal")) !== first,
     );

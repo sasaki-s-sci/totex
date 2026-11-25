@@ -19,13 +19,14 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
       body: `<!doctype html><h1>Live page</h1><button onclick="this.textContent='Clicked'">Click me</button>
       <label>Input <input></label><p id="selection">Selectable page content</p>
       <iframe src="http://127.0.0.1:18425/nested" style="margin:25px;border:3px solid;width:80%;height:160px"></iframe>
-      <script>window.addEventListener('contextmenu',()=>window.pageMenu=true);</script>`,
+      <script>window.addEventListener('contextmenu',event=>{event.preventDefault();window.pageMenu=true});</script>`,
     }),
   );
   await page.route("http://127.0.0.1:18425/nested", (route) =>
     route.fulfill({
       contentType: "text/html",
-      body: "<!doctype html><h2>Nested foreign page</h2><button onclick=\"this.textContent='Nested clicked'\">Nested button</button>",
+      body: `<!doctype html><h2>Nested foreign page</h2><button onclick="this.textContent='Nested clicked'">Nested button</button>
+      <script>window.addEventListener('contextmenu',event=>{event.preventDefault();window.pageMenu=true});</script>`,
     }),
   );
   await page.addInitScript(() => {
@@ -41,6 +42,7 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
     ];
     window.canvasStates["terminal-two"].panes = [
       { id: "hidden-html", kind: "file", path: "/tmp/context.html", view: "preview" },
+      { id: "code", kind: "code", text: "const retained = true;" },
     ];
   });
   await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);
@@ -63,35 +65,29 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
   assert.equal(await live.evaluate(() => getSelection().toString()), "Selectable page content");
 
   await live.getByRole("heading", { name: "Live page" }).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
-  assert.equal(await live.evaluate(() => !!window.pageMenu), false);
-  await page.keyboard.press("Escape");
+  await live.waitForFunction(() => window.pageMenu);
+  assert.equal(await page.getByRole("menu").count(), 0);
   const nested = page.frame({ url: "http://127.0.0.1:18425/nested" });
   assert.ok(nested);
   await nested.getByRole("button", { name: "Nested button" }).click();
   await nested.getByRole("button", { name: "Nested clicked" }).waitFor();
   const target = nested.getByRole("heading", { name: "Nested foreign page" });
-  const targetBounds = await target.boundingBox();
   await target.click({ button: "right" });
-  const menu = page.getByRole("menu");
-  await menu.waitFor();
-  await page.waitForFunction(() => {
-    const paper = document.querySelector(".MuiMenu-paper");
-    return paper && getComputedStyle(paper).transform === "none";
-  });
-  const bounds = await menu.boundingBox();
-  assert.ok(Math.abs(bounds.x - (targetBounds.x + targetBounds.width / 2)) < 25);
-  const expectedY = Math.min(
-    targetBounds.y + targetBounds.height / 2,
-    page.viewportSize().height - bounds.height - 16,
+  await nested.waitForFunction(() => window.pageMenu);
+  assert.equal(await page.getByRole("menu").count(), 0);
+  await target.click();
+  await page.keyboard.press("Control+=");
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-canvas-pane="live"] .canvas-pane-zoom').dataset.zoom === "1.25",
   );
-  assert.ok(Math.abs(bounds.y - expectedY) < 25);
-  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
-  await page.locator('[data-canvas-pane="live"]').waitFor({ state: "detached" });
-  assert.equal(await page.locator('[data-canvas-pane="html"]').count(), 1);
+  await page.keyboard.press("Control+0");
 
   await html.getByRole("heading", { name: "HTML evidence" }).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
+  assert.equal(await page.getByRole("menu").count(), 0);
+  await page.locator('[data-canvas-pane="html"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Expand", exact: true }).waitFor();
   await page.keyboard.press("Escape");
   await html.getByRole("button", { name: "Blocked handler" }).click();
   await html.getByText("Blocked link", { exact: true }).click();
@@ -130,12 +126,23 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
   await page.keyboard.press("Control+2");
   const hidden = page.locator('[data-canvas-pane="hidden-html"]').frameLocator("iframe");
   await hidden.getByRole("heading", { name: "HTML evidence" }).click({ button: "right" });
+  assert.equal(await page.getByRole("menu").count(), 0);
+  await page.locator('[data-canvas-pane="code"]').click({ button: "right" });
+  assert.equal(await page.getByRole("menu").count(), 0);
+  assert.equal(await page.locator('[data-canvas-pane="hidden-html"]').count(), 1);
+
+  await page.getByRole("button", { name: "New page", exact: true }).click();
+  const empty = page.locator('[data-session-canvas="terminal-two"] [data-canvas-kind="empty"]');
+  await empty.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
-  await page.locator('[data-canvas-pane="hidden-html"]').waitFor({ state: "detached" });
+  await empty.waitFor({ state: "detached" });
   assert.equal(await page.locator('[data-canvas-pane="html"]').count(), 1);
   return {
-    iframeMenus: true,
-    nestedCoordinates: true,
+    occupiedPageMenusSuppressed: true,
+    pageHandlersPreserved: true,
+    emptyPageMenu: true,
+    keyboardMenu: true,
+    nestedZoom: true,
     scriptlessHtml: true,
     initialHiddenPane: true,
   };
@@ -157,6 +164,7 @@ export async function verifyContextMenuShell(page) {
   const front = page.frame({ url: "http://127.0.0.1:18426/front" });
   await front.evaluate(() => {
     window.menus = [];
+    window.zooms = [];
     window.messageBarriers = 0;
     window.addEventListener("message", (event) => {
       if (event.data === "test-message-barrier") window.messageBarriers++;
@@ -167,48 +175,51 @@ export async function verifyContextMenuShell(page) {
         event.target.closest("[data-canvas-pane]")?.dataset.canvasPane ?? "frontend",
       );
     });
+    window.addEventListener("totex:zoom", (event) => window.zooms.push(event.detail));
   });
   await front.getByRole("heading", { name: "Frontend menu" }).click({ button: "right" });
   await front
     .frameLocator("iframe[data-canvas-context-menu]")
     .getByRole("heading")
     .click({ button: "right" });
-  await front.waitForFunction(() => window.menus.length === 2);
-  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend", "owned"]);
-  await front.evaluate(() =>
-    window.postMessage({ type: "totex:frame-context-menu", x: 0, y: 0 }, "*"),
-  );
+  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend"]);
+  await front.frameLocator("iframe[data-canvas-context-menu]").getByRole("heading").click();
+  await page.keyboard.press("Control+=");
+  await front.waitForFunction(() => window.zooms.length === 1);
+  assert.deepEqual(await front.evaluate(() => window.zooms), [1]);
   await front
     .frameLocator("iframe:not([data-canvas-context-menu])")
     .getByRole("heading")
     .click({ button: "right" });
-  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend", "owned"]);
+  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend"]);
   const unrelated = await (
     await front.locator("iframe:not([data-canvas-context-menu])").elementHandle()
   ).contentFrame();
   await unrelated.evaluate(() => {
-    parent.postMessage({ type: "totex:frame-context-menu", x: 20, y: 20, paneId: "owned" }, "*");
+    parent.postMessage({ type: "totex:frame-zoom", step: 1 }, "*");
     parent.postMessage("test-message-barrier", "*");
   });
   await front.waitForFunction(() => window.messageBarriers === 1);
-  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend", "owned"]);
+  assert.deepEqual(await front.evaluate(() => window.zooms), [1]);
   const preview = await (
     await front.locator("iframe[data-canvas-context-menu]").elementHandle()
   ).contentFrame();
   await preview.evaluate(() => {
-    parent.postMessage({ type: "totex:frame-context-menu", x: NaN, y: 20 }, "*");
-    parent.postMessage({ type: "totex:frame-context-menu", x: 20, y: Infinity }, "*");
+    parent.postMessage({ type: "totex:frame-zoom", step: 1 }, "*");
+    parent.postMessage({ type: "totex:frame-zoom", step: NaN }, "*");
+    parent.postMessage({ type: "totex:frame-zoom", step: Infinity }, "*");
     parent.postMessage("test-message-barrier", "*");
   });
   await front.waitForFunction(() => window.messageBarriers === 2);
+  assert.deepEqual(await front.evaluate(() => window.zooms), [1]);
   await front.locator("[data-canvas-pane]").evaluate((pane) => {
     pane.inert = true;
   });
   await preview.evaluate(() => {
-    parent.postMessage({ type: "totex:frame-context-menu", x: 20, y: 20 }, "*");
+    parent.postMessage({ type: "totex:frame-zoom", step: 1 }, "*");
     parent.postMessage("test-message-barrier", "*");
   });
   await front.waitForFunction(() => window.messageBarriers === 3);
-  assert.deepEqual(await front.evaluate(() => window.menus), ["frontend", "owned"]);
-  return { frontendHandlersPreserved: true, unrelatedFramesIgnored: true };
+  assert.deepEqual(await front.evaluate(() => window.zooms), [1]);
+  return { frontendHandlersPreserved: true, zoomPreserved: true, unrelatedFramesIgnored: true };
 }

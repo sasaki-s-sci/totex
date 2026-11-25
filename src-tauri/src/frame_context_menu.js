@@ -10,7 +10,6 @@
       { type: `${type}:enable`, enabled: enabled || !!owns(frame) },
       "*",
     );
-  const forward = (x, y) => window.parent.postMessage({ type, x, y }, "*");
 
   window.addEventListener("message", (event) => {
     const data = event.data;
@@ -25,7 +24,7 @@
       for (const frame of frames()) configure(frame);
       return;
     }
-    if (data.type !== type && data.type !== `${type}:ready` && data.type !== zoomType) return;
+    if (data.type !== `${type}:ready` && data.type !== zoomType) return;
     const frame = frames().find((frame) => frame.contentWindow === event.source);
     if (!frame) return;
     if (data.type === `${type}:ready`) {
@@ -43,33 +42,9 @@
       getComputedStyle(frame).visibility !== "visible"
     )
       return;
-    if (data.type === zoomType) {
-      if (document.activeElement !== frame || ![-1, 0, 1].includes(data.step)) return;
-      if (enabled) window.parent.postMessage({ type: zoomType, step: data.step }, "*");
-      else frame.dispatchEvent(new CustomEvent("totex:zoom", { bubbles: true, detail: data.step }));
-      return;
-    }
-    if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
-    const x =
-      bounds.left +
-      ((frame.clientLeft + Math.max(0, Math.min(data.x, frame.clientWidth))) * bounds.width) /
-        frame.offsetWidth;
-    const y =
-      bounds.top +
-      ((frame.clientTop + Math.max(0, Math.min(data.y, frame.clientHeight))) * bounds.height) /
-        frame.offsetHeight;
-    if (enabled) forward(x, y);
-    else if (document.elementFromPoint(x, y) === frame) {
-      frame.dispatchEvent(
-        new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          button: 2,
-          clientX: x,
-          clientY: y,
-        }),
-      );
-    }
+    if (document.activeElement !== frame || ![-1, 0, 1].includes(data.step)) return;
+    if (enabled) window.parent.postMessage({ type: zoomType, step: data.step }, "*");
+    else frame.dispatchEvent(new CustomEvent("totex:zoom", { bubbles: true, detail: data.step }));
   });
 
   window.addEventListener(
@@ -98,16 +73,10 @@
     },
     true,
   );
-  window.addEventListener(
-    "contextmenu",
-    (event) => {
-      if (!enabled || !event.isTrusted) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      forward(event.clientX, event.clientY);
-    },
-    true,
-  );
+  window.addEventListener("contextmenu", (event) => {
+    // Keep the page's handlers without opening the WebView's browser menu.
+    if (enabled && event.isTrusted) event.preventDefault();
+  });
   document.addEventListener(
     "load",
     (event) => {

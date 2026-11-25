@@ -438,11 +438,14 @@ export function SessionCanvas({
         tabIndex={-1}
         aria-label={t("canvas.label", { name: baseName(cwd) })}
         onContextMenu={(event) => {
+          if (event.defaultPrevented) return;
           event.preventDefault();
           const paneId =
             event.target instanceof Element
               ? event.target.closest<HTMLElement>("[data-canvas-pane]")?.dataset.canvasPane
               : undefined;
+          const pane = panes.find((pane) => pane.id === paneId);
+          if (pane && pane.kind !== "empty") return;
           select(paneId ?? null);
           setCopied(null);
           setMenu({ left: event.clientX, top: event.clientY, paneId });

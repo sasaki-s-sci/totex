@@ -316,6 +316,10 @@ export async function installCanvasNative(page) {
           };
         }
         if (cmd === "media_file") return args.path;
+        if (cmd === "fs_read_file") {
+          if (window.pageReadRefused) throw new Error("Read refused");
+          return [...new TextEncoder().encode(fileText(args.path))];
+        }
         if (cmd === "read_file_data")
           return { path: args.path, name: args.path.split("/").at(-1), size: 70, data: picture };
         if (cmd === "write_file") {

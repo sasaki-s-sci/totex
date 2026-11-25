@@ -5,11 +5,9 @@ const pane = (page, id) => page.locator(`[data-canvas-pane="${id}"]`);
 const note = (page) => page.getByRole("textbox", { name: "note.txt", exact: true });
 const overlay = (page) => page.getByRole("dialog");
 
-async function expand(page, target, title, keyboard = false) {
-  if (keyboard) {
-    await target.focus();
-    await page.keyboard.press("Shift+F10");
-  } else await target.click({ button: "right" });
+async function expand(page, target, title) {
+  await target.focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Expand", exact: true }).click();
   await overlay(page).getByRole("heading", { name: title, exact: true }).waitFor();
 }
@@ -129,7 +127,8 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
     assert.ok(Math.abs(restoredBox.height - originalBox.height) <= 1);
 
     await expand(page, note(page), "note.txt");
-    await note(page).click({ button: "right" });
+    await note(page).focus();
+    await page.keyboard.press("Shift+F10");
     const restore = page.getByRole("menuitem", { name: "Restore size", exact: true });
     await restore.waitFor();
     assert.equal(
@@ -139,7 +138,8 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
     await page.keyboard.press("Escape");
     await page.getByRole("menu").waitFor({ state: "hidden" });
     await overlay(page).getByRole("heading", { name: "note.txt", exact: true }).waitFor();
-    await note(page).click({ button: "right" });
+    await note(page).focus();
+    await page.keyboard.press("Shift+F10");
     await restore.click();
     await overlay(page).waitFor({ state: "hidden" });
     await assertDraft(page, "unsaved edits made in the overlay", false);
@@ -177,17 +177,17 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
         true,
       );
     }
-    await expand(page, pane(page, "live"), "Development preview", true);
+    await expand(page, pane(page, "live"), "Development preview");
     assert.equal(await overlay(page).locator(".canvas-frame").count(), 1);
     await assertLive(1);
     await live.getByRole("button", { name: "Count 1", exact: true }).click();
     await live.getByRole("button", { name: "Count 2", exact: true }).waitFor();
     await close(page);
     await assertLive(2);
-    await expand(page, pane(page, "live"), "Development preview", true);
+    await expand(page, pane(page, "live"), "Development preview");
     await close(page, true);
     await assertLive(2);
-    await expand(page, pane(page, "live"), "Development preview", true);
+    await expand(page, pane(page, "live"), "Development preview");
     await switchTerminal(page, 2, "terminal-two");
     await overlay(page).waitFor({ state: "hidden" });
     await switchTerminal(page, 1, "terminal-one");
@@ -240,8 +240,9 @@ export async function verifyCanvasExpand(page, base = "http://127.0.0.1:18422") 
         writes: window.pageCalls.filter(({ cmd }) => cmd === "canvas_write").length,
       };
     });
-    await expand(page, pane(page, "expanded-video"), "Recording", true);
-    await movie.click({ button: "right" });
+    await expand(page, pane(page, "expanded-video"), "Recording");
+    await pane(page, "expanded-video").focus();
+    await page.keyboard.press("Shift+F10");
     await page.getByRole("menuitem", { name: "Playback range", exact: true }).click();
     const range = page.getByRole("dialog", { name: "Playback range", exact: true });
     await range.getByLabel("Start (s)", { exact: true }).fill("0.7");

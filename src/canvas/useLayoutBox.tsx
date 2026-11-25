@@ -300,6 +300,7 @@ export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
                   type="button"
                   className="layout-pane"
                   data-layout-pane={pane.id}
+                  data-layout-kind={pane.kind}
                   data-over={over === pane.id || undefined}
                   aria-label={name(pane)}
                   aria-pressed={pane.id === selected}

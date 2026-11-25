@@ -150,7 +150,8 @@ export async function verifyCanvasMedia(page, base = "http://127.0.0.1:18422") {
     ["video", "clip.webm", "http://127.0.0.1:18424/clip.webm"],
     ["image", "image.svg", "http://127.0.0.1:18424/image.svg"],
   ]) {
-    await page.locator(`[data-canvas-pane="${id}"]`).click({ button: "right" });
+    await page.locator(`[data-canvas-pane="${id}"]`).focus();
+    await page.keyboard.press("Shift+F10");
     const menu = page.getByRole("menu");
     await menu.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
     assert.equal(await menu.locator(".canvas-menu-name").innerText(), name);
@@ -277,7 +278,8 @@ export async function verifyCanvasMedia(page, base = "http://127.0.0.1:18422") {
 
   const playerPane = page.locator('[data-canvas-pane="video"]');
   assert.equal(await playerPane.locator("summary, form, input, .canvas-pane-tools").count(), 0);
-  await playerPane.click({ button: "right" });
+  await playerPane.focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Playback range", exact: true }).click();
   const range = page.getByRole("dialog", { name: "Playback range", exact: true });
   await range.getByLabel("Position (s)", { exact: true }).fill("0.5");

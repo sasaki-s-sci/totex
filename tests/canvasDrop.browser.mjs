@@ -183,7 +183,7 @@ export async function verifyCanvasDropsWithoutTerminal(page, base = "http://127.
   return { emptyLayoutBox: true, emptyPage: true, doubleClick: true, oneSessionPerDrop: true };
 }
 
-/** Application-native drops open panes; browser-managed uploads inside an iframe still work. */
+/** Centers belong to the page; edges add panes for native and explorer file drops. */
 export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
   await page.setViewportSize({ width: 1600, height: 1000 });
   const errors = [];
@@ -237,14 +237,58 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     await nested.waitForFunction(() => window.uploads.length === 1);
     assert.equal(await upload.evaluate(() => typeof window.__TAURI_INTERNALS__), "undefined");
 
-    // Native centers now open files, including the center of a running webpage.
-    await nativeDrop(page, first.locator('[data-canvas-pane="upload"]'), ["/tmp/dropped.txt"]);
-    await editor("dropped.txt").waitFor();
+    // Native and explorer drops deliver actual files to the running app, including nested frames.
+    await nativeDrop(page, upload.locator("#drop"), ["/tmp/dropped.txt", "/tmp/note.txt"]);
+    await upload.waitForFunction(() => window.uploads.length === 2);
+    assert.deepEqual(await upload.evaluate(() => window.uploads[1].files), [
+      { name: "dropped.txt", type: "text/plain", size: 17, text: "Dropped file text" },
+      { name: "note.txt", type: "text/plain", size: 10, text: "saved text" },
+    ]);
+    await internalDrop(page, nested.locator("#drop"), ["/tmp/note.txt"], undefined, true);
+    await nested.waitForFunction(() => window.uploads.length === 2);
+    assert.equal(await nested.evaluate(() => window.uploads[1].files[0].text), "saved text");
+    await nativeDrop(page, nested.locator("input"), ["/tmp/dropped.txt"]);
+    await nested.waitForFunction(() => window.uploads.length === 3);
+    assert.equal(await nested.evaluate(() => window.uploads[2].type), "change");
+    assert.equal(await nested.evaluate(() => window.uploads[2].files[0].text), "Dropped file text");
+
+    // A MIME marker from outside the app must never authorize reading and uploading local files.
+    const reads = () =>
+      page.evaluate(() => window.pageCalls.filter(({ cmd }) => cmd === "fs_read_file").length);
+    const readCount = await reads();
+    await internalDrop(page, upload.locator("#drop"), ["/tmp/private.txt"]);
+    await settle(page);
+    assert.equal(await reads(), readCount);
+    assert.equal(await upload.evaluate(() => window.uploads.length), 2);
+    assert.equal(await page.locator(".canvas-drop-preview").count(), 0);
+
+    // Failed reads report the failure and leave both the page and the upload unchanged.
+    await page.evaluate(() => {
+      window.pageReadRefused = true;
+    });
+    await nativeDrop(page, upload.locator("#drop"), ["/tmp/dropped.txt"]);
+    await page
+      .getByRole("alert")
+      .filter({ hasText: "Could not upload the dropped files" })
+      .waitFor();
+    assert.equal(await upload.evaluate(() => window.uploads.length), 2);
+    await page.evaluate(() => {
+      window.pageReadRefused = false;
+    });
+    await page.getByRole("alert").getByRole("button", { name: "Close" }).click();
+
     assert.deepEqual(
-      (await panes(page, "terminal-one")).map((p) => p.path ?? p.id),
-      ["/tmp/dropped.txt", "blank"],
+      (await panes(page, "terminal-one")).map((p) => p.id),
+      ["upload", "blank"],
     );
-    assert.equal(await first.locator('[data-canvas-pane="upload"]').count(), 0);
+    assert.ok(!upload.isDetached(), "Uploads never reload or replace the running page");
+
+    // The layout map preserves occupied centers too; an empty pane still opens the file.
+    await nativeDrop(page, page.locator('[data-layout-pane="upload"]'), ["/tmp/dropped.txt"]);
+    assert.deepEqual(
+      (await panes(page, "terminal-one")).map((p) => p.id),
+      ["upload", "blank"],
+    );
     const accepted = await internalDrop(page, first.locator('[data-canvas-pane="blank"]'), [
       "/tmp/note.txt",
     ]);
@@ -252,6 +296,11 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     assert.equal(accepted.dropPrevented, true);
     await editor("note.txt").waitFor();
     assert.equal((await panes(page, "terminal-one")).length, 2, "A center drop opens exactly once");
+    await editor("note.txt").fill("unsaved work");
+    await nativeDrop(page, editor("note.txt"), ["/tmp/dropped.txt"]);
+    await internalDrop(page, editor("note.txt"), ["/tmp/dropped.txt"], undefined, true);
+    assert.equal(await editor("note.txt").innerText(), "unsaved work");
+    assert.equal((await panes(page, "terminal-one")).length, 2);
 
     // Both drop sources and both surfaces use the same preview and all four root edges.
     for (const [edge, miniature, native] of [
@@ -365,7 +414,8 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     await switchTerminal(page, 2, "terminal-two");
     const second = page.locator('[data-session-canvas="terminal-two"]');
     const code = second.locator('[data-canvas-pane="worker-code"]');
-    await code.click({ button: "right" });
+    await code.focus();
+    await page.keyboard.press("Shift+F10");
     await page.getByRole("menuitem", { name: "Expand", exact: true }).click();
     await page.getByRole("menu").waitFor({ state: "hidden" });
     const expanded = code.locator("dialog[open]");
@@ -377,8 +427,9 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     assert.equal((await panes(page, "terminal-one")).length, 3);
     await code.hover();
     await nativeDrop(page, code, ["/tmp/center.txt"]);
-    await editor("center.txt").waitFor();
-    assert.equal(await code.count(), 0);
+    assert.equal(await editor("center.txt").count(), 0);
+    assert.equal(await code.count(), 1);
+    assert.equal((await panes(page, "terminal-two")).length, 2);
 
     await switchTerminal(page, 3, "terminal-other");
     const empty = page.locator('[data-session-canvas="terminal-other"]');
@@ -412,6 +463,24 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     await page.locator("#folder-sidebar").getByText("tmp", { exact: true }).first().click();
     await page.locator('[data-pick-row="/tmp/sub"]').click();
     const entry = page.locator('[data-pick-row="/tmp/sub/child.txt"]');
+    const source = await entry.boundingBox();
+    const running = page.frame({ url: uploadUrl });
+    const uploadTo = await running.locator("#drop").boundingBox();
+    await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(source.x + source.width / 2 + 10, source.y + source.height / 2, {
+      steps: 3,
+    });
+    await page.mouse.move(uploadTo.x + uploadTo.width / 2, uploadTo.y + uploadTo.height / 2, {
+      steps: 10,
+    });
+    assert.equal(await page.locator(".canvas-drop-preview").count(), 0);
+    await page.mouse.up();
+    await running.waitForFunction(() => window.uploads.length === 1);
+    assert.equal(
+      await running.evaluate(() => window.uploads[0].files[0].text),
+      "Explorer file text",
+    );
     await entry.dblclick();
     await editor("child.txt").waitFor();
     assert.equal(
@@ -421,7 +490,6 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     assert.equal(await page.locator('[data-canvas-pane="file-0"]').count(), 1);
 
     const before = (await panes(page, "terminal-one")).length;
-    const source = await entry.boundingBox();
     const to = await page.locator(".layout-bounds").boundingBox();
     await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2);
     await page.mouse.down();
@@ -446,7 +514,11 @@ export async function verifyCanvasDrops(page, base = "http://127.0.0.1:18426") {
     await page.screenshot({ path: "/tmp/totex-file-drop-result.png", animations: "disabled" });
     assert.deepEqual(errors, []);
     return {
-      centerOpen: true,
+      emptyCenterOpen: true,
+      occupiedCenterPreserved: true,
+      nestedUploads: true,
+      uploadFailure: true,
+      trustedFilesOnly: true,
       snapEdges: true,
       nestedSplits: true,
       nativeAndPointerDrag: true,

@@ -46,11 +46,14 @@ export function canvasDropTarget(target: Element | null, at: Point): CanvasDrop 
   if (outerEdge) return { context: { sessionId, edge: outerEdge }, host: canvas };
   const host = expanded ?? pane ?? canvas;
   const edge = pane ? (edgeAt(host, miniature ? 12 : 24) ?? undefined) : undefined;
+  const kind = miniature ? pane?.dataset.layoutKind : pane?.dataset.canvasKind;
+  // A filled page owns its center; only its edges add another page.
+  if (pane && !edge && kind !== "empty") return null;
   return {
     context: {
       sessionId,
       paneId: miniature ? pane?.dataset.layoutPane : pane?.dataset.canvasPane,
-      replace: !edge,
+      replace: false,
       edge,
     },
     host,

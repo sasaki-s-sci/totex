@@ -130,7 +130,8 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   await emit("terminal-one", ++seq, `\r\n\x1b]8;;${ignored[1]}\x07Named link\x1b]8;;\x07\r\n`);
   await blank.getByText(ignored[1], { exact: true }).waitFor();
 
-  await page.locator('[data-canvas-pane="source"]').click({ button: "right" });
+  await page.locator('[data-canvas-pane="source"]').focus();
+  await page.keyboard.press("Shift+F10");
   for (const [label, value] of [
     ["Copy name", "note.txt"],
     ["Copy path", "/tmp/note.txt"],
@@ -202,7 +203,8 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
   await page.waitForFunction(() => window.canvasStates["terminal-one"].panes.length === 3);
   assert.equal(await page.evaluate(() => window.canvasStates["terminal-two"].panes.length), 0);
 
-  await page.locator('[data-canvas-pane="source"]').click({ button: "right" });
+  await page.locator('[data-canvas-pane="source"]').focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "New terminal", exact: true }).click();
   await page.waitForFunction(
     () =>

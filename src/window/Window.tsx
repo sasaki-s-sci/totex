@@ -264,6 +264,11 @@ export function Window() {
             </Alert>
           </Snackbar>
           <FileDropPreview drop={drops.preview} />
+          <Snackbar open={drops.uploadFailed} onClose={drops.clearUploadFailure}>
+            <Alert severity="error" onClose={drops.clearUploadFailure}>
+              {t("file.uploadFailed")}
+            </Alert>
+          </Snackbar>
           {Canvas && (
             <Canvas
               state={canvas}

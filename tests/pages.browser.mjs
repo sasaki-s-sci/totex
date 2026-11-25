@@ -52,7 +52,10 @@ async function blankPane(page, id) {
 }
 
 async function paneMenu(page, pane, keyboard = false) {
-  if (keyboard) {
+  const kind = await pane.evaluate(
+    (element) => element.closest("[data-canvas-pane]")?.dataset.canvasKind,
+  );
+  if (keyboard || (kind && kind !== "empty")) {
     await pane.focus();
     await page.keyboard.press("Shift+F10");
   } else {
@@ -219,7 +222,7 @@ async function verifyCanvasEditing(page) {
   await first.locator('[data-canvas-pane="live"]').focus();
   await focusTerminal(page);
   await holdCanvas(page);
-  await first.locator('[data-canvas-pane="live"]').click({ button: "right" });
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).waitFor();
   assert.equal(await page.locator(".canvas-menu-name").innerText(), "live");
   assert.equal(await page.locator(".canvas-menu-path").innerText(), "http://127.0.0.1:18424/live");

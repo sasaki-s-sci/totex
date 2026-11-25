@@ -9,7 +9,8 @@ const pages = (page, id = "terminal-one") =>
   page.evaluate((id) => window.canvasStates[id].panes, id);
 
 async function openInput(page, id) {
-  await pane(page, id).click({ button: "right" });
+  await pane(page, id).focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Open URL…", exact: true }).click();
   await dialog(page).waitFor();
   return dialog(page).getByRole("textbox", { name: "URL", exact: true });
@@ -166,7 +167,8 @@ export async function verifyOpenUrl(page, base = "http://127.0.0.1:18422") {
     await terminalLink(page, `${remote}/url-detected`);
     await opened(page, `${remote}/url-detected`);
 
-    await pane(page, "links").click({ button: "right" });
+    await pane(page, "links").focus();
+    await page.keyboard.press("Shift+F10");
     await page.getByRole("menuitem", { name: "Expand", exact: true }).click();
     await page.locator("dialog[open]").waitFor();
     const expandedInput = await openInput(page, "links");

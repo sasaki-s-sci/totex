@@ -180,7 +180,8 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   assert.equal(await page.evaluate(() => window.file.text), "ALPHA\nbeta\ngamma\ndeltatheirs\n");
 
   // Close must keep a conflicted draft, while switching terminals must retain the editor.
-  await pane.click({ button: "right" });
+  await pane.focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   const held = await page.evaluate(async () => {
     await new Promise(requestAnimationFrame);
@@ -304,7 +305,8 @@ export async function verifyFileFollow(page, base = "http://127.0.0.1:18422") {
   await standing.waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => window.lastExpected), "OTHER\nbeta\ngamma\n");
   assert.equal(await page.evaluate(() => window.file.text), "LOCAL\nbeta\ngamma");
-  await pane.click({ button: "right" });
+  await pane.focus();
+  await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();
   await note.waitFor({ state: "detached" });
 
