@@ -9,7 +9,8 @@
     "closeWorkspace": "このワークスペースとターミナルを閉じる"
   },
   "terminal": {
-    "openUrl": "URLを開く",
+    "openUrl": "URLをcanvasで開く",
+    "openUrlInBrowser": "URLをブラウザーで開く",
     "copyUrl": "URLをコピー",
     "openFile": "ファイルを開く",
     "openFailed": "リンクまたはファイルを開けませんでした。",
@@ -386,6 +387,7 @@
     "selectTerminal": "ターミナル {{number}}",
     "layout": "レイアウト",
     "reloadPage": "再読み込み",
+    "refreshPages": "Canvas内のページを再読み込み",
     "pageChecking": "ローカルサーバーに接続しています…",
     "pageBlocked": "このページは埋め込み表示を許可していません。ブラウザーで開いてください。",
     "pageRedirect": "このページは別のアドレスへ移動します。ブラウザーで開いてください。",

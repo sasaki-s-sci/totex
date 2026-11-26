@@ -86,14 +86,27 @@
   opacity: 0.5;
   cursor: wait;
 }
-.layout-trash[data-over] {
-  background: var(--mui-palette-action-hover);
-  outline: 2px solid var(--mui-palette-error-main);
-  outline-offset: -2px;
-}
 .layout-trash {
+  flex: none;
   padding: 0;
   border: 0;
   margin: 0;
   min-width: 0;
+}
+.layout-trash[data-over] > button {
+  background: var(--mui-palette-error-main);
+  color: var(--mui-palette-error-contrastText);
+  opacity: 1;
+}
+.layout-trash-lid {
+  transform-origin: 5px 6.5px;
+  transition: transform 120ms ease-out;
+}
+.layout-trash[data-over] .layout-trash-lid {
+  transform: translateY(-1px) rotate(-18deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .layout-trash-lid {
+    transition: none;
+  }
 }

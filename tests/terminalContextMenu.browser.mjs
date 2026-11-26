@@ -24,6 +24,8 @@ export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:1
     window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
       if (cmd === "plugin:clipboard-manager|write_text" && window.refuseMenuCopy)
         return Promise.reject(new Error("Clipboard unavailable"));
+      if (cmd === "plugin:opener|open_url" && window.refuseMenuOpen)
+        return Promise.reject(new Error("Browser unavailable"));
       return invoke(cmd, args);
     };
   });
@@ -76,6 +78,11 @@ export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:1
 
   await output(url);
   await rightClick(0, 5, true);
+  assert.deepEqual(await page.getByRole("menuitem").allTextContents(), [
+    "Open URL in canvas",
+    "Open URL in browser",
+    "Copy URL",
+  ]);
   await action("Copy URL").click();
   assert.equal(await copied(), url);
   assert.equal(
@@ -88,7 +95,7 @@ export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:1
   await output(`\x1b]8;;${url}\x07Readable link\x1b]8;;\x07`);
   await rightClick(0, 4, true);
   const loaded = page.waitForEvent("framenavigated", { predicate: (frame) => frame.url() === url });
-  await action("Open URL").click();
+  await action("Open URL in canvas").click();
   await loaded;
   assert.deepEqual(await page.evaluate(() => window.menuRequests.at(-1)), {
     url,
@@ -99,8 +106,49 @@ export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:1
     false,
   );
 
+  const canvasBeforeBrowser = await page.evaluate(() => window.canvasStates["terminal-one"]);
+  const requestsBeforeBrowser = await page.evaluate(() => window.menuRequests.length);
+  await rightClick(0, 4, true);
+  await action("Open URL in browser").click();
+  await page.waitForFunction(() =>
+    window.pageCalls.some(({ cmd }) => cmd === "plugin:opener|open_url"),
+  );
+  assert.equal(
+    await page.evaluate(
+      () => window.pageCalls.find(({ cmd }) => cmd === "plugin:opener|open_url").args.url,
+    ),
+    url,
+  );
+  assert.equal(await page.evaluate(() => window.menuRequests.length), requestsBeforeBrowser);
+  assert.deepEqual(
+    await page.evaluate(() => window.canvasStates["terminal-one"]),
+    canvasBeforeBrowser,
+    "Opening in the browser leaves the canvas unchanged",
+  );
+  await page.evaluate(() => {
+    window.refuseMenuOpen = true;
+  });
+  await rightClick(0, 4, true);
+  await action("Open URL in browser").click();
+  const openError = page.getByRole("alert").filter({ hasText: "Could not open the link or file" });
+  await openError.waitFor();
+  await page.evaluate(() => {
+    window.refuseMenuOpen = false;
+  });
+  await openError.getByRole("button").click();
+  await rightClick(0, 4, true);
+  await action("Open URL in browser").click();
+  await openError.waitFor({ state: "hidden" });
+  assert.equal(
+    await page.evaluate(
+      () => window.pageCalls.filter(({ cmd }) => cmd === "plugin:opener|open_url").length,
+    ),
+    2,
+  );
+
   await output("./note.txt:12:4");
   await rightClick();
+  assert.deepEqual(await page.getByRole("menuitem").allTextContents(), ["Open file", "Copy path"]);
   await action("Copy path").click();
   assert.equal(await copied(), "/tmp/note.txt");
   await rightClick();
@@ -173,5 +221,5 @@ export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:1
       .evaluate((node) => node.closest("[data-session-canvas]").dataset.sessionCanvas),
     "terminal-two",
   );
-  return "Terminal URL/OSC8/path menus, wrapped and selected paths, internal opening, clipboard errors and session ownership";
+  return "Terminal URL/OSC8/path menus, canvas/browser opening, browser and clipboard errors, wrapped paths and session ownership";
 }

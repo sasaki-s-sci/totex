@@ -14,7 +14,7 @@ export function useLayoutPreview(
     let timer: ReturnType<typeof setTimeout>;
     const measure = () => {
       const canvas = document.querySelector<HTMLElement>(".session-canvas:not([hidden])");
-      if (canvas?.dataset.sessionCanvas !== id) return [];
+      if (canvas?.dataset.sessionCanvas !== id || canvas.dataset.canvasResizing) return [];
       return [...canvas.querySelectorAll<HTMLElement>(":scope > [data-canvas-pane]")].map(
         (element) => ({ id: element.dataset.canvasPane, rect: element.getBoundingClientRect() }),
       );

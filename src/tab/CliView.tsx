@@ -1,5 +1,6 @@
 import { Alert, Box, Button, Menu, MenuItem } from "@mui/material";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -749,6 +750,17 @@ export function CliView({
         >
           {t(menu?.target.kind === "url" ? "terminal.openUrl" : "terminal.openFile")}
         </MenuItem>
+        {menu?.target.kind === "url" && (
+          <MenuItem
+            onClick={() => {
+              setMenu(null);
+              setOpenFailed(false);
+              void openUrl(menu.target.value).catch(() => setOpenFailed(true));
+            }}
+          >
+            {t("terminal.openUrlInBrowser")}
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             if (!menu) return;

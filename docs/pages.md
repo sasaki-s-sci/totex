@@ -256,6 +256,13 @@ The sidebar layout cards use `canvas_snapshot` to crop pixels from the existing
 webview. This includes live iframe state without running duplicate pages. The
 images are inert; only card arrangement and removal controls receive input.
 Snapshots refresh while the sidebar is visible and remain in memory.
+While a canvas boundary is dragged, its miniature keeps the previous image and
+geometry; both resume updating after the gesture so capture and sidebar rendering
+do not compete with the pages being resized.
+The refresh button beside the sidebar trash reloads the current canvas's contents
+after saving edited files. A failed save keeps every page mounted; refreshing keeps
+the layout and other canvases intact. The trash uses a filled button and an opening
+lid during a drop, without changing its bounds or the surrounding layout.
 
 This change requires rebuilding the native app and persistent terminal service.
 A frontend-only reload cannot add the MCP tool to an already running old service.

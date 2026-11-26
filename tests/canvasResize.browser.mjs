@@ -123,6 +123,55 @@ export async function verifyCanvasResize(page, base = "http://127.0.0.1:18422") 
     await page.evaluate(() => {
       window.resizeFocus = document.activeElement;
     });
+    await beginDrag(page, column, 0, 0);
+    const batched = await column.evaluate(async (element) => {
+      const canvas = element.closest(".session-canvas");
+      const box = element.getBoundingClientRect();
+      let writes = 0;
+      const observer = new MutationObserver((records) => {
+        writes += records.length;
+      });
+      observer.observe(canvas, { attributes: true, attributeFilter: ["style"] });
+      for (let delta = 1; delta <= 24; delta++)
+        window.dispatchEvent(
+          new PointerEvent("pointermove", {
+            pointerId: window.resizePointer,
+            buttons: 1,
+            clientX: box.x + box.width / 2 + delta,
+          }),
+        );
+      const immediate = observer.takeRecords().length;
+      await new Promise(requestAnimationFrame);
+      writes += observer.takeRecords().length;
+      observer.disconnect();
+      return { immediate, writes };
+    });
+    assert.deepEqual(batched, { immediate: 0, writes: 1 }, "Pointer bursts draw once per frame");
+    await page.keyboard.press("Escape");
+    await finishDrag(page);
+    for (const ending of ["pointerup", "pointercancel"]) {
+      const before = await tracks(canvas, "columns");
+      await beginDrag(page, column, 0, 0);
+      await column.evaluate(async (element, ending) => {
+        const box = element.getBoundingClientRect();
+        window.dispatchEvent(
+          new PointerEvent("pointermove", {
+            pointerId: window.resizePointer,
+            buttons: 1,
+            clientX: box.x + box.width / 2 + 41,
+          }),
+        );
+        window.dispatchEvent(new PointerEvent(ending, { pointerId: window.resizePointer }));
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      }, ending);
+      await finishDrag(page);
+      near(
+        (await tracks(canvas, "columns"))[0],
+        before[0] + (ending === "pointerup" ? 41 : 0),
+        `${ending} resolves the latest pointer position without a late frame overwriting it`,
+      );
+    }
     const initialColumns = await tracks(canvas, "columns");
     const initialRows = await tracks(canvas, "rows");
     const wideBefore = await wide.boundingBox();
@@ -313,6 +362,8 @@ export async function verifyCanvasResize(page, base = "http://127.0.0.1:18422") 
     assert.deepEqual(errors, []);
     return {
       pointer: true,
+      batchedFrames: true,
+      pendingFrameCleanup: true,
       keyboard: true,
       spanBoundaries: true,
       cancellation: true,

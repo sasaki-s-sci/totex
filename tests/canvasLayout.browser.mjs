@@ -33,6 +33,31 @@ export async function verifyCanvasPreviews(page, base = "http://127.0.0.1:18426"
       return Math.abs(pixel[0] - red) < 3;
     }, red);
   await pixelMatches(220);
+  const grip = page.locator(".session-canvas:not([hidden]) [data-canvas-resize]").first();
+  const axis = await grip.getAttribute("data-canvas-resize");
+  const bounds = await grip.boundingBox();
+  const miniatureStyle = await mini.getAttribute("style");
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  const captures = () =>
+    page.evaluate(() => window.pageCalls.filter(({ cmd }) => cmd === "canvas_snapshot").length);
+  const beforeResize = await captures();
+  await page.mouse.move(
+    bounds.x + bounds.width / 2 + (axis === "columns" ? 60 : 0),
+    bounds.y + bounds.height / 2 + (axis === "rows" ? 60 : 0),
+    { steps: 12 },
+  );
+  await live.evaluate(() => {
+    document.body.style.background = "rgb(180, 90, 140)";
+  });
+  await page.waitForTimeout(1200);
+  assert.equal(await captures(), beforeResize, "Native captures pause while resizing");
+  assert.equal(await mini.getAttribute("style"), miniatureStyle, "Miniature layout waits too");
+  await pixelMatches(220);
+  await page.mouse.up();
+  await matchesCanvas(page);
+  await pixelMatches(180);
+  assert.equal(await live.evaluate(() => window.canvasFixtureMount), mount);
   await mini.click();
   await mini.press("Enter");
   await mini.press("Space");
@@ -74,16 +99,9 @@ export async function verifyCanvasPreviews(page, base = "http://127.0.0.1:18426"
   assert.equal(await page.evaluate(() => window.pageFileText), "keep this preview draft");
   await page.getByRole("button", { name: "Collapse root folders", exact: true }).click();
   await page.waitForTimeout(1200);
-  const calls = await page.evaluate(
-    () => window.pageCalls.filter(({ cmd }) => cmd === "canvas_snapshot").length,
-  );
+  const calls = await captures();
   await page.waitForTimeout(1200);
-  assert.equal(
-    await page.evaluate(
-      () => window.pageCalls.filter(({ cmd }) => cmd === "canvas_snapshot").length,
-    ),
-    calls,
-  );
+  assert.equal(await captures(), calls);
   return {
     actualFramePixels: true,
     refreshed: true,
@@ -91,6 +109,7 @@ export async function verifyCanvasPreviews(page, base = "http://127.0.0.1:18426"
     dragRetainsFrame: true,
     trash: true,
     hiddenStopsCapture: true,
+    resizePausesAndResumesPreview: true,
   };
 }
 

@@ -16,6 +16,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import {
+  Fragment,
   type ReactNode,
   useCallback,
   useEffect,
@@ -135,6 +136,7 @@ export function Canvas({
           tree={state.layouts[session.id]}
           change={state.change}
           registerSave={state.registerSave}
+          refresh={state.refreshes[session.id] ?? 0}
           pages={pages.filter((page) =>
             sessions.some(
               (member) => member.id === page.sessionId && canvasOf(member) === session.id,
@@ -171,6 +173,7 @@ type BoardProps = {
   tree?: CanvasSplit;
   change: ReturnType<typeof useCanvases>["change"];
   registerSave: ReturnType<typeof useCanvases>["registerSave"];
+  refresh?: number;
   pages?: readonly CanvasPage[];
   onNewTerminal?: () => void;
 };
@@ -184,6 +187,7 @@ export function SessionCanvas({
   tree,
   change,
   registerSave,
+  refresh = 0,
   pages = [],
   onNewTerminal,
 }: BoardProps) {
@@ -472,7 +476,7 @@ export function SessionCanvas({
               select={() => select(pane.id)}
               open={(path, context) => open(path, context ?? { paneId: pane.id })}
               empty={<CanvasPages pages={pages} open={(url) => openPage(url, pane.id)} />}
-              reload={reloads[pane.id] ?? 0}
+              reload={(reloads[pane.id] ?? 0) + refresh}
               remove={() => remove(pane.id)}
               rangeAnchor={range?.paneId === pane.id ? range : null}
               closeRange={() => setRange(null)}
@@ -784,7 +788,7 @@ function Pane({
     if (expanded && !element.open) element.showModal();
     else if (!expanded && element.open) element.close();
   }, [expanded]);
-  const [failedImage, failImage] = useState<string | null>(null);
+  const [failedImage, failImage] = useState<{ source: string; reload: number } | null>(null);
   const Markdown = markdownPart.use(pane.kind === "markdown");
   const Media = mediaPart.use(pane.kind === "video" || pane.kind === "audio");
   const title =
@@ -802,7 +806,7 @@ function Pane({
   const register = useCallback((callback: () => Promise<boolean>) => save.current(callback), []);
   const content =
     pane.kind === "iframe" ? (
-      <LiveFrame key={reload} url={pane.url} title={title} />
+      <LiveFrame url={pane.url} title={title} />
     ) : pane.kind === "file" || ("src" in pane && localSource) ? (
       <CanvasFile
         zoom={zoom}
@@ -859,10 +863,14 @@ function Pane({
         />
       )
     ) : pane.kind === "image" ? (
-      failedImage === pane.src ? (
+      failedImage?.source === pane.src && failedImage.reload === reload ? (
         <p role="alert">{t("canvas.imageFailed")}</p>
       ) : (
-        <PictureReading source={pane.src} name={title} onError={() => failImage(pane.src)} />
+        <PictureReading
+          source={pane.src}
+          name={title}
+          onError={() => failImage({ source: pane.src, reload })}
+        />
       )
     ) : pane.kind === "code" ? (
       <pre className="canvas-code">
@@ -972,7 +980,7 @@ function Pane({
             data-zoom={zoom}
             style={{ transform: zoom === 1 ? undefined : `scale(${zoom})` }}
           >
-            {content}
+            <Fragment key={reload}>{content}</Fragment>
           </div>
         </div>
       </dialog>

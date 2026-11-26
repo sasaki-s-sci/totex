@@ -118,9 +118,11 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
     const pointerId = event.pointerId;
     const origin = axis === "columns" ? event.clientX : event.clientY;
     let latest = initial;
+    let frame = 0;
     const listeners = new AbortController();
     const options = { signal: listeners.signal };
     const finish = (keep: boolean) => {
+      cancelAnimationFrame(frame);
       listeners.abort();
       finishResize.current = null;
       delete element.dataset.canvasResizing;
@@ -148,7 +150,10 @@ export function useCanvasResize({ id, host, layout, enabled, columnLabel, rowLab
           boundary,
           (axis === "columns" ? move.clientX : move.clientY) - origin,
         );
-        apply(axis, latest);
+        frame ||= requestAnimationFrame(() => {
+          frame = 0;
+          apply(axis, latest);
+        });
       },
       options,
     );

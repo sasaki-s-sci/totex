@@ -326,6 +326,15 @@ export function LeftSidebar({
               </MarkButton>
             )}
             {layoutBox.trash}
+            <MarkButton
+              label={t("canvas.refreshPages")}
+              disabled={!layout?.panes.some((pane) => pane.kind !== "empty")}
+              onClick={() => void layout?.refresh()}
+            >
+              <Frame>
+                <path d="M19 10a7 7 0 1 0-1 7M19 4v6h-6" />
+              </Frame>
+            </MarkButton>
           </Stack>
           <Box sx={{ position: "absolute", top: HEADER_INSET, right: HEADER_INSET }}>
             <MarkButton

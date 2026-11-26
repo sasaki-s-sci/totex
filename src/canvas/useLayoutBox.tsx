@@ -1,4 +1,3 @@
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import {
   type CSSProperties,
   type DragEvent,
@@ -10,7 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { baseName } from "../folder/format";
 import { startPointerDrag } from "../lib/pointerDrag";
-import { MarkButton, SIZE } from "../marks";
+import { Frame, MarkButton } from "../marks";
 import { canvasGeometry } from "./geometry";
 import {
   type CanvasSplit,
@@ -33,6 +32,7 @@ export type LayoutBoxOptions = {
   tree?: CanvasSplit;
   arrange: (tree: CanvasSplit) => void;
   change: (update: (panes: CanvasPane[]) => CanvasPane[]) => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const DRAG_TYPE = "application/x-totex-canvas-pane";
@@ -55,6 +55,8 @@ function useLayoutRects(layout: LayoutBoxOptions | null, shown: boolean) {
     const measure = () => {
       frame = 0;
       const canvas = main.querySelector<HTMLElement>(".session-canvas:not([hidden])");
+      // Reconcile the miniature after the gesture, leaving each drag frame to the pages.
+      if (canvas?.dataset.canvasResizing) return;
       const bounds = (canvas ?? main).getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
       const value = canvasGeometry(canvas && canvas.dataset.sessionCanvas === id ? canvas : main);
@@ -75,7 +77,7 @@ function useLayoutRects(layout: LayoutBoxOptions | null, shown: boolean) {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["hidden"],
+      attributeFilter: ["hidden", "data-canvas-resizing"],
     });
     window.addEventListener("resize", schedule);
     measure();
@@ -232,7 +234,9 @@ export function useLayoutBox(
           place(null);
           setOver("trash");
         }}
-        onDragLeave={() => setOver(null)}
+        onDragLeave={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null);
+        }}
         onDrop={(event) => {
           if ((!moving(event) && !removeSidebarPane) || pending) return;
           event.preventDefault();
@@ -253,7 +257,12 @@ export function useLayoutBox(
           disabled={(!selectedPane && !removeSidebarPane) || pending}
           onClick={() => selectedPane && remove(selectedPane.id)}
         >
-          <DeleteOutlineIcon sx={{ fontSize: SIZE }} />
+          <Frame spill>
+            <path d="M6.5 8.5 7.5 20h9l1-11.5M10 10v7M14 10v7" />
+            <g className="layout-trash-lid">
+              <path d="M5 6.5h14M9 6.5V4h6v2.5" />
+            </g>
+          </Frame>
         </MarkButton>
       </fieldset>
     ),

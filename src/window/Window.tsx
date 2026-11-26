@@ -195,6 +195,7 @@ export function Window() {
                   tree: canvas.layouts[current.id],
                   arrange: (tree) => canvas.arrange(current.id, tree),
                   change: (update) => canvas.change(current.id, update),
+                  refresh: () => canvas.refresh(current.id),
                 }
               : null
           }

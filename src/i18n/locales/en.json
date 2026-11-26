@@ -9,7 +9,8 @@
     "closeWorkspace": "Close workspace and end its terminals"
   },
   "terminal": {
-    "openUrl": "Open URL",
+    "openUrl": "Open URL in canvas",
+    "openUrlInBrowser": "Open URL in browser",
     "copyUrl": "Copy URL",
     "openFile": "Open file",
     "openFailed": "Could not open the link or file.",
@@ -386,6 +387,7 @@
     "selectTerminal": "Terminal {{number}}",
     "layout": "Layout",
     "reloadPage": "Reload page",
+    "refreshPages": "Refresh canvas pages",
     "pageChecking": "Checking the local server…",
     "pageBlocked": "This page does not allow embedding. Open it in your browser.",
     "pageRedirect": "This page redirects to a different address. Open it in your browser.",

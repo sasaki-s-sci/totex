@@ -18,6 +18,7 @@ export function useCanvases() {
     "canvas.terminals",
     {},
   );
+  const [refreshes, setRefreshes] = useState<Record<string, number>>({});
   const [layouts, setLayouts] = useFrontState<Record<string, CanvasSplit>>("canvas.layouts", () => {
     try {
       return readLayouts(JSON.parse(localStorage.getItem("totex.canvas.layouts") ?? "{}"));
@@ -166,7 +167,7 @@ export function useCanvases() {
       await queue.current.catch(() => undefined);
       for (const pane of current.current[id]?.panes ?? []) {
         if ((await saves.current.get(`${id}/${pane.id}`)?.()) === false)
-          throw new Error("Save the terminal's edited files before closing it.");
+          throw new Error("Save the canvas's edited files before continuing.");
       }
       return true;
     } catch (failure) {
@@ -174,6 +175,15 @@ export function useCanvases() {
       return false;
     }
   }, []);
+  const refresh = useCallback(
+    async (id: string) => {
+      if (await saveSession(id)) {
+        setRefreshes((before) => ({ ...before, [id]: (before[id] ?? 0) + 1 }));
+        setError(null);
+      }
+    },
+    [saveSession],
+  );
   const open = useCallback(
     (id: string, cwd: string) => {
       const pending = opened.current.get(id);
@@ -213,6 +223,8 @@ export function useCanvases() {
     open,
     close,
     canvases,
+    refreshes,
+    refresh,
     layouts,
     arrange,
     change,
