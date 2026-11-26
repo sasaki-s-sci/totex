@@ -38,6 +38,7 @@ UNBUILT_DIRECTORIES = (
     "bench-mark/",
     ".agents/",
     ".githooks/",
+    ".impeccable/",
 )
 UNBUILT_FILES = frozenset(
     (

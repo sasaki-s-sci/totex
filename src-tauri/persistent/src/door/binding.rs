@@ -50,7 +50,7 @@ impl Binding {
                 return Ok(terminal.clone());
             }
         }
-        Err("No totex terminal is associated with this Codex thread. Complete the Codex MCP registration and open Codex in a totex terminal.".to_string())
+        Err("No totex terminal is associated with this Codex thread. Use the registered totex MCP connection with threadId/sessionId metadata; an inherited TOTEX_MCP_URL cannot identify this conversation. Complete the Codex MCP registration and open Codex in a totex terminal.".to_string())
     }
 }
 

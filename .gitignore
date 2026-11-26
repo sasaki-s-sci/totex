@@ -21,6 +21,7 @@ node_modules/
 /.playwright-mcp
 /test-results
 /playwright-report
+/.impeccable/
 
 # Claude Code's per-directory write journal and machine-local settings.
 .claude/.cc-writes/

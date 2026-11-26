@@ -1,6 +1,7 @@
 mod app_settings;
 mod ask;
 mod canvas_browser;
+mod canvas_snapshot;
 mod clipboard;
 mod derived;
 mod display;
@@ -353,6 +354,7 @@ pub fn run() {
             mcp::mcp_reports,
             mcp::canvas_read,
             mcp::canvas_open,
+            canvas_snapshot::canvas_snapshot,
             mcp::canvas_close,
             mcp::canvas_write,
             canvas_browser::canvas_browser_open,

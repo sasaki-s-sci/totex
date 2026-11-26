@@ -23,6 +23,7 @@ import {
   tileSplit,
 } from "./layout";
 import { adjacentPane, type CanvasPane } from "./model";
+import { useLayoutPreview } from "./useLayoutPreview";
 import "./layoutBox.css";
 
 export type LayoutBoxOptions = {
@@ -102,6 +103,7 @@ export function useLayoutBox(
   const dragged = useRef<{ session: string; pane: string } | null>(null);
   const id = layout?.id;
   const sidebarDragging = Boolean(removeSidebarPane);
+  useLayoutPreview(map, id, shown);
   // biome-ignore lint/correctness/useExhaustiveDependencies: selection and gestures belong to one canvas or sidebar drag
   useEffect(() => {
     select(null);
@@ -304,7 +306,7 @@ export function useLayoutBox(
               if (!rect) return null;
               return (
                 <button
-                  key={pane.id}
+                  key={`${layout.id}/${pane.id}`}
                   type="button"
                   className="layout-pane"
                   data-layout-pane={pane.id}
@@ -365,7 +367,8 @@ export function useLayoutBox(
                   }}
                   onDragEnd={finish}
                 >
-                  <span>{name(pane)}</span>
+                  <canvas aria-hidden="true" tabIndex={-1} inert draggable={false} />
+                  <span className="layout-pane-label">{name(pane)}</span>
                 </button>
               );
             })}

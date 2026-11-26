@@ -56,6 +56,20 @@ export async function canvasDrops(browser, repository, step) {
     assert.equal((await browser.$$("[data-session-canvas]")).length, 1);
     assert.equal((await browser.$$("[data-canvas-pane]")).length, 1);
   });
+  await step("layoutboxに実際のWebKit描画を縮小表示する", async () => {
+    await browser.waitUntil(
+      () =>
+        browser.execute(() => {
+          const preview = document.querySelector(".layout-pane canvas[data-ready]");
+          if (!preview?.width || !preview.height) return false;
+          const pixel = preview.getContext("2d").getImageData(5, 5, 1, 1).data;
+          return (
+            preview.inert && getComputedStyle(preview).pointerEvents === "none" && pixel[3] > 0
+          );
+        }),
+      { timeout: 20000, timeoutMsg: "The native WebKit snapshot did not reach the layout card" },
+    );
+  });
   await step("画像DnDでページを左右に分割する", async () => {
     await drag(await browser.$(".session-canvas:not([hidden])"), true);
     await browser.waitUntil(

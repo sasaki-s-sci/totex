@@ -166,6 +166,22 @@ export async function verifyCanvasTabs(page, base = "http://127.0.0.1:18426") {
       document.querySelectorAll(".canvas-tab:first-child .canvas-tab-terminals button").length ===
       3,
   );
+  assert.equal(
+    await tab.evaluate((tab) => {
+      const header = tab.closest(".canvas-header").getBoundingClientRect();
+      const label = tab.querySelector('[role="tab"]').getBoundingClientRect();
+      const terminal = tab.querySelector(".canvas-tab-terminals button").getBoundingClientRect();
+      return (
+        label.width > 0 &&
+        label.right <= terminal.left &&
+        label.top >= header.top &&
+        label.bottom < header.bottom &&
+        Math.abs(label.top + label.height / 2 - terminal.top - terminal.height / 2) < 1
+      );
+    }),
+    true,
+    "The folder name precedes terminal numbers on one row inside the header",
+  );
   const member = await page.locator('[data-terminal-shown="true"]').getAttribute("data-terminal");
   assert.notEqual(member, "terminal-one");
   assert.equal(await page.locator("[data-session-canvas]").count(), 3);

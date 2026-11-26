@@ -137,6 +137,11 @@ configuration and puts `thread-id` first in `tui.terminal_title`, preserving the
 other title items. Totex associates Codex's terminal title with its thread
 metadata on MCP calls. Switching the visible terminal or running two Codex
 threads in the same folder does not redirect their canvases.
+Every canvas read and write requires this metadata, including calls through a
+legacy per-terminal URL or bearer token. The resolved terminal must also match
+that credential's owner. Do not use an inherited `TOTEX_MCP_URL` as a fallback:
+a shared agent process can retain another terminal's environment. Missing or
+mismatched identities return a tool error without reading or changing a canvas.
 Keep the `thread-id` title item enabled. If the same conversation is opened in
 two terminals, canvas calls report the ambiguity instead of choosing a terminal.
 The private credential is retained in `~/.totex/mcp-token` across app restarts.
@@ -247,6 +252,10 @@ revisioned state with the service and guards edited files. `RightSidebar.tsx`
 owns the terminal index and single terminal views.
 `src-tauri/persistent/src/door/canvas.rs` owns the MCP tool and canonical canvas
 state; native `canvas_read` and `canvas_write` commands connect the window to it.
+The sidebar layout cards use `canvas_snapshot` to crop pixels from the existing
+webview. This includes live iframe state without running duplicate pages. The
+images are inert; only card arrangement and removal controls receive input.
+Snapshots refresh while the sidebar is visible and remain in memory.
 
 This change requires rebuilding the native app and persistent terminal service.
 A frontend-only reload cannot add the MCP tool to an already running old service.

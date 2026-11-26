@@ -4805,11 +4805,16 @@ name = "totex"
 version = "0.54.5"
 dependencies = [
  "base64 0.22.1",
+ "block2",
+ "cairo-rs",
  "dirs",
  "dom_query",
  "flate2",
  "notify",
  "notify-debouncer-full",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-web-kit",
  "pulldown-cmark",
  "reqwest",
  "rustls",
@@ -4824,6 +4829,9 @@ dependencies = [
  "toml_edit 0.25.13+spec-1.1.0",
  "totex-host",
  "totex-persistent",
+ "webkit2gtk",
+ "webview2-com",
+ "windows",
  "windows-sys 0.61.2",
 ]
 

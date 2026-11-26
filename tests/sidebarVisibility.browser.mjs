@@ -60,6 +60,7 @@ export async function verifySidebarVisibility(page, base = "http://127.0.0.1:184
         return (
           header?.firstElementChild.contains(button) &&
           getComputedStyle(button.parentElement).position === "static" &&
+          getComputedStyle(button.parentElement).borderRightWidth === "1px" &&
           box.width === 24 &&
           box.height === 24 &&
           box.right <= tabs.left &&

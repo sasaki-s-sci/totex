@@ -151,6 +151,10 @@ export async function installCanvasNative(page) {
       },
       async invoke(cmd, args = {}) {
         window.pageCalls.push({ cmd, args });
+        if (cmd === "canvas_snapshot") {
+          if (window.pageCaptureSnapshot) return window.pageCaptureSnapshot();
+          throw new Error("No webview capture in this fixture");
+        }
         if (cmd === "mcp_setup")
           return {
             command: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",

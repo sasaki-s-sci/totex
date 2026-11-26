@@ -1,6 +1,99 @@
 import assert from "node:assert/strict";
 import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
+export async function verifyCanvasPreviews(page, base = "http://127.0.0.1:18426") {
+  await page.exposeFunction("pageCaptureSnapshot", async () =>
+    (await page.screenshot()).toString("base64"),
+  );
+  await installCanvasNative(page);
+  await page.addInitScript(() => {
+    if (window.top !== window) return;
+    window.canvasStates["terminal-one"].panes = [
+      { id: "live", kind: "iframe", url: "http://127.0.0.1:18424/live" },
+      { id: "source", kind: "file", path: "/tmp/note.txt" },
+    ];
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);
+  const mini = page.locator('[data-layout-pane="live"]');
+  await mini.waitFor();
+  const live = page.frame({ url: "http://127.0.0.1:18424/live" });
+  await live.getByRole("button", { name: "Count 0" }).click();
+  const mount = await live.evaluate(() => {
+    document.body.style.background = "rgb(220, 30, 60)";
+    return window.canvasFixtureMount;
+  });
+  const pixelMatches = (red) =>
+    page.waitForFunction((red) => {
+      const canvas = document.querySelector('[data-layout-pane="live"] canvas[data-ready]');
+      if (!canvas) return false;
+      const pixel = canvas
+        .getContext("2d")
+        .getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data;
+      return Math.abs(pixel[0] - red) < 3;
+    }, red);
+  await pixelMatches(220);
+  await mini.click();
+  await mini.press("Enter");
+  await mini.press("Space");
+  assert.equal(await live.getByRole("button", { name: "Count 1" }).count(), 1);
+  assert.equal(await mini.locator("iframe, input, a, [contenteditable]").count(), 0);
+  assert.equal(
+    await mini.locator("canvas").evaluate((node) => getComputedStyle(node).pointerEvents),
+    "none",
+  );
+  await live.evaluate(() => {
+    document.body.style.background = "rgb(25, 130, 70)";
+  });
+  await pixelMatches(25);
+  await mini.dragTo(page.locator('[data-layout-pane="source"]'));
+  await page.waitForFunction(() => window.canvasStates["terminal-one"].panes[0].id === "source");
+  assert.equal(await live.evaluate(() => window.canvasFixtureMount), mount);
+  await pixelMatches(25);
+  await mini.dragTo(page.locator("[data-layout-trash]"));
+  await mini.waitFor({ state: "detached" });
+  assert.equal(
+    await page.locator('.session-canvas:not([hidden]) [data-canvas-pane="live"]').count(),
+    0,
+  );
+  const editor = page.getByRole("textbox", { name: "note.txt", exact: true });
+  await editor.fill("keep this preview draft");
+  await page.evaluate(() => {
+    window.pageWriteRefused = true;
+  });
+  const source = page.locator('[data-layout-pane="source"]');
+  await source.dragTo(page.locator("[data-layout-trash]"));
+  await page.locator(".canvas-error").waitFor();
+  assert.equal(await editor.textContent(), "keep this preview draft");
+  assert.equal(await source.count(), 1);
+  await page.evaluate(() => {
+    window.pageWriteRefused = false;
+  });
+  await source.dragTo(page.locator("[data-layout-trash]"));
+  await source.waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => window.pageFileText), "keep this preview draft");
+  await page.getByRole("button", { name: "Collapse root folders", exact: true }).click();
+  await page.waitForTimeout(1200);
+  const calls = await page.evaluate(
+    () => window.pageCalls.filter(({ cmd }) => cmd === "canvas_snapshot").length,
+  );
+  await page.waitForTimeout(1200);
+  assert.equal(
+    await page.evaluate(
+      () => window.pageCalls.filter(({ cmd }) => cmd === "canvas_snapshot").length,
+    ),
+    calls,
+  );
+  return {
+    actualFramePixels: true,
+    refreshed: true,
+    inert: true,
+    dragRetainsFrame: true,
+    trash: true,
+    hiddenStopsCapture: true,
+  };
+}
+
 async function fileDrop(page, target, path, native = false) {
   if (native) {
     const box = await target.boundingBox();

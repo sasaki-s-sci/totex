@@ -114,10 +114,13 @@ fn media_options_are_optional_and_strict() {
 fn media_and_file_views_round_trip_through_http_mcp() {
     let held = held();
     let (folder, address) = session(&held, "canvas-media");
+    let thread = "550e8400-e29b-41d4-a716-446655440000";
+    totex_host::sync::lock(&held.door.bindings)
+        .observe("canvas-media", &format!("\x1b]2;{thread}\x07"));
     let request = |arguments| {
         json!({
             "jsonrpc":"2.0", "id":1, "method":"tools/call", "params":{
-                "name":"canvas", "arguments":arguments
+                "name":"canvas", "arguments":arguments, "_meta":{"threadId":thread}
             }
         })
     };
@@ -280,9 +283,18 @@ fn evidence_is_addressed_to_its_terminal_and_survives_a_window_read() {
     let held = held();
     let (folder, first) = session(&held, "canvas-first");
     let (_other, second) = session(&held, "canvas-second");
+    let first_thread = "550e8400-e29b-41d4-a716-446655440000";
+    let second_thread = "650e8400-e29b-41d4-a716-446655440000";
+    for (terminal, thread) in [
+        ("canvas-first", first_thread),
+        ("canvas-second", second_thread),
+    ] {
+        totex_host::sync::lock(&held.door.bindings)
+            .observe(terminal, &format!("\x1b]2;{thread}\x07"));
+    }
     let call = |panes| {
         json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
-            "name":"canvas", "arguments":{"panes":panes}
+            "name":"canvas", "arguments":{"panes":panes}, "_meta":{"threadId":first_thread}
         }})
     };
     let (_, answer) = post(
@@ -303,7 +315,7 @@ fn evidence_is_addressed_to_its_terminal_and_survives_a_window_read() {
     assert_eq!(held.door.canvases().len(), 1);
     let (_, read) = post(
         &second,
-        &json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"canvas","arguments":{}}}),
+        &json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"canvas","arguments":{},"_meta":{"threadId":second_thread}}}),
     );
     assert_eq!(read["result"]["structuredContent"]["panes"], json!([]));
 

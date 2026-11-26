@@ -46,10 +46,21 @@ pub fn answer(door: &Door, session: Option<&str>, body: &[u8]) -> Option<Value> 
         "ping" => said(id, json!({})),
         "tools/list" => said(id, json!({ "tools": [super::canvas::tool()] })),
         "tools/call" => {
-            let terminal = session
-                .map(str::to_string)
-                .map(Ok)
-                .unwrap_or_else(|| door.terminal(&params["_meta"]));
+            let terminal = if params["name"] == "canvas" {
+                // Shared agent processes inherit the first terminal's environment credentials.
+                door.terminal(&params["_meta"]).and_then(|terminal| {
+                    if session.is_some_and(|owner| owner != terminal) {
+                        Err("This inherited MCP URL belongs to another terminal. Use the registered totex MCP connection with this conversation's metadata.".to_string())
+                    } else {
+                        Ok(terminal)
+                    }
+                })
+            } else {
+                session
+                    .map(str::to_string)
+                    .map(Ok)
+                    .unwrap_or_else(|| door.terminal(&params["_meta"]))
+            };
             said(
                 id,
                 match terminal {

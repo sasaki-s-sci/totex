@@ -75,6 +75,7 @@ class ScopeTests(unittest.TestCase):
                 "scripts/install.sh",
                 "tests/test_release.py",
                 ".github/workflows/setup.yml",
+                ".impeccable/design.json",
                 "",
             ]
         )

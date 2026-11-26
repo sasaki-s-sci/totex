@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 use totex_host::sync::lock;
 
-use super::{addressed, held, post, session};
+use super::{addressed, held, knock, post, session};
 use crate::door::Door;
 use crate::door::http::{Request, route};
 
@@ -48,6 +48,71 @@ fn registration_connects_before_any_terminal_exists_and_survives_restart() {
         post(&url, &json!({"jsonrpc":"2.0","id":3,"method":"ping"})).0,
         "HTTP/1.1 200 OK"
     );
+    held.door.unserve();
+}
+
+#[cfg(unix)]
+#[test]
+fn inherited_credentials_cannot_redirect_canvas_calls() {
+    let held = held();
+    let (folder, inherited) = session(&held, "daemon-origin");
+    let cwd = folder.path().display().to_string();
+    held.door.open_canvas("other-canvas", &cwd).unwrap();
+    let third = "750e8400-e29b-41d4-a716-446655440000";
+    for (terminal, thread) in [("other-one", SECOND), ("other-two", third)] {
+        held.sessions
+            .open(
+                terminal,
+                &cwd,
+                24,
+                80,
+                Some(json!({"canvas":"other-canvas"}).to_string()),
+            )
+            .unwrap();
+        lock(&held.door.bindings).observe(terminal, &format!("\x1b]2;{thread}\x07"));
+    }
+    lock(&held.door.bindings).observe("daemon-origin", &format!("\x1b]2;{FIRST}\x07"));
+    let shared = endpoint(&held.door);
+    let (host, token) = inherited.rsplit_once("/s/").unwrap();
+    for arguments in [json!({}), json!({"panes":[{"id":"wrong","kind":"empty"}]})] {
+        for meta in [
+            Value::Null,
+            json!({}),
+            json!({"threadId":SECOND,"sessionId":FIRST}),
+        ] {
+            let mut request = call(SECOND, FIRST, arguments.clone());
+            request["params"]["_meta"] = meta;
+            for (url, bearer) in [(&inherited, None), (&format!("{host}/mcp"), Some(token))] {
+                let (_, rejected) = knock(url, &request, bearer);
+                assert_eq!(rejected["result"]["isError"], true, "{rejected}");
+            }
+        }
+    }
+    assert!(held.door.canvas("daemon-origin").panes.is_empty());
+    assert!(held.door.canvas("other-canvas").panes.is_empty());
+    let (_, written) = post(
+        &shared,
+        &call(
+            SECOND,
+            FIRST,
+            json!({"revision":0,"panes":[{"id":"evidence","kind":"empty"}]}),
+        ),
+    );
+    assert_eq!(written["result"]["structuredContent"]["id"], "other-canvas");
+    let (_, read) = post(&shared, &call(third, FIRST, json!({})));
+    assert_eq!(
+        read["result"]["structuredContent"],
+        written["result"]["structuredContent"]
+    );
+    let (_, stale) = post(
+        &shared,
+        &call(third, FIRST, json!({"revision":0,"panes":[]})),
+    );
+    assert_eq!(stale["result"]["isError"], true);
+    assert!(held.door.canvas("daemon-origin").panes.is_empty());
+    for terminal in ["daemon-origin", "other-one", "other-two"] {
+        held.sessions.close(terminal);
+    }
     held.door.unserve();
 }
 
