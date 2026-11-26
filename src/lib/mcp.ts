@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type McpSetup = { command: string; environment: string };
+export type McpSetup = {
+  commands: Record<"codex" | "claude" | "opencode", string>;
+  environment: string;
+};
 
 export function prepareMcp(cwd?: string): Promise<McpSetup | null> {
   return invoke<McpSetup | null>("mcp_setup", { cwd });

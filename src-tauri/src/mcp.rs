@@ -11,6 +11,11 @@ use tauri::{AppHandle, Runtime};
 mod probe;
 mod register;
 mod setup;
+mod stdio;
+
+pub fn mcp_stdio(args: &[String]) -> Result<(), String> {
+    stdio::run(args)
+}
 
 pub fn register_codex(args: &[String]) -> Result<(), String> {
     register::run(args)

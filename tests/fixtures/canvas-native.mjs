@@ -157,7 +157,11 @@ export async function installCanvasNative(page) {
         }
         if (cmd === "mcp_setup")
           return {
-            command: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",
+            commands: {
+              codex: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",
+              claude: "claude mcp add --scope user totex -- /test/totex --mcp-stdio",
+              opencode: "opencode mcp add totex -- /test/totex --mcp-stdio",
+            },
             environment: "Linux",
           };
         if (cmd === "canvas_read")

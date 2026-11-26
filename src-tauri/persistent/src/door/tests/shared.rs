@@ -11,6 +11,39 @@ use crate::door::http::{Request, route};
 const FIRST: &str = "550e8400-e29b-41d4-a716-446655440000";
 const SECOND: &str = "650e8400-e29b-41d4-a716-446655440000";
 
+#[cfg(unix)]
+#[test]
+fn terminal_relays_are_scoped_and_do_not_change_codex_routing() {
+    let held = held();
+    let (_first, one) = session(&held, "claude");
+    let (_second, two) = session(&held, "opencode");
+    lock(&held.door.bindings).observe("opencode", &format!("\x1b]2;{SECOND}\x07"));
+    for (terminal, address) in [("claude", &one), ("opencode", &two)] {
+        let message = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{
+            "name":"canvas", "arguments":{"revision":0,"panes":[{"id":"evidence","kind":"markdown","text":terminal}]},
+            "_meta":{"ai.opencode/sessionID":"ses_example"}
+        }});
+        let (_, legacy) = post(address, &message);
+        assert_eq!(legacy["result"]["isError"], true);
+        let (_, written) = post(&format!("{address}/terminal"), &message);
+        assert_eq!(
+            written["result"]["structuredContent"]["id"], terminal,
+            "{written}"
+        );
+        assert_eq!(
+            written["result"]["structuredContent"]["panes"][0]["text"],
+            terminal
+        );
+    }
+    let (_, mismatch) = post(&format!("{one}/terminal"), &call(SECOND, SECOND, json!({})));
+    assert_eq!(mismatch["result"]["isError"], true);
+    held.sessions.close("claude");
+    let (status, _) = post(&format!("{one}/terminal"), &call("", "", json!({})));
+    assert!(status.contains("404"));
+    held.sessions.close("opencode");
+    held.door.unserve();
+}
+
 fn endpoint(door: &Door) -> String {
     format!(
         "http://127.0.0.1:{}/mcp/{}",

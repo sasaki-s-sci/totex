@@ -26,7 +26,12 @@ const STEPS_LIMIT: usize = 32;
 /// `None` is a notification — a message with no id, which is a client telling
 /// rather than asking. There is exactly one of those in the handshake and
 /// nothing is expected back.
-pub fn answer(door: &Door, session: Option<&str>, body: &[u8]) -> Option<Value> {
+pub fn answer(
+    door: &Door,
+    session: Option<&str>,
+    body: &[u8],
+    terminal_scoped: bool,
+) -> Option<Value> {
     let Ok(message) = serde_json::from_slice::<Value>(body) else {
         return Some(fault(Value::Null, -32700, "the message is not json"));
     };
@@ -46,7 +51,11 @@ pub fn answer(door: &Door, session: Option<&str>, body: &[u8]) -> Option<Value> 
         "ping" => said(id, json!({})),
         "tools/list" => said(id, json!({ "tools": [super::canvas::tool()] })),
         "tools/call" => {
-            let terminal = if params["name"] == "canvas" {
+            // shortcut: terminal-scoped clients require separate CLI processes; attached/shared servers need per-conversation binding.
+            let needs_identity = !terminal_scoped
+                || params["_meta"].get("threadId").is_some()
+                || params["_meta"].get("sessionId").is_some();
+            let terminal = if params["name"] == "canvas" && needs_identity {
                 // Shared agent processes inherit the first terminal's environment credentials.
                 door.terminal(&params["_meta"]).and_then(|terminal| {
                     if session.is_some_and(|owner| owner != terminal) {

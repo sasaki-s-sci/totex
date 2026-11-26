@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { CanvasProps } from "../canvas/CanvasProps";
+import { baseName, displayPath } from "../folder/format";
 import { Frame } from "../marks";
 import { PageHeader, PageTool } from "../page/Page";
 import { PageView } from "../page/PageView";
@@ -25,11 +26,19 @@ export function RightSidebar({
   const open = pages?.sidebarOpen ?? true;
   const current = sessions.find((session) => session.id === showing);
   const heading = pages ? (
-    <PageTool label={t("page.hideSidebar")} onClick={pages.hide}>
-      <Frame size={12}>
-        <path d="M9 6 15 12 9 18" />
-      </Frame>
-    </PageTool>
+    <>
+      <PageTool label={t("page.hideSidebar")} onClick={pages.hide}>
+        <Frame size={12}>
+          <path d="M9 6 15 12 9 18" />
+        </Frame>
+      </PageTool>
+      {current && (
+        <div className="page__title" title={displayPath(current.cwd)}>
+          <span className="page__name">{baseName(current.cwd)}</span>
+          <span className="page__terminal-numbers">{sessions.indexOf(current) + 1}</span>
+        </div>
+      )}
+    </>
   ) : (
     false
   );

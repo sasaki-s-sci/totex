@@ -1,5 +1,5 @@
 import { Alert, Button, Checkbox, Stack, Typography } from "@mui/material";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { updateSettings, useAppSettings } from "../lib/appSettings";
 import { copyText } from "../lib/clipboard";
@@ -30,13 +30,11 @@ function SetupCommand({ cwd }: { cwd?: string }) {
   const [setup, setSetup] = useState<McpSetup | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
-  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   // biome-ignore lint/correctness/useExhaustiveDependencies: Retry starts a fresh preparation.
   useEffect(() => {
     let alive = true;
     setSetup(null);
     setFailure(null);
-    setCopied("idle");
     const read = async () => {
       try {
         const next = await prepareMcp(cwd);
@@ -73,24 +71,66 @@ function SetupCommand({ cwd }: { cwd?: string }) {
       </Typography>
     );
   return (
-    <Stack sx={{ gap: 0.5 }}>
-      <Row label={`Codex · ${setup.environment}`}>
+    <Stack sx={{ gap: 1.5, minWidth: 0 }}>
+      <Row label={t("canvas.mcpEnvironment")}>
+        <Typography variant="body2" sx={{ overflowWrap: "anywhere" }}>
+          {setup.environment}
+        </Typography>
+      </Row>
+      {(
+        [
+          ["codex", "Codex"],
+          ["claude", "Claude Code"],
+          ["opencode", "OpenCode"],
+        ] as const
+      ).map(([agent, name]) => (
+        <AgentCommand
+          key={`${agent}:${setup.commands[agent]}`}
+          name={name}
+          command={setup.commands[agent]}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+function AgentCommand({ name, command }: { name: string; command: string }) {
+  const { t } = useTranslation();
+  const heading = useId();
+  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
+  return (
+    <Stack component="section" aria-labelledby={heading} sx={{ gap: 0.75, minWidth: 0 }}>
+      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+        <Typography component="h3" id={heading} variant="body2" sx={{ fontWeight: 600 }}>
+          {name}
+        </Typography>
         <PageButton
+          title={t("canvas.mcpCopyNamed", { agent: name })}
           onClick={() => {
-            void copyText(setup.command).then(
+            void copyText(command).then(
               () => setCopied("copied"),
               () => setCopied("failed"),
             );
           }}
         >
-          {t(copied === "copied" ? "canvas.mcpCopied" : "canvas.mcpCopy")}
+          <Typography
+            component="span"
+            variant="inherit"
+            sx={{ color: "text.primary" }}
+            aria-live="polite"
+          >
+            {t(copied === "copied" ? "canvas.mcpCopied" : "canvas.mcpCopy")}
+          </Typography>
         </PageButton>
-      </Row>
+      </Stack>
       <Typography
         component="pre"
-        aria-label={t("canvas.mcpCommand")}
+        aria-label={t("canvas.mcpCommand", { agent: name })}
         sx={{
           m: 0,
+          p: 1,
+          bgcolor: "action.hover",
+          borderRadius: 0.5,
           fontFamily: "monospace",
           fontSize: 12,
           whiteSpace: "pre-wrap",
@@ -98,12 +138,9 @@ function SetupCommand({ cwd }: { cwd?: string }) {
           userSelect: "text",
         }}
       >
-        <code>{setup.command}</code>
+        <code>{command}</code>
       </Typography>
       {copied === "failed" && <Alert severity="error">{t("canvas.mcpCopyFailed")}</Alert>}
-      <Typography variant="body2" color="text.secondary">
-        {t("canvas.mcpHint")}
-      </Typography>
     </Stack>
   );
 }

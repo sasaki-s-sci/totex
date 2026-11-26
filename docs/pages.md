@@ -119,9 +119,9 @@ all folders. An explicit `"mcpServing": false` remains disabled. A port conflict
 is reported as an error instead of silently choosing another port. The explorer
 has no MCP button.
 
-Setup has two steps: launch totex, then run its Codex registration command once
-per environment. **Settings → Canvas → Copy command** supplies the command for
-the selected terminal's environment. It invokes the totex executable with
+Settings → Canvas groups MCP setup by environment and then by agent, with separate
+command and copy controls for Codex, Claude Code and OpenCode. Copying never
+executes a command. The Codex command invokes the totex executable with
 `--register-codex-mcp`; start Codex normally afterwards. Shared Codex daemons are
 supported, and terminal shells need no connection variables or reopening.
 Codex's `/mcp` shows the connection.
@@ -137,7 +137,7 @@ configuration and puts `thread-id` first in `tui.terminal_title`, preserving the
 other title items. Totex associates Codex's terminal title with its thread
 metadata on MCP calls. Switching the visible terminal or running two Codex
 threads in the same folder does not redirect their canvases.
-Every canvas read and write requires this metadata, including calls through a
+Codex canvas reads and writes require this metadata, including calls through a
 legacy per-terminal URL or bearer token. The resolved terminal must also match
 that credential's owner. Do not use an inherited `TOTEX_MCP_URL` as a fallback:
 a shared agent process can retain another terminal's environment. Missing or
@@ -145,6 +145,26 @@ mismatched identities return a tool error without reading or changing a canvas.
 Keep the `thread-id` title item enabled. If the same conversation is opened in
 two terminals, canvas calls report the ambiguity instead of choosing a terminal.
 The private credential is retained in `~/.totex/mcp-token` across app restarts.
+
+Claude Code and OpenCode register the totex executable as a local stdio server,
+using their own `mcp add` commands. The relay reads `TOTEX_MCP_URL` at agent
+startup, validates the loopback terminal address, and forwards JSON-RPC to the
+explicit `/s/<token>/terminal` endpoint. Each terminal token is scoped to its
+live terminal; it cannot select another canvas. Existing Codex endpoints retain
+metadata checks, and Codex identities sent to the terminal endpoint must still
+match its owner. New terminals opened with MCP enabled receive the address.
+Use a separate Claude Code or OpenCode CLI process in each terminal; attaching
+multiple terminals to one shared agent server is not supported by this transport.
+In WSL the registered shell command passes the current terminal address to the
+Windows executable at runtime, so it reaches Windows loopback under NAT too.
+No current terminal credential is written into the registration command.
+Claude registration replaces only its user-scoped `totex` entry. OpenCode's CLI
+manages its own config format and scope (global in v1, project in v2); run the
+shown command in the project where it is needed.
+
+Registration syntax follows the [Claude Code MCP documentation](https://code.claude.com/docs/en/mcp),
+[OpenCode MCP documentation](https://opencode.ai/docs/mcp-servers/) and its
+[v1.18.18 CLI implementation](https://github.com/anomalyco/opencode/blob/v1.18.18/packages/opencode/src/cli/cmd/mcp.ts).
 
 For WSL, the command invokes the Windows totex executable with `--wsl` and the
 distribution's Codex home. Registration prepares the Windows curl bridge and

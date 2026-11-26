@@ -7,6 +7,13 @@ fn main() {
     // without ever building a window -- see `totex_host::ssh::askpass`.
     totex_host::ssh::askpass::intercept();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|arg| arg == "--mcp-stdio") {
+        if let Err(error) = totex_lib::mcp_stdio(&args[1..]) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if args
         .first()
         .is_some_and(|arg| arg == "--register-codex-mcp")

@@ -2,7 +2,7 @@
   "name": "totex",
   "version": "0.55.2",
   "private": true,
-  "frontContract": 19,
+  "frontContract": 20,
   "type": "module",
   "scripts": {
     "dev": "vite",

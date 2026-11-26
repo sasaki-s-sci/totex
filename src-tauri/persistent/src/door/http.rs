@@ -159,7 +159,12 @@ pub(super) fn route(door: &Door, request: &Request) -> (&'static str, Option<Vec
     };
 
     match request.method.as_str() {
-        "POST" => match rpc::answer(door, id.as_deref(), &request.body) {
+        "POST" => match rpc::answer(
+            door,
+            id.as_deref(),
+            &request.body,
+            target.starts_with("/s/") && target.ends_with("/terminal"),
+        ) {
             // A notification: there is nothing to answer, and saying so is the
             // whole of the reply.
             None => ("202 Accepted", None),
@@ -194,7 +199,7 @@ fn named(request: &Request) -> Option<&str> {
         .split_once('?')
         .map_or(request.target.as_str(), |(path, _)| path);
     if let Some(token) = target.strip_prefix("/s/") {
-        return Some(token);
+        return Some(token.strip_suffix("/terminal").unwrap_or(token));
     }
     if target == super::DOOR_PATH {
         return request.bearer.as_deref();

@@ -10,11 +10,20 @@ async function installSetupNative(page) {
     const wsl = "\\\\wsl.localhost\\Ubuntu\\home\\a\\project";
     const replies = {
       [local]: {
-        command: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",
+        commands: {
+          codex: "'/home/a/Applications/totex/bin/totex' --register-codex-mcp",
+          claude:
+            "claude mcp remove --scope user totex\nclaude mcp add --scope user --transport stdio totex -- '/home/a/Applications/totex/bin/totex' --mcp-stdio",
+          opencode: "opencode mcp add totex -- '/home/a/Applications/totex/bin/totex' --mcp-stdio",
+        },
         environment: "Linux",
       },
       [wsl]: {
-        command: `'/mnt/c/Users/a/AppData/Local/totex/totex.exe' --register-codex-mcp --wsl 'Ubuntu' --codex-home "\${CODEX_HOME:-$HOME/.codex}"`,
+        commands: {
+          codex: `'/mnt/c/Users/a/AppData/Local/totex/totex.exe' --register-codex-mcp --wsl 'Ubuntu' --codex-home "\${CODEX_HOME:-$HOME/.codex}"`,
+          claude: `claude mcp remove --scope user totex\nclaude mcp add --scope user --transport stdio totex -- sh -c 'exec "$1" --mcp-stdio "$TOTEX_MCP_URL"' sh '/mnt/c/Users/a/AppData/Local/totex/totex.exe'`,
+          opencode: `opencode mcp add totex -- sh -c 'exec "$1" --mcp-stdio "$TOTEX_MCP_URL"' sh '/mnt/c/Users/a/AppData/Local/totex/totex.exe'`,
+        },
         environment: "WSL · Ubuntu",
       },
     };
@@ -99,6 +108,7 @@ async function installSetupNative(page) {
             { id: "mcp-wsl", cwd: wsl, rows: 24, cols: 80, meta: '{"branch":"wsl"}' },
           ];
         if (cmd === "pty_attach") return { text: "Retained terminal\r\n", upto: 0 };
+        if (cmd === "canvas_open") return { id: args.id, revision: 0, panes: [] };
         if (cmd === "workspace_statuses") return {};
         if (
           [
@@ -145,7 +155,7 @@ async function switchTerminal(page, number, id) {
 }
 
 async function assertCommand(page, environment, command) {
-  await page.getByText(`Codex · ${environment}`, { exact: true }).waitFor();
+  await page.getByText(environment, { exact: true }).waitFor();
   await page.waitForFunction(
     (command) =>
       document.querySelector('[aria-label="Codex MCP registration command"]')?.textContent ===
@@ -191,17 +201,48 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
         request.resolve(structuredClone(fixture.replies[request.cwd]));
       return { local: fixture.replies[fixture.local], wsl: fixture.replies[fixture.wsl] };
     });
-    await assertCommand(page, replies.local.environment, replies.local.command);
+    await assertCommand(page, replies.local.environment, replies.local.commands.codex);
+    assert.equal(
+      await page.getByText("Launch totex and run this command", { exact: false }).count(),
+      0,
+    );
+    for (const [agent, name] of [
+      ["claude", "Claude Code"],
+      ["opencode", "OpenCode"],
+    ]) {
+      const section = page.getByRole("region", { name, exact: true });
+      assert.equal(
+        await section.getByLabel(`${name} MCP registration command`).textContent(),
+        replies.local.commands[agent],
+      );
+      const copy = section.getByRole("button", { name: "Copy command", exact: true });
+      await copy.focus();
+      await page.keyboard.press("Enter");
+      await section.getByRole("button", { name: "Copied", exact: true }).waitFor();
+      assert.equal(
+        await page.evaluate(() => window.mcpSetupFixture.copied.at(-1)),
+        replies.local.commands[agent],
+      );
+    }
+    await page.evaluate(() => {
+      window.mcpSetupFixture.copied.length = 0;
+    });
     assert.equal(await page.evaluate(() => window.mcpSetupFixture.port), 26374);
     await page.setViewportSize({ width: 720, height: 1000 });
     await page.waitForFunction(() => {
       const element = document.querySelector('[aria-label="Codex MCP registration command"]');
       return element && element.scrollWidth <= element.clientWidth + 1;
     });
-    await page.getByRole("button", { name: "Copy command", exact: true }).click();
-    await page.getByRole("button", { name: "Copied", exact: true }).waitFor();
+    await page
+      .getByRole("region", { name: "Codex", exact: true })
+      .getByRole("button", { name: "Copy command", exact: true })
+      .click();
+    await page
+      .getByRole("region", { name: "Codex", exact: true })
+      .getByRole("button", { name: "Copied", exact: true })
+      .waitFor();
     assert.deepEqual(await page.evaluate(() => window.mcpSetupFixture.copied), [
-      replies.local.command,
+      replies.local.commands.codex,
     ]);
     await page.setViewportSize({ width: 1440, height: 1000 });
 
@@ -233,23 +274,32 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
       fixture.modes[fixture.local] = "ready";
     });
     await page.getByRole("button", { name: "Retry", exact: true }).click();
-    await assertCommand(page, replies.local.environment, replies.local.command);
+    await assertCommand(page, replies.local.environment, replies.local.commands.codex);
     assert.equal(await page.evaluate(() => window.mcpSetupFixture.port), 26374);
 
     await page.evaluate(() => {
       window.mcpSetupFixture.refuseCopy = true;
     });
-    await page.getByRole("button", { name: "Copy command", exact: true }).click();
+    await page
+      .getByRole("region", { name: "Codex", exact: true })
+      .getByRole("button", { name: "Copy command", exact: true })
+      .click();
     await page.getByText("Could not copy. Select and copy the command.", { exact: true }).waitFor();
-    assert.equal(await commandBox(page).textContent(), replies.local.command);
+    assert.equal(await commandBox(page).textContent(), replies.local.commands.codex);
     await page.evaluate(() => {
       window.mcpSetupFixture.refuseCopy = false;
     });
-    await page.getByRole("button", { name: "Copy command", exact: true }).click();
+    await page
+      .getByRole("region", { name: "Codex", exact: true })
+      .getByRole("button", { name: "Copy command", exact: true })
+      .click();
     await page.getByRole("button", { name: "Copied", exact: true }).waitFor();
 
     await switchTerminal(page, 2, "mcp-wsl");
-    await assertCommand(page, replies.wsl.environment, replies.wsl.command);
+    await assertCommand(page, replies.wsl.environment, replies.wsl.commands.codex);
+    const header = page.locator("#cli-sidebar .session-terminal:not([hidden]) .page__header");
+    assert.equal(await header.locator(".page__name").textContent(), "project");
+    assert.equal(await header.locator(".page__terminal-numbers").textContent(), "2");
     assert.equal(await enabledCheckbox(page).isChecked(), true, "ON applies to another folder");
     await page.setViewportSize({ width: 720, height: 1000 });
     await page.waitForFunction(() => {
@@ -261,10 +311,13 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
       return range.getClientRects().length > 1 && element.scrollWidth <= element.clientWidth + 1;
     });
     assert.equal(await page.getByRole("button", { name: "Copied", exact: true }).count(), 0);
-    await page.getByRole("button", { name: "Copy command", exact: true }).click();
+    await page
+      .getByRole("region", { name: "Codex", exact: true })
+      .getByRole("button", { name: "Copy command", exact: true })
+      .click();
     assert.equal(
       await page.evaluate(() => window.mcpSetupFixture.copied.at(-1)),
-      replies.wsl.command,
+      replies.wsl.commands.codex,
     );
     await page.setViewportSize({ width: 1440, height: 1000 });
 
@@ -276,14 +329,14 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
     await page.getByText("Preparing command…", { exact: true }).waitFor();
     await page.waitForFunction(() => window.mcpSetupFixture.pending.length > 0);
     await switchTerminal(page, 2, "mcp-wsl");
-    await assertCommand(page, replies.wsl.environment, replies.wsl.command);
+    await assertCommand(page, replies.wsl.environment, replies.wsl.commands.codex);
     await page.evaluate(() => {
       const fixture = window.mcpSetupFixture;
       for (const request of fixture.pending.splice(0))
         request.resolve({ command: "stale preparation must never be shown", environment: "Old" });
     });
     await page.evaluate(() => new Promise(requestAnimationFrame));
-    await assertCommand(page, replies.wsl.environment, replies.wsl.command);
+    await assertCommand(page, replies.wsl.environment, replies.wsl.commands.codex);
     assert.equal(
       await page.getByText("stale preparation must never be shown", { exact: true }).count(),
       0,
@@ -301,7 +354,10 @@ export async function verifyMcpSetup(page, base = "http://127.0.0.1:18422") {
     });
     await enabledCheckbox(page).check();
     await savedEnabled(page, true);
-    await assertCommand(page, replies.local.environment, replies.local.command);
+    await assertCommand(page, replies.local.environment, replies.local.commands.codex);
+
+    assert.equal(await header.locator(".page__name").textContent(), "local");
+    assert.equal(await header.locator(".page__terminal-numbers").textContent(), "1");
 
     const state = await page.evaluate(async () => {
       const fixture = window.mcpSetupFixture;

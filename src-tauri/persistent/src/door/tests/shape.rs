@@ -22,6 +22,7 @@ fn what_arrives_is_cut_to_what_is_shown() {
         }})
         .to_string()
         .as_bytes(),
+        false,
     )
     .expect("a call is answered");
     assert!(answer["result"]["isError"].is_null());
@@ -37,6 +38,7 @@ fn what_arrives_is_cut_to_what_is_shown() {
             &held.door,
             Some("nobody"),
             br#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            false,
         )
         .is_none()
     );

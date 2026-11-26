@@ -3,8 +3,15 @@ use totex_host::{host::Host, remote::quote, wsl};
 
 #[derive(Debug, Serialize)]
 pub struct Prepared {
-    pub command: String,
+    pub commands: Commands,
     pub environment: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Commands {
+    pub codex: String,
+    pub claude: String,
+    pub opencode: String,
 }
 
 pub fn prepare(cwd: &str, _port: u16) -> Result<Prepared, String> {
@@ -14,7 +21,7 @@ pub fn prepare(cwd: &str, _port: u16) -> Result<Prepared, String> {
         .ok_or("The totex path is not valid UTF-8.")?;
     match Host::of_str(cwd) {
         Host::Local => Ok(Prepared {
-            command: local_command(executable, cfg!(windows))?,
+            commands: commands(executable, cfg!(windows), None)?,
             environment: match std::env::consts::OS {
                 "windows" => "Windows",
                 "macos" => "macOS",
@@ -33,7 +40,7 @@ pub fn prepare(cwd: &str, _port: u16) -> Result<Prepared, String> {
                 return Err(format!("{distro}: totex cannot run through WSL interop."));
             }
             Ok(Prepared {
-                command: wsl_command(&said.text(), &distro)?,
+                commands: commands(&said.text(), false, Some(&distro))?,
                 environment: format!("WSL · {distro}"),
             })
         }
@@ -42,6 +49,31 @@ pub fn prepare(cwd: &str, _port: u16) -> Result<Prepared, String> {
                 .into(),
         ),
     }
+}
+
+fn commands(executable: &str, windows: bool, distro: Option<&str>) -> Result<Commands, String> {
+    let codex = match distro {
+        Some(distro) => wsl_command(executable, distro)?,
+        None => local_command(executable, windows)?,
+    };
+    let relay = if distro.is_some() {
+        // WSL interop does not forward arbitrary environment variables to Windows.
+        format!(
+            "sh -c 'exec \"$1\" --mcp-stdio \"$TOTEX_MCP_URL\"' sh {}",
+            quote(executable)
+        )
+    } else if windows {
+        format!("'{}' --mcp-stdio", executable.replace('\'', "''"))
+    } else {
+        format!("{} --mcp-stdio", quote(executable))
+    };
+    Ok(Commands {
+        codex,
+        claude: format!(
+            "claude mcp remove --scope user totex\nclaude mcp add --scope user --transport stdio totex -- {relay}"
+        ),
+        opencode: format!("opencode mcp add totex -- {relay}"),
+    })
 }
 
 fn clean(value: &str) -> Result<(), String> {

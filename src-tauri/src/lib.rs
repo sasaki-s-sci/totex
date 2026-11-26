@@ -23,7 +23,7 @@ mod themes;
 mod update;
 mod usage;
 
-pub use mcp::register_codex;
+pub use mcp::{mcp_stdio, register_codex};
 
 /// The machine, as the app knows it.
 ///
