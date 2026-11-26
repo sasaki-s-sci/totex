@@ -76,7 +76,10 @@ export function NameField({ indent, isDir, from, placeholder, onDone, onCancel }
       sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: indent, pr: 0.5, py: 1 }}
       // The pane offers its folder to any right-click that is not a row, and the field is not a row
       // yet.
-      onContextMenu={(event) => event.stopPropagation()}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
     >
       <ListItemIcon sx={ICON}>{isDir ? <FolderMark on={false} /> : <FileMark />}</ListItemIcon>
       <InputBase

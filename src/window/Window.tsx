@@ -164,7 +164,7 @@ export function Window() {
   const WorktreeMenu = worktreePart.use(useEver(menus.worktree !== null));
 
   return (
-    <PageWorkspace sessions={{ ...sessions, open: tabs.open }}>
+    <PageWorkspace sessions={{ ...sessions, sessions: tabs.terminals, open: tabs.open }}>
       <Box
         sx={{
           position: "relative",
@@ -243,7 +243,6 @@ export function Window() {
         >
           <CanvasTabs
             tabs={tabs}
-            sessions={sessions.sessions}
             activeTerminal={terminal?.id}
             workspace={workspace ?? EMPTY_WORKSPACE}
             folders={graphed}

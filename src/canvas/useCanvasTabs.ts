@@ -22,6 +22,11 @@ export function useCanvasTabs(
     }
     return tabs;
   }, [held, sessions.sessions]);
+  const terminals = useMemo(
+    () =>
+      tabs.flatMap((tab) => sessions.sessions.filter((session) => canvasOf(session) === tab.id)),
+    [tabs, sessions.sessions],
+  );
   const activeSession = sessions.sessions.find((session) => session.id === sessions.active);
   const current =
     tabs.find((tab) => tab.id === selected) ??
@@ -129,5 +134,5 @@ export function useCanvasTabs(
     },
     [canvas.saveSession, canvas.close, sessions.endMatching, pick],
   );
-  return { tabs, current, pick, open, openTab, addTerminal, close, endMatching };
+  return { tabs, terminals, current, pick, open, openTab, addTerminal, close, endMatching };
 }

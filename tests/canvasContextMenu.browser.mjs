@@ -4,6 +4,26 @@ import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
 const bridge = new URL("../src-tauri/src/frame_context_menu.js", import.meta.url);
 
+async function rightClickWithoutBrowserMenu(frame, target) {
+  await frame.evaluate(() => {
+    window.addEventListener(
+      "contextmenu",
+      (event) => {
+        window.lastNativeMenu = event;
+      },
+      { capture: true, once: true },
+    );
+  });
+  await target.click({ button: "right" });
+  assert.deepEqual(
+    await frame.evaluate(() => ({
+      trusted: window.lastNativeMenu.isTrusted,
+      prevented: window.lastNativeMenu.defaultPrevented,
+    })),
+    { trusted: true, prevented: true },
+  );
+}
+
 export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:18422") {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript({ content: await readFile(bridge, "utf8") });
@@ -46,6 +66,23 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
     ];
   });
   await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);
+  await rightClickWithoutBrowserMenu(page, page.locator(".canvas-header-space"));
+  await rightClickWithoutBrowserMenu(
+    page,
+    page.locator('[data-terminal-shown="true"] .xterm-screen'),
+  );
+  assert.equal(await page.getByRole("menu").count(), 0);
+  const folder = page.locator('[data-folder-pane="0"]');
+  await folder.getByRole("button", { name: "tmp", exact: true }).last().click();
+  await rightClickWithoutBrowserMenu(page, folder.locator('[data-pick-row="/tmp/sub"]'));
+  await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+  await rightClickWithoutBrowserMenu(page, folder.locator("input"));
+  assert.equal(
+    await page.getByRole("menu").count(),
+    0,
+    "Naming fields suppress both browser and parent menus",
+  );
+  await folder.locator("input").press("Escape");
   const html = page.locator('[data-canvas-pane="html"]').frameLocator("iframe");
   await html.getByRole("heading", { name: "HTML evidence" }).waitFor();
   await html.getByRole("heading", { name: "HTML evidence" }).click();
@@ -155,13 +192,16 @@ export async function verifyContextMenuShell(page) {
       contentType: "text/html",
       body:
         new URL(route.request().url()).pathname === "/shell"
-          ? '<iframe src="/front" style="width:900px;height:600px;border:0"></iframe>'
-          : `<h1>Frontend menu</h1><div data-canvas-pane="owned"><iframe data-canvas-context-menu sandbox="allow-scripts" srcdoc="&lt;h2&gt;Preview menu&lt;/h2&gt;"></iframe></div>
+          ? '<h1>Shell background</h1><iframe src="/front" style="width:900px;height:600px;border:0"></iframe>'
+          : `<h1>Frontend menu</h1><input aria-label="Input"><div data-canvas-pane="owned"><iframe data-canvas-context-menu sandbox="allow-scripts" srcdoc="&lt;h2&gt;Preview menu&lt;/h2&gt;"></iframe></div>
         <iframe srcdoc="&lt;h2&gt;Unrelated frame&lt;/h2&gt;"></iframe>`,
     }),
   );
   await page.goto("http://127.0.0.1:18426/shell");
   const front = page.frame({ url: "http://127.0.0.1:18426/front" });
+  await rightClickWithoutBrowserMenu(page, page.getByRole("heading", { name: "Shell background" }));
+  await rightClickWithoutBrowserMenu(front, front.getByRole("heading", { name: "Frontend menu" }));
+  await rightClickWithoutBrowserMenu(front, front.getByRole("textbox"));
   await front.evaluate(() => {
     window.menus = [];
     window.zooms = [];
@@ -195,6 +235,7 @@ export async function verifyContextMenuShell(page) {
   const unrelated = await (
     await front.locator("iframe:not([data-canvas-context-menu])").elementHandle()
   ).contentFrame();
+  await rightClickWithoutBrowserMenu(unrelated, unrelated.getByRole("heading"));
   await unrelated.evaluate(() => {
     parent.postMessage({ type: "totex:frame-zoom", step: 1 }, "*");
     parent.postMessage("test-message-barrier", "*");

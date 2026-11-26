@@ -75,7 +75,7 @@
   );
   window.addEventListener("contextmenu", (event) => {
     // Keep the page's handlers without opening the WebView's browser menu.
-    if (enabled && event.isTrusted) event.preventDefault();
+    if (event.isTrusted) event.preventDefault();
   });
   document.addEventListener(
     "load",

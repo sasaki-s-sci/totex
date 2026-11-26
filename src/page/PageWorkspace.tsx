@@ -12,7 +12,6 @@ import {
 import { createPortal, flushSync } from "react-dom";
 import { usePageKeys } from "../hooks/usePageKeys";
 import type { useSessions } from "../hooks/useSessions";
-import { groupBy } from "../lib/collections";
 import { shellSession } from "../lib/session";
 import { frontInactive } from "../shell/bridge";
 import { useFrontState } from "../shell/state";
@@ -78,14 +77,15 @@ export function PageWorkspace({
     [registered, order],
   );
   const numbered = useMemo(
-    () =>
-      [
-        ...groupBy(
-          entries.filter((entry) => entry.id !== "file:-1"),
-          (entry) => entry.folder ?? entry.name,
-        ).values(),
-      ].flat(),
-    [entries],
+    () => [
+      ...sessions.sessions.map((session) => ({
+        id: terminalPageId(session.id),
+        name: session.branch,
+        folder: session.cwd,
+      })),
+      ...entries.filter((entry) => !entry.id.startsWith("terminal:") && entry.id !== "file:-1"),
+    ],
+    [entries, sessions.sessions],
   );
   const reorderTerminals = sessions.reorder;
   const reorder = useCallback(

@@ -16,7 +16,6 @@ import "./tabs.css";
 
 export function CanvasTabs({
   tabs,
-  sessions,
   activeTerminal,
   workspace,
   folders,
@@ -24,7 +23,6 @@ export function CanvasTabs({
   fail,
 }: {
   tabs: ReturnType<typeof useCanvasTabs>;
-  sessions: readonly Session[];
   activeTerminal?: string;
   workspace: Workspace;
   folders: readonly Folder[];
@@ -32,6 +30,7 @@ export function CanvasTabs({
   fail: () => void;
 }) {
   const { t } = useTranslation();
+  const sessions = tabs.terminals;
   const pages = usePageWorkspace();
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [offered, setOffered] = useState<string | null>(null);
@@ -154,16 +153,18 @@ export function CanvasTabs({
       if (event.repeat) return;
       const { tabs, sessions, activeTerminal, pick } = latest.current;
       const horizontal = event.key === "ArrowLeft" || event.key === "ArrowRight";
-      const items = horizontal
-        ? tabs.tabs
-        : sessions.filter((session) => canvasOf(session) === tabs.current?.id);
+      const items = horizontal ? tabs.tabs : sessions;
       if (!items.length) return;
       const at = items.findIndex(
         (item) => item.id === (horizontal ? tabs.current?.id : activeTerminal),
       );
-      const next = items[(at + (horizontal ? step : -step) + items.length) % items.length];
+      const offset = horizontal ? step : -step;
+      const next =
+        items[
+          at < 0 ? (offset > 0 ? 0 : items.length - 1) : (at + offset + items.length) % items.length
+        ];
       if (horizontal) pick(next.id);
-      else if (tabs.current) pick(tabs.current.id, next.id);
+      else pick(canvasOf(next), next.id);
     };
     const release = (event: KeyboardEvent) => {
       if (!event.ctrlKey || !event.shiftKey) latest.current.closeOffer();
@@ -235,17 +236,20 @@ export function CanvasTabs({
                 role="toolbar"
                 aria-label={t("canvas.terminals")}
               >
-                {members.map((session, index) => (
-                  <button
-                    key={session.id}
-                    type="button"
-                    aria-label={t("canvas.selectTerminal", { number: index + 1 })}
-                    aria-pressed={active && session.id === activeTerminal}
-                    onClick={() => pick(tab.id, session.id)}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
+                {members.map((session) => {
+                  const number = sessions.indexOf(session) + 1;
+                  return (
+                    <button
+                      key={session.id}
+                      type="button"
+                      aria-label={t("canvas.selectTerminal", { number })}
+                      aria-pressed={active && session.id === activeTerminal}
+                      onClick={() => pick(tab.id, session.id)}
+                    >
+                      {number}
+                    </button>
+                  );
+                })}
                 <button
                   type="button"
                   aria-label={t("canvas.openTerminal")}

@@ -185,7 +185,7 @@ export async function verifyCanvasTabs(page, base = "http://127.0.0.1:18426") {
   await page.keyboard.press("Control+ArrowUp");
   assert.equal(
     await page.locator('[data-terminal-shown="true"]').getAttribute("data-terminal"),
-    "terminal-one",
+    "terminal-two",
   );
   await page.keyboard.press("Control+ArrowDown");
   assert.equal(
@@ -277,6 +277,103 @@ export async function verifyCanvasTabs(page, base = "http://127.0.0.1:18426") {
     navigation: true,
     emptyCanvasDrop: true,
     retainedFrame: true,
+  };
+}
+
+export async function verifyGlobalTerminalNavigation(page, base = "http://127.0.0.1:18426") {
+  await installCanvasNative(page);
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals&terminal-resize`);
+  const buttons = page.locator(".canvas-tab-terminals [aria-pressed]");
+  const first = page.locator(".canvas-tab").first();
+  const shown = page.locator('[data-terminal-shown="true"]');
+  await buttons.nth(2).waitFor();
+  const assertNumbers = async () => {
+    const labels = await buttons.allTextContents();
+    assert.deepEqual(
+      labels,
+      labels.map((_, index) => String(index + 1)),
+    );
+  };
+  const select = async (number) => {
+    await shown.locator(".xterm-helper-textarea").focus();
+    await page.keyboard.down("Control");
+    for (const digit of String(number)) await page.keyboard.press(digit);
+    await page.keyboard.up("Control");
+    await page.waitForFunction(
+      (number) =>
+        document.querySelector('.canvas-tab-terminals [aria-pressed="true"]')?.textContent ===
+        String(number),
+      number,
+    );
+  };
+  await assertNumbers();
+  await first.getByRole("button", { name: "New terminal", exact: true }).click();
+  const added = await shown.getAttribute("data-terminal");
+  const order = ["terminal-one", added, "terminal-two", "terminal-other"];
+  await assertNumbers();
+  await select(1);
+  for (const key of ["ArrowUp", "ArrowDown"]) {
+    for (let step = 1; step <= order.length; step++) {
+      await page.keyboard.press(`Control+${key}`);
+      const index = key === "ArrowUp" ? step % order.length : (order.length - step) % order.length;
+      await page.locator(`[data-terminal="${order[index]}"][data-terminal-shown="true"]`).waitFor();
+      assert.equal(await buttons.nth(index).getAttribute("aria-pressed"), "true");
+    }
+  }
+  await select(3);
+  assert.equal(await shown.getAttribute("data-terminal"), "terminal-two");
+  await page.getByRole("button", { name: "New canvas", exact: true }).click();
+  await page.getByRole("menuitem", { name: "/tmp", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll(".canvas-tab").length === 4);
+  const duplicate = page.locator(".canvas-tab").last();
+  const duplicateId = await shown.getAttribute("data-terminal");
+  await assertNumbers();
+  await select(5);
+  assert.equal(
+    await shown.getAttribute("data-terminal"),
+    duplicateId,
+    "A separate canvas of the same folder keeps its own number",
+  );
+  await page.keyboard.press("Control+x");
+  await shown.waitFor({ state: "detached" });
+  await duplicate.getByRole("tab").focus();
+  await page.keyboard.press("Control+ArrowDown");
+  await page.locator('[data-terminal="terminal-other"][data-terminal-shown="true"]').waitFor();
+  await duplicate.getByRole("tab").click();
+  await page.keyboard.press("Control+ArrowUp");
+  await page.locator('[data-terminal="terminal-one"][data-terminal-shown="true"]').waitFor();
+
+  while ((await buttons.count()) < 12) {
+    const count = await buttons.count();
+    await first.getByRole("button", { name: "New terminal", exact: true }).click();
+    await buttons.nth(count).waitFor();
+  }
+  await assertNumbers();
+  await select(10);
+  await select(12);
+  assert.equal(await shown.getAttribute("data-terminal"), "terminal-other");
+  await select(1);
+  await select(2);
+  const selected = await shown.getAttribute("data-terminal");
+  await page.keyboard.press("Control+0");
+  assert.equal(
+    await shown.getAttribute("data-terminal"),
+    selected,
+    "Ctrl+0 alone remains zoom reset",
+  );
+  await page.keyboard.press("Control+x");
+  await page.waitForFunction(
+    () => document.querySelectorAll(".canvas-tab-terminals [aria-pressed]").length === 11,
+  );
+  await assertNumbers();
+  return {
+    sequentialNumbers: true,
+    crossCanvasArrows: true,
+    numericSelection: true,
+    duplicateFolders: true,
+    emptyCanvas: true,
+    multiDigit: true,
+    renumberAfterClose: true,
   };
 }
 

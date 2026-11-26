@@ -426,7 +426,7 @@ async function verifyTerminalStartup(page) {
 }
 
 async function verifyTerminalInsertion(page) {
-  await assertOrder(["terminal-one", "terminal-two", "terminal-other"]);
+  await assertOrder(["terminal-one", "terminal-other", "terminal-two"]);
   await page.evaluate(() => {
     window.orderedTerminalHosts = [...document.querySelectorAll("[data-terminal]")].map((host) => ({
       id: host.dataset.terminal,
@@ -500,27 +500,27 @@ async function verifyTerminalInsertion(page) {
   }
 
   const first = await createAfter(1, "terminal-one");
-  await assertOrder(["terminal-one", first, "terminal-two", "terminal-other"]);
+  await assertOrder(["terminal-one", first, "terminal-other", "terminal-two"]);
   const second = await createAfter(1, "terminal-one");
-  await assertOrder(["terminal-one", second, first, "terminal-two", "terminal-other"]);
-  const middle = await createAfter(4, "terminal-two");
-  await assertOrder(["terminal-one", second, first, "terminal-two", middle, "terminal-other"]);
-  const other = await createAfter(6, "terminal-other");
-  const order = ["terminal-one", second, first, "terminal-two", middle, "terminal-other", other];
+  await assertOrder(["terminal-one", second, first, "terminal-other", "terminal-two"]);
+  const middle = await createAfter(5, "terminal-two");
+  await assertOrder(["terminal-one", second, first, "terminal-other", "terminal-two", middle]);
+  const other = await createAfter(4, "terminal-other");
+  const order = ["terminal-one", second, first, "terminal-other", other, "terminal-two", middle];
   await assertOrder(order);
-  for (const tab of await page.locator(".canvas-tab").all()) {
-    await tab.getByRole("tab").click();
-    const buttons = tab.locator(".canvas-tab-terminals button[aria-pressed]");
-    await buttons.first().click();
-    const count = await buttons.count();
-    for (let i = 0; i < count; i++) {
-      await page.keyboard.press("Control+ArrowUp");
-      assert.equal(await buttons.nth((i + 1) % count).getAttribute("aria-pressed"), "true");
-    }
-    for (let i = 0; i < count; i++) {
-      await page.keyboard.press("Control+ArrowDown");
-      assert.equal(await buttons.nth(count - i - 1).getAttribute("aria-pressed"), "true");
-    }
+  const buttons = page.locator(".canvas-tab-terminals button[aria-pressed]");
+  assert.deepEqual(
+    await buttons.allTextContents(),
+    order.map((_, index) => String(index + 1)),
+  );
+  await buttons.first().click();
+  for (let i = 0; i < order.length; i++) {
+    await page.keyboard.press("Control+ArrowUp");
+    assert.equal(await buttons.nth((i + 1) % order.length).getAttribute("aria-pressed"), "true");
+  }
+  for (let i = 0; i < order.length; i++) {
+    await page.keyboard.press("Control+ArrowDown");
+    assert.equal(await buttons.nth(order.length - i - 1).getAttribute("aria-pressed"), "true");
   }
   assert.equal(
     await page.evaluate(() =>

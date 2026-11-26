@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
 /** Real xterm links, selection and MUI menu; native clipboard/files and served URL are fixtures. */
 export async function verifyTerminalContextMenu(page, base = "http://127.0.0.1:18422") {
+  await page.addInitScript({
+    content: await readFile(
+      new URL("../src-tauri/src/frame_context_menu.js", import.meta.url),
+      "utf8",
+    ),
+  });
   await installCanvasNative(page);
   const url = "http://127.0.0.1:18424/terminal-menu-url";
   await page.route(url, (route) =>

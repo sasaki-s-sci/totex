@@ -38,11 +38,13 @@ export function usePageKeys({ entries, active, show, close, create }: Options) {
         if (typing(event.target) && !terminal(event.target) && !sidebarArrow && !fileNumber) return;
         const { entries, active, show } = latest.current;
         if (!event.altKey && /^[0-9]$/.test(event.key)) {
-          event.preventDefault();
-          if (event.repeat) return;
           const digit = Number(event.key);
           const combined = typed && Date.now() - typed.at < 700 ? typed.number * 10 + digit : digit;
           const number = combined > entries.length ? digit : combined;
+          // Ctrl+0 alone remains zoom reset; after another digit it selects 10, 20, etc.
+          if (!number) return;
+          event.preventDefault();
+          if (event.repeat) return;
           const next = entries[number - 1];
           typed = next ? { number, at: Date.now() } : null;
           if (next) show(next.id);
@@ -86,7 +88,20 @@ export function usePageKeys({ entries, active, show, close, create }: Options) {
       if (!event.repeat) latest.current.create();
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Control") typed = null;
+    };
+    const onNumberKeyDown = (event: KeyboardEvent) => {
+      if (/^[0-9]$/.test(event.key)) onKeyDown(event);
+      else if (event.key !== "Control") typed = null;
+    };
+    window.addEventListener("keydown", onNumberKeyDown, true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onNumberKeyDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
   }, []);
 }
