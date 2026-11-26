@@ -315,6 +315,88 @@ export async function verifyPlaces(page, base = "http://127.0.0.1:18422") {
 // Kept for existing browser runners; folder removal now lives only in the explorer.
 export { verifyPlaces as verifyCardPlaces };
 
+export async function verifySidebarPaneTrash(page, base = "http://127.0.0.1:18422") {
+  const errors = await openPlaces(page, base);
+  const sidebar = page.locator("#folder-sidebar");
+  const folder = sidebar.locator('[data-folder-pane="1"]');
+  const repository = sidebar.locator('[data-folder-pane="2"]');
+  const folderGrip = folder.locator('[draggable="true"]').first();
+  const repositoryGrip = repository.locator('[draggable="true"]').first();
+  const trash = sidebar.locator("[data-layout-trash]");
+  await folderGrip.waitFor();
+  await repositoryGrip.waitFor();
+
+  await repositoryGrip.dragTo(folderGrip);
+  await page.waitForFunction(
+    () => document.querySelector("[data-folder-pane]")?.dataset.folderPane === "2",
+  );
+  await folderGrip.dragTo(repositoryGrip);
+  await page.waitForFunction(
+    () => document.querySelector("[data-folder-pane]")?.dataset.folderPane === "1",
+  );
+
+  const from = await folderGrip.boundingBox();
+  const to = await trash.boundingBox();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 6, from.y + from.height / 2, { steps: 3 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2);
+  await sidebar.locator("[data-layout-trash][data-over]").waitFor();
+  await page.keyboard.press("Escape");
+  await page.mouse.up();
+  await sidebar.locator("[data-layout-trash][data-over]").waitFor({ state: "detached" });
+  assert.equal(await folder.count(), 1, "Cancelling the drag retains the folder pane");
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 2);
+
+  await page.evaluate(() => {
+    window.refusePlaceClose = true;
+  });
+  await repositoryGrip.dragTo(trash);
+  await page.getByText("Could not end all terminals. Try removing again.").first().waitFor();
+  assert.equal(await repository.count(), 1, "Failed terminal cleanup retains the pane");
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 2);
+  assert.equal(await trash.getAttribute("data-over"), null);
+  await page.evaluate(() => {
+    window.refusePlaceClose = false;
+  });
+  await repositoryGrip.dragTo(trash);
+  await repository.waitFor({ state: "detached" });
+  assert.deepEqual(await page.evaluate(() => window.nativePlaces.map(({ id }) => id)), [
+    "folder-cli",
+  ]);
+  await folderGrip.dragTo(trash);
+  await folder.waitFor({ state: "detached" });
+  assert.equal(await page.evaluate(() => window.nativePlaces.length), 0);
+
+  // The same target accepts explorer panes when no canvas is open.
+  await sidebar.getByRole("button", { name: "Add a folder or repositories", exact: true }).click();
+  const path = page.locator('input[aria-label^="Path, e.g."]');
+  await path.fill("/projects/notes");
+  await path.press("Enter");
+  await page.getByRole("menu").waitFor({ state: "detached" });
+  const added = sidebar.locator("[data-folder-pane]");
+  await added.locator('[draggable="true"]').first().dragTo(trash);
+  await added.waitFor({ state: "detached" });
+  assert.equal(await trash.getAttribute("data-over"), null);
+  assert.equal(
+    await page.evaluate(() =>
+      window.placeCalls.some(({ cmd }) => cmd === "fs_delete_folder" || cmd === "fs_delete_file"),
+    ),
+    false,
+    "Removing sidebar panes never deletes their files",
+  );
+  assert.deepEqual(errors, []);
+  return {
+    reorder: true,
+    cancel: true,
+    failedCloseRetryable: true,
+    folder: true,
+    repository: true,
+    noCanvas: true,
+  };
+}
+
 export async function verifyWorkspaceIsolation(page, base = "http://127.0.0.1:18422") {
   const errors = await openPlaces(page, base, "?workspaces");
   await showPlaceTerminal(page, 2, "repo-cli");

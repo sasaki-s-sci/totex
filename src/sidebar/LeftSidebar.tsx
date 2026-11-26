@@ -83,7 +83,6 @@ export function LeftSidebar({
   layout,
 }: LeftSidebarProps) {
   const { t } = useTranslation();
-  const layoutBox = useLayoutBox(layout ?? null, open);
   const { terminalUsage } = useAppSettings();
   const showUsage = open && terminalUsage;
   const usage = useTerminalUsage(showUsage);
@@ -201,7 +200,7 @@ export function LeftSidebar({
 
   // A pane picked up by its header goes before the pane the pointer is over; the canvas draws its
   // places in the column's order, so it moves there too.
-  const carried = useRef<number | null>(null);
+  const [carried, setCarried] = useState<number | null>(null);
   const [slot, setSlot] = useState<number | null>(null);
   const moving = (transfer: DataTransfer) => transfer.types.includes(PANE_DRAG_TYPE);
 
@@ -209,12 +208,12 @@ export function LeftSidebar({
     return {
       draggable: true,
       onDragStart: (event) => {
-        carried.current = id;
+        setCarried(id);
         event.dataTransfer.setData(PANE_DRAG_TYPE, String(id));
         event.dataTransfer.effectAllowed = "move";
       },
       onDragEnd: () => {
-        carried.current = null;
+        setCarried(null);
         setSlot(null);
       },
     };
@@ -228,8 +227,20 @@ export function LeftSidebar({
   }
 
   // Either side of the pane itself is where it already stands: nothing to mark.
-  const from = visible.findIndex((pane) => pane.id === carried.current);
+  const from = visible.findIndex((pane) => pane.id === carried);
   const marked = slot === null || slot === from || slot === from + 1 ? null : slot;
+  const draggedPane = visible.find((pane) => pane.id === carried);
+  const layoutBox = useLayoutBox(
+    layout ?? null,
+    open,
+    draggedPane
+      ? () => {
+          setCarried(null);
+          setSlot(null);
+          deletePane(draggedPane);
+        }
+      : undefined,
+  );
 
   return (
     <Sidebar

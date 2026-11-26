@@ -87,7 +87,11 @@ function useLayoutRects(layout: LayoutBoxOptions | null, shown: boolean) {
   return geometry;
 }
 
-export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
+export function useLayoutBox(
+  layout: LayoutBoxOptions | null,
+  shown: boolean,
+  removeSidebarPane?: () => void,
+) {
   const { t } = useTranslation();
   const geometry = useLayoutRects(layout, shown);
   const [selected, select] = useState<string | null>(null);
@@ -97,13 +101,14 @@ export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
   const map = useRef<HTMLFieldSetElement>(null);
   const dragged = useRef<{ session: string; pane: string } | null>(null);
   const id = layout?.id;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selection and gestures belong to one terminal
+  const sidebarDragging = Boolean(removeSidebarPane);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selection and gestures belong to one canvas or sidebar drag
   useEffect(() => {
     select(null);
     setOver(null);
     place(null);
     dragged.current = null;
-  }, [id]);
+  }, [id, sidebarDragging]);
   const finish = () => {
     dragged.current = null;
     setOver(null);
@@ -217,7 +222,7 @@ export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
         data-layout-trash
         data-over={over === "trash" || undefined}
         onDragOver={(event) => {
-          if (!moving(event) || pending) return;
+          if ((!moving(event) && !removeSidebarPane) || pending) return;
           event.preventDefault();
           event.stopPropagation();
           event.dataTransfer.dropEffect = "move";
@@ -226,10 +231,13 @@ export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
         }}
         onDragLeave={() => setOver(null)}
         onDrop={(event) => {
-          if (!moving(event) || !dragged.current || pending) return;
+          if ((!moving(event) && !removeSidebarPane) || pending) return;
           event.preventDefault();
           event.stopPropagation();
-          remove(dragged.current.pane);
+          if (removeSidebarPane) {
+            removeSidebarPane();
+            finish();
+          } else if (dragged.current) remove(dragged.current.pane);
         }}
       >
         <MarkButton
@@ -239,7 +247,7 @@ export function useLayoutBox(layout: LayoutBoxOptions | null, shown: boolean) {
               : t("canvas.layoutRemove")
           }
           danger
-          disabled={!selectedPane || pending}
+          disabled={(!selectedPane && !removeSidebarPane) || pending}
           onClick={() => selectedPane && remove(selectedPane.id)}
         >
           <DeleteOutlineIcon sx={{ fontSize: SIZE }} />
