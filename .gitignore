@@ -6,6 +6,13 @@ node_modules/
 /setup/target
 /src-tauri/gen/schemas
 
+# Python bytecode and tool caches.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # `tauri icon` emits mobile icon sets this desktop app does not use.
 /src-tauri/icons/android
 /src-tauri/icons/ios
