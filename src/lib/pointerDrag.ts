@@ -5,12 +5,10 @@ export function startPointerDrag(
   write: (data: DataTransfer) => string,
   column: HTMLElement | null | undefined,
 ): void {
-  if (
-    event.button !== 0 ||
-    !event.isPrimary ||
-    (event.target as Element).closest("button, a, input, textarea, select, [contenteditable=true]")
-  )
-    return;
+  const control = (event.target as Element).closest(
+    "button, a, input, textarea, select, [contenteditable=true]",
+  );
+  if (event.button !== 0 || !event.isPrimary || (control && control !== source)) return;
   const origin = { x: event.clientX, y: event.clientY, id: event.pointerId };
   const listeners = new AbortController();
   const options = { signal: listeners.signal };

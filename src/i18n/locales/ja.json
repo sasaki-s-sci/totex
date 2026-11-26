@@ -380,6 +380,8 @@
   "canvas": {
     "tabs": "Canvas",
     "newTab": "Canvas を追加",
+    "pinFolder": "候補に登録：{{path}}",
+    "unpinFolder": "候補の登録を解除：{{path}}",
     "closeTab": "Canvas {{path}} を閉じる",
     "selectTerminal": "ターミナル {{number}}",
     "layout": "レイアウト",

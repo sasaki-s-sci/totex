@@ -28,7 +28,7 @@ import { useResumeRuntime } from "../resume/runtime";
 import { useFrontState } from "../shell/state";
 import {
   type FolderDestination,
-  type FolderUngraph,
+  type FolderGraph,
   LeftSidebar,
   type Pane,
 } from "../sidebar/LeftSidebar";
@@ -44,7 +44,7 @@ export function Window() {
   const { t } = useTranslation();
   const [leftOpen, setLeftOpen] = useFrontState("window.foldersOpen", true);
   const [destination, setDestination] = useState<FolderDestination | null>(null);
-  const [ungraph, setUngraph] = useState<FolderUngraph | null>(null);
+  const [graph, setGraph] = useState<FolderGraph | null>(null);
   const [removeFailed, setRemoveFailed] = useState(false);
   const [pasteFailed, setPasteFailed] = useState(false);
   const folders = useFolderRoots();
@@ -91,7 +91,7 @@ export function Window() {
     async (place: Graphed) => {
       const kept = graphed.filter((folder) => folder.root !== place.root).map((f) => f.root);
       await tabs.endMatching(sessionsInPlaces([place], workspace?.repositories ?? [], kept));
-      setUngraph({ root: place.root, kind: place.kind });
+      setGraph({ ...place, on: false });
     },
     [tabs.endMatching, workspace, graphed],
   );
@@ -183,7 +183,7 @@ export function Window() {
           onOpenFile={(path, folder) => files.openFiles([path], null, folder)}
           drops={drops}
           destination={destination}
-          ungraph={ungraph}
+          graph={graph}
           homes={homes}
           branches={branches}
           onDeletePane={deletePane}
@@ -244,6 +244,7 @@ export function Window() {
             activeTerminal={terminal?.id}
             workspace={workspace ?? EMPTY_WORKSPACE}
             folders={graphed}
+            onGraph={setGraph}
             onOpenSidebar={leftOpen ? undefined : () => setLeftOpen(true)}
             fail={fail}
           />

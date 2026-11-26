@@ -1,14 +1,16 @@
-import { ClickAwayListener, Menu, MenuItem, MenuList, Paper, Popper } from "@mui/material";
+import { Box, ClickAwayListener, Menu, MenuItem, MenuList, Paper, Popper } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cardGroups } from "../cards/groups";
 import { displayPath, folderLabels } from "../folder/format";
 import type { Folder } from "../hooks/useWorkspace";
+import type { Graphed } from "../lib/graphed";
 import { terminal, typing } from "../lib/keys";
 import { type Session, shellSession } from "../lib/session";
 import { worktreeBranch } from "../lib/worktrees";
-import { CloseMark, Frame, MarkButton } from "../marks";
+import { CanvasButton, CloseMark, Frame, MarkButton } from "../marks";
 import { usePageWorkspace } from "../page/PageWorkspace";
+import type { FolderGraph } from "../sidebar/left/usePanes";
 import type { Workspace } from "../types/git";
 import { HEADER_HEIGHT } from "../window/WindowControls";
 import { canvasOf, type useCanvasTabs } from "./useCanvasTabs";
@@ -19,6 +21,7 @@ export function CanvasTabs({
   activeTerminal,
   workspace,
   folders,
+  onGraph,
   onOpenSidebar,
   fail,
 }: {
@@ -26,6 +29,7 @@ export function CanvasTabs({
   activeTerminal?: string;
   workspace: Workspace;
   folders: readonly Folder[];
+  onGraph: (graph: FolderGraph) => void;
   onOpenSidebar?: () => void;
   fail: () => void;
 }) {
@@ -56,8 +60,10 @@ export function CanvasTabs({
       (group) => group.cards,
     );
     return [
-      ...new Map<string, Pick<Session, "cwd" | "branch" | "folder">>([
-        ...tabs.tabs.map((tab) => [tab.cwd, tab] as const),
+      ...new Map<string, Pick<Session, "cwd" | "branch" | "folder"> & { place: Graphed }>([
+        ...tabs.tabs.map(
+          (tab) => [tab.cwd, { ...tab, place: { kind: "folder", root: tab.cwd } }] as const,
+        ),
         ...cards.map(
           (card) =>
             [
@@ -66,6 +72,10 @@ export function CanvasTabs({
                 cwd: card.path,
                 branch: card.worktree ? worktreeBranch(card.worktree) : card.name,
                 folder: card.repository === null,
+                place: {
+                  kind: card.repository ? "repository" : "folder",
+                  root: card.repository?.path ?? card.path,
+                },
               },
             ] as const,
         ),
@@ -89,6 +99,11 @@ export function CanvasTabs({
     pages?.openSidebar();
     tabs.openTab(shellSession(choice.cwd, choice.branch, choice.folder));
   };
+  useEffect(() => {
+    if (offered === null || choices.some((choice) => choice.cwd === offered)) return;
+    setOffered(choices[0]?.cwd ?? null);
+    offerList.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [choices, offered]);
   const latest = useRef({
     tabs,
     sessions,
@@ -112,6 +127,17 @@ export function CanvasTabs({
             event.preventDefault();
             event.stopPropagation();
           }
+          return;
+        }
+        if (event.key === "Tab") return;
+        const button =
+          event.target instanceof Element && offerList.current?.contains(event.target)
+            ? event.target.closest<HTMLButtonElement>("button")
+            : null;
+        if (button && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          if (!event.repeat) button.click();
           return;
         }
         if (step || event.key === "Enter") {
@@ -184,11 +210,39 @@ export function CanvasTabs({
       document.removeEventListener("visibilitychange", hidden);
     };
   }, []);
-  const items = choices.map((choice) => (
-    <MenuItem key={choice.cwd} selected={choice.cwd === offered} onClick={() => create(choice.cwd)}>
-      {displayPath(choice.cwd)}
-    </MenuItem>
-  ));
+  const items = choices.map((choice) => {
+    const path = displayPath(choice.cwd);
+    const label = path.replace(/^\/\/wsl(?:\.localhost|\$)\/[^/]+(?:\/|$)/i, "/");
+    const on = folders.some(
+      (folder) => folder.kind === choice.place.kind && folder.root === choice.place.root,
+    );
+    return (
+      <MenuItem
+        key={choice.cwd}
+        selected={choice.cwd === offered}
+        aria-label={label}
+        title={path}
+        onClick={() => create(choice.cwd)}
+        onFocus={() => offered !== null && setOffered(choice.cwd)}
+        sx={{ gap: 2 }}
+      >
+        <Box
+          component="span"
+          sx={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {label}
+        </Box>
+        <CanvasButton
+          on={on}
+          label={t(on ? "canvas.unpinFolder" : "canvas.pinFolder", { path: label })}
+          onClick={(event) => {
+            event.stopPropagation();
+            onGraph({ ...choice.place, on: !on });
+          }}
+        />
+      </MenuItem>
+    );
+  });
   return (
     <header className="canvas-header" style={{ height: HEADER_HEIGHT }}>
       {onOpenSidebar && (

@@ -1,6 +1,122 @@
 import assert from "node:assert/strict";
 import { installCanvasNative } from "./fixtures/canvas-native.mjs";
 
+export async function verifyCanvasFolderChoices(page, base = "http://127.0.0.1:18426") {
+  const wsl = "\\\\wsl.localhost\\Ubuntu-24.04\\home\\a\\project";
+  const paths = [wsl, "\\\\wsl$\\Debian", "C:\\work\\app", "ssh://box/home/a"];
+  await installCanvasNative(page);
+  await page.addInitScript((paths) => {
+    if (window.top !== window) return;
+    const invoke = window.__TAURI_INTERNALS__.invoke;
+    window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
+      if (cmd === "persistent_get" && args.name === "totex.relaunch")
+        return Promise.resolve({
+          values: {
+            "canvas.tabs": paths.map((cwd) => ({ id: cwd, cwd, branch: "main", folder: true })),
+            "canvas.active": paths[0],
+          },
+        });
+      return invoke(cmd, args);
+    };
+  }, paths);
+  await page.goto(`${base}/tests/fixtures/pages.html?canvas&onlyterminals&no-sessions&carried`);
+  await page.getByRole("tab").nth(3).waitFor();
+  const chooser = page.getByRole("menu", { name: "New canvas", exact: true });
+  const open = async () => {
+    await page.locator("main").focus();
+    await page.keyboard.down("Control");
+    await page.keyboard.down("Shift");
+    await chooser.waitFor();
+  };
+  const close = async () => {
+    await page.keyboard.up("Shift");
+    await page.keyboard.up("Control");
+    await chooser.waitFor({ state: "hidden" });
+  };
+  const choice = chooser.getByRole("menuitem", { name: "/home/a/project", exact: true });
+  const circle = choice.getByRole("button");
+  const waitForCircle = (on) =>
+    page.waitForFunction(
+      (on) =>
+        document
+          .querySelector('[role="menuitem"][aria-label="/home/a/project"] button')
+          ?.getAttribute("aria-pressed") === String(on),
+      on,
+    );
+  await open();
+  assert.deepEqual(await chooser.getByRole("menuitem").allTextContents(), [
+    "/home/a/project",
+    "/",
+    "C:/work/app",
+    "ssh://box/home/a",
+    "/tmp",
+  ]);
+  assert.equal(await choice.getAttribute("title"), "//wsl.localhost/Ubuntu-24.04/home/a/project");
+  assert.equal(await circle.getAttribute("aria-pressed"), "false");
+  await circle.click();
+  await waitForCircle(true);
+  assert.equal(await page.getByRole("tab").count(), 4, "Pinning does not open a canvas");
+  await close();
+  const registered = await page.evaluate(
+    async (path) =>
+      (await window.pageSnapshot()).values["folders.panes"].filter((pane) =>
+        pane.graphed.includes(path),
+      ),
+    wsl,
+  );
+  assert.equal(registered.length, 1);
+  const sidebarCircle = page
+    .locator(`[data-folder-pane="${registered[0].id}"]`)
+    .getByRole("button", { name: "Open as a folder", exact: true });
+  assert.equal(await sidebarCircle.getAttribute("aria-pressed"), "true");
+  await sidebarCircle.click();
+  await open();
+  assert.equal(
+    await circle.getAttribute("aria-pressed"),
+    "false",
+    "Sidebar and chooser share registration",
+  );
+  await circle.focus();
+  await page.keyboard.press("Enter");
+  await waitForCircle(true);
+  await page.keyboard.press("Space");
+  await waitForCircle(false);
+  await page.keyboard.press("Space");
+  await waitForCircle(true);
+  assert.equal(await page.getByRole("tab").count(), 4);
+  await close();
+  await page
+    .getByRole("button", { name: `Close canvas ${wsl.replaceAll("\\", "/")}`, exact: true })
+    .click();
+  await page.waitForFunction(() => document.querySelectorAll('[role="tab"]').length === 3);
+  await open();
+  await choice.waitFor();
+  await circle.click();
+  await choice.waitFor({ state: "detached" });
+  assert.equal(await sidebarCircle.getAttribute("aria-pressed"), "false");
+  await close();
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "pty_close")),
+    false,
+  );
+  await page.getByRole("button", { name: "New canvas", exact: true }).click();
+  await page.getByRole("menuitem", { name: "/", exact: true }).click();
+  await page.waitForFunction(() => window.pageCalls.some(({ cmd }) => cmd === "pty_open"));
+  assert.equal(
+    await page.evaluate(() => window.pageCalls.find(({ cmd }) => cmd === "pty_open").args.cwd),
+    paths[1],
+    "Creating a canvas keeps the original WSL path",
+  );
+  return {
+    wslPaths: true,
+    originalPath: true,
+    sharedMarks: true,
+    noCanvasOnToggle: true,
+    keyboardToggle: true,
+    unpin: true,
+  };
+}
+
 export async function verifyCanvasFolderShortcut(page, base = "http://127.0.0.1:18426") {
   await installCanvasNative(page);
   await page.goto(`${base}/tests/fixtures/pages.html?canvas&grouped&onlyterminals`);

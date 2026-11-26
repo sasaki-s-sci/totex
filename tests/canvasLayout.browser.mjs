@@ -94,7 +94,7 @@ export async function verifyCanvasPreviews(page, base = "http://127.0.0.1:18426"
   };
 }
 
-async function fileDrop(page, target, path, native = false) {
+async function fileDrop(page, target, path, native = false, edge = false) {
   if (native) {
     const box = await target.boundingBox();
     await page.evaluate(
@@ -106,7 +106,7 @@ async function fileDrop(page, target, path, native = false) {
     );
   } else {
     const box = await target.boundingBox();
-    const point = { clientX: box.x + box.width / 2, clientY: box.y + box.height / 2 };
+    const point = { clientX: box.x + (edge ? 2 : box.width / 2), clientY: box.y + box.height / 2 };
     const data = await page.evaluateHandle((path) => {
       const data = new DataTransfer();
       data.setData("application/x-totex-file", path);
@@ -148,6 +148,8 @@ export async function verifyCanvasLayout(page, base = "http://127.0.0.1:18426") 
   await installCanvasNative(page);
   await page.addInitScript(() => {
     if (window.top !== window) return;
+    // Native HTML5 dragging is unavailable in Tauri on Windows.
+    document.addEventListener("dragstart", (event) => event.preventDefault(), true);
     window.canvasStates["terminal-one"].panes = [
       { id: "source", kind: "file", path: "/tmp/note.txt" },
       { id: "live", kind: "iframe", url: "http://127.0.0.1:18424/live" },
@@ -217,8 +219,12 @@ export async function verifyCanvasLayout(page, base = "http://127.0.0.1:18426") 
   await page.evaluate(() => {
     window.pageWriteRefused = false;
   });
-  await fileDrop(page, mini, "/tmp/dropped.txt");
+  await fileDrop(page, mini, "/tmp/dropped.txt", false, true);
   await page.getByRole("textbox", { name: "dropped.txt", exact: true }).waitFor();
+  assert.equal(await editor.textContent(), "keep my layout draft");
+  assert.equal(await page.evaluate(() => window.canvasStates["terminal-one"].panes.length), 4);
+  await mini.dragTo(page.locator("[data-layout-trash]"));
+  await mini.waitFor({ state: "detached" });
   assert.equal(await page.evaluate(() => window.pageFileText), "keep my layout draft");
   assert.equal(await page.evaluate(() => window.canvasStates["terminal-one"].panes.length), 3);
 
@@ -265,6 +271,7 @@ export async function verifyCanvasSnap(page, base = "http://127.0.0.1:18426") {
   await installCanvasNative(page);
   await page.addInitScript(() => {
     if (window.top !== window) return;
+    document.addEventListener("dragstart", (event) => event.preventDefault(), true);
     window.canvasStates["terminal-one"].panes = [
       { id: "source", kind: "file", path: "/tmp/note.txt" },
       { id: "live", kind: "iframe", url: "http://127.0.0.1:18424/live" },

@@ -1,5 +1,6 @@
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { describeFolders, listRoots, type Place, type Root, resolveFolder } from "../../folder/api";
+import { isInside } from "../../folder/format";
 import { type Graphed, type GraphedKind, graphedKey, type PaneSeed } from "../../lib/graphed";
 import {
   forgetSshHost,
@@ -49,10 +50,11 @@ export interface FolderDestination {
   path: string;
 }
 
-/** The canvas asking every pane that graphed `root` by this kind to stop. A new object each time. */
-export interface FolderUngraph {
+/** A request to change a folder choice, shared with the sidebar's marks. */
+export interface FolderGraph {
   root: string;
-  kind?: GraphedKind;
+  kind: GraphedKind;
+  on: boolean;
 }
 
 const NO_HOMES: Homes = new Map();
@@ -106,7 +108,7 @@ export function usePanes(
   onBrowsingChange: ((paths: string[]) => void) | undefined,
   destination?: FolderDestination | null,
   homes?: Homes,
-  ungraph?: FolderUngraph | null,
+  graph?: FolderGraph | null,
 ) {
   const nextId = useRef(0);
   const [held, setPanes] = useFrontState<Pane[]>("folders.panes", () =>
@@ -225,18 +227,27 @@ export function usePanes(
   }, [destination]);
 
   useEffect(() => {
-    if (!ungraph) return;
-    const { root, kind = "folder" } = ungraph;
-    setPanes((current) =>
-      current.some((pane) => pane.kind === kind && pane.graphed.includes(root))
+    if (!graph) return;
+    const { root, kind, on } = graph;
+    setPanes((current) => {
+      const registered = current.some((pane) => pane.kind === kind && pane.graphed.includes(root));
+      if (registered === on) return current;
+      if (!on)
+        return current.map((pane) =>
+          pane.kind === kind && pane.graphed.includes(root)
+            ? { ...pane, graphed: pane.graphed.filter((held) => held !== root) }
+            : pane,
+        );
+      const owner =
+        current.find((pane) => pane.kind === kind && pane.path === root) ??
+        current.find((pane) => pane.kind === kind && isInside(pane.path, root));
+      return owner
         ? current.map((pane) =>
-            pane.kind === kind && pane.graphed.includes(root)
-              ? { ...pane, graphed: pane.graphed.filter((held) => held !== root) }
-              : pane,
+            pane === owner ? { ...pane, graphed: [...pane.graphed, root] } : pane,
           )
-        : current,
-    );
-  }, [ungraph]);
+        : [...current, { ...fresh(nextId.current++, kind, root, false), graphed: [root] }];
+    });
+  }, [graph]);
 
   // A pane whose worktree was deleted goes to the repository's main copy; a row showing a deleted
   // worktree goes back to the repository's own folder.

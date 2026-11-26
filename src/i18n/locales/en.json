@@ -380,6 +380,8 @@
   "canvas": {
     "tabs": "Canvases",
     "newTab": "New canvas",
+    "pinFolder": "Keep {{path}} in folder choices",
+    "unpinFolder": "Stop keeping {{path}} in folder choices",
     "closeTab": "Close canvas {{path}}",
     "selectTerminal": "Terminal {{number}}",
     "layout": "Layout",

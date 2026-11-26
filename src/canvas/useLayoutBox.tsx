@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { baseName } from "../folder/format";
+import { startPointerDrag } from "../lib/pointerDrag";
 import { MarkButton, SIZE } from "../marks";
 import { canvasGeometry } from "./geometry";
 import {
@@ -317,7 +318,6 @@ export function useLayoutBox(
                   aria-description={t("canvas.layoutHint")}
                   title={name(pane)}
                   disabled={pending}
-                  draggable
                   style={{
                     left: `${100 * rect.left}%`,
                     top: `${100 * rect.top}%`,
@@ -359,12 +359,20 @@ export function useLayoutBox(
                       swap(pane.id, layout.panes[next].id);
                     }
                   }}
-                  onDragStart={(event) => {
-                    select(pane.id);
-                    dragged.current = { session: layout.id, pane: pane.id };
-                    event.dataTransfer.setData(DRAG_TYPE, pane.id);
-                    event.dataTransfer.effectAllowed = "move";
-                  }}
+                  onPointerDown={(event) =>
+                    startPointerDrag(
+                      event.nativeEvent,
+                      event.currentTarget,
+                      (data) => {
+                        select(pane.id);
+                        dragged.current = { session: layout.id, pane: pane.id };
+                        data.setData(DRAG_TYPE, pane.id);
+                        data.effectAllowed = "move";
+                        return name(pane);
+                      },
+                      null,
+                    )
+                  }
                   onDragEnd={finish}
                 >
                   <canvas aria-hidden="true" tabIndex={-1} inert draggable={false} />

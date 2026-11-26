@@ -23,7 +23,7 @@ import { RootsMenu } from "./left/RootsMenu";
 import { UsagePanel } from "./left/UsagePanel";
 import {
   type FolderDestination,
-  type FolderUngraph,
+  type FolderGraph,
   type Pane,
   shownPath,
   usePanes,
@@ -31,7 +31,7 @@ import {
 import { useTerminalUsage } from "./left/useTerminalUsage";
 import { Sidebar, type Sizing } from "./Sidebar";
 
-export type { FolderDestination, FolderUngraph, Pane } from "./left/usePanes";
+export type { FolderDestination, FolderGraph, Pane } from "./left/usePanes";
 
 const SIZING: Sizing = { min: 200, max: 560, initial: 288, storageKey: "totex.sidebarWidth" };
 
@@ -51,8 +51,7 @@ export interface LeftSidebarProps {
   onOpenFile?: (path: string, folder: string) => void;
   drops: Drops;
   destination?: FolderDestination | null;
-  /** The canvas asking for a folder to come off it. */
-  ungraph?: FolderUngraph | null;
+  graph?: FolderGraph | null;
   homes?: Homes;
   /** Worktree path to the branch it is on, for a repository row showing one. */
   branches?: ReadonlyMap<string, string>;
@@ -76,7 +75,7 @@ export function LeftSidebar({
   onOpenFile,
   drops,
   destination,
-  ungraph,
+  graph,
   homes,
   branches,
   onDeletePane,
@@ -93,7 +92,7 @@ export function LeftSidebar({
     onBrowsingChange,
     destination,
     homes,
-    ungraph,
+    graph,
   );
   const visible = panes.panes;
   const removing = useRef(new Set<string>());

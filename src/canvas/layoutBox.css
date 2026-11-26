@@ -43,6 +43,8 @@
   font: inherit;
   font-size: 11px;
   cursor: grab;
+  user-select: none;
+  touch-action: none;
   overflow: hidden;
 }
 .layout-pane canvas {
