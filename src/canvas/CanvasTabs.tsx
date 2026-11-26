@@ -7,7 +7,7 @@ import type { Folder } from "../hooks/useWorkspace";
 import { terminal, typing } from "../lib/keys";
 import { type Session, shellSession } from "../lib/session";
 import { worktreeBranch } from "../lib/worktrees";
-import { CloseMark } from "../marks";
+import { CloseMark, Frame, MarkButton } from "../marks";
 import { usePageWorkspace } from "../page/PageWorkspace";
 import type { Workspace } from "../types/git";
 import { HEADER_HEIGHT } from "../window/WindowControls";
@@ -19,14 +19,14 @@ export function CanvasTabs({
   activeTerminal,
   workspace,
   folders,
-  onNewPage,
+  onOpenSidebar,
   fail,
 }: {
   tabs: ReturnType<typeof useCanvasTabs>;
   activeTerminal?: string;
   workspace: Workspace;
   folders: readonly Folder[];
-  onNewPage: () => void;
+  onOpenSidebar?: () => void;
   fail: () => void;
 }) {
   const { t } = useTranslation();
@@ -191,6 +191,20 @@ export function CanvasTabs({
   ));
   return (
     <header className="canvas-header" style={{ height: HEADER_HEIGHT }}>
+      {onOpenSidebar && (
+        <div className="canvas-sidebar-reopen" data-sidebar-reopen="left">
+          <MarkButton
+            label={t("folder.expandSidebar")}
+            aria-expanded={false}
+            aria-controls="folder-sidebar"
+            onClick={onOpenSidebar}
+          >
+            <Frame>
+              <path d="M9 6 15 12 9 18" />
+            </Frame>
+          </MarkButton>
+        </div>
+      )}
       <div ref={strip} className="canvas-tabs" role="tablist" aria-label={t("canvas.tabs")}>
         {tabs.tabs.map((tab, index) => {
           const active = tab.id === tabs.current?.id;
@@ -290,14 +304,6 @@ export function CanvasTabs({
         +
       </button>
       <div className="canvas-header-space" data-tauri-drag-region />
-      <button
-        className="canvas-new-page"
-        type="button"
-        disabled={!tabs.current}
-        onClick={onNewPage}
-      >
-        {t("canvas.newPage")}
-      </button>
       <Menu anchorEl={menu} open={menu !== null} onClose={() => setMenu(null)}>
         {items}
       </Menu>

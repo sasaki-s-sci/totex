@@ -32,7 +32,6 @@ import {
   LeftSidebar,
   type Pane,
 } from "../sidebar/LeftSidebar";
-import { SidebarReopen } from "../sidebar/SidebarReopen";
 import type { Repository } from "../types/git";
 import { SshPassword } from "./SshPassword";
 import { useFolderRoots } from "./useFolderRoots";
@@ -173,7 +172,6 @@ export function Window() {
           // No ground: the body paints it, so the wave can sit between the two.
         }}
       >
-        {!leftOpen && <SidebarReopen side="left" onClick={() => setLeftOpen(true)} />}
         <LeftSidebar
           open={leftOpen}
           onClose={() => setLeftOpen(false)}
@@ -246,15 +244,7 @@ export function Window() {
             activeTerminal={terminal?.id}
             workspace={workspace ?? EMPTY_WORKSPACE}
             folders={graphed}
-            onNewPage={() => {
-              if (!current) return;
-              void canvas
-                .change(current.id, (panes) => [
-                  ...panes,
-                  { id: crypto.randomUUID(), kind: "empty" },
-                ])
-                .catch(() => undefined);
-            }}
+            onOpenSidebar={leftOpen ? undefined : () => setLeftOpen(true)}
             fail={fail}
           />
           <Snackbar open={pasteFailed} onClose={() => setPasteFailed(false)}>

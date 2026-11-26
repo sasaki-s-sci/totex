@@ -168,7 +168,9 @@ export async function verifyCanvasContextMenu(page, base = "http://127.0.0.1:184
   assert.equal(await page.getByRole("menu").count(), 0);
   assert.equal(await page.locator('[data-canvas-pane="hidden-html"]').count(), 1);
 
-  await page.getByRole("button", { name: "New page", exact: true }).click();
+  await page.locator('[data-canvas-pane="code"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Add pane", exact: true }).click();
   const empty = page.locator('[data-session-canvas="terminal-two"] [data-canvas-kind="empty"]');
   await empty.click({ button: "right" });
   await page.getByRole("menuitem", { name: "Remove pane", exact: true }).click();

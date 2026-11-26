@@ -78,7 +78,7 @@ Preserve the surrounding explorer and the existing color, style, and effects set
 - Full-area canvas with straight separators.
 - Canvas tabs above the center, with terminal navigation inside each tab.
 - Theme-bound colors in light and dark modes.
-- Visible keyboard focus, a New page header action, and pane controls in the context menu.
+- Visible keyboard focus, a left-sidebar expand control in the header, and pane controls in the context menu.
 
 ## Colors
 
@@ -108,7 +108,7 @@ The supported composition is desktop. The reviewed widths are (900px), (1250px),
 
 ## Elevation & Depth
 
-Canvas panes have no shadows; the right sidebar keeps its window controls. One-pixel dividers and theme backgrounds establish boundaries. Keep existing theme effects and MUI overlays under their current settings; the canvas adds no elevation, blur, or motion. New page is a text action at the right of the central header. Pane actions stay in the context menu and never reserve space over the content.
+Canvas panes have no shadows; the right sidebar keeps its window controls. One-pixel dividers and theme backgrounds establish boundaries. Keep existing theme effects and MUI overlays under their current settings; the canvas adds no elevation, blur, or motion. The left-sidebar expand button occupies the leftmost slot in the central header when that sidebar is closed. Pane actions stay in the context menu and never reserve space over the content.
 
 ## Shapes
 
@@ -118,7 +118,7 @@ Canvas panes and separators are square and flush. Canvas tabs use square borders
 
 - **Evidence pane:** content reaches its bounds. Keyboard focus and held selection use an inset primary outline (2px), with no change to layout. Holding Ctrl+Space exposes selection; release returns focus to the terminal.
 - **Context menu:** right-click empty pages for add/remove actions. Occupied pages keep their own right-click behavior without Canvas options. The desktop app and its frames suppress browser menus while retaining custom menus. Shift+F10 after pane selection retains pane actions, including the media range popover. There are no title tabs, view choosers, hover toolbars or path fields.
-- **Canvas header:** one tab per canvas, each containing a folder path and its terminals. New page adds an empty pane to the active canvas and is disabled without a canvas. Switching terminals preserves content and live frames. Closing the final terminal leaves its canvas available for files or another terminal. The sidebar header contains no folder or terminal labels.
+- **Canvas header:** the left-sidebar expand button comes first when that sidebar is closed, followed by one tab per canvas, each containing a folder path and its terminals. Switching terminals preserves content and live frames. Closing the final terminal leaves its canvas available for files or another terminal. The sidebar header contains no folder or terminal labels.
 - **MCP setup:** keep the enable switch in Settings → Canvas. When enabled, show the selected terminal's environment, one selectable registration command with a copy action, and the two-step instruction: launch totex, register once, then use Codex normally. Wrap long commands within the settings width; loading, fixed-port startup errors, preparation errors and copy failures remain inline with retry actions.
 - **Empty canvas:** show collected URLs as bordered cards, with the command on the top edge and the URL below. Cards wrap into columns when space allows; long commands and URLs wrap within each card. Omit section headings and keyboard or pointer instructions. With no URLs, leave the canvas blank. Files arrive through explorer double click, drag and drop, or MCP.
 - **Evidence content:** image, file, code, document, and live-page renderers keep their established content behavior. Ctrl+plus/minus changes only the focused resource or terminal, with Ctrl+0 restoring its initial scale. Collected URLs, Markdown links and terminal links open embedded pages in their owning canvas. External browser opening remains an explicit action.
@@ -130,7 +130,7 @@ Canvas panes and separators are square and flush. Canvas tabs use square borders
 - Do fill the available center with evidence panes and use the existing divider token between them.
 - Do use theme variables for application surfaces, text, selection, and errors.
 - Do preserve the explorer and existing window controls.
-- Do keep pane controls in the context menu and New page in the header, while preserving keyboard shortcuts.
+- Do keep pane controls in the context menu while preserving keyboard shortcuts.
 
 ### Don't:
 

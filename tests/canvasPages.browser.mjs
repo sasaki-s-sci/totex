@@ -197,9 +197,10 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     await page.evaluate(() => window.pageCalls.some(({ cmd }) => cmd === "plugin:opener|open_url")),
     false,
   );
-  const newPage = page.getByRole("button", { name: "New page", exact: true });
-  await newPage.focus();
-  await newPage.press("Enter");
+  assert.equal(await page.getByRole("button", { name: "New page", exact: true }).count(), 0);
+  await page.locator('[data-canvas-pane="source"]').focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Add pane", exact: true }).click();
   await page.waitForFunction(() => window.canvasStates["terminal-one"].panes.length === 3);
   assert.equal(await page.evaluate(() => window.canvasStates["terminal-two"].panes.length), 0);
 
@@ -253,7 +254,7 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     knownCommandsOnly: true,
     commandLabels: true,
     newTerminal: true,
-    headerNewPage: true,
+    contextMenuAddPane: true,
     embeddedByDefault: true,
     snapshot: true,
   };

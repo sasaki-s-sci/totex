@@ -106,7 +106,7 @@ export function RightSidebar({
           )}
         </div>
       </Sidebar>
-      {!open && pages && <SidebarReopen side="right" onClick={pages.openSidebar} />}
+      {!open && pages && <SidebarReopen onClick={pages.openSidebar} />}
     </>
   );
 }

@@ -50,6 +50,26 @@ export async function verifySidebarVisibility(page, base = "http://127.0.0.1:184
     page.getByRole("button", { name: "Hide page sidebar", exact: true }).click();
   const hideLeft = () =>
     page.getByRole("button", { name: "Collapse root folders", exact: true }).click();
+  const assertHeader = async () => {
+    await reopen("left").waitFor();
+    assert.equal(
+      await reopen("left").evaluate((button) => {
+        const header = button.closest(".canvas-header");
+        const box = button.getBoundingClientRect();
+        const tabs = header?.querySelector(".canvas-tabs").getBoundingClientRect();
+        return (
+          header?.firstElementChild.contains(button) &&
+          getComputedStyle(button.parentElement).position === "static" &&
+          box.width === 24 &&
+          box.height === 24 &&
+          box.right <= tabs.left &&
+          button.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2))
+        );
+      }),
+      true,
+      "The left reopen control leads the header without covering canvas tabs",
+    );
+  };
   const assertAbove = async (side) => {
     await reopen(side).waitFor();
     const state = await reopen(side).evaluate((button) => {
@@ -102,12 +122,15 @@ export async function verifySidebarVisibility(page, base = "http://127.0.0.1:184
   await panel("right").waitFor({ state: "hidden" });
   assert.equal((await page.locator("main").first().boundingBox()).width, 1440);
   assert.equal(await active(), "terminal-one");
-  await assertAbove("left");
+  for (const width of [900, 1250, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await assertHeader();
+  }
   await assertAbove("right");
   await live.getByRole("button", { name: "Count 1", exact: true }).click();
 
   await expand("pdf");
-  await assertAbove("left");
+  assert.equal(await page.getByRole("dialog").locator('[data-sidebar-reopen="left"]').count(), 0);
   await assertAbove("right");
   await reopen("right").click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
@@ -115,11 +138,14 @@ export async function verifySidebarVisibility(page, base = "http://127.0.0.1:184
   assert.equal(await active(), "terminal-one");
   await hideRight();
   await expand("live");
-  await assertAbove("left");
   await assertAbove("right");
-  await reopen("left").click();
+  await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  await assertHeader();
+  await reopen("left").focus();
+  await reopen("left").press("Enter");
   await panel("left").waitFor();
+  assert.equal(await reopen("left").count(), 0);
   await panel("right").waitFor({ state: "hidden" });
   assert.equal(await live.evaluate(() => window.canvasFixtureMount), mount);
   await live.getByRole("button", { name: "Count 2", exact: true }).waitFor();

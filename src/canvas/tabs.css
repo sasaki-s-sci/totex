@@ -6,6 +6,12 @@
   border-bottom: 1px solid var(--mui-palette-divider);
   background: var(--mui-palette-background-default);
 }
+.canvas-sidebar-reopen {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 0 8px;
+}
 .canvas-tabs {
   display: flex;
   min-width: 0;
@@ -49,8 +55,7 @@
   line-height: 1;
   cursor: pointer;
 }
-.canvas-tab-close:hover,
-.canvas-new-page:hover:not(:disabled) {
+.canvas-tab-close:hover {
   outline: 1px solid var(--mui-palette-divider);
   outline-offset: -1px;
 }
@@ -123,9 +128,4 @@
   flex: 1;
   min-width: 64px;
   cursor: grab;
-}
-.canvas-header .canvas-new-page {
-  flex: none;
-  padding: 0 8px;
-  white-space: nowrap;
 }
