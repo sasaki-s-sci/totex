@@ -1,15 +1,44 @@
 use reqwest::{Url, header::HeaderMap};
 use serde::Serialize;
+use std::error::Error;
 use std::time::Duration;
 
 #[derive(Debug, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum PageStatus {
     Ready,
-    Unavailable,
+    Unavailable {
+        reason: &'static str,
+        detail: String,
+    },
     FrameBlocked,
     RedirectBlocked,
-    HttpError { status: u16 },
+    HttpError {
+        status: u16,
+    },
+}
+
+fn unavailable(error: reqwest::Error) -> PageStatus {
+    let mut reason = if error.is_timeout() {
+        "timeout"
+    } else {
+        "connection"
+    };
+    let error = error.without_url();
+    let mut detail = error.to_string();
+    let mut source = error.source();
+    while let Some(cause) = source {
+        if cause
+            .downcast_ref::<std::io::Error>()
+            .is_some_and(|error| error.kind() == std::io::ErrorKind::ConnectionRefused)
+        {
+            reason = "refused";
+        }
+        detail.push_str(": ");
+        detail.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    PageStatus::Unavailable { reason, detail }
 }
 
 fn local(url: &Url) -> bool {
@@ -73,9 +102,10 @@ pub async fn canvas_page_status(url: String) -> Result<PageStatus, String> {
         .build()
         .map_err(|_| "Could not check the page")?;
     for _ in 0..4 {
-        let response = match client.head(url.clone()).send().await {
+        // HEAD can succeed while the document's GET closes without sending a response.
+        let response = match client.get(url.clone()).send().await {
             Ok(response) => response,
-            Err(_) => return Ok(PageStatus::Unavailable),
+            Err(error) => return Ok(unavailable(error)),
         };
         if response.status().is_redirection() {
             let next = response
@@ -94,7 +124,7 @@ pub async fn canvas_page_status(url: String) -> Result<PageStatus, String> {
             return Ok(PageStatus::FrameBlocked);
         }
         let status = response.status().as_u16();
-        // An anonymous HEAD is not evidence that the browser's authenticated GET will fail.
+        // An anonymous request is not evidence that the browser's authenticated GET will fail.
         if status == 404 || status == 410 || status >= 500 {
             return Ok(PageStatus::HttpError { status });
         }

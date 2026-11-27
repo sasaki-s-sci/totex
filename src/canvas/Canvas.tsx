@@ -37,7 +37,7 @@ import { ZOOM_EVENT, type ZoomStep, zoomed, zoomKey } from "../lib/zoom";
 import { markdownPart, mediaPart, settingsPart } from "../parts";
 import { keepFrontValue } from "../shell/state";
 import { CanvasFile } from "./CanvasFile";
-import { CanvasPages } from "./CanvasPages";
+import { type CanvasPageGroup, CanvasPages } from "./CanvasPages";
 import type { CanvasProps } from "./CanvasProps";
 import { LiveFrame } from "./LiveFrame";
 import { type CanvasSplit, paneGrid } from "./layout";
@@ -50,7 +50,6 @@ import {
   webAddress,
 } from "./model";
 import { PictureReading } from "./nodes/preview/PictureReading";
-import type { CanvasPage } from "./pages";
 import type { useCanvases } from "./useCanvases";
 import { useCanvasResize } from "./useCanvasResize";
 import { canvasOf } from "./useCanvasTabs";
@@ -76,6 +75,9 @@ export function Canvas({
 }: CanvasProps) {
   const { t } = useTranslation();
   const pages = useTerminalPages();
+  const terminals = tabs.flatMap((tab) =>
+    sessions.filter((session) => canvasOf(session) === tab.id),
+  );
   const processing = useRef(new Set<number>());
   const current = tabs.find((tab) => tab.id === activeCanvas);
   const Settings = settingsPart.use(settingsRequest > 0);
@@ -137,11 +139,13 @@ export function Canvas({
           change={state.change}
           registerSave={state.registerSave}
           refresh={state.refreshes[session.id] ?? 0}
-          pages={pages.filter((page) =>
-            sessions.some(
-              (member) => member.id === page.sessionId && canvasOf(member) === session.id,
-            ),
-          )}
+          pageGroups={terminals.flatMap((member, index) => {
+            if (canvasOf(member) !== session.id) return [];
+            const collected = pages.filter((page) => page.sessionId === member.id);
+            return collected.length
+              ? [{ sessionId: member.id, number: index + 1, pages: collected }]
+              : [];
+          })}
           onNewTerminal={() => onNewTerminal(session)}
         />
       ))}
@@ -174,7 +178,7 @@ type BoardProps = {
   change: ReturnType<typeof useCanvases>["change"];
   registerSave: ReturnType<typeof useCanvases>["registerSave"];
   refresh?: number;
-  pages?: readonly CanvasPage[];
+  pageGroups?: readonly CanvasPageGroup[];
   onNewTerminal?: () => void;
 };
 
@@ -188,7 +192,7 @@ export function SessionCanvas({
   change,
   registerSave,
   refresh = 0,
-  pages = [],
+  pageGroups = [],
   onNewTerminal,
 }: BoardProps) {
   const { t } = useTranslation();
@@ -342,6 +346,12 @@ export function SessionCanvas({
         (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) &&
         (holding || (event.target instanceof Node && host.current?.contains(event.target)))
       ) {
+        if (
+          !holding &&
+          event.target instanceof Element &&
+          event.target.closest(".canvas-page-link")
+        )
+          return;
         event.preventDefault();
         event.stopImmediatePropagation();
         const { panes, selected } = latest.current;
@@ -456,7 +466,7 @@ export function SessionCanvas({
         }}
         style={resize.style}
       >
-        {!panes.length && <CanvasPages pages={pages} open={openPage} />}
+        {!panes.length && <CanvasPages groups={pageGroups} shown={shown} open={openPage} />}
         {drawOrder.current.map((paneId) => {
           const index = panes.findIndex((pane) => pane.id === paneId);
           const pane = panes[index];
@@ -475,7 +485,13 @@ export function SessionCanvas({
               cell={layout.cells[index]}
               select={() => select(pane.id)}
               open={(path, context) => open(path, context ?? { paneId: pane.id })}
-              empty={<CanvasPages pages={pages} open={(url) => openPage(url, pane.id)} />}
+              empty={
+                <CanvasPages
+                  groups={pageGroups}
+                  shown={shown}
+                  open={(url) => openPage(url, pane.id)}
+                />
+              }
               reload={(reloads[pane.id] ?? 0) + refresh}
               remove={() => remove(pane.id)}
               rangeAnchor={range?.paneId === pane.id ? range : null}

@@ -467,6 +467,7 @@ export async function verifyLocalPageStatus(page, base = "http://127.0.0.1:18426
     window.__TAURI_INTERNALS__.invoke = (cmd, args) => {
       if (cmd === "canvas_page_status") {
         window.pageChecks++;
+        if (window.failPageCheck) return Promise.reject(new Error("Page check unavailable"));
         return Promise.resolve(window.localPageStatus);
       }
       return invoke(cmd, args);
@@ -493,6 +494,27 @@ export async function verifyLocalPageStatus(page, base = "http://127.0.0.1:18426
   await page
     .getByText("The server returned HTTP 404. Check the URL or reload the page.", { exact: true })
     .waitFor();
+  for (const [reason, text] of [
+    ["refused", "The local server refused the connection."],
+    ["timeout", "The local server took too long to respond."],
+  ]) {
+    await page.evaluate((reason) => {
+      window.localPageStatus = { kind: "unavailable", reason, detail: `Connection ${reason}` };
+    }, reason);
+    await page.getByRole("button", { name: "Reload page", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: text }).waitFor();
+    await page.getByText(`Connection ${reason}`, { exact: true }).waitFor();
+    assert.equal(await page.locator(".canvas-frame").count(), 0);
+  }
+  for (const failure of [true, false]) {
+    await page.evaluate((failure) => {
+      window.failPageCheck = failure;
+      window.localPageStatus = null;
+    }, failure);
+    await page.getByRole("button", { name: "Reload page", exact: true }).click();
+    await page.getByRole("status").filter({ hasText: "Could not check the local page." }).waitFor();
+    assert.equal(await page.locator(".canvas-frame").count(), 0);
+  }
   await page.evaluate(() => {
     window.localPageStatus = { kind: "unavailable" };
   });
@@ -513,6 +535,18 @@ export async function verifyLocalPageStatus(page, base = "http://127.0.0.1:18426
     .waitFor();
   const live = page.frame({ url: "http://127.0.0.1:18424/live" });
   const mount = await live.evaluate(() => window.canvasFixtureMount);
+  for (const mode of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme: mode });
+    await page.waitForFunction((mode) => {
+      const frame = document.querySelector(".canvas-frame");
+      return frame?.contentDocument?.documentElement.style.colorScheme === mode;
+    }, mode);
+    assert.equal(
+      await live.evaluate(() => window.canvasFixtureMount),
+      mount,
+      "Theme changes retain the live document",
+    );
+  }
   await page.locator('[data-canvas-pane="live"]').focus();
   await page.keyboard.press("Shift+F10");
   await page.getByRole("menuitem", { name: "Reload page", exact: true }).click();
@@ -531,11 +565,55 @@ export async function verifyLocalPageStatus(page, base = "http://127.0.0.1:18426
       .evaluate(() => window.canvasFixtureMount),
     mount,
   );
+  await page.evaluate(() => {
+    window.localPageStatus = {
+      kind: "unavailable",
+      reason: "refused",
+      detail: "Connection refused",
+    };
+  });
+  await page.route("http://127.0.0.1:18424/live", (route) => route.abort("connectionrefused"));
+  await page.frame({ url: "http://127.0.0.1:18424/live" }).evaluate(() => location.reload());
+  await page.getByText("Connection refused", { exact: true }).waitFor();
+  assert.equal(
+    await page.locator(".canvas-frame").count(),
+    0,
+    "A later failed load replaces the browser error page",
+  );
+  for (const mode of ["dark", "light"]) {
+    await page.emulateMedia({ colorScheme: mode });
+    await page.waitForFunction(
+      (mode) => document.documentElement.getAttribute("data-color-scheme") === mode,
+      mode,
+    );
+    const status = page.locator(".canvas-page-status");
+    const colors = await status.evaluate((node) => {
+      const style = getComputedStyle(node);
+      const pane = getComputedStyle(node.closest(".canvas-pane"));
+      const reference = document.createElement("span");
+      reference.style.color = "var(--mui-palette-text-primary)";
+      node.append(reference);
+      const colors = [
+        style.backgroundColor,
+        pane.backgroundColor,
+        style.color,
+        getComputedStyle(reference).color,
+      ];
+      reference.remove();
+      return colors;
+    });
+    assert.equal(colors[0], colors[1]);
+    assert.equal(colors[2], colors[3]);
+  }
   return {
     embeddingReason: true,
     openBrowser: true,
     httpErrors: true,
     startupRecovery: true,
     manualReload: true,
+    failedChecks: true,
+    connectionReasons: true,
+    themed: true,
+    subsequentLoad: true,
   };
 }

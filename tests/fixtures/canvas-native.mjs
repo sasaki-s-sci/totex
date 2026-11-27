@@ -186,6 +186,7 @@ export async function installCanvasNative(page) {
           return structuredClone(
             window.canvasStates[args.id] ?? { id: args.id, revision: 0, panes: [] },
           );
+        if (cmd === "canvas_page_status") return { kind: "ready" };
         if (cmd === "canvas_close") {
           delete window.canvasStates[args.id];
           return null;

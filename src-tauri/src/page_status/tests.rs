@@ -16,7 +16,7 @@ fn check(responses: &[&str]) -> PageStatus {
             BufReader::new(stream.try_clone().unwrap())
                 .read_line(&mut line)
                 .unwrap();
-            assert!(line.starts_with("HEAD /"));
+            assert!(line.starts_with("GET /"));
             stream
                 .write_all(
                     format!(
@@ -99,8 +99,51 @@ fn a_closed_local_port_can_be_retried() {
     let server = TcpListener::bind("127.0.0.1:0").unwrap();
     let url = format!("http://{}/", server.local_addr().unwrap());
     drop(server);
-    assert_eq!(
+    assert!(matches!(
         tauri::async_runtime::block_on(canvas_page_status(url)).unwrap(),
-        PageStatus::Unavailable
-    );
+        PageStatus::Unavailable { reason: "refused", detail } if !detail.is_empty()
+    ));
+}
+
+#[test]
+fn a_server_that_never_sends_headers_reports_a_timeout() {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/", server.local_addr().unwrap());
+    assert!(matches!(
+        tauri::async_runtime::block_on(canvas_page_status(url)).unwrap(),
+        PageStatus::Unavailable {
+            reason: "timeout",
+            ..
+        }
+    ));
+}
+
+#[test]
+fn get_without_a_response_is_not_mistaken_for_a_ready_page() {
+    let server = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}/?secret=private", server.local_addr().unwrap());
+    let thread = std::thread::spawn(move || {
+        let (stream, _) = server.accept().unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        assert!(line.starts_with("GET /"));
+        loop {
+            line.clear();
+            reader.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+        }
+    });
+    let status = tauri::async_runtime::block_on(canvas_page_status(url)).unwrap();
+    thread.join().unwrap();
+    assert!(matches!(
+        status,
+        PageStatus::Unavailable { reason: "connection", detail }
+            if !detail.is_empty() && !detail.contains("private")
+    ));
 }

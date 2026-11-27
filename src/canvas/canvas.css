@@ -177,8 +177,18 @@ main.terminal-canvases {
 }
 .canvas-pages {
   justify-content: flex-start;
+  gap: 24px;
   overflow: auto;
   text-align: left;
+}
+.canvas-page-group {
+  width: min(100%, 720px);
+}
+.canvas-page-group h2 {
+  margin: 0 0 20px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mui-palette-text-secondary);
 }
 .canvas-pages ul {
   display: grid;
@@ -235,6 +245,9 @@ main.terminal-canvases {
   justify-content: center;
   gap: 12px;
   overflow: auto;
+  color: var(--mui-palette-text-primary);
+  background: var(--mui-palette-background-default);
+  overflow-wrap: anywhere;
 }
 .canvas-page-status p {
   margin: 0;
@@ -242,6 +255,12 @@ main.terminal-canvases {
 .canvas-page-address {
   color: var(--mui-palette-text-secondary);
   overflow-wrap: anywhere;
+}
+.canvas-page-detail {
+  max-width: 100%;
+  color: var(--mui-palette-text-secondary);
+  font: 12px / 1.5 var(--totex-mono, monospace);
+  white-space: pre-wrap;
 }
 .canvas-page-actions {
   display: flex;

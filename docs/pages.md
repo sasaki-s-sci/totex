@@ -52,9 +52,11 @@ focus to the current terminal. Removing a pane removes its display, not its
 source file. An edited file must save successfully before its pane or terminal
 can be closed. Right-click a pane to see its file name and path (or served URL),
 **Expand**, **Add pane** and **Remove pane**. **Open URL** supplies a borderless
-address field; terminal Ctrl+click opens the address in that terminal's canvas.
-Right-click a terminal URL or file path for its Open and Copy actions. Empty
-canvases and panes display only the shortcut hint.
+address field; clicking a terminal URL opens it in that terminal's canvas.
+Empty canvases and panes collect URLs emitted by known shell commands, grouped
+by the terminal numbers in the header. Clicking a URL card opens it in the canvas;
+right-click or Shift+F10 offers the same canvas, browser and copy actions as a
+terminal URL. Terminal file paths also retain their Open and Copy actions.
 
 **Expand** opens the existing file or preview in an overlay. Its editor, iframe
 and media player remain mounted in place, retaining drafts, application state and
@@ -264,6 +266,15 @@ scriptless wrapper applies a CSP that limits frame navigation to the submitted
 origin and keeps the app's native bridge out of the served page. Some sites deny
 embedding through their own headers; use a Playwright screenshot image for those
 pages. Iframe runtime state survives terminal switching, not a full reload.
+
+In the desktop window, local page failures use the selected theme and show the
+available reason, URL, reload and browser actions. Connection refusal, timeout,
+HTTP errors and blocked embedding are distinguished. The check uses GET headers
+without reading the body or forwarding browser credentials; failed checks stay
+on the error surface. Loading and subsequent frame reloads repeat the check, and
+unavailable servers are retried up to 30 times. Changing the theme updates
+the wrapper without reloading the served application. Updating this diagnostic
+requires rebuilding the native window.
 
 ## Implementation and checks
 

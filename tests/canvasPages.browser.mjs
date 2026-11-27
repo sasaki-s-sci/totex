@@ -29,6 +29,8 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
       }
       if (cmd === "plugin:clipboard-manager|write_text" && window.refuseCopy)
         throw new Error("Clipboard unavailable");
+      if (cmd === "plugin:opener|open_url" && window.refuseBrowser)
+        throw new Error("Browser unavailable");
       if (cmd === "canvas_write" && window.refusePage) throw new Error("Cannot open canvas page");
       return invoke(cmd, args);
     };
@@ -247,6 +249,75 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
         entry.sessionId === "terminal-one" && entry.url === url && entry.command === "pnpm dev",
     ),
   );
+  const firstGroup = emptyCanvas.getByRole("region", { name: "Terminal 1", exact: true });
+  const secondGroup = emptyCanvas.getByRole("region", { name: "Terminal 2", exact: true });
+  assert.equal(await firstGroup.getByText("pnpm preview", { exact: true }).count(), 0);
+  assert.equal(await secondGroup.getByText("pnpm dev", { exact: true }).count(), 0);
+  assert.deepEqual(await emptyCanvas.locator(".canvas-page-group h2").allTextContents(), [
+    "Terminal 1",
+    "Terminal 2",
+  ]);
+  const collectedLink = secondGroup.getByRole("button", { name: `Open ${url}`, exact: true });
+  await collectedLink.click({ button: "right" });
+  assert.deepEqual(await page.getByRole("menuitem").allTextContents(), [
+    "Open URL in canvas",
+    "Open URL in browser",
+    "Copy URL",
+  ]);
+  await page.getByRole("menuitem", { name: "Copy URL", exact: true }).click();
+  assert.equal(
+    await page.evaluate(
+      () =>
+        window.pageCalls.filter(({ cmd }) => cmd === "plugin:clipboard-manager|write_text").at(-1)
+          .args.text,
+    ),
+    url,
+  );
+  await page.evaluate(() => {
+    window.refuseCopy = true;
+  });
+  await collectedLink.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy URL", exact: true }).click();
+  await emptyCanvas.getByRole("alert").filter({ hasText: "Could not copy." }).waitFor();
+  await page.evaluate(() => {
+    window.refuseCopy = false;
+  });
+  const beforeExternal = await page.evaluate(() => window.canvasStates["terminal-one"].panes);
+  await page.evaluate(() => {
+    window.refuseBrowser = true;
+  });
+  await collectedLink.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Open URL in browser", exact: true }).click();
+  await emptyCanvas.getByRole("alert").filter({ hasText: "Could not open the link" }).waitFor();
+  await page.evaluate(() => {
+    window.refuseBrowser = false;
+  });
+  await collectedLink.focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Open URL in browser", exact: true }).click();
+  assert.equal(
+    await page.evaluate(
+      () => window.pageCalls.filter(({ cmd }) => cmd === "plugin:opener|open_url").at(-1).args.url,
+    ),
+    url,
+  );
+  assert.deepEqual(
+    await page.evaluate(() => window.canvasStates["terminal-one"].panes),
+    beforeExternal,
+  );
+  await collectedLink.click({ button: "right" });
+  await page.keyboard.press("Control+3");
+  await page.getByRole("menu").waitFor({ state: "hidden" });
+  await page.keyboard.press("Control+2");
+  await collectedLink.waitFor();
+  assert.equal(await page.getByRole("menu").count(), 0, "Hidden canvases close their URL menu");
+  await collectedLink.focus();
+  await page.keyboard.press("Shift+F10");
+  await page.getByRole("menuitem", { name: "Open URL in canvas", exact: true }).click();
+  await page.waitForFunction(() =>
+    window.canvasStates["terminal-one"].panes.every((pane) => pane.kind !== "empty"),
+  );
+  assert.equal(await otherCanvas.getByText(url, { exact: true }).count(), 0);
   return {
     copy: true,
     failures: true,
@@ -257,6 +328,9 @@ export async function verifyCanvasPages(page, base = "http://127.0.0.1:18426") {
     contextMenuAddPane: true,
     embeddedByDefault: true,
     snapshot: true,
+    terminalGroups: true,
+    urlMenu: true,
+    keyboardUrlMenu: true,
   };
 }
 
